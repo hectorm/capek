@@ -1,0 +1,204 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+name: "capek"
+
+# https://hub.docker.com/r/dexidp/dex
+x-dex-image: &dex-image "mirror.gcr.io/dexidp/dex:v2.44.0"
+
+services:
+  traefik:
+    extends:
+      file: "./compose.base.yaml"
+      service: "traefik"
+    networks:
+      external:
+      internal:
+        aliases:
+          - "capek.internal"
+          - "idp.internal"
+
+  capek:
+    extends:
+      file: "./compose.base.yaml"
+      service: "capek"
+    networks:
+      - "external"
+      - "internal"
+    environment:
+      NUXT_AUTH_MODE: "oidc"
+      NUXT_OIDC_ROOT_URL: "https://capek.localhost"
+      NUXT_OIDC_ISSUER: "https://idp.localhost/dex"
+      NUXT_OIDC_DISCOVERY_ENABLED: "false"
+      NUXT_OIDC_AUTHORIZATION_ENDPOINT: "https://idp.localhost/dex/auth"
+      NUXT_OIDC_TOKEN_ENDPOINT: "https://idp.internal/dex/token"
+      NUXT_OIDC_USERINFO_ENDPOINT: "https://idp.internal/dex/userinfo"
+      NUXT_OIDC_JWKS_URI: "https://idp.internal/dex/keys"
+      NUXT_OIDC_REDIRECT_URI: "https://capek.localhost/api/login/callback"
+      NUXT_OIDC_CLIENT_ID: "capek"
+      NUXT_OIDC_CLIENT_SECRET: "ourclientbythesewordsguarded"
+      NUXT_OIDC_SCOPES: "openid email profile"
+      NUXT_OIDC_USERNAME_ATTRIBUTE_PATH: "name"
+      NUXT_OIDC_SYNC_ROLES: "true"
+      NUXT_OIDC_SYNC_GROUPS: "false"
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      postgres-setup:
+        condition: "service_completed_successfully"
+
+  dex:
+    image: *dex-image
+    container_name: "capek-dex"
+    hostname: "dex"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.dex.rule: "Host(`idp.localhost`) || Host(`idp.internal`)"
+      traefik.http.routers.dex.entryPoints: "websecure"
+      traefik.http.routers.dex.tls: "true"
+      traefik.http.routers.dex.service: "dex@docker"
+      traefik.http.services.dex.loadBalancer.server.port: "5556"
+    restart: "always"
+    networks:
+      - "internal"
+    volumes:
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    configs:
+      - { source: "dex-config.yaml", target: "/etc/dex/config.yaml", mode: 0o0644 }
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:5556/dex/healthz"]
+      start_period: "60s"
+      start_interval: "5s"
+      interval: "10s"
+      timeout: "10s"
+      retries: 2
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      postgres-setup:
+        condition: "service_completed_successfully"
+
+  postgres:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres"
+    networks:
+      - "internal"
+    volumes:
+      - { type: "volume", source: "postgres-data", target: "/var/lib/postgresql/" }
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+
+  postgres-setup:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres-setup"
+    networks:
+      - "internal"
+    configs:
+      - { source: "postgres-capek.sql", target: "/docker-entrypoint-initdb.d/capek.sql", mode: 0o0644 }
+      - { source: "postgres-dex.sql", target: "/docker-entrypoint-initdb.d/dex.sql", mode: 0o0644 }
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+
+  playwright-mcp:
+    extends:
+      file: "./compose.base.yaml"
+      service: "playwright-mcp"
+    networks:
+      - "external"
+      - "internal"
+
+configs:
+  dex-config.yaml:
+    content: |
+      issuer: "https://idp.localhost/dex"
+      storage:
+        type: "postgres"
+        config:
+          host: "postgres"
+          port: 5432
+          database: "dex"
+          user: "dex"
+          password: "password"
+          ssl:
+            mode: "disable"
+      web:
+        http: "0.0.0.0:5556"
+      frontend:
+        issuer: "dex"
+      oauth2:
+        grantTypes: ["authorization_code", "refresh_token"]
+        responseTypes: ["code"]
+        skipApprovalScreen: true
+        alwaysShowLoginScreen: false
+      expiry:
+        deviceRequests: "5m"
+        signingKeys: "6h"
+        idTokens: "24h"
+        authRequests: "24h"
+        refreshTokens:
+          validIfNotUsedFor: "168h"
+          absoluteLifetime: "2160h"
+      staticClients:
+        - name: "Capek"
+          id: "capek"
+          secret: "ourclientbythesewordsguarded"
+          redirectURIs:
+            - "https://capek.localhost/api/login/callback"
+            - "http://localhost:3000/api/login/callback"
+      enablePasswordDB: true
+      staticPasswords:
+        - userID: "00000000-0000-7000-8000-000000000000"
+          username: "alice"
+          email: "alice@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+        - userID: "00000000-0000-7000-8000-000000000001"
+          username: "bob"
+          email: "bob@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+        - userID: "00000000-0000-7000-8000-000000000002"
+          username: "carol"
+          email: "carol@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+        - userID: "00000000-0000-7000-8000-000000000003"
+          username: "dan"
+          email: "dan@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+        - userID: "00000000-0000-7000-8000-000000000004"
+          username: "erin"
+          email: "erin@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+        - userID: "00000000-0000-7000-8000-000000000005"
+          username: "frank"
+          email: "frank@localhost"
+          hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
+
+  postgres-capek.sql:
+    content: |
+      SELECT 'CREATE USER capek PASSWORD ''password'''
+      WHERE NOT EXISTS (SELECT FROM pg_user WHERE usename = 'capek')\gexec
+      SELECT 'CREATE DATABASE capek WITH OWNER = capek ENCODING = ''UTF8'' TABLESPACE = pg_default'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'capek')\gexec
+
+  postgres-dex.sql:
+    content: |
+      SELECT 'CREATE USER dex PASSWORD ''password'''
+      WHERE NOT EXISTS (SELECT FROM pg_user WHERE usename = 'dex')\gexec
+      SELECT 'CREATE DATABASE dex WITH OWNER = dex ENCODING = ''UTF8'' TABLESPACE = pg_default'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dex')\gexec
+
+volumes:
+  postgres-data:
+    name: "capek-postgres-data"
+
+networks:
+  external:
+    name: "capek-external"
+    internal: false
+
+  internal:
+    name: "capek-internal"
+    internal: true

@@ -1,0 +1,41 @@
+##################################################
+## "build" stage
+##################################################
+
+FROM mirror.gcr.io/oven/bun:1.3.5-debian@sha256:b5cf5ca5dc3e2a02d805802ba089401c4beabf597daabbf35a17b8e82dc2f7bc AS build
+
+ENV BUN_INSTALL=/bun
+ENV PATH=${BUN_INSTALL}/bin:${PATH}
+ENV NITRO_PRESET=bun
+
+WORKDIR /src/
+
+COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml /src/
+
+RUN --mount=type=cache,id=bun,dst=/bun/install/cache/ \
+	bun install --frozen-lockfile --ignore-scripts
+
+COPY ./ /src/
+
+RUN --network=none \
+	--mount=type=cache,id=bun,dst=/bun/install/cache/ \
+	bun run prepare && bun run build
+
+##################################################
+## "main" stage
+##################################################
+
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:6ecf048c4622b32291b92266c6618c9ca34989bbfa8ae6dcb82216dce082aabe AS main
+
+ENV NUXT_DATABASE_URL=file:///tmp/pglite
+
+COPY --from=build --chown=0:0 /usr/local/bin/bun /bun
+COPY --from=build --chown=0:0 /src/.output/ /capek/
+COPY --from=build --chown=0:0 /src/bin/ /capek/server/bin/
+
+WORKDIR /capek/server/
+
+HEALTHCHECK --start-period=60s --start-interval=5s --interval=30s --timeout=5s --retries=2 \
+	CMD ["/bun", "run", "/capek/server/bin/healthcheck.mjs", "http://localhost:3000"]
+
+ENTRYPOINT ["/bun", "run", "/capek/server/bin/entrypoint.mjs", "/capek/server/index.mjs"]

@@ -1,0 +1,189 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: "Main"
+
+on:
+  push:
+    tags: ["*"]
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: "Test"
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "read"
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8"
+      - name: "Setup pnpm"
+        run: "corepack enable && corepack install"
+      - name: "Setup Node.js"
+        uses: "actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f"
+        with:
+          node-version-file: "package.json"
+          cache: "pnpm"
+      - name: "Install dependencies"
+        run: "pnpm install --frozen-lockfile"
+      - name: "Run linter"
+        run: "pnpm run lint"
+      - name: "Run build"
+        run: "pnpm run build"
+      - name: "Cache Playwright browsers"
+        uses: "actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb"
+        with:
+          path: "~/.cache/ms-playwright/"
+          key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}"
+          restore-keys: "playwright-${{ runner.os }}-"
+      - name: "Install Playwright browsers"
+        run: "pnpm exec playwright install --with-deps chromium firefox webkit"
+      - name: "Run tests"
+        run: "pnpm run test"
+
+  build:
+    name: "Build on ${{ matrix.runtime.name }} (${{ matrix.platform.arch }})"
+    needs: ["test"]
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "read"
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime:
+          - id: "node"
+            name: "Node.js"
+            dockerfile: "./Dockerfile"
+        platform:
+          - id: "linux-amd64"
+            arch: "linux/amd64"
+          - id: "linux-arm64-v8"
+            arch: "linux/arm64/v8"
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8"
+      - name: "Export runtime variables"
+        uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
+      - name: "Set up Docker Buildx"
+        uses: "hectorm/ghaction-docker-buildx-setup@fec3efdbb455c2aa58a4fbfd11a9853f5de2cdba"
+      - name: "Build"
+        uses: "hectorm/ghaction-docker-buildx-build@c93d4a99aad23d7c6c25e1210e3700dcb7298830"
+        with:
+          dockerfile: "${{ matrix.runtime.dockerfile }}"
+          platforms: |
+            ${{ matrix.platform.arch }}
+          cache-from: |
+            type=gha,scope=${{ matrix.runtime.id }}-${{ matrix.platform.id }}
+          cache-to: |
+            type=gha,scope=${{ matrix.runtime.id }}-${{ matrix.platform.id }},mode=max
+
+  smoke:
+    name: "Smoke on ${{ matrix.runtime.name }} (${{ matrix.platform.arch }})"
+    needs: ["build"]
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "read"
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime:
+          - id: "node"
+            name: "Node.js"
+            dockerfile: "./Dockerfile"
+        platform:
+          - id: "linux-amd64"
+            arch: "linux/amd64"
+    env:
+      COMPOSE_FILE: "./compose.proxy.yaml:./compose.ci.yaml"
+      COMPOSE_PROFILES: "production"
+      COMPOSE_OVERRIDE: |
+        services:
+          capek:
+            platform: "${{ matrix.platform.arch }}"
+            build:
+              dockerfile: "${{ matrix.runtime.dockerfile }}"
+              cache_from: ["type=gha,scope=${{ matrix.runtime.id }}-${{ matrix.platform.id }}"]
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8"
+      - name: "Export runtime variables"
+        uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
+      - name: "Set up Docker Buildx"
+        uses: "hectorm/ghaction-docker-buildx-setup@fec3efdbb455c2aa58a4fbfd11a9853f5de2cdba"
+      - name: "Test"
+        run: |
+          printenv COMPOSE_OVERRIDE > ./compose.ci.yaml
+          docker compose up --detach --wait --wait-timeout 300
+      - name: "After test"
+        if: "always()"
+        run: |
+          docker compose logs --tail all
+          docker compose down --volumes
+          docker compose rm --force
+
+  publish-docker:
+    name: "Publish Docker images"
+    if: "startsWith(github.ref, 'refs/tags/v') || github.ref_name == github.event.repository.default_branch"
+    needs: ["smoke"]
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "read"
+      packages: "write"
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8"
+      - name: "Export runtime variables"
+        uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
+      - name: "Set up Docker Buildx"
+        uses: "hectorm/ghaction-docker-buildx-setup@fec3efdbb455c2aa58a4fbfd11a9853f5de2cdba"
+      - name: "Login to GitHub Container Registry"
+        if: "github.event_name != 'pull_request'"
+        uses: "docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef"
+        with:
+          registry: "ghcr.io"
+          username: "${{ github.actor }}"
+          password: "${{ secrets.GITHUB_TOKEN }}"
+      - name: "Extract metadata"
+        id: "meta"
+        uses: "docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051"
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}
+      - name: "Push"
+        uses: "hectorm/ghaction-docker-buildx-build@c93d4a99aad23d7c6c25e1210e3700dcb7298830"
+        with:
+          dockerfile: "./Dockerfile"
+          platforms: |
+            linux/amd64
+            linux/arm64/v8
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+          push: "${{ github.event_name != 'pull_request' }}"
+          cache-from: |
+            type=gha,scope=node-linux-amd64
+            type=gha,scope=node-linux-arm64-v8
+
+  publish-github-release:
+    name: "Publish GitHub release"
+    if: "startsWith(github.ref, 'refs/tags/v')"
+    needs: ["smoke"]
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: "write"
+    steps:
+      - name: "Publish"
+        uses: "hectorm/ghaction-release@d0426a7a369ce2c1ed615e1a583788b22745ccfe"

@@ -1,0 +1,291 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+name: "capek"
+
+# https://hub.docker.com/_/traefik
+x-traefik-image: &traefik-image "mirror.gcr.io/traefik:3.6"
+# https://hub.docker.com/_/postgres
+x-postgres-image: &postgres-image "mirror.gcr.io/postgres:18-trixie"
+# https://hub.docker.com/r/mcp/playwright
+x-playwright-image: &playwright-image "mcr.microsoft.com/playwright/mcp:latest"
+
+services:
+  traefik:
+    image: *traefik-image
+    container_name: "capek-traefik"
+    hostname: "traefik"
+    restart: "always"
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "443:443/udp"
+      - "127.0.0.1:5432:5432/tcp"
+      - "127.0.0.1:8080:8080/tcp"
+    volumes:
+      - { type: "bind", source: "/var/run/docker.sock", target: "/var/run/docker.sock", read_only: true }
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    command:
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--api.disableDashboardAd=true"
+      - "--global.checkNewVersion=false"
+      - "--global.sendAnonymousUsage=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--entrypoints.web.address=:80/tcp"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443/tcp"
+      - "--entrypoints.websecure.http3.advertisedPort=443"
+      - "--entrypoints.postgres.address=:5432/tcp"
+      - "--ping=true"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      start_period: "60s"
+      start_interval: "5s"
+      interval: "10s"
+      timeout: "10s"
+      retries: 2
+
+  capek:
+    profiles: ["production"]
+    image: "localhost/capek:latest"
+    build: { context: "./", dockerfile: "${COMPOSE_DOCKERFILE:-./Dockerfile}" }
+    container_name: "capek"
+    hostname: "capek"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.capek.rule: "Host(`capek.localhost`) || Host(`capek.internal`)"
+      traefik.http.routers.capek.entryPoints: "websecure"
+      traefik.http.routers.capek.tls: "true"
+      traefik.http.routers.capek.service: "capek@docker"
+      traefik.http.routers.capek.middlewares: "compress@docker"
+      traefik.http.services.capek.loadBalancer.server.port: "3000"
+      traefik.http.middlewares.compress.compress.includedContentTypes: "application/json,application/wasm,application/xml,image/svg+xml,text/css,text/html,text/javascript,text/plain"
+    restart: "always"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    volumes:
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    environment:
+      NUXT_DATABASE_URL: "postgresql://capek:password@postgres:5432/capek"
+      NUXT_DATABASE_MAX_CONNECTIONS: "150"
+      NUXT_WELCOME_QUICK_CHATS: >-
+        Give me a fun fact;
+        What tools are available to you?;
+        Go to wikipedia.org and tell me what today's featured article is about;
+      NUXT_SEED_CONFIG: >-
+        users:
+          - username: "alice"
+            fullname: "Alice Bennett"
+            email: "alice@localhost"
+            groups: ["administrators"]
+        groups:
+          - name: "administrators"
+            roles: ["admin"]
+          - name: "finance"
+            roles: ["member"]
+          - name: "sales"
+            roles: ["member"]
+          - name: "marketing"
+            roles: ["member"]
+          - name: "hr"
+            roles: ["member"]
+        llmProviders:
+          - name: "llama.cpp"
+            apiUrl: "http://host.docker.internal:11434/v1"
+            apiKey: "llama"
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators"]
+        mcpServers:
+          - name: "Playwright"
+            url: "http://playwright-mcp:8931/mcp"
+            stateful: true
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators"]
+        skills:
+          - name: "runBrowserScript"
+            description: "Run browser automation scripts with Playwright"
+            documentation: |
+              # runBrowserScript
+
+              Run Playwright automation scripts with access to a `page` object.
+
+              ## Parameters
+
+              - `code` (string, required): An async function string receiving a Playwright `page` object.
+
+              ## Example
+
+              ```js
+              const { $$runBrowserScript } = await import("/skills/index.js");
+
+              // Navigate and extract all links
+              const links = await $$runBrowserScript({
+                code: `async (page) => {
+                  await page.goto("https://example.com");
+                  return await page.locator("a").allTextContents();
+                }`
+              });
+              ```
+
+              ## Common methods
+
+              - `page.goto(url)` - Navigate to URL
+              - `page.title()` - Get page title
+              - `page.locator(selector)` - Find elements
+              - `page.locator(sel).allTextContents()` - Get text from all matching elements
+              - `page.fill(selector, value)` - Fill input fields
+              - `page.click(selector)` - Click elements
+              - `page.getByRole(role, { name })` - Find by accessibility role
+            code: |
+              import { $$browser_run_code } from "/servers/Playwright/index.js";
+
+              /**
+               * Run browser automation scripts with Playwright
+               * @param {Object} params
+               * @param {string} params.code - The Playwright script to execute
+               */
+              export default async function (params) {
+                const result = await $$browser_run_code(params);
+                if (typeof result === "string" && result.startsWith("### Result\n")) {
+                  const payload = result.split("\n", 2)[1]?.trim();
+                  if (payload) try { return JSON.parse(payload); } catch {}
+                }
+                return result;
+              }
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators"]
+        agents:
+          - name: "General assistant"
+            description: "A general-purpose assistant for a variety of tasks."
+            instructions: >-
+              You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
+              Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
+            type: "specialist"
+            llmProviderName: "llama.cpp"
+            model: "gpt-oss-120b"
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators"]
+          - name: "Developer assistant"
+            description: "An agent that helps with programming and software development tasks."
+            instructions: >-
+              You are a skilled software developer.
+              You can write, debug, and optimize code in various programming languages.
+              You are also knowledgeable about software design patterns and best practices.
+            type: "specialist"
+            llmProviderName: "llama.cpp"
+            model: "gpt-oss-120b"
+            mcpServers: ["Playwright"]
+            skills: ["runBrowserScript"]
+            codeInterpreter: true
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators"]
+          - name: "Smart assistant"
+            description: "An agent that routes user requests to the appropriate specialist agent."
+            instructions: >-
+              You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
+              Analyze the user request carefully and determine which specialist is best suited to handle it.
+              If multiple specialists could help, choose the one that is most relevant.
+            type: "triage"
+            llmProviderName: "llama.cpp"
+            model: "gpt-oss-120b"
+            specialists: ["General assistant", "Developer assistant"]
+            access:
+              editors:
+                groups: ["administrators"]
+              users:
+                groups: ["administrators", "finance", "sales", "marketing", "hr"]
+      NUXT_LOG_LEVEL: "${NUXT_LOG_LEVEL:-debug}"
+      NODE_TLS_REJECT_UNAUTHORIZED: "0" # for self-signed certs in dev
+
+  postgres:
+    image: *postgres-image
+    container_name: "capek-postgres"
+    hostname: "postgres"
+    labels:
+      traefik.enable: "true"
+      traefik.tcp.routers.postgres.rule: "HostSNI(`*`)"
+      traefik.tcp.routers.postgres.entryPoints: "postgres"
+      traefik.tcp.routers.postgres.service: "postgres@docker"
+      traefik.tcp.services.postgres.loadBalancer.server.port: "5432"
+    restart: "always"
+    volumes:
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+    command: >-
+      -c max_connections=200
+      -c shared_buffers=1024MB
+      -c effective_cache_size=3072MB
+      -c maintenance_work_mem=256MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=5041kB
+      -c huge_pages=off
+      -c min_wal_size=1024MB
+      -c max_wal_size=4096MB
+    healthcheck:
+      test: ["CMD", "pg_isready", "-qU", "postgres"]
+      start_period: "60s"
+      start_interval: "5s"
+      interval: "10s"
+      timeout: "10s"
+      retries: 2
+
+  postgres-setup:
+    image: *postgres-image
+    container_name: "capek-postgres-setup"
+    hostname: "postgres-setup"
+    restart: "no"
+    volumes:
+      - { type: "tmpfs", target: "/var/lib/postgresql/" }
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    environment:
+      PGHOST: "postgres"
+      PGPORT: "5432"
+      PGDATABASE: "postgres"
+      PGUSER: "postgres"
+      PGPASSWORD: "password"
+    entrypoint: "/bin/sh"
+    command: ["-euxc", 'for f in /docker-entrypoint-initdb.d/*.sql; do psql -f "$${f:?}"; done']
+
+  playwright-mcp:
+    image: *playwright-image
+    container_name: "capek-playwright-mcp"
+    hostname: "playwright-mcp"
+    restart: "always"
+    init: true
+    command:
+      - "--host=0.0.0.0"
+      - "--port=8931"
+      - "--allowed-hosts=*"
+      - "--browser=chromium"
+      - "--headless"
+      - "--no-sandbox"
+      - "--isolated"
+      - "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/999.0.0.0 Safari/537.36"
+      - "--viewport-size=1366x768"

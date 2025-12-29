@@ -1,0 +1,51 @@
+##################################################
+## "build" stage
+##################################################
+
+FROM mirror.gcr.io/denoland/deno:debian-2.6.3@sha256:075c8d994cf1e44f10d98ea86f6693037e9c66eb83e9b5fa6a534147372de3fb AS build
+
+ENV DENO_DIR=/deno
+ENV PATH=${DENO_DIR}/bin:${PATH}
+ENV NITRO_PRESET=deno_server
+
+WORKDIR /src/
+
+COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml /src/
+
+RUN --mount=type=cache,id=deno,dst=/deno/deps/ \
+	deno install --node-modules-dir=auto
+
+COPY ./ /src/
+
+RUN --network=none \
+	--mount=type=cache,id=deno,dst=/deno/deps/ \
+	deno task prepare && deno task build
+
+##################################################
+## "main" stage
+##################################################
+
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:6ecf048c4622b32291b92266c6618c9ca34989bbfa8ae6dcb82216dce082aabe AS main
+
+ENV NUXT_DATABASE_URL=file:///tmp/pglite
+ENV DENO_DIR=/tmp/deno
+
+COPY --from=build --chown=0:0 /usr/bin/deno /deno
+COPY --from=build --chown=0:0 /src/.output/ /capek/
+COPY --from=build --chown=0:0 /src/bin/ /capek/server/bin/
+
+WORKDIR /capek/server/
+
+HEALTHCHECK --start-period=60s --start-interval=5s --interval=30s --timeout=5s --retries=2 \
+	CMD ["/deno", "run", "--allow-net=localhost:3000", "/capek/server/bin/healthcheck.mjs", "http://localhost:3000"]
+
+ENTRYPOINT ["/deno", "run", \
+	"--allow-read=/capek/", \
+	"--allow-read=/tmp/", \
+	"--allow-write=/tmp/", \
+	"--allow-net", \
+	"--allow-env", \
+	"--allow-sys", \
+	"/capek/server/bin/entrypoint.mjs", \
+	"/capek/server/index.mjs" \
+]

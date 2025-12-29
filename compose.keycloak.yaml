@@ -1,0 +1,346 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+name: "capek"
+
+# https://hub.docker.com/r/keycloak/keycloak
+x-keycloak-image: &keycloak-image "mirror.gcr.io/keycloak/keycloak:26.4"
+
+services:
+  traefik:
+    extends:
+      file: "./compose.base.yaml"
+      service: "traefik"
+    networks:
+      external:
+      internal:
+        aliases:
+          - "capek.internal"
+          - "idp.internal"
+
+  capek:
+    extends:
+      file: "./compose.base.yaml"
+      service: "capek"
+    networks:
+      - "external"
+      - "internal"
+    environment:
+      NUXT_AUTH_MODE: "oidc"
+      NUXT_OIDC_ROOT_URL: "https://capek.localhost"
+      NUXT_OIDC_ISSUER: "https://idp.localhost/realms/acme"
+      NUXT_OIDC_DISCOVERY_ENABLED: "false"
+      NUXT_OIDC_AUTHORIZATION_ENDPOINT: "https://idp.localhost/realms/acme/protocol/openid-connect/auth"
+      NUXT_OIDC_TOKEN_ENDPOINT: "https://idp.internal/realms/acme/protocol/openid-connect/token"
+      NUXT_OIDC_USERINFO_ENDPOINT: "https://idp.internal/realms/acme/protocol/openid-connect/userinfo"
+      NUXT_OIDC_END_SESSION_ENDPOINT: "https://idp.localhost/realms/acme/protocol/openid-connect/logout"
+      NUXT_OIDC_JWKS_URI: "https://idp.internal/realms/acme/protocol/openid-connect/certs"
+      NUXT_OIDC_REDIRECT_URI: "https://capek.localhost/api/login/callback"
+      NUXT_OIDC_CLIENT_ID: "capek"
+      NUXT_OIDC_CLIENT_SECRET: "ourclientbythesewordsguarded"
+      NUXT_OIDC_SCOPES: "openid email profile"
+      NUXT_OIDC_SYNC_ROLES: "true"
+      NUXT_OIDC_SYNC_GROUPS: "true"
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      postgres-setup:
+        condition: "service_completed_successfully"
+
+  keycloak:
+    image: *keycloak-image
+    container_name: "capek-keycloak"
+    hostname: "keycloak"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.keycloak.rule: "Host(`idp.localhost`) || Host(`idp.internal`)"
+      traefik.http.routers.keycloak.entryPoints: "websecure"
+      traefik.http.routers.keycloak.tls: "true"
+      traefik.http.routers.keycloak.service: "keycloak@docker"
+      traefik.http.services.keycloak.loadBalancer.server.port: "8080"
+    restart: "always"
+    networks:
+      - "internal"
+    volumes:
+      - { type: "tmpfs", target: "/run/" }
+      - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
+    configs:
+      - { source: "keycloak-realm.json", target: "/opt/keycloak/data/import/realm.json", mode: 0o0644 }
+    environment:
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_HOST: "0.0.0.0"
+      KC_HTTP_PORT: "8080"
+      KC_HOSTNAME: "https://idp.localhost"
+      KC_HEALTH_ENABLED: "true"
+      KC_PROXY_HEADERS: "xforwarded"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "password"
+      KC_DB: "postgres"
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak"
+      KC_DB_USERNAME: "keycloak"
+      KC_DB_PASSWORD: "password"
+    command: ["start", "--import-realm"]
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - |
+          exec 3<>/dev/tcp/localhost/9000
+          printf '%s\r\n' 'GET /health/ready HTTP/1.1' 'Host: localhost:9000' 'Connection: close' '' >&3
+          grep -Fq 'HTTP/1.1 200 OK' <&3
+      start_period: "60s"
+      start_interval: "5s"
+      interval: "10s"
+      timeout: "10s"
+      retries: 2
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      postgres-setup:
+        condition: "service_completed_successfully"
+
+  postgres:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres"
+    networks:
+      - "internal"
+    volumes:
+      - { type: "volume", source: "postgres-data", target: "/var/lib/postgresql/" }
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+
+  postgres-setup:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres-setup"
+    networks:
+      - "internal"
+    configs:
+      - { source: "postgres-capek.sql", target: "/docker-entrypoint-initdb.d/capek.sql", mode: 0o0644 }
+      - { source: "postgres-keycloak.sql", target: "/docker-entrypoint-initdb.d/keycloak.sql", mode: 0o0644 }
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+
+  playwright-mcp:
+    extends:
+      file: "./compose.base.yaml"
+      service: "playwright-mcp"
+    networks:
+      - "external"
+      - "internal"
+
+configs:
+  keycloak-realm.json:
+    content: |
+      {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "realm": "acme",
+        "displayName": "ACME",
+        "enabled": true,
+        "attributes": {
+          "frontendUrl": "https://idp.localhost"
+        },
+        "registrationAllowed": true,
+        "resetPasswordAllowed": true,
+        "rememberMe": true,
+        "registrationEmailAsUsername": false,
+        "loginWithEmailAllowed": true,
+        "duplicateEmailsAllowed": false,
+        "verifyEmail": true,
+        "editUsernameAllowed": true,
+        "accessTokenLifespan": 300,
+        "ssoSessionIdleTimeout": 86400,
+        "ssoSessionIdleTimeoutRememberMe": 7776000,
+        "ssoSessionMaxLifespan": 86400,
+        "ssoSessionMaxLifespanRememberMe": 7776000,
+        "eventsEnabled": true,
+        "eventsExpiration": 7776000,
+        "clients": [
+          {
+            "clientId": "capek",
+            "enabled": true,
+            "name": "Capek",
+            "protocol": "openid-connect",
+            "rootUrl": "https://capek.localhost/",
+            "baseUrl": "https://capek.localhost/",
+            "webOrigins": [
+              "https://capek.localhost",
+              "http://localhost:3000"
+            ],
+            "redirectUris": [
+              "https://capek.localhost/api/login/callback",
+              "http://localhost:3000/api/login/callback"
+            ],
+            "publicClient": false,
+            "clientAuthenticatorType": "client-secret",
+            "standardFlowEnabled": true,
+            "implicitFlowEnabled": false,
+            "directAccessGrantsEnabled": false,
+            "serviceAccountsEnabled": false,
+            "authorizationServicesEnabled": false,
+            "attributes": {
+              "post.logout.redirect.uris": "https://capek.localhost/*##http://localhost:3000/*",
+              "backchannel.logout.url": "http://capek:3000/api/logout/backchannel",
+              "backchannel.logout.session.required": "true"
+            },
+            "secret": "ourclientbythesewordsguarded",
+            "protocolMappers": [
+              {
+                "name": "roles",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                "config": {
+                  "claim.name": "roles",
+                  "multivalued": "true",
+                  "jsonType.label": "String",
+                  "id.token.claim": "true",
+                  "access.token.claim": "false",
+                  "lightweight.claim": "false",
+                  "userinfo.token.claim": "true",
+                  "introspection.token.claim": "false"
+                }
+              },
+              {
+                "name": "groups",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-group-membership-mapper",
+                "config": {
+                  "claim.name": "groups",
+                  "full.path": "false",
+                  "jsonType.label": "String",
+                  "id.token.claim": "true",
+                  "access.token.claim": "false",
+                  "lightweight.claim": "false",
+                  "userinfo.token.claim": "true",
+                  "introspection.token.claim": "false"
+                }
+              }
+            ]
+          }
+        ],
+        "roles": {
+          "realm": []
+        },
+        "groups": [
+          {
+            "name": "administrators",
+            "path": "/administrators",
+            "realmRoles": []
+          },
+          {
+            "name": "finance",
+            "path": "/finance",
+            "realmRoles": []
+          },
+          {
+            "name": "sales",
+            "path": "/sales",
+            "realmRoles": []
+          },
+          {
+            "name": "marketing",
+            "path": "/marketing",
+            "realmRoles": []
+          },
+          {
+            "name": "hr",
+            "path": "/hr",
+            "realmRoles": []
+          }
+        ],
+        "users": [
+          {
+            "enabled": true,
+            "username": "alice",
+            "firstName": "Alice",
+            "lastName": "Bennett",
+            "email": "alice@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["administrators"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          },
+          {
+            "enabled": true,
+            "username": "bob",
+            "firstName": "Bob",
+            "lastName": "Collins",
+            "email": "bob@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["administrators"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          },
+          {
+            "enabled": true,
+            "username": "carol",
+            "firstName": "Carol",
+            "lastName": "Davis",
+            "email": "carol@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["finance"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          },
+          {
+            "enabled": true,
+            "username": "dan",
+            "firstName": "Dan",
+            "lastName": "Edwards",
+            "email": "dan@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["sales"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          },
+          {
+            "enabled": true,
+            "username": "erin",
+            "firstName": "Erin",
+            "lastName": "Fisher",
+            "email": "erin@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["marketing"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          },
+          {
+            "enabled": true,
+            "username": "frank",
+            "firstName": "Frank",
+            "lastName": "Graham",
+            "email": "frank@localhost",
+            "emailVerified": true,
+            "realmRoles" : ["default-roles-acme"],
+            "groups": ["hr"],
+            "credentials": [{ "type": "password", "value": "password" }]
+          }
+        ]
+      }
+
+  postgres-capek.sql:
+    content: |
+      SELECT 'CREATE USER capek PASSWORD ''password'''
+      WHERE NOT EXISTS (SELECT FROM pg_user WHERE usename = 'capek')\gexec
+      SELECT 'CREATE DATABASE capek WITH OWNER = capek ENCODING = ''UTF8'' TABLESPACE = pg_default'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'capek')\gexec
+
+  postgres-keycloak.sql:
+    content: |
+      SELECT 'CREATE USER keycloak PASSWORD ''password'''
+      WHERE NOT EXISTS (SELECT FROM pg_user WHERE usename = 'keycloak')\gexec
+      SELECT 'CREATE DATABASE keycloak WITH OWNER = keycloak ENCODING = ''UTF8'' TABLESPACE = pg_default'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'keycloak')\gexec
+
+volumes:
+  postgres-data:
+    name: "capek-postgres-data"
+
+networks:
+  external:
+    name: "capek-external"
+    internal: false
+
+  internal:
+    name: "capek-internal"
+    internal: true

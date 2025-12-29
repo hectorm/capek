@@ -1,0 +1,18 @@
+# Node dependencies
+node_modules/
+
+# Nuxt dev/build outputs
+/.cache/
+/.data/
+/.nitro/
+/.nuxt/
+/.output/
+/dist/
+
+# Test outputs
+/tests/**/.output/
+/tests/**/.report/
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml

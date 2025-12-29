@@ -1,0 +1,32 @@
+# Node dependencies
+node_modules/
+
+# Nuxt dev/build outputs
+/.cache/
+/.data/
+/.nitro/
+/.nuxt/
+/.output/
+/dist/
+
+# Test outputs
+/tests/**/.output/
+/tests/**/.report/
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docker
+Dockerfile
+Dockerfile.*
+compose.yaml
+compose.*.yaml

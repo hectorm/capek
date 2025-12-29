@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+name: "capek"
+
+services:
+  traefik:
+    extends:
+      file: "./compose.base.yaml"
+      service: "traefik"
+    networks:
+      external:
+      internal:
+        aliases:
+          - "capek.internal"
+
+  capek:
+    extends:
+      file: "./compose.base.yaml"
+      service: "capek"
+    labels:
+      traefik.http.routers.capek.middlewares: "proxy-headers@docker,compress@docker"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Proxy-Secret: "H4!b5at+kWls-8yh4Guq"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-User: "alice"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Email: "alice@localhost"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Preferred-Username: "Alice Bennett"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Picture: ""
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Roles: "member"
+      traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Groups: "administrators"
+    networks:
+      - "external"
+      - "internal"
+    environment:
+      NUXT_AUTH_MODE: "proxy"
+      NUXT_PROXY_SECRET: "H4!b5at+kWls-8yh4Guq"
+      NUXT_PROXY_SYNC_ROLES: "true"
+      NUXT_PROXY_SYNC_GROUPS: "true"
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      postgres-setup:
+        condition: "service_completed_successfully"
+
+  postgres:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres"
+    networks:
+      - "internal"
+    volumes:
+      - { type: "volume", source: "postgres-data", target: "/var/lib/postgresql/" }
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "password"
+
+  postgres-setup:
+    extends:
+      file: "./compose.base.yaml"
+      service: "postgres-setup"
+    networks:
+      - "internal"
+    configs:
+      - { source: "postgres-capek.sql", target: "/docker-entrypoint-initdb.d/capek.sql", mode: 0o0644 }
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+
+  playwright-mcp:
+    extends:
+      file: "./compose.base.yaml"
+      service: "playwright-mcp"
+    networks:
+      - "external"
+      - "internal"
+
+configs:
+  postgres-capek.sql:
+    content: |
+      SELECT 'CREATE USER capek PASSWORD ''password'''
+      WHERE NOT EXISTS (SELECT FROM pg_user WHERE usename = 'capek')\gexec
+      SELECT 'CREATE DATABASE capek WITH OWNER = capek ENCODING = ''UTF8'' TABLESPACE = pg_default'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'capek')\gexec
+
+volumes:
+  postgres-data:
+    name: "capek-postgres-data"
+
+networks:
+  external:
+    name: "capek-external"
+    internal: false
+
+  internal:
+    name: "capek-internal"
+    internal: true

@@ -1,0 +1,19 @@
+{
+  "files.associations": {
+    ".gitignore": "ignore",
+    ".dockerignore": "ignore",
+    ".prettierignore": "ignore",
+    ".env": "properties",
+    ".env.*": "properties",
+    "*.css": "tailwindcss"
+  },
+  "[javascript][typescript][vue][css][json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": ["source.fixAll"]
+  },
+  "eslint.validate": ["javascript", "typescript", "vue"],
+  "tailwindCSS.classAttributes": ["class", "ui"],
+  "tailwindCSS.experimental.classRegex": [["ui:\\s*{([^)]*)\\s*}", "(?:'|\"|`)([^']*)(?:'|\"|`)"]],
+  "yaml.customTags": ["!reference sequence"]
+}
