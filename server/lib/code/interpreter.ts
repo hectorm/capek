@@ -1,7 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 
-import type { QuickJSAsyncContext, QuickJSAsyncRuntime, QuickJSContext, QuickJSHandle } from "quickjs-emscripten";
-import { newQuickJSAsyncWASMModuleFromVariant, Scope } from "quickjs-emscripten";
+import type { QuickJSAsyncContext, QuickJSAsyncRuntime, QuickJSContext, QuickJSHandle } from "quickjs-emscripten-core";
+import { newQuickJSAsyncWASMModuleFromVariant, Scope } from "quickjs-emscripten-core";
 
 import type { MCPServerBinding } from "~~/server/lib/code/generators";
 import type { VirtualFileSystem } from "~~/server/lib/code/vfs";
