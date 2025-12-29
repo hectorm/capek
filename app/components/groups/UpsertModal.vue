@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
+
+import { useToast } from "#imports";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
@@ -30,6 +33,8 @@ const emit = defineEmits<{
   close: [{ group: GroupReadOutput | null; error: Error | null }];
 }>();
 
+const i18n = useI18n();
+const toast = useToast();
 const { $trpc } = useNuxtApp();
 const { can } = usePermissions();
 
@@ -79,8 +84,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
     }
     emit("close", { group: group.value, error: null });
-  } catch (error) {
-    emit("close", { group: null, error: error as Error });
+  } catch {
+    const action = props.id ? "update" : "create";
+    toast.add({
+      color: "error",
+      title: i18n.t(`pages.settings.groups.table.actions.${action}.error.title`),
+      description: i18n.t(`pages.settings.groups.table.actions.${action}.error.description`),
+    });
   }
 };
 

@@ -4,6 +4,8 @@ import { computed, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
+import { useToast } from "#imports";
+
 import type { AccordionItem, FormSubmitEvent } from "@nuxt/ui";
 import UAccordion from "@nuxt/ui/components/Accordion.vue";
 import UBadge from "@nuxt/ui/components/Badge.vue";
@@ -42,8 +44,9 @@ const emit = defineEmits<{
   close: [{ mcpServer: McpServerGetOutput | null; error: Error | null }];
 }>();
 
+const i18n = useI18n();
+const toast = useToast();
 const { $trpc } = useNuxtApp();
-const { t } = useI18n();
 const { can, canAny } = usePermissions();
 const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
@@ -129,7 +132,7 @@ const advancedSettingsEntries = Object.entries(MCPServerParameters) as [
 
 const advancedSettingsItems = computed<AccordionItem[]>(() => [
   {
-    label: t("pages.studio.mcpServers.form.advancedSettings.label"),
+    label: i18n.t("pages.studio.mcpServers.form.advancedSettings.label"),
     slot: "advanced" as const,
   },
 ]);
@@ -186,8 +189,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     await $trpc.mcpServer.syncAccess.mutate({ mcpServerId, access });
 
     emit("close", { mcpServer, error: null });
-  } catch (error) {
-    emit("close", { mcpServer: null, error: error as Error });
+  } catch {
+    const action = props.id ? "update" : "create";
+    toast.add({
+      color: "error",
+      title: i18n.t(`pages.studio.mcpServers.table.actions.${action}.error.title`),
+      description: i18n.t(`pages.studio.mcpServers.table.actions.${action}.error.description`),
+    });
   }
 };
 

@@ -4,6 +4,8 @@ import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
+import { useToast } from "#imports";
+
 import type { AccordionItem, FormSubmitEvent } from "@nuxt/ui";
 import UAccordion from "@nuxt/ui/components/Accordion.vue";
 import UBadge from "@nuxt/ui/components/Badge.vue";
@@ -41,8 +43,9 @@ const emit = defineEmits<{
   close: [{ agent: AgentGetOutput | null; error: Error | null }];
 }>();
 
+const i18n = useI18n();
+const toast = useToast();
 const { $trpc } = useNuxtApp();
-const { t } = useI18n();
 const { can, canAny } = usePermissions();
 const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
@@ -172,12 +175,12 @@ const state = reactive<
 });
 
 const typeOptions = [
-  { value: "specialist", label: t("pages.studio.agents.form.type.specialist") },
-  { value: "triage", label: t("pages.studio.agents.form.type.triage") },
+  { value: "specialist", label: i18n.t("pages.studio.agents.form.type.specialist") },
+  { value: "triage", label: i18n.t("pages.studio.agents.form.type.triage") },
 ];
 
 const providerOptions = computed(() => [
-  { label: t("pages.studio.agents.form.llmProvider.none"), value: null },
+  { label: i18n.t("pages.studio.agents.form.llmProvider.none"), value: null },
   ...llmProviders.map((p) => ({ label: p.name, value: p.id })),
 ]);
 
@@ -196,7 +199,7 @@ const advancedSettingsEntries = Object.entries(AgentExecutorParameters) as [
 
 const advancedSettingsItems = computed<AccordionItem[]>(() => [
   {
-    label: t("pages.studio.agents.form.advancedSettings.label"),
+    label: i18n.t("pages.studio.agents.form.advancedSettings.label"),
     slot: "advanced" as const,
   },
 ]);
@@ -291,8 +294,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     ]);
 
     emit("close", { agent, error: null });
-  } catch (error) {
-    emit("close", { agent: null, error: error as Error });
+  } catch {
+    const action = props.id ? "update" : "create";
+    toast.add({
+      color: "error",
+      title: i18n.t(`pages.studio.agents.table.actions.${action}.error.title`),
+      description: i18n.t(`pages.studio.agents.table.actions.${action}.error.description`),
+    });
   }
 };
 

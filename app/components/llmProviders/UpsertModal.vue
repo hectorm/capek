@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive } from "vue";
+import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
+
+import { useToast } from "#imports";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
@@ -35,6 +38,8 @@ const emit = defineEmits<{
   close: [{ llmProvider: LlmProviderGetOutput | null; error: Error | null }];
 }>();
 
+const i18n = useI18n();
+const toast = useToast();
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 const { search, getLabel, getIcon, preload } = usePrincipalSearch();
@@ -158,8 +163,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     await $trpc.llmProvider.syncAccess.mutate({ llmProviderId, access });
 
     emit("close", { llmProvider, error: null });
-  } catch (error) {
-    emit("close", { llmProvider: null, error: error as Error });
+  } catch {
+    const action = props.id ? "update" : "create";
+    toast.add({
+      color: "error",
+      title: i18n.t(`pages.studio.llmProviders.table.actions.${action}.error.title`),
+      description: i18n.t(`pages.studio.llmProviders.table.actions.${action}.error.description`),
+    });
   }
 };
 
