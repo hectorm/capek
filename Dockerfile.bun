@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/oven/bun:1.3.7-debian@sha256:e453e6a83846289dc3307d3b8ff22f37cd5f3c7a0413baa053899620c9a10966 AS build
+FROM mirror.gcr.io/oven/bun:1.3.8-debian@sha256:05d6dea99d4dbc41b7e0f5fdfee58a65b5c96f66b4ba198d8cf33576f2a628c5 AS build
 
 ENV BUN_INSTALL=/bun
 ENV PATH=${BUN_INSTALL}/bin:${PATH}
