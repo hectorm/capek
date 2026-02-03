@@ -2,7 +2,7 @@
 name: "capek"
 
 # https://hub.docker.com/r/keycloak/keycloak
-x-keycloak-image: &keycloak-image "mirror.gcr.io/keycloak/keycloak:26.4"
+x-keycloak-image: &keycloak-image "mirror.gcr.io/keycloak/keycloak:26.5"
 
 services:
   traefik:
