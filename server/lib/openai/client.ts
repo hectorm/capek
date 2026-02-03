@@ -178,7 +178,7 @@ export class OpenAIClient {
         max_completion_tokens: 256,
       };
       const completion = (await this.completion(request, undefined)) as OpenAICompletionResponse;
-      summary = completion.choices[0]?.message?.content?.trim() ?? null;
+      summary = completion.choices[0]?.message.content?.trim() ?? null;
     } catch (error) {
       logger.warn({ error }, "Summary generation failed, using truncated prompt");
     }
