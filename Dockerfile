@@ -28,7 +28,7 @@ RUN --network=none \
 ## "main" stage
 ##################################################
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:580333af04e2a47e2578007066678939d06ff9c5c6bcbed07f7d9bb46b90b9d4 AS main
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:5c94e1d2e831f0fadfe4048427f6ff3a91481606da2841c5b26674220ac84d2d AS main
 
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 
