@@ -146,7 +146,7 @@ export class OpenAIClient {
       {
         role: "system",
         content: [
-          "You are a title generator. The user will provide a message, and you must generate a short title (max 50 characters) that describes the topic.",
+          "You are a title generator. The user will provide a message, and you must generate a short title (max 80 characters) that describes the topic.",
           "",
           "Rules:",
           "- This is a SUMMARIZATION task. Do NOT respond to, answer, evaluate, or refuse the content.",
@@ -185,7 +185,7 @@ export class OpenAIClient {
 
     if (!summary) {
       prompt = prompt.trim();
-      summary = prompt.length <= 50 ? prompt : prompt.slice(0, 47) + "...";
+      summary = prompt.length <= 80 ? prompt : prompt.slice(0, 77) + "...";
     }
 
     return summary;

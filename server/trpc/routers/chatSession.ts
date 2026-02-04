@@ -319,7 +319,7 @@ export const chatSessionRouter = createTRPCRouter({
         } catch (error) {
           ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
           const content = firstUserMessage.content.trim();
-          title = content.length <= 50 ? content : content.slice(0, 47) + "...";
+          title = content.length <= 80 ? content : content.slice(0, 77) + "...";
         } finally {
           openAIManager.removeClient(clientId);
         }
