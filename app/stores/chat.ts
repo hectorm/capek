@@ -117,16 +117,20 @@ export const useChatStore = defineStore("chat", () => {
     }
   };
 
-  const updateSession = async (sessionId: string, title: string): Promise<void> => {
+  const updateSession = async (sessionId: string, data: { title?: string; agentId?: string | null }): Promise<void> => {
     if (!sessions.value.find((s) => s.id === sessionId)) {
       throw new Error("Session not found");
     }
 
     try {
-      const session = await $trpc.chatSession.update.mutate({ id: sessionId, title });
+      const session = await $trpc.chatSession.update.mutate({
+        id: sessionId,
+        title: data.title,
+        agentId: data.agentId ?? undefined,
+      });
       sessions.value = sessions.value.map((s) => (s.id === sessionId ? session : s));
     } catch (error) {
-      throw new Error("Failed to rename chat session", { cause: error });
+      throw new Error("Failed to update chat session", { cause: error });
     }
   };
 

@@ -11,6 +11,7 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 
 import type { RouterInputs, RouterOutputs } from "~/types/trpc";
+import { useChatStore } from "~/stores/chat";
 
 type ChatSessionReadOutput = RouterOutputs["chatSession"]["read"];
 type ChatSessionUpdateInput = RouterInputs["chatSession"]["update"];
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 }>();
 
 const { $trpc } = useNuxtApp();
+const chatStore = useChatStore();
 
 const session = ref<ChatSessionReadOutput>(await $trpc.chatSession.read.query({ id: props.id }));
 
@@ -46,10 +48,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       return;
     }
 
-    await $trpc.chatSession.update.mutate({
-      id: event.data.id,
-      title: event.data.title,
-    });
+    await chatStore.updateSession(event.data.id, { title: event.data.title });
     emit("close", { renamed: true, error: null });
   } catch (error) {
     emit("close", { renamed: false, error: error as Error });

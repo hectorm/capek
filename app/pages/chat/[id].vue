@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { navigateTo, useNuxtApp, useSeoMeta } from "nuxt/app";
+import { navigateTo, useSeoMeta } from "nuxt/app";
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -30,7 +30,6 @@ const agentStore = useAgentStore();
 const chatStore = useChatStore();
 const toast = useToast();
 const overlay = useOverlay();
-const { $trpc } = useNuxtApp();
 
 const sidebar = inject(sidebarKey);
 
@@ -56,12 +55,7 @@ const selectedAgent = computed({
 
     void (async () => {
       try {
-        await $trpc.chatSession.update.mutate({
-          id: sessionId.value,
-          agentId: agentId ?? undefined,
-        });
-
-        chatStore.sessions = chatStore.sessions.map((s) => (s.id === sessionId.value ? { ...s, agentId } : s));
+        await chatStore.updateSession(sessionId.value, { agentId });
       } catch (error) {
         console.error("Failed to update session agent", error);
         toast.add({
