@@ -36,6 +36,7 @@ export default withNuxt(
           hoist: "all",
         },
       ],
+      "preserve-caught-error": ["off"],
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

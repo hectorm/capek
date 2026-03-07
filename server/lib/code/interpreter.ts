@@ -342,7 +342,6 @@ function setupMCPCall(
 
       const callPromise = (async () => {
         let result: string;
-        let callError: string | null = null;
 
         try {
           const mcpManager = MCPManager.getInstance();
@@ -358,7 +357,7 @@ function setupMCPCall(
             options.signal,
           );
         } catch (err) {
-          callError = err instanceof Error ? err.message : String(err);
+          const callError = err instanceof Error ? err.message : String(err);
           mcpCallLogs.push({
             serverName,
             toolName,

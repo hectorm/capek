@@ -1,7 +1,7 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  compatibilityDate: "2026-01-01",
+  compatibilityDate: "2026-03-01",
   modules: [
     "@nuxt/devtools",
     "@nuxt/eslint",
@@ -107,8 +107,8 @@ export default defineNuxtConfig({
         // Stub jsdom module on client side
         name: "jsdom-stub-plugin",
         enforce: "pre",
-        resolveId(source, importer) {
-          return source === "jsdom" && this.environment.name === "client" && importer !== "\0virtual:jsdom-stub"
+        resolveId(source, importer, options) {
+          return source === "jsdom" && !options.ssr && importer !== "\0virtual:jsdom-stub"
             ? "\0virtual:jsdom-stub"
             : null;
         },
@@ -122,8 +122,8 @@ export default defineNuxtConfig({
         // Disable JIT on client side to avoid problems with eval
         name: "zod-jitless-plugin",
         enforce: "pre",
-        resolveId(source, importer) {
-          return source === "zod/v4" && this.environment.name === "client" && importer !== "\0virtual:zod-jitless"
+        resolveId(source, importer, options) {
+          return source === "zod/v4" && !options.ssr && importer !== "\0virtual:zod-jitless"
             ? "\0virtual:zod-jitless"
             : null;
         },

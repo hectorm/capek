@@ -78,8 +78,8 @@ const schema = z.object({
   id: z.uuid().optional(),
   name: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).trim().default(""),
-  documentation: z.string().max(100000).trim().nullish(),
-  code: z.string().max(100000).nullish(),
+  documentation: z.string().max(100000).trim().optional(),
+  code: z.string().max(100000).optional(),
   editors: z.array(z.string()).default([]),
   users: z.array(z.string()).default([]),
 });
@@ -122,8 +122,8 @@ const defaultCode = [
 const state = reactive<
   Partial<SkillCreateOrUpdateInput> & {
     id?: string;
-    documentation?: string | null;
-    code?: string | null;
+    documentation?: string;
+    code?: string;
     editors: string[];
     users: string[];
   }
@@ -131,7 +131,7 @@ const state = reactive<
   id: skill?.id,
   name: skill?.name,
   description: skill?.description,
-  documentation: skill?.documentation,
+  documentation: skill?.documentation ?? undefined,
   code: skill?.code ?? defaultCode,
   editors: editorIds,
   users: userIds,

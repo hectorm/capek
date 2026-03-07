@@ -2,7 +2,7 @@
 name: "capek"
 
 # https://hub.docker.com/r/dexidp/dex
-x-dex-image: &dex-image "mirror.gcr.io/dexidp/dex:v2.44.0"
+x-dex-image: &dex-image "mirror.gcr.io/dexidp/dex:v2.45.1"
 
 services:
   traefik:
