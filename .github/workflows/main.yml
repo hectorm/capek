@@ -27,7 +27,7 @@ jobs:
       - name: "Setup pnpm"
         run: "corepack enable && corepack install"
       - name: "Setup Node.js"
-        uses: "actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238"
+        uses: "actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f"
         with:
           node-version-file: "package.json"
           cache: "pnpm"
@@ -145,14 +145,14 @@ jobs:
         uses: "hectorm/ghaction-docker-buildx-setup@fec3efdbb455c2aa58a4fbfd11a9853f5de2cdba"
       - name: "Login to GitHub Container Registry"
         if: "github.event_name != 'pull_request'"
-        uses: "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9"
+        uses: "docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2"
         with:
           registry: "ghcr.io"
           username: "${{ github.actor }}"
           password: "${{ secrets.GITHUB_TOKEN }}"
       - name: "Extract metadata"
         id: "meta"
-        uses: "docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051"
+        uses: "docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf"
         with:
           images: |
             ghcr.io/${{ github.repository }}
