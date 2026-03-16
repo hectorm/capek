@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/denoland/deno:debian-2.7.4@sha256:4212a880f06e8dec28184688cce3449cc6e75232480e527342906b7c7ffc7b8d AS build
+FROM mirror.gcr.io/denoland/deno:debian-2.7.5@sha256:f35fb70a590a2004fb3a3f7229c56e9026b522753851ccbefc3c1cf2f58c2153 AS build
 
 ENV DENO_DIR=/deno
 ENV PATH=${DENO_DIR}/bin:${PATH}
@@ -25,7 +25,7 @@ RUN --network=none \
 ## "main" stage
 ##################################################
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:4cf9e68a5cbd8c9623480b41d5ed6052f028c44cc29f91b21590613ab8bec824 AS main
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:9c4fe2381c2e6d53c4cfdefeff6edbd2a67ec7713e2c3ca6653806cbdbf27a1e AS main
 
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 ENV DENO_DIR=/tmp/deno
