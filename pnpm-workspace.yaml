@@ -1,15 +1,14 @@
 minimumReleaseAge: 10080
 trustPolicy: "no-downgrade"
-strictDepBuilds: true
-onlyBuiltDependencies:
-  - "@parcel/watcher"
-  - "@tailwindcss/oxide"
-  - "esbuild"
-  - "sharp"
-  - "unrs-resolver"
-  - "vue-demi"
 trustPolicyExclude:
   - "chokidar@4.0.3" # TODO: update to 5.x when possible
   - "semver@6.3.1" # TODO: update to 7.x when possible
+strictDepBuilds: true
+allowBuilds:
+  "@parcel/watcher": true
+  "esbuild": true
+  "sharp": true
+  "unrs-resolver": true
+  "vue-demi": true
 overrides:
   "@types/parse-path": "-" # Deprecated

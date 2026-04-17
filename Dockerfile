@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/node:24.14.0-trixie@sha256:81649592d9833d9220423561fc517b34e932b751873274024c2a969ff4a9bfc2 AS build
+FROM mirror.gcr.io/node:24.15.0-trixie@sha256:554a85065c0157a254a5a063ea2294f6e2822e6333c3de5eb2269e2d7c755665 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
@@ -28,7 +28,7 @@ RUN --network=none \
 ## "main" stage
 ##################################################
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:4cf9e68a5cbd8c9623480b41d5ed6052f028c44cc29f91b21590613ab8bec824 AS main
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:8f960b7fc6a5d6e28bb07f982655925d6206678bd9a6cde2ad00ddb5e2077d78 AS main
 
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 

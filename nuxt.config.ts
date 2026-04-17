@@ -1,7 +1,7 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  compatibilityDate: "2026-03-01",
+  compatibilityDate: "2026-04-01",
   modules: [
     "@nuxt/devtools",
     "@nuxt/eslint",

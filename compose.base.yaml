@@ -76,7 +76,7 @@ services:
         Give me a fun fact;
         What tools are available to you?;
         Go to wikipedia.org and tell me what today's featured article is about;
-      NUXT_SEED_CONFIG: >-
+      NUXT_SEED_CONFIG: |-
         users:
           - username: "alice"
             fullname: "Alice Bennett"
