@@ -102,6 +102,20 @@ const seedConfigSchema = z.object({
   agents: z.array(seedAgentSchema).max(1000).default([]),
 });
 
+// Substitutes ${VAR}, ${VAR:-default} and ${VAR-default} placeholders with environment variable values.
+// Use $$ to produce a literal $ (e.g. $${VAR} becomes ${VAR} without substitution).
+function expandEnvVars(content: string): string {
+  return content
+    .replace(/\$\$/g, "\x00")
+    .replace(
+      /\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:)?-(.*?))?\}/gs,
+      (_, name: string, colon?: string, fallback?: string) => {
+        return (colon && process.env[name] === "" ? undefined : process.env[name]) ?? fallback ?? "";
+      },
+    )
+    .replace(/\x00/g, "$"); // eslint-disable-line no-control-regex
+}
+
 export default defineTask({
   meta: {
     name: "database:seed",
@@ -192,7 +206,8 @@ export default defineTask({
         let seedConfigRaw: unknown;
         if (typeof config.seed.config === "string") {
           const isPath = !/\n|^\s*[[{]/.test(config.seed.config) && existsSync(config.seed.config);
-          seedConfigRaw = yaml.parse(isPath ? readFileSync(config.seed.config, "utf-8") : config.seed.config);
+          const raw = isPath ? readFileSync(config.seed.config, "utf-8") : config.seed.config;
+          seedConfigRaw = yaml.parse(expandEnvVars(raw));
         } else {
           seedConfigRaw = config.seed.config;
         }
