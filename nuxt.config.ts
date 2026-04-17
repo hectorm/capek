@@ -104,6 +104,18 @@ export default defineNuxtConfig({
     },
     plugins: [
       {
+        name: "suppress-sourcemap-warnings",
+        apply: "build",
+        configResolved(config) {
+          const original = config.build.rollupOptions.onwarn;
+          config.build.rollupOptions.onwarn = (warning, warn) => {
+            if (warning.code === "SOURCEMAP_BROKEN") return;
+            if (original) original(warning, warn);
+            else warn(warning);
+          };
+        },
+      },
+      {
         // Stub jsdom module on client side
         name: "jsdom-stub-plugin",
         enforce: "pre",
