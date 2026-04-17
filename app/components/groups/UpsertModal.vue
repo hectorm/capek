@@ -118,7 +118,7 @@ const onCancel = () => {
           <UInput v-model="state.name" class="w-full" :disabled="!canModify" />
         </UFormField>
         <UFormField name="description" :label="$t('components.groups.upsertModal.form.description.label')">
-          <UTextarea v-model="state.description" autoresize :maxrows="10" class="w-full" :disabled="!canModify" />
+          <UTextarea v-model="state.description" autoresize :maxrows="3" class="w-full" :disabled="!canModify" />
         </UFormField>
         <UFormField name="roles" :label="$t('components.groups.upsertModal.form.roles.label')">
           <USelectMenu

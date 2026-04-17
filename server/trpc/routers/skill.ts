@@ -53,11 +53,13 @@ export const skillRouter = createTRPCRouter({
           .selectFrom("skills")
           .select(["id", "name", "description", "documentation", "parameters", "createdAt", "updatedAt"]);
 
+        // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
           const searchList = Array.isArray(search) ? search : [search];
           query = query.where((eb) => eb.or(searchList.map((v) => eb(`skills.${searchBy}`, "ilike", `%${v}%`))));
         }
 
+        // Apply cursor-based pagination
         if (cursor) {
           const cursorSkill = await trx
             .selectFrom("skills")
@@ -84,6 +86,7 @@ export const skillRouter = createTRPCRouter({
           }
         }
 
+        // Apply ordering and limit
         query = query
           .orderBy(`skills.${orderBy}`, order)
           .orderBy("skills.id", order)
@@ -91,15 +94,14 @@ export const skillRouter = createTRPCRouter({
 
         const skills = await query.execute();
 
-        const hasNextPage = skills.length > limit;
-        if (hasNextPage) {
+        let nextCursor: string | undefined = undefined;
+        if (skills.length > limit) {
           skills.pop();
+          nextCursor = skills[skills.length - 1]?.id;
         }
 
-        const nextCursor = hasNextPage && skills.length > 0 ? skills[skills.length - 1]?.id : null;
-
-        ctx.logger.debug({ count: skills.length, hasNextPage }, "Skills searched");
-        return { items: skills, nextCursor };
+        ctx.logger.debug("Skill list retrieved");
+        return { skills, nextCursor };
       });
     }),
 
@@ -269,14 +271,13 @@ export const skillRouter = createTRPCRouter({
           return skill;
         } catch (error) {
           if (isRLSViolation(error)) {
-            ctx.logger.warn({ skillId: id }, "RLS violation on skill update");
             throw new TRPCError({
               code: "FORBIDDEN",
               message: "You don't have permission to update this skill",
             });
           }
           if (isUniqueViolation(error)) {
-            ctx.logger.warn({ name: updateData.name }, "Skill name already exists");
+            ctx.logger.warn({ skillId: id, name: input.name }, "Skill name already exists");
             throw new TRPCError({
               code: "CONFLICT",
               message: "A skill with this name already exists",
@@ -292,9 +293,13 @@ export const skillRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          const result = await trx.deleteFrom("skills").where("id", "=", input.id).executeTakeFirst();
+          const deleted = await trx
+            .deleteFrom("skills")
+            .where("id", "=", input.id)
+            .returning(["id"])
+            .executeTakeFirst();
 
-          if (result.numDeletedRows === BigInt(0)) {
+          if (!deleted) {
             ctx.logger.warn({ skillId: input.id }, "Skill not found");
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -303,10 +308,8 @@ export const skillRouter = createTRPCRouter({
           }
 
           ctx.logger.info({ skillId: input.id }, "Skill deleted");
-          return { success: true };
         } catch (error) {
           if (isRLSViolation(error)) {
-            ctx.logger.warn({ skillId: input.id }, "RLS violation on skill delete");
             throw new TRPCError({
               code: "FORBIDDEN",
               message: "You don't have permission to delete this skill",
@@ -317,132 +320,150 @@ export const skillRouter = createTRPCRouter({
       });
     }),
 
-  principals: authorizedProcedure([Permissions.SkillReadAll, Permissions.SkillReadOwn])
-    .input(z.object({ id: z.uuid() }))
+  listAccess: authorizedProcedure([Permissions.SkillReadAll, Permissions.SkillReadOwn])
+    .input(z.object({ skillId: z.uuid() }))
     .query(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
-        const accessList = await trx
+        const access = await trx
           .selectFrom("skillAccess")
-          .leftJoin("users", "skillAccess.userId", "users.id")
-          .leftJoin("groups", "skillAccess.groupId", "groups.id")
+          .leftJoin("users", "users.id", "skillAccess.userId")
+          .leftJoin("groups", "groups.id", "skillAccess.groupId")
           .select([
-            "skillAccess.role",
+            "skillAccess.skillId",
             "skillAccess.userId",
+            "skillAccess.groupId",
+            "skillAccess.role",
             "users.username",
             "users.email",
-            "skillAccess.groupId",
             "groups.name as groupname",
           ])
-          .where("skillAccess.skillId", "=", input.id)
+          .where("skillAccess.skillId", "=", input.skillId)
           .execute();
 
-        const principals: Principal[] = accessList.map((access) => {
-          if (access.userId && access.username && access.email) {
-            return {
-              id: access.userId,
-              type: "user" as const,
-              role: access.role,
-              username: access.username,
-              email: access.email,
-            };
+        const mapped: Principal[] = [];
+        for (const a of access) {
+          if (a.userId !== null && a.username !== null && a.email !== null) {
+            mapped.push({ id: a.userId, type: "user", role: a.role, username: a.username, email: a.email });
+          } else if (a.groupId !== null && a.groupname !== null) {
+            mapped.push({ id: a.groupId, type: "group", role: a.role, groupname: a.groupname });
           }
-          if (access.groupId && access.groupname) {
-            return {
-              id: access.groupId,
-              type: "group" as const,
-              role: access.role,
-              groupname: access.groupname,
-            };
-          }
-          throw new Error("Invalid access entry: neither user nor group");
-        });
+        }
 
-        ctx.logger.debug({ skillId: input.id, principalCount: principals.length }, "Skill principals retrieved");
-        return principals;
+        ctx.logger.debug({ skillId: input.skillId }, "Skill access list retrieved");
+        return mapped;
       });
     }),
 
-  grantAccess: authorizedProcedure([Permissions.SkillUpdateAll, Permissions.SkillUpdateOwn])
+  syncAccess: authorizedProcedure([Permissions.SkillUpdateAll, Permissions.SkillUpdateOwn])
     .input(
       z.object({
         skillId: z.uuid(),
-        principalId: z.uuid(),
-        principalType: z.enum(["user", "group"]),
-        role: z.enum(["editor", "user"]),
+        access: z
+          .array(
+            z.object({
+              id: z.uuid(),
+              type: z.enum(["user", "group"]),
+              role: z.enum(["editor", "user"]),
+            }),
+          )
+          .max(1000),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          await trx
-            .insertInto("skillAccess")
-            .values({
-              skillId: input.skillId,
-              userId: input.principalType === "user" ? input.principalId : null,
-              groupId: input.principalType === "group" ? input.principalId : null,
-              role: input.role,
-            })
-            .onConflict((oc) => oc.doNothing())
+          const current = await trx
+            .selectFrom("skillAccess")
+            .select(["userId", "groupId", "role"])
+            .where("skillId", "=", input.skillId)
             .execute();
 
-          ctx.logger.info(
-            {
-              skillId: input.skillId,
-              principalId: input.principalId,
-              principalType: input.principalType,
-              role: input.role,
-            },
-            "Skill access granted",
-          );
-          return { success: true };
+          let added = 0;
+          let removed = 0;
+
+          if (input.access.length === 0) {
+            if (current.length > 0) {
+              await trx.deleteFrom("skillAccess").where("skillId", "=", input.skillId).execute();
+              removed = current.length;
+            }
+          } else if (current.length === 0) {
+            await trx
+              .insertInto("skillAccess")
+              .values(
+                input.access.map((a) => ({
+                  skillId: input.skillId,
+                  userId: a.type === "user" ? a.id : null,
+                  groupId: a.type === "group" ? a.id : null,
+                  role: a.role,
+                })),
+              )
+              .execute();
+            added = input.access.length;
+          } else {
+            const currentMapped = current.map((c) => ({
+              id: c.userId ?? c.groupId ?? "",
+              type: c.userId !== null ? ("user" as const) : ("group" as const),
+              role: c.role,
+            }));
+
+            const currentSet = new Set(currentMapped.map((c) => `${c.type}:${c.id}:${c.role}`));
+            const targetSet = new Set(input.access.map((a) => `${a.type}:${a.id}:${a.role}`));
+
+            const toAdd = input.access.filter((a) => !currentSet.has(`${a.type}:${a.id}:${a.role}`));
+            const toRemove = currentMapped.filter((c) => !targetSet.has(`${c.type}:${c.id}:${c.role}`));
+
+            if (toAdd.length > 0 || toRemove.length > 0) {
+              const ops = [];
+              if (toRemove.length > 0) {
+                ops.push(
+                  trx
+                    .deleteFrom("skillAccess")
+                    .where("skillId", "=", input.skillId)
+                    .where((eb) =>
+                      eb.or(
+                        toRemove.map((a) =>
+                          a.type === "user"
+                            ? eb.and([eb("userId", "=", a.id), eb("role", "=", a.role)])
+                            : eb.and([eb("groupId", "=", a.id), eb("role", "=", a.role)]),
+                        ),
+                      ),
+                    )
+                    .execute(),
+                );
+              }
+              if (toAdd.length > 0) {
+                ops.push(
+                  trx
+                    .insertInto("skillAccess")
+                    .values(
+                      toAdd.map((a) => ({
+                        skillId: input.skillId,
+                        userId: a.type === "user" ? a.id : null,
+                        groupId: a.type === "group" ? a.id : null,
+                        role: a.role,
+                      })),
+                    )
+                    .execute(),
+                );
+              }
+              await Promise.all(ops);
+              added = toAdd.length;
+              removed = toRemove.length;
+            }
+          }
+
+          ctx.logger.info({ skillId: input.skillId, added, removed }, "Skill access synchronized");
         } catch (error) {
           if (isRLSViolation(error)) {
-            ctx.logger.warn({ skillId: input.skillId }, "RLS violation on skill grant access");
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "You don't have permission to grant access to this skill",
+              message: "You don't have permission to manage access for this skill",
             });
           }
-          throw error;
-        }
-      });
-    }),
-
-  revokeAccess: authorizedProcedure([Permissions.SkillUpdateAll, Permissions.SkillUpdateOwn])
-    .input(
-      z.object({
-        skillId: z.uuid(),
-        principalId: z.uuid(),
-        principalType: z.enum(["user", "group"]),
-        role: z.enum(["editor", "user"]),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        try {
-          await trx
-            .deleteFrom("skillAccess")
-            .where("skillId", "=", input.skillId)
-            .where(input.principalType === "user" ? "userId" : "groupId", "=", input.principalId)
-            .where("role", "=", input.role)
-            .execute();
-
-          ctx.logger.info(
-            {
-              skillId: input.skillId,
-              principalId: input.principalId,
-              principalType: input.principalType,
-              role: input.role,
-            },
-            "Skill access revoked",
-          );
-          return { success: true };
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            ctx.logger.warn({ skillId: input.skillId }, "RLS violation on skill revoke access");
+          if (isUniqueViolation(error)) {
             throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have permission to revoke access from this skill",
+              code: "CONFLICT",
+              message: "Duplicate access entry",
             });
           }
           throw error;

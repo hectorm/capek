@@ -44,7 +44,7 @@ const userStore = useUserStore();
 
 let [skill, currentAccess] = await Promise.all([
   props.id ? $trpc.skill.read.query({ id: props.id }) : Promise.resolve(null),
-  props.id ? $trpc.skill.principals.query({ id: props.id }) : Promise.resolve([]),
+  props.id ? $trpc.skill.listAccess.query({ skillId: props.id }) : Promise.resolve([]),
 ]);
 
 if (!props.id && userStore.user) {
@@ -162,25 +162,17 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       skillId = result.id;
     }
 
-    // Sync access
-    for (const compositeId of event.data.editors) {
-      const [type, id] = compositeId.split(":");
-      await $trpc.skill.grantAccess.mutate({
-        skillId,
-        principalId: id ?? "",
-        principalType: type as "user" | "group",
-        role: "editor",
-      });
-    }
-    for (const compositeId of event.data.users) {
-      const [type, id] = compositeId.split(":");
-      await $trpc.skill.grantAccess.mutate({
-        skillId,
-        principalId: id ?? "",
-        principalType: type as "user" | "group",
-        role: "user",
-      });
-    }
+    const access = [
+      ...event.data.editors.map((compositeId) => {
+        const [type, id] = compositeId.split(":");
+        return { id: id ?? "", type: type as "user" | "group", role: "editor" as const };
+      }),
+      ...event.data.users.map((compositeId) => {
+        const [type, id] = compositeId.split(":");
+        return { id: id ?? "", type: type as "user" | "group", role: "user" as const };
+      }),
+    ];
+    await $trpc.skill.syncAccess.mutate({ skillId, access });
 
     emit("close", { skill, error: null });
   } catch {
@@ -226,7 +218,7 @@ const onCancel = () => {
           <UTextarea
             v-model="state.description"
             autoresize
-            :maxrows="5"
+            :maxrows="3"
             class="w-full"
             :disabled="!canModify"
             :placeholder="$t('pages.studio.skills.form.description.placeholder')"

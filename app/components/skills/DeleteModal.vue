@@ -23,7 +23,7 @@ const { canAny } = usePermissions();
 
 const [skill, currentAccess] = await Promise.all([
   $trpc.skill.read.query({ id: props.id }),
-  $trpc.skill.principals.query({ id: props.id }),
+  $trpc.skill.listAccess.query({ skillId: props.id }),
 ]);
 
 const canDelete = computed(() => {

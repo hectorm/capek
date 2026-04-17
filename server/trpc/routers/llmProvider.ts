@@ -70,30 +70,30 @@ export const llmProviderRouter = createTRPCRouter({
 
         // Apply cursor-based pagination
         if (cursor) {
-          const cursorProvider = await trx
+          const cursorLlmProvider = await trx
             .selectFrom("llmProviders")
             .select(["id", orderBy])
             .where("id", "=", cursor)
             .executeTakeFirst();
 
-          if (cursorProvider) {
+          if (cursorLlmProvider) {
             if (order === "asc") {
               query = query.where((eb) =>
                 eb.or([
-                  eb(`llmProviders.${orderBy}`, ">", cursorProvider[orderBy]),
+                  eb(`llmProviders.${orderBy}`, ">", cursorLlmProvider[orderBy]),
                   eb.and([
-                    eb(`llmProviders.${orderBy}`, "=", cursorProvider[orderBy]),
-                    eb("llmProviders.id", ">", cursorProvider.id),
+                    eb(`llmProviders.${orderBy}`, "=", cursorLlmProvider[orderBy]),
+                    eb("llmProviders.id", ">", cursorLlmProvider.id),
                   ]),
                 ]),
               );
             } else {
               query = query.where((eb) =>
                 eb.or([
-                  eb(`llmProviders.${orderBy}`, "<", cursorProvider[orderBy]),
+                  eb(`llmProviders.${orderBy}`, "<", cursorLlmProvider[orderBy]),
                   eb.and([
-                    eb(`llmProviders.${orderBy}`, "=", cursorProvider[orderBy]),
-                    eb("llmProviders.id", "<", cursorProvider.id),
+                    eb(`llmProviders.${orderBy}`, "=", cursorLlmProvider[orderBy]),
+                    eb("llmProviders.id", "<", cursorLlmProvider.id),
                   ]),
                 ]),
               );

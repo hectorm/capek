@@ -175,9 +175,9 @@ const handleUpdateModal = async (llmProvider: LlmProvider): Promise<void> => {
   const instance = upsertModal.open({ id: llmProvider.id });
   const modalResult = (await instance.result) as { llmProvider: LlmProvider | null; error: Error | null };
   if (modalResult.llmProvider) {
-    const updatedProvider = modalResult.llmProvider;
-    const i = llmProviders.value.findIndex((p) => p.id === updatedProvider.id);
-    if (i >= 0) llmProviders.value = llmProviders.value.toSpliced(i, 1, updatedProvider);
+    const updatedLlmProvider = modalResult.llmProvider;
+    const i = llmProviders.value.findIndex((p) => p.id === updatedLlmProvider.id);
+    if (i >= 0) llmProviders.value = llmProviders.value.toSpliced(i, 1, updatedLlmProvider);
     toast.add({
       color: "success",
       title: i18n.t("pages.studio.llmProviders.table.actions.update.success.title"),

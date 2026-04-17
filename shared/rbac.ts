@@ -78,13 +78,6 @@ export const Permissions = {
   McpServerUseAll: "mcp_server:use:all",
   McpServerUseOwn: "mcp_server:use:own",
 
-  ExecutionReadAll: "execution:read:all",
-  ExecutionReadOwn: "execution:read:own",
-  ExecutionListAll: "execution:list:all",
-  ExecutionListOwn: "execution:list:own",
-  ExecutionCancelAll: "execution:cancel:all",
-  ExecutionCancelOwn: "execution:cancel:own",
-
   SkillReadAll: "skill:read:all",
   SkillReadOwn: "skill:read:own",
   SkillListAll: "skill:list:all",
@@ -96,6 +89,13 @@ export const Permissions = {
   SkillDeleteOwn: "skill:delete:own",
   SkillUseAll: "skill:use:all",
   SkillUseOwn: "skill:use:own",
+
+  ExecutionReadAll: "execution:read:all",
+  ExecutionReadOwn: "execution:read:own",
+  ExecutionListAll: "execution:list:all",
+  ExecutionListOwn: "execution:list:own",
+  ExecutionCancelAll: "execution:cancel:all",
+  ExecutionCancelOwn: "execution:cancel:own",
 } as const;
 
 export type PermissionName = (typeof Permissions)[keyof typeof Permissions];

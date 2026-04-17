@@ -206,7 +206,7 @@ const onCancel = () => {
           <UTextarea
             v-model="state.description"
             autoresize
-            :maxrows="10"
+            :maxrows="3"
             class="w-full"
             :disabled="!canModify"
             :placeholder="$t('pages.studio.llmProviders.form.description.placeholder')"

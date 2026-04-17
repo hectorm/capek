@@ -25,7 +25,7 @@ import LazyUpsertModal from "~/components/skills/UpsertModal.vue";
 type SearchInput = NonNullable<Exclude<RouterInputs["skill"]["search"], void>>;
 type SearchOutput = RouterOutputs["skill"]["search"];
 
-type Skill = SearchOutput["items"][number];
+type Skill = SearchOutput["skills"][number];
 
 const i18n = useI18n();
 const overlay = useOverlay();
@@ -39,7 +39,7 @@ const deleteModal = overlay.create(LazyDeleteModal);
 const table = useTemplateRef<ComponentPublicInstance>("table");
 const query = ref<SearchInput>({ limit: 100, orderBy: "name", order: "asc" });
 const result = shallowRef<SearchOutput>(await $trpc.skill.search.query(query.value));
-const skills = shallowRef<Skill[]>(result.value.items);
+const skills = shallowRef<Skill[]>(result.value.skills);
 const loading = ref<boolean>(false);
 
 const columns = computed(() => [
@@ -82,10 +82,10 @@ const doSearch = async (reset = false): Promise<void> => {
         el.scrollTop = 0;
       }
       result.value = await $trpc.skill.search.query({ ...query.value, cursor: undefined });
-      skills.value = result.value.items;
+      skills.value = result.value.skills;
     } else {
       result.value = await $trpc.skill.search.query({ ...query.value, cursor: result.value.nextCursor });
-      skills.value = skills.value.concat(result.value.items);
+      skills.value = skills.value.concat(result.value.skills);
     }
   } finally {
     loading.value = false;
@@ -113,12 +113,12 @@ const setFilter = (column: TableColumn<Skill>, value: string | string[]) => {
 };
 
 const getDropdownActions = (skill: Skill): DropdownMenuItem[] => {
-  const dropdownActions: DropdownMenuItem[] = [];
+  const actions: DropdownMenuItem[] = [];
 
   if (
     canAny([Permissions.SkillReadAll, Permissions.SkillReadOwn, Permissions.SkillUpdateAll, Permissions.SkillUpdateOwn])
   ) {
-    dropdownActions.push({
+    actions.push({
       label: i18n.t("pages.studio.skills.table.actions.update.label"),
       icon: "i-lucide-edit",
       color: "neutral",
@@ -127,7 +127,7 @@ const getDropdownActions = (skill: Skill): DropdownMenuItem[] => {
   }
 
   if (canAny([Permissions.SkillDeleteAll, Permissions.SkillDeleteOwn])) {
-    dropdownActions.push({
+    actions.push({
       label: i18n.t("pages.studio.skills.table.actions.delete.label"),
       icon: "i-lucide-trash-2",
       color: "error",
@@ -135,7 +135,7 @@ const getDropdownActions = (skill: Skill): DropdownMenuItem[] => {
     });
   }
 
-  return dropdownActions;
+  return actions;
 };
 
 const handleCreateModal = async (): Promise<void> => {

@@ -482,65 +482,7 @@ export class AgentExecutor {
         }
       }
 
-      const mcpServer = findServerForTool(toolName, mcpServers);
-
-      if (!mcpServer) {
-        const errorMessage = `Tool ${toolName} not found in any assigned MCP server`;
-        logger.error({ toolName, executionId: this.executionId }, errorMessage);
-        await this.saveToolCall(toolCall, null, null, null, null, errorMessage);
-        throw new Error("The requested tool is not available");
-      }
-
-      let args: Record<string, unknown>;
-      try {
-        const parsed: unknown = JSON.parse(toolCall.function.arguments);
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-          throw new Error("Tool arguments must be a JSON object");
-        }
-        args = parsed as Record<string, unknown>;
-      } catch (parseError) {
-        const errorMessage = `Failed to parse tool arguments: ${toolCall.function.arguments}`;
-        logger.error({ toolName, executionId: this.executionId, parseError }, errorMessage);
-        await this.saveToolCall(toolCall, null, null, null, null, errorMessage);
-        messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
-        continue;
-      }
-
-      yield new TextEncoder().encode(`: ${toolName}\n\n`);
-
-      try {
-        const mcpManager = MCPManager.getInstance();
-        let result = await mcpManager.callTool(
-          mcpServer.name,
-          mcpServer.url,
-          mcpServer.headers,
-          toolName,
-          args,
-          this.config.sessionId,
-          mcpServer.stateful,
-          mcpServer.toolCallTimeoutSec,
-          signal,
-        );
-
-        await this.saveToolCall(toolCall, mcpServer.id, null, null, result, null);
-
-        if (result.length > agent.maxToolResponseChars) {
-          const originalLength = result.length;
-          const truncatedLength = agent.maxToolResponseChars;
-          logger.debug({ toolName, originalLength, truncatedLength }, "Tool response truncated");
-          result = result.slice(0, agent.maxToolResponseChars);
-          result += `\n\n[Response truncated: ${String(originalLength)} characters, showing first ${String(truncatedLength)}]`;
-        }
-
-        messageHistory.push(this.createMessage("tool", result, { toolCallId: toolCall.id }));
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error({ toolName, mcpServer: mcpServer.name, error: errorMessage }, "Tool execution failed");
-
-        await this.saveToolCall(toolCall, mcpServer.id, null, null, null, errorMessage);
-
-        messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
-      }
+      yield* this.handleMcpToolCall(toolCall, mcpServers, messageHistory, agent, signal);
     }
 
     yield new TextEncoder().encode(`: \n\n`);
@@ -652,6 +594,76 @@ export class AgentExecutor {
     messageHistory.push(this.createMessage("tool", resultMessage, { toolCallId: toolCall.id }));
   }
 
+  private async *handleMcpToolCall(
+    toolCall: OpenAIToolCall,
+    mcpServers: MCPServerInfo[],
+    messageHistory: OpenAIMessage[],
+    agent: AgentConfig,
+    signal?: AbortSignal,
+  ): AsyncGenerator<Uint8Array> {
+    const toolName = toolCall.function.name;
+    const mcpServer = findServerForTool(toolName, mcpServers);
+
+    if (!mcpServer) {
+      const errorMessage = `Tool "${toolName}" not found in any assigned MCP server`;
+      logger.error({ toolName, executionId: this.executionId }, errorMessage);
+      await this.saveToolCall(toolCall, null, null, null, null, errorMessage);
+      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      return;
+    }
+
+    let args: Record<string, unknown>;
+    try {
+      const raw: unknown = JSON.parse(toolCall.function.arguments);
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        throw new Error("Tool arguments must be a JSON object");
+      }
+      args = raw as Record<string, unknown>;
+    } catch (parseError) {
+      const errorMessage = `Failed to parse MCP tool arguments: ${toolCall.function.arguments}`;
+      logger.error({ toolName, executionId: this.executionId, parseError }, errorMessage);
+      await this.saveToolCall(toolCall, null, null, null, null, errorMessage);
+      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      return;
+    }
+
+    yield new TextEncoder().encode(`: ${toolName}\n\n`);
+
+    try {
+      const mcpManager = MCPManager.getInstance();
+      let result = await mcpManager.callTool(
+        mcpServer.name,
+        mcpServer.url,
+        mcpServer.headers,
+        toolName,
+        args,
+        this.config.sessionId,
+        mcpServer.stateful,
+        mcpServer.toolCallTimeoutSec,
+        signal,
+      );
+
+      await this.saveToolCall(toolCall, mcpServer.id, null, null, result, null);
+
+      if (result.length > agent.maxToolResponseChars) {
+        const originalLength = result.length;
+        const truncatedLength = agent.maxToolResponseChars;
+        logger.debug({ toolName, originalLength, truncatedLength }, "MCP tool response truncated");
+        result = result.slice(0, agent.maxToolResponseChars);
+        result += `\n\n[Response truncated: ${String(originalLength)} characters, showing first ${String(truncatedLength)}]`;
+      }
+
+      messageHistory.push(this.createMessage("tool", result, { toolCallId: toolCall.id }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ toolName, mcpServer: mcpServer.name, error: errorMessage }, "MCP tool execution failed");
+
+      await this.saveToolCall(toolCall, mcpServer.id, null, null, null, errorMessage);
+
+      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+    }
+  }
+
   private async *handleSkillToolCall(
     toolCall: OpenAIToolCall,
     skill: SkillBinding,
@@ -670,6 +682,7 @@ export class AgentExecutor {
     } catch (parseError) {
       const errorMessage = `Failed to parse skill arguments: ${toolCall.function.arguments}`;
       logger.error({ executionId: this.executionId, skill: skill.name, parseError }, errorMessage);
+      await this.saveToolCall(toolCall, null, skill.id, null, null, errorMessage);
       messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
       return;
     }
@@ -991,15 +1004,71 @@ export class AgentExecutor {
     const result: OpenAIMessage[] = [];
 
     let totalChars = 0;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i] as { role: string; content: string };
-      const msgChars = m.content.length;
-      if (totalChars + msgChars > agent.maxContextChars) break;
-      result.push(this.createMessage(m.role as "user" | "assistant" | "system", m.content));
-      totalChars += msgChars;
+    for (const m of messages) {
+      const msg = m as { role: string; content: string };
+      if (totalChars + msg.content.length > agent.maxContextChars) break;
+      result.push(this.createMessage(msg.role as "user" | "assistant" | "system", msg.content));
+      totalChars += msg.content.length;
     }
 
-    return result;
+    return result.reverse();
+  }
+
+  private async saveAssistantMessage(content: string): Promise<void> {
+    await withUserTransaction(this.config.user, async (trx) => {
+      const assistantMessage = await trx
+        .insertInto("chatMessages")
+        .values({
+          sessionId: this.config.sessionId,
+          role: "assistant",
+          content,
+        })
+        .returning(["id"])
+        .executeTakeFirstOrThrow();
+
+      if (this.executionId) {
+        await trx
+          .updateTable("agentExecutions")
+          .set({ outputMessageId: assistantMessage.id })
+          .where("id", "=", this.executionId)
+          .execute();
+      }
+
+      await trx
+        .updateTable("chatSessions")
+        .set({ updatedAt: new Date() })
+        .where("id", "=", this.config.sessionId)
+        .execute();
+    });
+  }
+
+  private async updateLastActivity(): Promise<void> {
+    if (!this.executionId) return;
+
+    await withUserTransaction(this.config.user, async (trx) => {
+      await trx
+        .updateTable("agentExecutions")
+        .set({ lastActivityAt: new Date() })
+        .where("id", "=", this.executionId)
+        .execute();
+    });
+  }
+
+  private async completeExecution(status: "completed" | "failed" | "cancelled", errorMessage?: string): Promise<void> {
+    if (!this.executionId) return;
+
+    await withUserTransaction(this.config.user, async (trx) => {
+      await trx
+        .updateTable("agentExecutions")
+        .set({
+          status,
+          errorMessage: errorMessage ?? null,
+          completedAt: new Date(),
+          lastActivityAt: new Date(),
+        })
+        .where("id", "=", this.executionId)
+        .execute();
+    });
   }
 
   private createMessage(
@@ -1042,63 +1111,6 @@ export class AgentExecutor {
   private checkTimeout(agent: AgentConfig): boolean {
     const elapsed = (Date.now() - this.startedAt.getTime()) / 1000;
     return elapsed < agent.timeoutSec;
-  }
-
-  private async updateLastActivity(): Promise<void> {
-    if (!this.executionId) return;
-
-    await withUserTransaction(this.config.user, async (trx) => {
-      await trx
-        .updateTable("agentExecutions")
-        .set({ lastActivityAt: new Date() })
-        .where("id", "=", this.executionId)
-        .execute();
-    });
-  }
-
-  private async completeExecution(status: "completed" | "failed" | "cancelled", errorMessage?: string): Promise<void> {
-    if (!this.executionId) return;
-
-    await withUserTransaction(this.config.user, async (trx) => {
-      await trx
-        .updateTable("agentExecutions")
-        .set({
-          status,
-          errorMessage: errorMessage ?? null,
-          completedAt: new Date(),
-          lastActivityAt: new Date(),
-        })
-        .where("id", "=", this.executionId)
-        .execute();
-    });
-  }
-
-  private async saveAssistantMessage(content: string): Promise<void> {
-    await withUserTransaction(this.config.user, async (trx) => {
-      const assistantMessage = await trx
-        .insertInto("chatMessages")
-        .values({
-          sessionId: this.config.sessionId,
-          role: "assistant",
-          content,
-        })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
-
-      if (this.executionId) {
-        await trx
-          .updateTable("agentExecutions")
-          .set({ outputMessageId: assistantMessage.id })
-          .where("id", "=", this.executionId)
-          .execute();
-      }
-
-      await trx
-        .updateTable("chatSessions")
-        .set({ updatedAt: new Date() })
-        .where("id", "=", this.config.sessionId)
-        .execute();
-    });
   }
 
   public cleanup(): void {

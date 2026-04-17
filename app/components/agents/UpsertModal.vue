@@ -93,7 +93,7 @@ if (!props.id && userStore.user) {
 
 const llmProviders = llmProvidersResult.llmProviders;
 const mcpServers = mcpServersResult.mcpServers;
-const skills = skillsResult.items;
+const skills = skillsResult.skills;
 const allAgents = allAgentsResult.agents;
 
 const canModify = computed(() => {
