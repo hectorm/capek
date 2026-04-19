@@ -175,7 +175,7 @@ services:
               Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
             type: "specialist"
             llmProviderName: "llama.cpp"
-            model: "gpt-oss-120b"
+            model: "local"
             access:
               editors:
                 groups: ["administrators"]
@@ -189,7 +189,7 @@ services:
               You are also knowledgeable about software design patterns and best practices.
             type: "specialist"
             llmProviderName: "llama.cpp"
-            model: "gpt-oss-120b"
+            model: "local"
             mcpServers: ["Playwright"]
             skills: ["runBrowserScript"]
             codeInterpreter: true
@@ -206,7 +206,7 @@ services:
               If multiple specialists could help, choose the one that is most relevant.
             type: "triage"
             llmProviderName: "llama.cpp"
-            model: "gpt-oss-120b"
+            model: "local"
             specialists: ["General assistant", "Developer assistant"]
             access:
               editors:
