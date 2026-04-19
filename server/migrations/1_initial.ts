@@ -825,7 +825,7 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
     $$;
   `.execute(db);
 
-  // Function to check if user has access to a shared resource via access tables
+  // Function to check if user has direct access to a shared resource via access tables
   await sql`
     CREATE FUNCTION auth.has_access(resource_type TEXT, resource_id UUID, required_roles TEXT[] DEFAULT ARRAY['editor', 'user'])
     RETURNS BOOLEAN
@@ -860,6 +860,27 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
         )
         ELSE FALSE
       END;
+    $$;
+  `.execute(db);
+
+  // Function to check whether a specific agent already links to a specific resource.
+  // This is used for context-scoped access checks that should not become reusable access across agents.
+  await sql`
+    CREATE FUNCTION auth.agent_has_linked_resource(agent_id UUID, resource_type TEXT, resource_id UUID)
+    RETURNS BOOLEAN
+    LANGUAGE SQL
+    STABLE
+    SECURITY DEFINER
+    SET search_path = pg_catalog, public
+    AS $$
+      SELECT CASE resource_type
+          WHEN 'llm_provider' THEN EXISTS (
+            SELECT 1 FROM public.agents
+            WHERE agents.id = agent_id
+              AND agents.llm_provider_id = resource_id
+          )
+          ELSE FALSE
+        END;
     $$;
   `.execute(db);
 
@@ -1261,7 +1282,15 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
       WITH CHECK (
         user_id = auth.user_id()
         AND auth.can_any(ARRAY['chat:create'])
-        AND (agent_id IS NULL OR auth.has_access('agent', agent_id))
+        -- Requires use permission on the agent being attached
+        AND (
+          agent_id IS NULL
+          OR auth.can_any(ARRAY['agent:use:all'])
+          OR (
+            auth.can_any(ARRAY['agent:use:own'])
+            AND auth.has_access('agent', agent_id)
+          )
+        )
       );
   `.execute(db);
 
@@ -1277,7 +1306,15 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
           auth.can_any(ARRAY['chat:update:all'])
           OR (user_id = auth.user_id() AND auth.can_any(ARRAY['chat:update:own']))
         )
-        AND (agent_id IS NULL OR auth.has_access('agent', agent_id))
+        -- Requires use permission on the agent being attached
+        AND (
+          agent_id IS NULL
+          OR auth.can_any(ARRAY['agent:use:all'])
+          OR (
+            auth.can_any(ARRAY['agent:use:own'])
+            AND auth.has_access('agent', agent_id)
+          )
+        )
       );
   `.execute(db);
 
@@ -1672,6 +1709,7 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
       WITH CHECK (auth.user_id() IS NULL);
   `.execute(db);
 
+  // Note: See llm_provider_access_select comment
   await sql`
     CREATE POLICY skill_access_select ON public.skill_access
       FOR SELECT
@@ -1686,7 +1724,7 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
       WITH CHECK (
         auth.can_any(ARRAY['skill:update:all'])
         OR (auth.can_any(ARRAY['skill:update:own']) AND auth.has_access('skill', skill_id, ARRAY['editor']))
-        -- Implicit creator self-grant
+        -- Implicit creator self-grant: creator can grant access to themselves only when no other users or groups have access
         OR (
           auth.can_any(ARRAY['skill:create'])
           AND user_id = auth.user_id()
@@ -1744,8 +1782,15 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
       FOR INSERT
       WITH CHECK (
         auth.can_any(ARRAY['agent:create'])
-        -- Requires access to the LLM provider being assigned
-        AND (llm_provider_id IS NULL OR auth.has_access('llm_provider', llm_provider_id))
+        -- Requires use permission on the LLM provider being assigned
+        AND (
+          llm_provider_id IS NULL
+          OR auth.can_any(ARRAY['llm_provider:use:all'])
+          OR (
+            auth.can_any(ARRAY['llm_provider:use:own'])
+            AND auth.has_access('llm_provider', llm_provider_id)
+          )
+        )
       );
   `.execute(db);
 
@@ -1757,12 +1802,23 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
         OR (auth.can_any(ARRAY['agent:update:own']) AND auth.has_access('agent', id, ARRAY['editor']))
       )
       WITH CHECK (
+        -- Requires update permission on the agent
         (
           auth.can_any(ARRAY['agent:update:all'])
           OR (auth.can_any(ARRAY['agent:update:own']) AND auth.has_access('agent', id, ARRAY['editor']))
         )
-        -- Requires access to the LLM provider being assigned
-        AND (llm_provider_id IS NULL OR auth.has_access('llm_provider', llm_provider_id))
+        -- Requires use permission on the LLM provider being assigned
+        AND (
+          llm_provider_id IS NULL
+          OR auth.can_any(ARRAY['llm_provider:use:all'])
+          OR (
+            auth.can_any(ARRAY['llm_provider:use:own'])
+            AND (
+              auth.has_access('llm_provider', llm_provider_id)
+              OR auth.agent_has_linked_resource(id, 'llm_provider', llm_provider_id)
+            )
+          )
+        )
       );
   `.execute(db);
 
@@ -1854,13 +1910,15 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
     CREATE POLICY agent_mcp_servers_insert ON public.agent_mcp_servers
       FOR INSERT
       WITH CHECK (
-        auth.can_any(ARRAY['agent:update:all', 'mcp_server:use:all'])
-        OR (
-          auth.can_any(ARRAY['agent:update:own', 'mcp_server:use:own'])
-          -- Requires editor role on the agent
-          AND auth.has_access('agent', agent_id, ARRAY['editor'])
-          -- Requires access to the MCP server being assigned
-          AND auth.has_access('mcp_server', mcp_server_id)
+        -- Requires update permission on the agent
+        (
+          auth.can_any(ARRAY['agent:update:all'])
+          OR (auth.can_any(ARRAY['agent:update:own']) AND auth.has_access('agent', agent_id, ARRAY['editor']))
+        )
+        -- Requires use permission on the MCP server being assigned
+        AND (
+          auth.can_any(ARRAY['mcp_server:use:all'])
+          OR (auth.can_any(ARRAY['mcp_server:use:own']) AND auth.has_access('mcp_server', mcp_server_id))
         )
       );
   `.execute(db);
@@ -1891,8 +1949,11 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
     CREATE POLICY agent_skills_select ON public.agent_skills
       FOR SELECT
       USING (
-        auth.can_any(ARRAY['agent:read:all', 'agent:list:all', 'agent:update:all'])
-        OR (auth.can_any(ARRAY['agent:read:own', 'agent:list:own', 'agent:update:own']) AND auth.has_access('agent', agent_id))
+        auth.can_any(ARRAY['agent:read:all', 'agent:update:all', 'agent:use:all'])
+        OR (
+          auth.can_any(ARRAY['agent:read:own', 'agent:update:own', 'agent:use:own'])
+          AND auth.has_access('agent', agent_id)
+        )
       );
   `.execute(db);
 
@@ -1900,11 +1961,16 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
     CREATE POLICY agent_skills_insert ON public.agent_skills
       FOR INSERT
       WITH CHECK (
+        -- Requires update permission on the agent
         (
           auth.can_any(ARRAY['agent:update:all'])
           OR (auth.can_any(ARRAY['agent:update:own']) AND auth.has_access('agent', agent_id, ARRAY['editor']))
         )
-        AND auth.has_access('skill', skill_id)
+        -- Requires use permission on the skill being assigned
+        AND (
+          auth.can_any(ARRAY['skill:use:all'])
+          OR (auth.can_any(ARRAY['skill:use:own']) AND auth.has_access('skill', skill_id))
+        )
       );
   `.execute(db);
 
@@ -1946,13 +2012,15 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
     CREATE POLICY triage_specialists_insert ON public.triage_specialists
       FOR INSERT
       WITH CHECK (
-        auth.can_any(ARRAY['agent:update:all', 'agent:use:all'])
-        OR (
-          auth.can_any(ARRAY['agent:update:own', 'agent:use:own'])
-          -- Requires editor role on the triage agent
-          AND auth.has_access('agent', triage_agent_id, ARRAY['editor'])
-          -- Requires access to the specialist agent being assigned
-          AND auth.has_access('agent', specialist_agent_id)
+        -- Requires update permission on the triage agent
+        (
+          auth.can_any(ARRAY['agent:update:all'])
+          OR (auth.can_any(ARRAY['agent:update:own']) AND auth.has_access('agent', triage_agent_id, ARRAY['editor']))
+        )
+        -- Requires use permission on the specialist agent being assigned
+        AND (
+          auth.can_any(ARRAY['agent:use:all'])
+          OR (auth.can_any(ARRAY['agent:use:own']) AND auth.has_access('agent', specialist_agent_id))
         )
       );
   `.execute(db);
@@ -1994,8 +2062,14 @@ export const up = async (db: Kysely<DatabaseWithPgCollation>): Promise<void> => 
       WITH CHECK (
         user_id = auth.user_id()
         AND auth.can_any(ARRAY['chat:create'])
-        -- Requires access to the agent being executed
-        AND (auth.has_access('agent', agent_id) OR auth.can_any(ARRAY['agent:use:all']))
+        -- Requires use permission on the agent being executed
+        AND (
+          auth.can_any(ARRAY['agent:use:all'])
+          OR (
+            auth.can_any(ARRAY['agent:use:own'])
+            AND auth.has_access('agent', agent_id)
+          )
+        )
         -- Requires ownership of the chat session
         AND (session_id IS NULL OR auth.is_owner('chat_session', session_id))
       );
@@ -2286,6 +2360,7 @@ export const down = async (db: Kysely<Database>): Promise<void> => {
   await sql`ALTER TABLE public.agent_code_executions DISABLE ROW LEVEL SECURITY`.execute(db);
   await sql`ALTER TABLE public.agent_tool_calls DISABLE ROW LEVEL SECURITY`.execute(db);
 
+  await sql`DROP FUNCTION IF EXISTS auth.agent_has_linked_resource(UUID, TEXT, UUID)`.execute(db);
   await sql`DROP FUNCTION IF EXISTS auth.has_access(TEXT, UUID, TEXT[])`.execute(db);
   await sql`DROP FUNCTION IF EXISTS auth.is_owner(TEXT, UUID)`.execute(db);
   await sql`DROP FUNCTION IF EXISTS auth.can_any(TEXT[])`.execute(db);
