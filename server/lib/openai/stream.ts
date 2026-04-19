@@ -65,7 +65,7 @@ export class OpenAIStreamProcessor {
         const index = tc.index ?? 0;
         const existing = this.toolCalls.get(index);
 
-        if (tc.id && tc.type === "function" && tc.function?.name) {
+        if (tc.id && tc.function?.name) {
           this.toolCalls.set(index, {
             id: tc.id,
             name: tc.function.name,

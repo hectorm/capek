@@ -41,7 +41,7 @@ export type OpenAIToolChoice = z.infer<typeof OpenAIToolChoiceSchema>;
 
 export const OpenAIToolCallSchema = z.object({
   id: z.string(),
-  type: z.literal("function"),
+  type: z.literal("function").optional(),
   function: z.object({
     name: z.string(),
     arguments: z.string(),

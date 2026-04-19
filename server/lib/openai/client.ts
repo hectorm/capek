@@ -104,16 +104,12 @@ export class OpenAIClient {
     signal?: AbortSignal,
   ): Promise<OpenAICompletionResponse | ReadableStream<Uint8Array>> {
     const model = request.model ?? (await this.getModel());
-
-    const completionRequest = {
-      ...request,
-      model,
-      stream: request.stream ?? this.streaming ?? true,
-    } satisfies OpenAICompletionRequest & { stream: boolean; model: string };
+    const stream = request.stream ?? this.streaming ?? true;
+    const body = this.applyQuirks({ ...request, model, stream });
 
     const response = await this.request("/chat/completions", {
       method: "POST",
-      body: JSON.stringify(completionRequest),
+      body: JSON.stringify(body),
       signal,
     });
 
@@ -122,7 +118,7 @@ export class OpenAIClient {
       throw new Error(`AI service completion request failed: ${errorText}`);
     }
 
-    if (completionRequest.stream) {
+    if (stream) {
       if (!response.body) {
         throw new Error("No response body for AI service streaming completion");
       }
@@ -132,7 +128,7 @@ export class OpenAIClient {
       const rawCompletion: unknown = await response.json();
       const completion = OpenAICompletionResponseSchema.safeParse(rawCompletion);
       if (!completion.success) {
-        throw new Error("Invalid AI service completion response format");
+        throw new Error(`Invalid AI service completion response format: ${completion.error.message}`);
       }
 
       return completion.data;
@@ -208,5 +204,21 @@ export class OpenAIClient {
     }
 
     return data.data.data.map((m) => m.id);
+  }
+
+  private applyQuirks(request: OpenAICompletionRequest): OpenAICompletionRequest | Record<string, unknown> {
+    const host = new URL(this.apiUrl).host.toLowerCase();
+    let body: OpenAICompletionRequest | Record<string, unknown> = request;
+
+    switch (host) {
+      case "api.mistral.ai":
+        if (request.max_completion_tokens !== undefined) {
+          const { max_completion_tokens, ...rest } = request;
+          body = { ...rest, max_tokens: max_completion_tokens };
+        }
+        break;
+    }
+
+    return body;
   }
 }
