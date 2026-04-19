@@ -100,7 +100,7 @@ export default defineNuxtConfig({
   },
   vite: {
     optimizeDeps: {
-      include: ["marked", "dompurify"],
+      include: ["marked", "dompurify", "superjson", "zod/v4"],
     },
     plugins: [
       {
