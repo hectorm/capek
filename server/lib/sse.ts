@@ -91,9 +91,8 @@ export class SSEProcessor {
         break;
       case "retry":
         if (/^\d+$/.test(value)) {
-          const retryMs = parseInt(value, 10);
           if (this.onRetry) {
-            this.onRetry(retryMs);
+            this.onRetry(Number.parseInt(value, 10));
           }
         }
         break;
