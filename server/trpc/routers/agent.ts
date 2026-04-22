@@ -17,31 +17,29 @@ export const agentRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const agent = await trx
           .selectFrom("agents")
-          .leftJoin("llmProviders", "llmProviders.id", "agents.llmProviderId")
           .select([
-            "agents.id",
-            "agents.name",
-            "agents.description",
-            "agents.instructions",
-            "agents.greetingMessage",
-            "agents.type",
-            "agents.llmProviderId",
-            "llmProviders.name as llmProviderName",
-            "agents.model",
-            "agents.summaryModel",
-            "agents.codeInterpreter",
-            "agents.streaming",
-            "agents.temperature",
-            "agents.maxTokens",
-            "agents.topP",
-            "agents.frequencyPenalty",
-            "agents.presencePenalty",
-            "agents.maxIterations",
-            "agents.timeoutSec",
-            "agents.maxContextChars",
-            "agents.maxToolResponseChars",
+            "id",
+            "name",
+            "description",
+            "instructions",
+            "greetingMessage",
+            "type",
+            "llmProviderId",
+            "model",
+            "summaryModel",
+            "codeInterpreter",
+            "streaming",
+            "temperature",
+            "maxTokens",
+            "topP",
+            "frequencyPenalty",
+            "presencePenalty",
+            "maxIterations",
+            "timeoutSec",
+            "maxContextChars",
+            "maxToolResponseChars",
           ])
-          .where("agents.id", "=", input.id)
+          .where("id", "=", input.id)
           .executeTakeFirst();
 
         if (!agent) {
