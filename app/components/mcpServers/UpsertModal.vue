@@ -261,7 +261,6 @@ const onCancel = () => {
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
                 :placeholder="$t('pages.studio.mcpServers.form.headers.namePlaceholder')"
-                @input="header.value === HttpRedactedValue && (header.value = '')"
               />
               <UInput
                 v-model="header.value"
@@ -273,6 +272,7 @@ const onCancel = () => {
                 autocomplete="off"
                 :disabled="!canModify"
                 :placeholder="$t('pages.studio.mcpServers.form.headers.valuePlaceholder')"
+                @input="header.value === HttpRedactedValue && (header.value = '')"
               />
               <UButton
                 v-if="canModify"
