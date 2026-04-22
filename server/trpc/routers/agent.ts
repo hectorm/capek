@@ -146,7 +146,7 @@ export const agentRouter = createTRPCRouter({
       z
         .object({
           name: z.string().min(1).max(100).trim(),
-          description: z.string().max(500).trim().default(""),
+          description: z.string().max(1000).trim().default(""),
           instructions: z.string().max(100000).trim().default(""),
           greetingMessage: z.string().max(10000).trim().default(""),
           type: z.enum(["triage", "specialist"]),
@@ -251,7 +251,7 @@ export const agentRouter = createTRPCRouter({
         .object({
           id: z.uuid(),
           name: z.string().min(1).max(100).trim().optional(),
-          description: z.string().max(500).trim().optional(),
+          description: z.string().max(1000).trim().optional(),
           instructions: z.string().max(100000).trim().optional(),
           greetingMessage: z.string().max(10000).trim().optional(),
           llmProviderId: z.uuid().nullish(),
