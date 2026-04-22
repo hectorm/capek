@@ -132,7 +132,7 @@ const state = reactive<
   name: skill?.name,
   description: skill?.description,
   documentation: skill?.documentation ?? undefined,
-  code: skill?.code ?? defaultCode,
+  code: skill?.code ?? (props.id ? undefined : defaultCode),
   editors: editorIds,
   users: userIds,
 });
