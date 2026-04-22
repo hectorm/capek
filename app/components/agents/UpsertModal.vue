@@ -220,59 +220,53 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     let agentId: string;
 
     if ("id" in event.data && event.data.id) {
-      agentId = await $trpc.agent.update
-        .mutate({
-          id: event.data.id,
-          name: event.data.name,
-          description: event.data.description,
-          instructions: event.data.instructions,
-          greetingMessage: event.data.greetingMessage,
-          llmProviderId: event.data.llmProviderId,
-          model: event.data.model,
-          summaryModel: event.data.summaryModel,
-          codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
-          streaming: event.data.streaming,
-          temperature: event.data.temperature,
-          maxTokens: event.data.maxTokens,
-          topP: event.data.topP,
-          frequencyPenalty: event.data.frequencyPenalty,
-          presencePenalty: event.data.presencePenalty,
-          maxIterations: event.data.maxIterations,
-          timeoutSec: event.data.timeoutSec,
-          maxContextChars: event.data.maxContextChars,
-          maxToolResponseChars: event.data.maxToolResponseChars,
-        })
-        .then((result) => {
-          agent = result as AgentGetOutput;
-          return result.id;
-        });
+      const result = await $trpc.agent.update.mutate({
+        id: event.data.id,
+        name: event.data.name,
+        description: event.data.description,
+        instructions: event.data.instructions,
+        greetingMessage: event.data.greetingMessage,
+        llmProviderId: event.data.llmProviderId,
+        model: event.data.model,
+        summaryModel: event.data.summaryModel,
+        codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
+        streaming: event.data.streaming,
+        temperature: event.data.temperature,
+        maxTokens: event.data.maxTokens,
+        topP: event.data.topP,
+        frequencyPenalty: event.data.frequencyPenalty,
+        presencePenalty: event.data.presencePenalty,
+        maxIterations: event.data.maxIterations,
+        timeoutSec: event.data.timeoutSec,
+        maxContextChars: event.data.maxContextChars,
+        maxToolResponseChars: event.data.maxToolResponseChars,
+      });
+      agent = result;
+      agentId = result.id;
     } else {
-      agentId = await $trpc.agent.create
-        .mutate({
-          name: event.data.name,
-          description: event.data.description,
-          instructions: event.data.instructions,
-          greetingMessage: event.data.greetingMessage,
-          type: event.data.type,
-          llmProviderId: event.data.llmProviderId,
-          model: event.data.model,
-          summaryModel: event.data.summaryModel,
-          codeInterpreter: event.data.codeInterpreter,
-          streaming: event.data.streaming,
-          temperature: event.data.temperature,
-          maxTokens: event.data.maxTokens,
-          topP: event.data.topP,
-          frequencyPenalty: event.data.frequencyPenalty,
-          presencePenalty: event.data.presencePenalty,
-          maxIterations: event.data.maxIterations,
-          timeoutSec: event.data.timeoutSec,
-          maxContextChars: event.data.maxContextChars,
-          maxToolResponseChars: event.data.maxToolResponseChars,
-        })
-        .then((result) => {
-          agent = result as AgentGetOutput;
-          return result.id;
-        });
+      const result = await $trpc.agent.create.mutate({
+        name: event.data.name,
+        description: event.data.description,
+        instructions: event.data.instructions,
+        greetingMessage: event.data.greetingMessage,
+        type: event.data.type,
+        llmProviderId: event.data.llmProviderId,
+        model: event.data.model,
+        summaryModel: event.data.summaryModel,
+        codeInterpreter: event.data.codeInterpreter,
+        streaming: event.data.streaming,
+        temperature: event.data.temperature,
+        maxTokens: event.data.maxTokens,
+        topP: event.data.topP,
+        frequencyPenalty: event.data.frequencyPenalty,
+        presencePenalty: event.data.presencePenalty,
+        maxIterations: event.data.maxIterations,
+        timeoutSec: event.data.timeoutSec,
+        maxContextChars: event.data.maxContextChars,
+        maxToolResponseChars: event.data.maxToolResponseChars,
+      });
+      agent = result;
+      agentId = result.id;
     }
 
     const access = [
