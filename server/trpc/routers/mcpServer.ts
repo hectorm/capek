@@ -59,9 +59,7 @@ export const mcpServerRouter = createTRPCRouter({
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx
-          .selectFrom("mcpServers")
-          .select(["id", "name", "description", "url", "headers", "stateful", "toolCallTimeoutSec"]);
+        let query = trx.selectFrom("mcpServers").select(["id", "name", "description", "url"]);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
@@ -117,15 +115,7 @@ export const mcpServerRouter = createTRPCRouter({
         }
 
         ctx.logger.debug("MCP server list retrieved");
-        return {
-          mcpServers: mcpServers.map((s) => {
-            return {
-              ...s,
-              headers: s.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-            } satisfies WithRedactedValues;
-          }),
-          nextCursor,
-        };
+        return { mcpServers, nextCursor };
       });
     }),
 
