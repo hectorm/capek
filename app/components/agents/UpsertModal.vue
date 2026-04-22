@@ -108,7 +108,7 @@ const schema = z
   .object({
     id: z.uuid().optional(),
     name: z.string().min(1).max(100).trim(),
-    description: z.string().max(500).trim().default(""),
+    description: z.string().max(1000).trim().default(""),
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
     editors: z.array(z.string()).default([]),
