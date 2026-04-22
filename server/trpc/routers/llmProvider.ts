@@ -60,7 +60,7 @@ export const llmProviderRouter = createTRPCRouter({
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx.selectFrom("llmProviders").select(["id", "name", "description", "apiUrl", "apiKey", "headers"]);
+        let query = trx.selectFrom("llmProviders").select(["id", "name", "description", "apiUrl"]);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
@@ -116,16 +116,7 @@ export const llmProviderRouter = createTRPCRouter({
         }
 
         ctx.logger.debug("LLM provider list retrieved");
-        return {
-          llmProviders: llmProviders.map((p) => {
-            return {
-              ...p,
-              apiKey: HttpRedactedValue,
-              headers: p.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-            } satisfies WithRedactedValues;
-          }),
-          nextCursor,
-        };
+        return { llmProviders, nextCursor };
       });
     }),
 
