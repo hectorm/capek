@@ -14,7 +14,7 @@ export interface ChatItem {
   id: string;
   label: string;
   to: string;
-  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const useChatUI = (sessions: Ref<ChatSession[]>) => {
@@ -26,7 +26,7 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
       id: s.id,
       label: s.title || i18n.t("pages.chat.untitled"),
       to: `/chat/${s.id}`,
-      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
     })),
   );
 
@@ -55,7 +55,7 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
     const older: Record<string, ChatItem[]> = {};
 
     filteredSessions.value.forEach((s: ChatItem) => {
-      const sessionDate = new Date(s.createdAt);
+      const sessionDate = new Date(s.updatedAt);
 
       if (sessionDate >= todayStart) {
         today.push(s);
