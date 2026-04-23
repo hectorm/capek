@@ -137,7 +137,6 @@ export const settingsRouter = createTRPCRouter({
         }
 
         ctx.logger.info("Settings updated");
-        return { success: true };
       });
     }),
 });

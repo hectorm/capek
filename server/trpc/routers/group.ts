@@ -23,8 +23,6 @@ export const groupRouter = createTRPCRouter({
             "groups.id",
             "groups.name",
             "groups.description",
-            "groups.createdAt",
-            "groups.updatedAt",
             (eb) =>
               eb
                 .selectFrom("groupRoles")
@@ -72,8 +70,6 @@ export const groupRouter = createTRPCRouter({
           "groups.id",
           "groups.name",
           "groups.description",
-          "groups.createdAt",
-          "groups.updatedAt",
           (eb) =>
             eb
               .selectFrom("groupRoles")
@@ -197,8 +193,6 @@ export const groupRouter = createTRPCRouter({
               "groups.id",
               "groups.name",
               "groups.description",
-              "groups.createdAt",
-              "groups.updatedAt",
               (eb) =>
                 eb
                   .selectFrom("groupRoles")
@@ -285,8 +279,6 @@ export const groupRouter = createTRPCRouter({
               "groups.id",
               "groups.name",
               "groups.description",
-              "groups.createdAt",
-              "groups.updatedAt",
               (eb) =>
                 eb
                   .selectFrom("groupRoles")

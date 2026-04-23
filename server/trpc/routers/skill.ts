@@ -17,7 +17,7 @@ export const skillRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const skill = await trx
           .selectFrom("skills")
-          .select(["id", "name", "description", "documentation", "parameters", "code", "createdAt", "updatedAt"])
+          .select(["id", "name", "description", "documentation", "code"])
           .where("id", "=", input.id)
           .executeTakeFirst();
 
@@ -49,9 +49,7 @@ export const skillRouter = createTRPCRouter({
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx
-          .selectFrom("skills")
-          .select(["id", "name", "description", "documentation", "parameters", "createdAt", "updatedAt"]);
+        let query = trx.selectFrom("skills").select(["id", "name", "description"]);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
@@ -178,7 +176,7 @@ export const skillRouter = createTRPCRouter({
 
           const skill = await trx
             .selectFrom("skills")
-            .select(["id", "name", "description", "documentation", "parameters", "code", "createdAt", "updatedAt"])
+            .select(["id", "name", "description", "documentation", "code"])
             .where("id", "=", skillId)
             .executeTakeFirstOrThrow();
 
@@ -256,7 +254,7 @@ export const skillRouter = createTRPCRouter({
               code: updateData.code,
             })
             .where("id", "=", id)
-            .returning(["id", "name", "description", "documentation", "parameters", "code", "createdAt", "updatedAt"])
+            .returning(["id", "name", "description", "documentation", "code"])
             .executeTakeFirst();
 
           if (!skill) {

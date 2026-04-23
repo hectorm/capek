@@ -14,7 +14,7 @@ interface StreamState {
 
 interface SearchQuery {
   search?: string | string[];
-  searchBy?: "title" | "agentName";
+  searchBy?: "title";
   order?: "asc" | "desc";
   orderBy?: "title" | "updatedAt" | "createdAt";
   limit?: number;

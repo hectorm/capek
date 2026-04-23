@@ -19,17 +19,8 @@ export const chatSessionRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const session = await trx
           .selectFrom("chatSessions")
-          .leftJoin("agents", "agents.id", "chatSessions.agentId")
-          .select([
-            "chatSessions.id",
-            "chatSessions.userId",
-            "chatSessions.agentId",
-            "agents.name as agentName",
-            "chatSessions.title",
-            "chatSessions.createdAt",
-            "chatSessions.updatedAt",
-          ])
-          .where("chatSessions.id", "=", input.id)
+          .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"])
+          .where("id", "=", input.id)
           .executeTakeFirst();
 
         if (!session) {
@@ -49,7 +40,7 @@ export const chatSessionRouter = createTRPCRouter({
     .input(
       z.object({
         search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
-        searchBy: z.enum(["title", "agentName"]).default("title"),
+        searchBy: z.enum(["title"]).default("title"),
         order: z.enum(["asc", "desc"]).default("desc"),
         orderBy: z.enum(["title", "updatedAt", "createdAt"]).default("updatedAt"),
         limit: z.number().min(1).max(100).default(50),
@@ -57,33 +48,17 @@ export const chatSessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { cursor, limit, searchBy, search, orderBy, order } = input;
+      const { cursor, limit, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx
           .selectFrom("chatSessions")
-          .leftJoin("agents", "agents.id", "chatSessions.agentId")
-          .select([
-            "chatSessions.id",
-            "chatSessions.userId",
-            "chatSessions.agentId",
-            "agents.name as agentName",
-            "chatSessions.title",
-            "chatSessions.createdAt",
-            "chatSessions.updatedAt",
-          ]);
+          .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"]);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
           const searchList = Array.isArray(search) ? search : [search];
-
-          if (searchBy === "agentName") {
-            query = query.where((eb) => eb.or(searchList.map((v) => eb("agents.name", "ilike", `%${v}%`))));
-          } else {
-            query = query.where((eb) =>
-              eb.or(searchList.map((v) => eb(`chatSessions.${searchBy}`, "ilike", `%${v}%`))),
-            );
-          }
+          query = query.where((eb) => eb.or(searchList.map((v) => eb("chatSessions.title", "ilike", `%${v}%`))));
         }
 
         // Apply cursor-based pagination

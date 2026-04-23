@@ -41,8 +41,6 @@ export const userRouter = createTRPCRouter({
             "users.username",
             "users.fullname",
             "users.email",
-            "users.createdAt",
-            "users.updatedAt",
             (eb) =>
               eb
                 .selectFrom("userGroups")
@@ -102,8 +100,6 @@ export const userRouter = createTRPCRouter({
           "users.username",
           "users.fullname",
           "users.email",
-          "users.createdAt",
-          "users.updatedAt",
           (eb) =>
             eb
               .selectFrom("userGroups")
@@ -274,8 +270,6 @@ export const userRouter = createTRPCRouter({
               "users.username",
               "users.fullname",
               "users.email",
-              "users.createdAt",
-              "users.updatedAt",
               (eb) =>
                 eb
                   .selectFrom("userGroups")
@@ -386,8 +380,6 @@ export const userRouter = createTRPCRouter({
               "users.username",
               "users.fullname",
               "users.email",
-              "users.createdAt",
-              "users.updatedAt",
               (eb) =>
                 eb
                   .selectFrom("userGroups")
