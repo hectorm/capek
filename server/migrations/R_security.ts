@@ -758,11 +758,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
           security.can_any(ARRAY['llm_provider:read:own', 'llm_provider:list:own', 'llm_provider:update:own', 'llm_provider:delete:own', 'llm_provider:use:own'])
           AND security.has_access('llm_provider', id)
         )
-        -- Implicit: agent users can see the LLM provider their agent uses
-        OR EXISTS (
-          SELECT 1 FROM public.agents
-          WHERE agents.llm_provider_id = llm_providers.id
-          AND security.has_access('agent', agents.id)
+        -- Let creators see rows in the current transaction with no access grants
+        -- to other users or groups so they can insert their initial self-access rows
+        OR (
+          security.can_any(ARRAY['llm_provider:create'])
+          AND age(llm_providers.xmin) = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM public.llm_provider_access lpa
+            WHERE lpa.llm_provider_id = llm_providers.id
+            AND (lpa.user_id IS DISTINCT FROM security.user_id() OR lpa.group_id IS NOT NULL)
+          )
         )
       );
   `.execute(db);
@@ -824,10 +829,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
       WITH CHECK (
         security.can_any(ARRAY['llm_provider:update:all'])
         OR (security.can_any(ARRAY['llm_provider:update:own']) AND security.has_access('llm_provider', llm_provider_id, ARRAY['editor']))
-        -- Implicit creator self-grant: creator can grant access to themselves only when no other users or groups have access
+        -- Implicit creator self-grant: creator can grant access to themselves only for resources
+        -- created in the current transaction, and only when no other users or groups have access
         OR (
           security.can_any(ARRAY['llm_provider:create'])
           AND user_id = security.user_id()
+          AND EXISTS (
+            SELECT 1 FROM public.llm_providers lp
+            WHERE lp.id = llm_provider_access.llm_provider_id
+            AND age(lp.xmin) = 0
+          )
           AND NOT EXISTS (
             SELECT 1 FROM public.llm_provider_access lpa
             WHERE lpa.llm_provider_id = llm_provider_access.llm_provider_id
@@ -868,11 +879,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
           security.can_any(ARRAY['mcp_server:read:own', 'mcp_server:list:own', 'mcp_server:update:own', 'mcp_server:delete:own', 'mcp_server:use:own'])
           AND security.has_access('mcp_server', id)
         )
-        -- Implicit: agent users can see MCP servers attached to their agents
-        OR EXISTS (
-          SELECT 1 FROM public.agent_mcp_servers
-          WHERE agent_mcp_servers.mcp_server_id = mcp_servers.id
-          AND security.has_access('agent', agent_mcp_servers.agent_id)
+        -- Let creators see rows in the current transaction with no access grants
+        -- to other users or groups so they can insert their initial self-access rows
+        OR (
+          security.can_any(ARRAY['mcp_server:create'])
+          AND age(mcp_servers.xmin) = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM public.mcp_server_access msa
+            WHERE msa.mcp_server_id = mcp_servers.id
+            AND (msa.user_id IS DISTINCT FROM security.user_id() OR msa.group_id IS NOT NULL)
+          )
         )
       );
   `.execute(db);
@@ -933,10 +949,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
       WITH CHECK (
         security.can_any(ARRAY['mcp_server:update:all'])
         OR (security.can_any(ARRAY['mcp_server:update:own']) AND security.has_access('mcp_server', mcp_server_id, ARRAY['editor']))
-        -- Implicit creator self-grant: creator can grant access to themselves only when no other users or groups have access
+        -- Implicit creator self-grant: creator can grant access to themselves only for resources
+        -- created in the current transaction, and only when no other users or groups have access
         OR (
           security.can_any(ARRAY['mcp_server:create'])
           AND user_id = security.user_id()
+          AND EXISTS (
+            SELECT 1 FROM public.mcp_servers ms
+            WHERE ms.id = mcp_server_access.mcp_server_id
+            AND age(ms.xmin) = 0
+          )
           AND NOT EXISTS (
             SELECT 1 FROM public.mcp_server_access msa
             WHERE msa.mcp_server_id = mcp_server_access.mcp_server_id
@@ -977,11 +999,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
           security.can_any(ARRAY['skill:read:own', 'skill:list:own', 'skill:update:own', 'skill:delete:own', 'skill:use:own'])
           AND security.has_access('skill', id)
         )
-        -- Implicit: agent users can see skills attached to their agents
-        OR EXISTS (
-          SELECT 1 FROM public.agent_skills
-          WHERE agent_skills.skill_id = skills.id
-          AND security.has_access('agent', agent_skills.agent_id)
+        -- Let creators see rows in the current transaction with no access grants
+        -- to other users or groups so they can insert their initial self-access rows
+        OR (
+          security.can_any(ARRAY['skill:create'])
+          AND age(skills.xmin) = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM public.skill_access sa
+            WHERE sa.skill_id = skills.id
+            AND (sa.user_id IS DISTINCT FROM security.user_id() OR sa.group_id IS NOT NULL)
+          )
         )
       );
   `.execute(db);
@@ -1042,10 +1069,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
       WITH CHECK (
         security.can_any(ARRAY['skill:update:all'])
         OR (security.can_any(ARRAY['skill:update:own']) AND security.has_access('skill', skill_id, ARRAY['editor']))
-        -- Implicit creator self-grant: creator can grant access to themselves only when no other users or groups have access
+        -- Implicit creator self-grant: creator can grant access to themselves only for resources
+        -- created in the current transaction, and only when no other users or groups have access
         OR (
           security.can_any(ARRAY['skill:create'])
           AND user_id = security.user_id()
+          AND EXISTS (
+            SELECT 1 FROM public.skills s
+            WHERE s.id = skill_access.skill_id
+            AND age(s.xmin) = 0
+          )
           AND NOT EXISTS (
             SELECT 1 FROM public.skill_access sa
             WHERE sa.skill_id = skill_access.skill_id
@@ -1086,11 +1119,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
           security.can_any(ARRAY['agent:read:own', 'agent:list:own', 'agent:update:own', 'agent:delete:own', 'agent:use:own'])
           AND security.has_access('agent', id)
         )
-        -- Implicit: triage editors can see specialist agents attached to their triage
-        OR EXISTS (
-          SELECT 1 FROM public.triage_specialists
-          WHERE triage_specialists.specialist_agent_id = agents.id
-          AND security.has_access('agent', triage_specialists.triage_agent_id, ARRAY['editor'])
+        -- Let creators see rows in the current transaction with no access grants
+        -- to other users or groups so they can insert their initial self-access rows
+        OR (
+          security.can_any(ARRAY['agent:create'])
+          AND age(agents.xmin) = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM public.agent_access aa
+            WHERE aa.agent_id = agents.id
+            AND (aa.user_id IS DISTINCT FROM security.user_id() OR aa.group_id IS NOT NULL)
+          )
         )
       );
   `.execute(db);
@@ -1177,10 +1215,16 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
       WITH CHECK (
         security.can_any(ARRAY['agent:update:all'])
         OR (security.can_any(ARRAY['agent:update:own']) AND security.has_access('agent', agent_id, ARRAY['editor']))
-        -- Implicit creator self-grant: creator can grant access to themselves only when no other users or groups have access
+        -- Implicit creator self-grant: creator can grant access to themselves only for resources
+        -- created in the current transaction, and only when no other users or groups have access
         OR (
           security.can_any(ARRAY['agent:create'])
           AND user_id = security.user_id()
+          AND EXISTS (
+            SELECT 1 FROM public.agents a
+            WHERE a.id = agent_access.agent_id
+            AND age(a.xmin) = 0
+          )
           AND NOT EXISTS (
             SELECT 1 FROM public.agent_access aa
             WHERE aa.agent_id = agent_access.agent_id
