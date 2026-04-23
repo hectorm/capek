@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import type { Principal } from "~~/shared/rbac";
-import { withUserTransaction } from "~~/server/lib/database";
+import { useDb, withUserTransaction } from "~~/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "~~/server/lib/database/errors";
 import { authorizedProcedure, createTRPCRouter } from "~~/server/trpc/init";
 import { AgentExecutorParametersSchema } from "~~/shared/agent";
@@ -14,8 +14,8 @@ export const agentRouter = createTRPCRouter({
   read: authorizedProcedure([Permissions.AgentReadAll, Permissions.AgentReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const agent = await trx
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
+        return trx
           .selectFrom("agents")
           .select([
             "id",
@@ -41,25 +41,38 @@ export const agentRouter = createTRPCRouter({
           ])
           .where("id", "=", input.id)
           .executeTakeFirst();
-
-        if (!agent) {
-          ctx.logger.warn({ agentId: input.id }, "Agent not found");
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Agent not found",
-          });
-        }
-
-        ctx.logger.debug({ agentId: input.id }, "Agent retrieved");
-        return agent;
       });
+
+      if (!agent) {
+        ctx.logger.warn({ agentId: input.id }, "Agent not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Agent not found",
+        });
+      }
+
+      let llmProviderName: string | null = null;
+      if (agent.llmProviderId) {
+        // Agent access was verified above, resolve the linked provider in system context
+        const db = await useDb();
+        const llmProvider = await db
+          .selectFrom("llmProviders")
+          .select(["name"])
+          .where("id", "=", agent.llmProviderId)
+          .executeTakeFirst();
+        llmProviderName = llmProvider?.name ?? null;
+      }
+
+      ctx.logger.debug({ agentId: input.id }, "Agent retrieved");
+      return { ...agent, llmProviderName };
     }),
 
   search: authorizedProcedure([Permissions.AgentListAll, Permissions.AgentListOwn])
     .input(
       z.object({
+        type: z.enum(["triage", "specialist"]).optional(),
         search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
-        searchBy: z.enum(["name", "description", "type", "llmProviderName", "model"]).default("name"),
+        searchBy: z.enum(["name", "description", "type", "model"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description", "type", "model"]).default("name"),
         limit: z.number().min(1).max(100).default(50),
@@ -67,30 +80,21 @@ export const agentRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { cursor, limit, searchBy, search, orderBy, order } = input;
+      const { cursor, limit, searchBy, search, orderBy, order, type } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx
           .selectFrom("agents")
-          .leftJoin("llmProviders", "llmProviders.id", "agents.llmProviderId")
-          .select([
-            "agents.id",
-            "agents.name",
-            "agents.description",
-            "agents.type",
-            "llmProviders.name as llmProviderName",
-            "agents.model",
-          ]);
+          .select(["agents.id", "agents.name", "agents.description", "agents.type", "agents.model"]);
+
+        if (type) {
+          query = query.where("agents.type", "=", type);
+        }
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
           const searchList = Array.isArray(search) ? search : [search];
-
-          if (searchBy === "llmProviderName") {
-            query = query.where((eb) => eb.or(searchList.map((v) => eb("llmProviders.name", "ilike", `%${v}%`))));
-          } else {
-            query = query.where((eb) => eb.or(searchList.map((v) => eb(`agents.${searchBy}`, "ilike", `%${v}%`))));
-          }
+          query = query.where((eb) => eb.or(searchList.map((v) => eb(`agents.${searchBy}`, "ilike", `%${v}%`))));
         }
 
         // Apply cursor-based pagination
@@ -157,7 +161,7 @@ export const agentRouter = createTRPCRouter({
         .extend(AgentExecutorParametersSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
           const agentId = crypto.randomUUID();
 
@@ -195,7 +199,7 @@ export const agentRouter = createTRPCRouter({
             ])
             .execute();
 
-          const agent = await trx
+          const createdAgent = await trx
             .selectFrom("agents")
             .select([
               "id",
@@ -223,7 +227,7 @@ export const agentRouter = createTRPCRouter({
             .executeTakeFirstOrThrow();
 
           ctx.logger.info({ agentId }, "Agent created");
-          return agent;
+          return createdAgent;
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -241,6 +245,20 @@ export const agentRouter = createTRPCRouter({
           throw error;
         }
       });
+
+      let llmProviderName: string | null = null;
+      if (agent.llmProviderId) {
+        // Agent access was verified above, resolve the linked provider in system context
+        const db = await useDb();
+        const llmProvider = await db
+          .selectFrom("llmProviders")
+          .select(["name"])
+          .where("id", "=", agent.llmProviderId)
+          .executeTakeFirst();
+        llmProviderName = llmProvider?.name ?? null;
+      }
+
+      return { ...agent, llmProviderName };
     }),
 
   update: authorizedProcedure([Permissions.AgentUpdateAll, Permissions.AgentUpdateOwn])
@@ -263,9 +281,9 @@ export const agentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
-          const agent = await trx
+          const updatedAgent = await trx
             .updateTable("agents")
             .set({ ...updateData, updatedAt: new Date() })
             .where("id", "=", id)
@@ -293,7 +311,7 @@ export const agentRouter = createTRPCRouter({
             ])
             .executeTakeFirst();
 
-          if (!agent) {
+          if (!updatedAgent) {
             ctx.logger.warn({ agentId: id }, "Agent not found");
             throw new TRPCError({
               code: "NOT_FOUND",
@@ -302,7 +320,7 @@ export const agentRouter = createTRPCRouter({
           }
 
           ctx.logger.info({ agentId: id }, "Agent updated");
-          return agent;
+          return updatedAgent;
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -320,6 +338,20 @@ export const agentRouter = createTRPCRouter({
           throw error;
         }
       });
+
+      let llmProviderName: string | null = null;
+      if (agent.llmProviderId) {
+        // Agent access was verified above, resolve the linked provider in system context
+        const db = await useDb();
+        const llmProvider = await db
+          .selectFrom("llmProviders")
+          .select(["name"])
+          .where("id", "=", agent.llmProviderId)
+          .executeTakeFirst();
+        llmProviderName = llmProvider?.name ?? null;
+      }
+
+      return { ...agent, llmProviderName };
     }),
 
   delete: authorizedProcedure([Permissions.AgentDeleteAll, Permissions.AgentDeleteOwn])
@@ -510,16 +542,7 @@ export const agentRouter = createTRPCRouter({
       const agents = await trx
         .selectFrom("agents")
         .innerJoin("agentAccess", "agentAccess.agentId", "agents.id")
-        .leftJoin("llmProviders", "llmProviders.id", "agents.llmProviderId")
-        .select([
-          "agents.id",
-          "agents.name",
-          "agents.description",
-          "agents.type",
-          "agents.llmProviderId",
-          "llmProviders.name as llmProviderName",
-          "agents.model",
-        ])
+        .select(["agents.id", "agents.name", "agents.description", "agents.type"])
         .where("agentAccess.role", "=", "user")
         .where("agents.llmProviderId", "is not", null)
         .distinct()
@@ -534,18 +557,30 @@ export const agentRouter = createTRPCRouter({
   listSpecialists: authorizedProcedure([Permissions.AgentReadAll, Permissions.AgentReadOwn])
     .input(z.object({ triageAgentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const specialists = await trx
-          .selectFrom("triageSpecialists")
-          .innerJoin("agents", "agents.id", "triageSpecialists.specialistAgentId")
-          .select(["agents.id", "agents.name", "agents.description", "agents.type", "triageSpecialists.createdAt"])
-          .where("triageSpecialists.triageAgentId", "=", input.triageAgentId)
-          .orderBy("agents.name", "asc")
-          .execute();
-
-        ctx.logger.debug({ triageAgentId: input.triageAgentId }, "Triage specialists list retrieved");
-        return specialists;
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
+        return trx.selectFrom("agents").select(["id"]).where("id", "=", input.triageAgentId).executeTakeFirst();
       });
+
+      if (!agent) {
+        ctx.logger.warn({ triageAgentId: input.triageAgentId }, "Agent not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Agent not found",
+        });
+      }
+
+      // Agent access was verified above, load linked specialists in system context
+      const db = await useDb();
+      const specialists = await db
+        .selectFrom("triageSpecialists")
+        .innerJoin("agents", "agents.id", "triageSpecialists.specialistAgentId")
+        .select(["agents.id", "agents.name"])
+        .where("triageSpecialists.triageAgentId", "=", input.triageAgentId)
+        .orderBy("agents.name", "asc")
+        .execute();
+
+      ctx.logger.debug({ triageAgentId: input.triageAgentId }, "Triage specialists list retrieved");
+      return specialists;
     }),
 
   syncSpecialists: authorizedProcedure([Permissions.AgentUpdateAll, Permissions.AgentUpdateOwn])
@@ -691,24 +726,30 @@ export const agentRouter = createTRPCRouter({
   listMcpServers: authorizedProcedure([Permissions.AgentReadAll, Permissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const mcpServers = await trx
-          .selectFrom("agentMcpServers")
-          .innerJoin("mcpServers", "mcpServers.id", "agentMcpServers.mcpServerId")
-          .select([
-            "mcpServers.id",
-            "mcpServers.name",
-            "mcpServers.description",
-            "mcpServers.url",
-            "agentMcpServers.createdAt",
-          ])
-          .where("agentMcpServers.agentId", "=", input.agentId)
-          .orderBy("mcpServers.name", "asc")
-          .execute();
-
-        ctx.logger.debug({ agentId: input.agentId }, "Agent MCP servers list retrieved");
-        return mcpServers;
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
+        return trx.selectFrom("agents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
       });
+
+      if (!agent) {
+        ctx.logger.warn({ agentId: input.agentId }, "Agent not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Agent not found",
+        });
+      }
+
+      // Agent access was verified above, load linked MCP servers in system context
+      const db = await useDb();
+      const mcpServers = await db
+        .selectFrom("agentMcpServers")
+        .innerJoin("mcpServers", "mcpServers.id", "agentMcpServers.mcpServerId")
+        .select(["mcpServers.id", "mcpServers.name"])
+        .where("agentMcpServers.agentId", "=", input.agentId)
+        .orderBy("mcpServers.name", "asc")
+        .execute();
+
+      ctx.logger.debug({ agentId: input.agentId }, "Agent MCP servers list retrieved");
+      return mcpServers;
     }),
 
   syncMcpServers: authorizedProcedure([Permissions.AgentUpdateAll, Permissions.AgentUpdateOwn])
@@ -815,18 +856,30 @@ export const agentRouter = createTRPCRouter({
   listSkills: authorizedProcedure([Permissions.AgentReadAll, Permissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const skills = await trx
-          .selectFrom("agentSkills")
-          .innerJoin("skills", "skills.id", "agentSkills.skillId")
-          .select(["skills.id", "skills.name", "skills.description", "agentSkills.createdAt"])
-          .where("agentSkills.agentId", "=", input.agentId)
-          .orderBy("skills.name", "asc")
-          .execute();
-
-        ctx.logger.debug({ agentId: input.agentId }, "Agent skills list retrieved");
-        return skills;
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
+        return trx.selectFrom("agents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
       });
+
+      if (!agent) {
+        ctx.logger.warn({ agentId: input.agentId }, "Agent not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Agent not found",
+        });
+      }
+
+      // Agent access was verified above, load linked skills in system context
+      const db = await useDb();
+      const skills = await db
+        .selectFrom("agentSkills")
+        .innerJoin("skills", "skills.id", "agentSkills.skillId")
+        .select(["skills.id", "skills.name"])
+        .where("agentSkills.agentId", "=", input.agentId)
+        .orderBy("skills.name", "asc")
+        .execute();
+
+      ctx.logger.debug({ agentId: input.agentId }, "Agent skills list retrieved");
+      return skills;
     }),
 
   syncSkills: authorizedProcedure([Permissions.AgentUpdateAll, Permissions.AgentUpdateOwn])

@@ -415,7 +415,6 @@ export default defineI18nLocale(() => ({
           llmProvider: {
             label: "LLM provider",
             placeholder: "Select an LLM provider",
-            none: "None (agent will fail at execution)",
           },
           model: {
             label: "Model",

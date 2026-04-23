@@ -51,12 +51,6 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   //   - Individual users (user_id column)
   //   - Groups (group_id column), all group members inherit access
   //
-  // Implicit access:
-  //   Some resources are visible through relationships:
-  //   - Agent editors can see the LLM provider, MCP servers, and skills their agent uses
-  //   - Triage editors can see specialist agents attached to their triage
-  //   - Resource editors can see users/groups with whom they share access
-  //
   // =============================================================================
 
   await db.schema.createSchema("security").execute();

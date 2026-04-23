@@ -16,7 +16,6 @@ import UIcon from "@nuxt/ui/components/Icon.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
-import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
 import USlider from "@nuxt/ui/components/Slider.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
@@ -50,22 +49,8 @@ const { can, canAny } = usePermissions();
 const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
-let [
-  agent,
-  llmProvidersResult,
-  mcpServersResult,
-  skillsResult,
-  allAgentsResult,
-  currentAccess,
-  currentMcpServers,
-  currentSkills,
-  currentSpecialists,
-] = await Promise.all([
+let [agent, currentAccess, currentMcpServers, currentSkills, currentSpecialists] = await Promise.all([
   props.id ? $trpc.agent.read.query({ id: props.id }) : Promise.resolve(null),
-  $trpc.llmProvider.search.query({ limit: 100 }),
-  $trpc.mcpServer.search.query({ limit: 100 }),
-  $trpc.skill.search.query({ limit: 100 }),
-  $trpc.agent.search.query({ limit: 100 }),
   props.id ? $trpc.agent.listAccess.query({ agentId: props.id }) : Promise.resolve([]),
   props.id ? $trpc.agent.listMcpServers.query({ agentId: props.id }) : Promise.resolve([]),
   props.id ? $trpc.agent.listSkills.query({ agentId: props.id }) : Promise.resolve([]),
@@ -90,11 +75,6 @@ if (!props.id && userStore.user) {
     },
   ];
 }
-
-const llmProviders = llmProvidersResult.llmProviders;
-const mcpServers = mcpServersResult.mcpServers;
-const skills = skillsResult.skills;
-const allAgents = allAgentsResult.agents;
 
 const canModify = computed(() => {
   if (!props.id) {
@@ -156,7 +136,7 @@ const state = reactive<
   users: userIds,
   type: agent?.type ?? "specialist",
   specialists: currentSpecialists.map((s) => s.id),
-  llmProviderId: agent?.llmProviderId ?? llmProviders[0]?.id,
+  llmProviderId: agent?.llmProviderId ?? null,
   model: agent?.model,
   summaryModel: agent?.summaryModel,
   mcpServers: currentMcpServers.map((m) => m.id),
@@ -174,23 +154,68 @@ const state = reactive<
   maxToolResponseChars: agent?.maxToolResponseChars,
 });
 
+const selectedLlmProviderId = computed({
+  get: () => state.llmProviderId ?? undefined,
+  set: (value: string | undefined) => {
+    state.llmProviderId = value ?? null;
+  },
+});
+
 const typeOptions = [
   { value: "specialist", label: i18n.t("pages.studio.agents.form.type.specialist") },
   { value: "triage", label: i18n.t("pages.studio.agents.form.type.triage") },
 ];
 
-const providerOptions = computed(() => [
-  { label: i18n.t("pages.studio.agents.form.llmProvider.none"), value: null },
-  ...llmProviders.map((p) => ({ label: p.name, value: p.id })),
-]);
+const llmProviderLabels = new Map<string, string>();
+if (agent?.llmProviderId && agent.llmProviderName) {
+  llmProviderLabels.set(agent.llmProviderId, agent.llmProviderName);
+}
+const searchLlmProviders = async (query?: string) => {
+  const result = await $trpc.llmProvider.search.query({ search: query, limit: 25 });
+  result.llmProviders.forEach((provider) => {
+    llmProviderLabels.set(provider.id, provider.name);
+  });
+  return result.llmProviders.map((provider) => provider.id);
+};
+const getLlmProviderLabel = (id: string) => {
+  return llmProviderLabels.get(id) ?? id;
+};
 
-const specialistOptions = computed(() =>
-  allAgents.filter((a) => a.type === "specialist").map((a) => ({ label: a.name, value: a.id })),
-);
+const mcpServerLabels = new Map(currentMcpServers.map((server) => [server.id, server.name]));
+const searchMcpServers = async (query?: string) => {
+  const result = await $trpc.mcpServer.search.query({ search: query, limit: 25 });
+  result.mcpServers.forEach((server) => {
+    mcpServerLabels.set(server.id, server.name);
+  });
+  return result.mcpServers.map((server) => server.id);
+};
+const getMcpServerLabel = (id: string) => {
+  return mcpServerLabels.get(id) ?? id;
+};
 
-const mcpServerOptions = computed(() => mcpServers.map((m) => ({ label: m.name, value: m.id })));
+const skillLabels = new Map(currentSkills.map((skill) => [skill.id, skill.name]));
+const searchSkills = async (query?: string) => {
+  const result = await $trpc.skill.search.query({ search: query, limit: 25 });
+  result.skills.forEach((skill) => {
+    skillLabels.set(skill.id, skill.name);
+  });
+  return result.skills.map((skill) => skill.id);
+};
+const getSkillLabel = (id: string) => {
+  return skillLabels.get(id) ?? id;
+};
 
-const skillOptions = computed(() => skills.map((s) => ({ label: s.name, value: s.id })));
+const specialistLabels = new Map(currentSpecialists.map((specialist) => [specialist.id, specialist.name]));
+const searchSpecialists = async (query?: string) => {
+  const result = await $trpc.agent.search.query({ search: query, type: "specialist", limit: 25 });
+  result.agents.forEach((specialist) => {
+    specialistLabels.set(specialist.id, specialist.name);
+  });
+  return result.agents.map((specialist) => specialist.id);
+};
+const getSpecialistLabel = (id: string) => {
+  return specialistLabels.get(id) ?? id;
+};
 
 const advancedSettingsEntries = Object.entries(AgentExecutorParameters) as [
   keyof typeof AgentExecutorParameters,
@@ -396,22 +421,25 @@ const onCancel = () => {
           name="specialists"
           :label="$t('pages.studio.agents.form.specialists.label')"
         >
-          <USelectMenu
+          <SearchMenu
             v-model="state.specialists"
             multiple
             class="w-full"
-            value-key="value"
             :disabled="!canModify"
-            :items="specialistOptions"
+            :label-fn="getSpecialistLabel"
+            :search-fn="searchSpecialists"
+            :icon-fn="() => 'i-lucide-bot'"
+            :placeholder="$t('pages.studio.agents.form.specialists.placeholder')"
           />
         </UFormField>
         <UFormField name="llmProviderId" :label="$t('pages.studio.agents.form.llmProvider.label')">
-          <USelectMenu
-            v-model="state.llmProviderId"
+          <SearchMenu
+            v-model="selectedLlmProviderId"
             class="w-full"
-            value-key="value"
             :disabled="!canModify"
-            :items="providerOptions"
+            :label-fn="getLlmProviderLabel"
+            :search-fn="searchLlmProviders"
+            :placeholder="$t('pages.studio.agents.form.llmProvider.placeholder')"
           />
         </UFormField>
         <UFormField required name="model" :label="$t('pages.studio.agents.form.model.label')">
@@ -438,13 +466,14 @@ const onCancel = () => {
           :label="$t('pages.studio.agents.form.mcpServers.label')"
           :description="$t('pages.studio.agents.form.mcpServers.hint')"
         >
-          <USelectMenu
+          <SearchMenu
             v-model="state.mcpServers"
             multiple
             class="w-full"
-            value-key="value"
             :disabled="!canModify"
-            :items="mcpServerOptions"
+            :label-fn="getMcpServerLabel"
+            :search-fn="searchMcpServers"
+            :placeholder="$t('pages.studio.agents.form.mcpServers.placeholder')"
           />
         </UFormField>
         <UFormField
@@ -453,13 +482,14 @@ const onCancel = () => {
           :label="$t('pages.studio.agents.form.skills.label')"
           :description="$t('pages.studio.agents.form.skills.hint')"
         >
-          <USelectMenu
+          <SearchMenu
             v-model="state.skills"
             multiple
             class="w-full"
-            value-key="value"
-            :items="skillOptions"
             :disabled="!canModify"
+            :label-fn="getSkillLabel"
+            :search-fn="searchSkills"
+            :placeholder="$t('pages.studio.agents.form.skills.placeholder')"
           />
         </UFormField>
         <UFormField

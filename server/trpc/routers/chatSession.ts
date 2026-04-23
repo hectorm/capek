@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
-import { withUserTransaction } from "~~/server/lib/database";
+import { useDb, withUserTransaction } from "~~/server/lib/database";
 import { isRLSViolation } from "~~/server/lib/database/errors";
 import { MCPManager } from "~~/server/lib/mcp/manager";
 import { OpenAIManager } from "~~/server/lib/openai/manager";
@@ -215,11 +215,10 @@ export const chatSessionRouter = createTRPCRouter({
   autoRename: authorizedProcedure([Permissions.ChatUpdateAll, Permissions.ChatUpdateOwn])
     .input(z.object({ id: z.uuid() }))
     .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const session = await trx
+      const { chatSession, agentId, firstUserMessageContent } = await withUserTransaction(ctx.user, async (trx) => {
+        const sessionRow = await trx
           .selectFrom("chatSessions")
           .leftJoin("agents", "agents.id", "chatSessions.agentId")
-          .leftJoin("llmProviders", "llmProviders.id", "agents.llmProviderId")
           .select([
             "chatSessions.id",
             "chatSessions.userId",
@@ -227,16 +226,12 @@ export const chatSessionRouter = createTRPCRouter({
             "chatSessions.title",
             "chatSessions.createdAt",
             "chatSessions.updatedAt",
-            "agents.model",
-            "agents.summaryModel",
-            "llmProviders.apiUrl",
-            "llmProviders.apiKey",
-            "llmProviders.headers",
+            "agents.id as accessibleAgentId",
           ])
           .where("chatSessions.id", "=", input.id)
           .executeTakeFirst();
 
-        if (!session) {
+        if (!sessionRow?.accessibleAgentId) {
           ctx.logger.warn({ sessionId: input.id }, "Chat session not found");
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -244,19 +239,10 @@ export const chatSessionRouter = createTRPCRouter({
           });
         }
 
-        if (!session.apiUrl) {
-          ctx.logger.debug({ sessionId: input.id }, "No LLM provider configured, skipping auto-rename");
-          return {
-            id: session.id,
-            userId: session.userId,
-            agentId: session.agentId,
-            title: session.title,
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-          };
-        }
+        const accessibleAgentId = sessionRow.accessibleAgentId;
+        const { accessibleAgentId: _accessibleAgentId, ...chatSessionRow } = sessionRow;
 
-        const firstUserMessage = await trx
+        const firstUserMessageRow = await trx
           .selectFrom("chatMessages")
           .select(["content"])
           .where("sessionId", "=", input.id)
@@ -265,46 +251,74 @@ export const chatSessionRouter = createTRPCRouter({
           .limit(1)
           .executeTakeFirst();
 
-        if (!firstUserMessage) {
-          ctx.logger.debug({ sessionId: input.id }, "No user message found, skipping auto-rename");
-          return {
-            id: session.id,
-            userId: session.userId,
-            agentId: session.agentId,
-            title: session.title,
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-          };
-        }
+        return {
+          chatSession: chatSessionRow,
+          agentId: accessibleAgentId,
+          firstUserMessageContent: firstUserMessageRow?.content ?? null,
+        };
+      });
 
-        const openAIManager = OpenAIManager.getInstance();
-        const clientId = `summary-${input.id}-${String(Date.now())}`;
-        const openAIClient = openAIManager.addClient(clientId, {
-          apiUrl: session.apiUrl,
-          apiKey: session.apiKey ?? "",
-          headers: session.headers ?? [],
-          model: session.model ?? undefined,
-          summaryModel: session.summaryModel ?? undefined,
-        });
+      if (!firstUserMessageContent) {
+        ctx.logger.debug({ sessionId: input.id }, "No user message found, skipping auto-rename");
+        return chatSession;
+      }
 
-        let title: string;
-        try {
-          title = await openAIClient.summary(firstUserMessage.content);
-          ctx.logger.debug({ sessionId: input.id }, "Chat session title summarized");
-        } catch (error) {
-          ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
-          const content = firstUserMessage.content.trim();
-          title = content.length <= 80 ? content : content.slice(0, 77) + "...";
-        } finally {
-          openAIManager.removeClient(clientId);
-        }
+      const db = await useDb();
+      const agentLlmConfig = await db
+        .selectFrom("agents")
+        .leftJoin("llmProviders", "llmProviders.id", "agents.llmProviderId")
+        .select([
+          "agents.model",
+          "agents.summaryModel",
+          "llmProviders.apiUrl",
+          "llmProviders.apiKey",
+          "llmProviders.headers",
+        ])
+        .where("agents.id", "=", agentId)
+        .executeTakeFirst();
 
+      if (!agentLlmConfig?.apiUrl) {
+        ctx.logger.debug({ sessionId: input.id }, "No LLM provider configured, skipping auto-rename");
+        return chatSession;
+      }
+
+      const openAIManager = OpenAIManager.getInstance();
+      const clientId = `summary-${input.id}-${String(Date.now())}`;
+      const openAIClient = openAIManager.addClient(clientId, {
+        apiUrl: agentLlmConfig.apiUrl,
+        apiKey: agentLlmConfig.apiKey ?? "",
+        headers: agentLlmConfig.headers ?? [],
+        model: agentLlmConfig.model,
+        summaryModel: agentLlmConfig.summaryModel,
+      });
+
+      let title: string;
+      try {
+        title = await openAIClient.summary(firstUserMessageContent);
+        ctx.logger.debug({ sessionId: input.id }, "Chat session title summarized");
+      } catch (error) {
+        ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
+        const content = firstUserMessageContent.trim();
+        title = content.length <= 80 ? content : content.slice(0, 77) + "...";
+      } finally {
+        openAIManager.removeClient(clientId);
+      }
+
+      return withUserTransaction(ctx.user, async (trx) => {
         const updatedSession = await trx
           .updateTable("chatSessions")
           .set({ title, updatedAt: new Date() })
           .where("id", "=", input.id)
           .returning(["id", "userId", "agentId", "title", "createdAt", "updatedAt"])
-          .executeTakeFirstOrThrow();
+          .executeTakeFirst();
+
+        if (!updatedSession) {
+          ctx.logger.warn({ sessionId: input.id }, "Chat session not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Chat session not found or you don't have permission to update it",
+          });
+        }
 
         ctx.logger.info({ sessionId: input.id, title }, "Chat session auto-renamed");
         return updatedSession;
