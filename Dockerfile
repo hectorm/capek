@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/node:24.15.0-trixie@sha256:554a85065c0157a254a5a063ea2294f6e2822e6333c3de5eb2269e2d7c755665 AS build
+FROM mirror.gcr.io/node:24.15.0-trixie@sha256:135dc9a66aef366e09958c18dab705081d77fb31eccffe8c3865fac9d3e42a1d AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
