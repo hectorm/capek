@@ -69,6 +69,12 @@ export async function validateSkillSyntax(code: string): Promise<ValidationResul
   try {
     const quickJS = await getQuickJSModule();
     const runtime = quickJS.newRuntime();
+
+    const maxMemoryBytes = 8 * 1024 * 1024;
+    runtime.setMemoryLimit(maxMemoryBytes);
+    const deadline = Date.now() + 5_000;
+    runtime.setInterruptHandler(() => Date.now() > deadline);
+
     const context = runtime.newContext();
 
     try {
