@@ -279,8 +279,10 @@ function setupFsAPI(
   register("rename", (oldH, newH) => {
     const oldPath = context.getString(oldH);
     const newPath = context.getString(newH);
-    const permErr = checkWritePermission(newPath);
-    if (permErr) throw new Error(permErr);
+    const oldPermErr = checkWritePermission(oldPath);
+    if (oldPermErr) throw new Error(oldPermErr);
+    const newPermErr = checkWritePermission(newPath);
+    if (newPermErr) throw new Error(newPermErr);
     if (!vfs.rename(oldPath, newPath)) throw new Error(`ENOENT: rename failed '${oldPath}' -> '${newPath}'`);
     return context.undefined;
   });
