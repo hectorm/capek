@@ -35,6 +35,7 @@ export class Lucia {
     const db = await useDb();
 
     const token = this.generateSessionToken();
+    const tokenHash = await this.hashToken(token);
     const now = Date.now();
 
     const result = await db
@@ -45,7 +46,7 @@ export class Lucia {
           trx
             .insertInto("sessions")
             .values({
-              token,
+              token: tokenHash,
               userId,
               sid: sid ?? null,
               idToken: idToken ?? null,
@@ -65,11 +66,13 @@ export class Lucia {
       });
 
     logger.info({ userId, sid }, "Session created");
-    return { ...result.session, user: result.user };
+    return { ...result.session, token, user: result.user };
   }
 
   public async validateSession(token: string) {
     const db = await useDb();
+
+    const tokenHash = await this.hashToken(token);
 
     return db
       .transaction()
@@ -95,7 +98,7 @@ export class Lucia {
             "users.createdAt as user.createdAt",
             "users.updatedAt as user.updatedAt",
           ])
-          .where("sessions.token", "=", token)
+          .where("sessions.token", "=", tokenHash)
           .forUpdate()
           .executeTakeFirst();
 
@@ -151,9 +154,11 @@ export class Lucia {
   public async invalidateSession(token: string): Promise<void> {
     const db = await useDb();
 
+    const tokenHash = await this.hashToken(token);
+
     const result = await db
       .deleteFrom("sessions")
-      .where("token", "=", token)
+      .where("token", "=", tokenHash)
       .returning(["id", "userId"])
       .executeTakeFirst();
 
@@ -192,6 +197,11 @@ export class Lucia {
     let cookie = `${this.cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
     if (!import.meta.dev) cookie += "; Secure; Partitioned";
     return cookie;
+  }
+
+  private async hashToken(token: string): Promise<string> {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    return Buffer.from(digest).toString("base64url");
   }
 }
 
