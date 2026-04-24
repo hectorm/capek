@@ -142,11 +142,13 @@ function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope, consoleLogs
   for (const level of levels) {
     const fn = scope.manage(
       context.newFunction(level, (...args: QuickJSHandle[]) => {
-        consoleLogs.push({
-          level,
-          args: args.map((arg) => marshallFromQuickJS(context, arg)),
-          timestamp: Date.now(),
-        });
+        if (consoleLogs.length < 10_000) {
+          consoleLogs.push({
+            level,
+            args: args.map((arg) => marshallFromQuickJS(context, arg)),
+            timestamp: Date.now(),
+          });
+        }
       }),
     );
     context.setProp(consoleObj, level, fn);
@@ -189,7 +191,9 @@ function setupFsAPI(
           promise.reject(error);
           error.dispose();
         }
-        pendingCalls.push(promise.settled.then(() => void context.runtime.executePendingJobs()));
+        if (pendingCalls.length < 1_000) {
+          pendingCalls.push(promise.settled.then(() => void context.runtime.executePendingJobs()));
+        }
         return promise.handle;
       }),
     );
