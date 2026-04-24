@@ -164,7 +164,7 @@ function setupFsAPI(
   const promisesObj = scope.manage(context.newObject());
 
   const checkWritePermission = (path: string): string | null => {
-    const normalized = path.startsWith("/") ? path : "/" + path;
+    const normalized = vfs.normalizePath(path);
     if (!normalized.startsWith("/workspace/") && normalized !== "/workspace") {
       return `EACCES: permission denied (only /workspace/ is writable)`;
     }
