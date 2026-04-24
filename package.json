@@ -17,7 +17,7 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "packageManager": "pnpm@11.0.0-rc.2+sha512.26410cc26d668baddde13a0acf2c75cad00b82a477bcc1e2fe629dd41d6b78fe3fb2d9bb523afff79d6a91f06be9b90a6032543f30b5f73931239c820aa5f001",
+  "packageManager": "pnpm@11.0.0-rc.5+sha512.c469fb6aa13a99e57aec935cd7b86ff422701f4602ecac2231d3dc20910586ebfb6b50a7b455d0778ec22ae56912d8d8e88e9f9e0a03c0875a6a41783a94a1bd",
   "scripts": {
     "clean": "nuxt cleanup",
     "dev": "nuxt dev",
@@ -41,7 +41,7 @@
     "@electric-sql/pglite": "~0.4.4",
     "@electric-sql/pglite-socket": "~0.1.4",
     "@iconify-json/lucide": "~1.2.102",
-    "@iconify-json/simple-icons": "~1.2.77",
+    "@iconify-json/simple-icons": "~1.2.78",
     "@jitl/quickjs-wasmfile-release-asyncify": "~0.31.0",
     "@nuxt/fonts": "~0.14.0",
     "@nuxt/icon": "~2.2.1",
@@ -63,7 +63,7 @@
     "jsdom": "~29.0.2",
     "json-rpc-2.0": "~1.7.1",
     "kysely": "~0.28.16",
-    "marked": "~18.0.0",
+    "marked": "~18.0.1",
     "nitropack": "~2.13.3",
     "nuxt": "~4.4.2",
     "oauth4webapi": "~3.8.5",
