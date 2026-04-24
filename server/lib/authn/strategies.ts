@@ -109,6 +109,11 @@ export class OIDCStrategy implements AuthStrategy {
 export class ProxyStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
     const expectedSecret = config.proxy.secret;
+    if (expectedSecret === "changeme") {
+      logger.error("Proxy secret must be changed from its default value");
+      return null;
+    }
+
     const receivedSecret = getHeader(event, config.proxy.secretHeader) ?? "";
     if (
       receivedSecret.length !== expectedSecret.length ||
