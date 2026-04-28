@@ -100,7 +100,7 @@ export class OIDC {
       client_id: options.clientId,
       token_endpoint_auth_method: "client_secret_basic",
     };
-    this.clientAuth = oauth.ClientSecretPost(options.clientSecret);
+    this.clientAuth = oauth.ClientSecretBasic(options.clientSecret);
 
     this.scopes = options.scopes;
     this.prompt = options.prompt;
