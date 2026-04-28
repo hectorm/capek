@@ -1,7 +1,7 @@
 import cluster from "node:cluster";
 import { randomUUID } from "node:crypto";
 import process from "node:process";
-import { setTimeout } from "node:timers";
+import { clearTimeout, setTimeout } from "node:timers";
 
 import type { HttpHeader } from "~~/shared/http";
 import { AbortError } from "~~/server/lib/errors";
@@ -66,6 +66,7 @@ export class MCPIPCClient {
       let abortListener: (() => void) | null = null;
 
       const cleanup = () => {
+        clearTimeout(timeoutId);
         this.pendingRequests.delete(requestId);
         if (signal && abortListener) {
           signal.removeEventListener("abort", abortListener);
@@ -100,7 +101,7 @@ export class MCPIPCClient {
 
       sendFn(fullRequest);
 
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           cleanup();
           reject(new Error(`MCP IPC request timeout after ${String(timeoutMs)}ms`));

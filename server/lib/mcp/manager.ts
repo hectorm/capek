@@ -138,35 +138,62 @@ export class MCPManager {
 
     const client = await this.getOrCreateClient(serverName, serverUrl, serverHeaders, chatSessionId, stateful);
 
-    let timeoutId: NodeJS.Timeout | undefined;
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new TimeoutError());
-      }, callTimeoutMs);
-    });
+    return new Promise<string>((resolve, reject) => {
+      let settled = false;
+      let abortListener: (() => void) | null = null;
 
-    const abortPromise = new Promise<never>((_resolve, reject) => {
-      if (signal?.aborted) {
-        reject(new AbortError());
-      }
-      signal?.addEventListener("abort", () => {
-        reject(new AbortError());
-      });
-    });
-
-    try {
-      const callPromise = client.callTool(toolName, args, signal);
-      const callResult = await Promise.race([callPromise, timeoutPromise, abortPromise]);
-      if (callResult.isError) {
-        const errorText = callResult.content.map((c) => c.text).join("\n");
-        throw new Error(`Tool error: ${errorText}`);
-      }
-
-      return callResult.content.map((c) => c.text).join("\n");
-    } finally {
-      if (timeoutId !== undefined) {
+      const cleanup = () => {
         clearTimeout(timeoutId);
+        if (signal && abortListener) {
+          signal.removeEventListener("abort", abortListener);
+        }
+      };
+
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn();
+      };
+
+      if (signal) {
+        abortListener = () => {
+          settle(() => {
+            reject(new AbortError());
+          });
+        };
+
+        if (signal.aborted) {
+          reject(new AbortError());
+          return;
+        }
+
+        signal.addEventListener("abort", abortListener);
       }
-    }
+
+      const timeoutId = setTimeout(() => {
+        settle(() => {
+          reject(new TimeoutError());
+        });
+      }, callTimeoutMs);
+
+      client.callTool(toolName, args, signal).then(
+        (callResult) => {
+          settle(() => {
+            if (callResult.isError) {
+              const errorText = callResult.content.map((c) => c.text).join("\n");
+              reject(new Error(`Tool error: ${errorText}`));
+            } else {
+              resolve(callResult.content.map((c) => c.text).join("\n"));
+            }
+          });
+        },
+        (error: unknown) => {
+          settle(() => {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          });
+        },
+      );
+    });
   }
 }
