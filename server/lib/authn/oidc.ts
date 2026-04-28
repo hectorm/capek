@@ -392,7 +392,6 @@ export class OIDC {
 
   public generateState(data?: Record<string, unknown>): string {
     const bytes = crypto.getRandomValues(new Uint32Array(4));
-    crypto.getRandomValues(bytes);
     const state = [data, ...bytes];
     return btoa(JSON.stringify(state)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
