@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { timingSafeEqual } from "node:crypto";
 
 import type { H3Event } from "h3";
-import { getCookie, getHeader } from "h3";
+import { appendHeader, getCookie, getHeader } from "h3";
 import { sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
@@ -95,9 +95,13 @@ export class OIDCStrategy implements AuthStrategy {
       return null;
     }
 
-    const { session } = await lucia.validateSession(token);
+    const { session, fresh } = await lucia.validateSession(token);
     if (!session) {
       return null;
+    }
+
+    if (fresh) {
+      appendHeader(event, "Set-Cookie", lucia.createSessionCookie(token, session.expiresAt));
     }
 
     const ctx = await getUserAuthContext(session.user.id);
