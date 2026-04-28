@@ -374,13 +374,19 @@ export class OIDC {
     if (!payload.sid && !payload.sub) {
       throw new Error("Logout token must contain either sub claim or sid claim, or both");
     }
-
-    if (!(payload.events as Record<string, unknown>)["http://schemas.openid.net/event/backchannel-logout"]) {
-      throw new Error("Logout token must contain events claim with correct schema");
+    if (!payload.jti) {
+      throw new Error("Logout token must contain jti claim");
     }
-
     if (payload.nonce) {
       throw new Error("Logout token must not contain nonce claim");
+    }
+
+    const event = (payload.events as Record<string, unknown>)["http://schemas.openid.net/event/backchannel-logout"];
+    if (event === undefined) {
+      throw new Error("Logout token must contain events claim with correct schema");
+    }
+    if (typeof event !== "object" || event === null) {
+      throw new Error("Logout token event must be a JSON object");
     }
 
     return payload;
