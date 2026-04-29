@@ -79,7 +79,7 @@ const seedAgentSchema = z
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
     type: z.enum(["triage", "specialist"]),
-    llmProviderName: z.string().min(1).max(100).trim(),
+    llmProvider: z.string().min(1).max(100).trim(),
     model: z.string().min(1).max(100).trim(),
     summaryModel: z.string().max(100).trim().default(""),
     specialists: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
@@ -598,9 +598,9 @@ export default defineTask({
           }
 
           // Resolve LLM provider ID
-          const llmProviderId = llmProviderIds.get(agentConfig.llmProviderName);
+          const llmProviderId = llmProviderIds.get(agentConfig.llmProvider);
           if (!llmProviderId) {
-            throw new Error(`LLM provider "${agentConfig.llmProviderName}" not found for agent "${agentConfig.name}"`);
+            throw new Error(`LLM provider "${agentConfig.llmProvider}" not found for agent "${agentConfig.name}"`);
           }
 
           // Create agent

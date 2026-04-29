@@ -174,7 +174,7 @@ services:
               You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
               Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
             type: "specialist"
-            llmProviderName: "llama.cpp"
+            llmProvider: "llama.cpp"
             model: "local"
             access:
               editors:
@@ -188,7 +188,7 @@ services:
               You can write, debug, and optimize code in various programming languages.
               You are also knowledgeable about software design patterns and best practices.
             type: "specialist"
-            llmProviderName: "llama.cpp"
+            llmProvider: "llama.cpp"
             model: "local"
             mcpServers: ["Playwright"]
             skills: ["runBrowserScript"]
@@ -205,7 +205,7 @@ services:
               Analyze the user request carefully and determine which specialist is best suited to handle it.
               If multiple specialists could help, choose the one that is most relevant.
             type: "triage"
-            llmProviderName: "llama.cpp"
+            llmProvider: "llama.cpp"
             model: "local"
             specialists: ["General assistant", "Developer assistant"]
             access:
