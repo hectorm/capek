@@ -99,7 +99,9 @@ export class OIDC {
     };
     this.clientAuth = oauth.ClientSecretBasic(options.clientSecret);
 
-    this.scopes = options.scopes;
+    const scopes = options.scopes.split(/\s+/).filter(Boolean);
+    if (!scopes.includes("openid")) scopes.unshift("openid");
+    this.scopes = scopes.join(" ");
     this.prompt = options.prompt;
 
     this.usernameAttributePath = options.usernameAttributePath;
