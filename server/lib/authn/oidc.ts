@@ -13,7 +13,6 @@ const logger = useLogger();
 export interface OIDCOptions {
   rootUrl: string;
   issuer: string;
-  discoveryEnabled: boolean;
   discoveryCacheDurationSec: number;
   authorizationEndpoint?: string;
   tokenEndpoint?: string;
@@ -58,7 +57,6 @@ export class OIDC {
   public rootUrl: URL;
 
   public as: AuthorizationServer;
-  public discoveryEnabled: boolean;
   public discoveryCacheDurationSec: number;
   public discoveryCache = new Map<string, { as: AuthorizationServer; expiresAt: number }>();
 
@@ -93,7 +91,6 @@ export class OIDC {
       end_session_endpoint: options.endSessionEndpoint,
       jwks_uri: options.jwksUri,
     };
-    this.discoveryEnabled = options.discoveryEnabled;
     this.discoveryCacheDurationSec = options.discoveryCacheDurationSec;
 
     this.client = {
@@ -125,7 +122,9 @@ export class OIDC {
   }
 
   public async discover(): Promise<void> {
-    if (!this.discoveryEnabled) return;
+    if (this.as.authorization_endpoint && this.as.token_endpoint && this.as.jwks_uri && this.as.end_session_endpoint) {
+      return;
+    }
 
     let as: AuthorizationServer | null = null;
     const issuer = this.as.issuer;
@@ -144,8 +143,7 @@ export class OIDC {
     }
 
     this.as = {
-      // Merge discovered values with existing ones, giving priority to existing ones
-      issuer: this.as.issuer,
+      ...this.as,
       authorization_endpoint: this.as.authorization_endpoint ?? as.authorization_endpoint,
       token_endpoint: this.as.token_endpoint ?? as.token_endpoint,
       userinfo_endpoint: this.as.userinfo_endpoint ?? as.userinfo_endpoint,

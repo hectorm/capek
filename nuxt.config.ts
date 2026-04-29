@@ -183,7 +183,6 @@ export default defineNuxtConfig({
     oidc: {
       rootUrl: "http://localhost:3000",
       issuer: "",
-      discoveryEnabled: true,
       discoveryCacheDurationSec: 60 * 60, // 1 hour
       authorizationEndpoint: "",
       tokenEndpoint: "",
