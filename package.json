@@ -63,7 +63,7 @@
     "jsdom": "~29.0.2",
     "json-rpc-2.0": "~1.7.1",
     "kysely": "~0.28.16",
-    "marked": "~18.0.1",
+    "marked": "~18.0.2",
     "nitropack": "~2.13.3",
     "nuxt": "~4.4.2",
     "oauth4webapi": "~3.8.5",
