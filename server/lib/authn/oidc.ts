@@ -124,7 +124,7 @@ export class OIDC {
   }
 
   public async discover(): Promise<void> {
-    if (this.as.authorization_endpoint && this.as.token_endpoint && this.as.jwks_uri && this.as.end_session_endpoint) {
+    if (this.as.authorization_endpoint && this.as.token_endpoint && this.as.jwks_uri) {
       return;
     }
 
