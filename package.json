@@ -64,7 +64,7 @@
     "json-rpc-2.0": "~1.7.1",
     "kysely": "~0.28.16",
     "marked": "~18.0.1",
-    "nitropack": "~2.13.3",
+    "nitropack": "~2.13.4",
     "nuxt": "~4.4.2",
     "oauth4webapi": "~3.8.5",
     "pako": "~2.1.0",
