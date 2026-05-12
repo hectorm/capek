@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/denoland/deno:debian-2.7.12@sha256:9c47e8b8fa41e91fe2dd1448888244a56c4ec90124333d5341319b043a3a6ca0 AS build
+FROM mirror.gcr.io/denoland/deno:debian-2.7.13@sha256:acf662cf877e9069f1bfc90156354b870a19ec022c85d93220499341991aaf1b AS build
 
 ENV DENO_DIR=/deno
 ENV PATH=${DENO_DIR}/bin:${PATH}
