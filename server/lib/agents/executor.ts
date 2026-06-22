@@ -5,7 +5,7 @@ import type { AuthUser } from "~~/server/lib/authn/strategies";
 import type { MCPServerBinding, SkillBinding } from "~~/server/lib/code/generators";
 import type { MCPServerInfo } from "~~/server/lib/mcp/tools";
 import type { HttpHeader } from "~~/shared/http";
-import type { OpenAIFunctionParameters, OpenAIMessage, OpenAITool, OpenAIToolCall } from "~~/shared/openai";
+import type { OpenAIMessage, OpenAITool, OpenAIToolCall } from "~~/shared/openai";
 import { buildCodeInterpreterPrompt, buildSkillToolsPrompt, buildTriagePrompt } from "~~/server/lib/agents/prompts";
 import { createVFS } from "~~/server/lib/code/generators";
 import { executeCode } from "~~/server/lib/code/interpreter";
@@ -301,7 +301,7 @@ export class AgentExecutor {
           function: {
             name: t.name,
             description: t.description ?? t.name,
-            parameters: t.inputSchema as OpenAIFunctionParameters,
+            parameters: t.inputSchema,
           },
         })),
       );

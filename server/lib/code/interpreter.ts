@@ -48,7 +48,7 @@ let cachedModulePromise: Promise<AsyncWASMModule> | null = null;
 export async function getQuickJSModule(): Promise<AsyncWASMModule> {
   cachedModulePromise ??= (async () => {
     const variant = await import("@jitl/quickjs-wasmfile-release-asyncify");
-    return newQuickJSAsyncWASMModuleFromVariant(variant.default as never);
+    return newQuickJSAsyncWASMModuleFromVariant(variant.default);
   })();
   return cachedModulePromise;
 }
@@ -412,7 +412,7 @@ function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHand
     return arr;
   }
 
-  if (typeof value === "object" && "isFile" in value && typeof (value as { isFile: unknown }).isFile === "function") {
+  if (typeof value === "object" && "isFile" in value && typeof value.isFile === "function") {
     const stats = value as { size: number; mode: number; isFile: () => boolean; isDirectory: () => boolean };
     const obj = context.newObject();
     context.setProp(obj, "size", context.newNumber(stats.size));

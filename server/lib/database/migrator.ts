@@ -1,5 +1,7 @@
-import type { Kysely, Migration, MigrationProvider } from "kysely";
-import { Migrator, sql } from "kysely";
+import type { Kysely } from "kysely";
+import type { Migration, MigrationProvider } from "kysely/migration";
+import { sql } from "kysely";
+import { Migrator } from "kysely/migration";
 
 import type { Database } from "~~/shared/schema";
 import { useLogger } from "~~/server/lib/logger";

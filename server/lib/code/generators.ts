@@ -66,7 +66,7 @@ export function createVFS(servers: MCPServerBinding[], skills: SkillBinding[]): 
 }
 
 function generateToolModule(serverName: string, tool: MCPTool): string {
-  const jsdoc = generateJSDoc(tool.name, tool.description ?? "", tool.inputSchema as ToolInputSchema);
+  const jsdoc = generateJSDoc(tool.name, tool.description ?? "", tool.inputSchema);
   return [
     jsdoc,
     "export default function (params) {",

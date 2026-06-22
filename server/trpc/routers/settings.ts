@@ -123,7 +123,7 @@ export const settingsRouter = createTRPCRouter({
             .values(
               itemsToUpsert.map((item) => ({
                 key: item.key,
-                value: JSON.stringify(item.value) as unknown as string,
+                value: JSON.stringify(item.value),
                 updatedAt: new Date(),
               })),
             )

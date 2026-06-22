@@ -2,7 +2,7 @@
 name: "capek"
 
 # https://hub.docker.com/_/traefik
-x-traefik-image: &traefik-image "mirror.gcr.io/traefik:3.6"
+x-traefik-image: &traefik-image "mirror.gcr.io/traefik:3.7"
 # https://hub.docker.com/_/postgres
 x-postgres-image: &postgres-image "mirror.gcr.io/postgres:18-trixie"
 # https://hub.docker.com/r/mcp/playwright

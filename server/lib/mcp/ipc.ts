@@ -59,7 +59,7 @@ export class MCPIPCClient {
     }
 
     const requestId = randomUUID();
-    const fullRequest: MCPIPCRequest = { ...request, requestId } as MCPIPCRequest;
+    const fullRequest: MCPIPCRequest = { ...request, requestId };
     const sendFn = process.send.bind(process);
 
     return new Promise((resolve, reject) => {
@@ -76,7 +76,7 @@ export class MCPIPCClient {
       if (signal) {
         abortListener = () => {
           cleanup();
-          sendFn({ type: "cancelToolCall", requestId } as MCPIPCRequest);
+          sendFn({ type: "cancelToolCall", requestId } satisfies MCPIPCRequest);
           reject(new AbortError());
         };
 

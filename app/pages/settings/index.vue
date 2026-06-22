@@ -35,7 +35,7 @@ const formRef = ref<HTMLFormElement | null>(null);
 
 const settingList = computed<SettingDefinition[]>(() => {
   if (!settingsStore.settings) return [];
-  return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }) as SettingDefinition);
+  return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }));
 });
 
 const categoryList = computed(() => {
