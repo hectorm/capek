@@ -23,11 +23,11 @@ jobs:
       contents: "read"
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
       - name: "Setup pnpm"
         run: "corepack enable && corepack install"
       - name: "Setup Node.js"
-        uses: "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e"
+        uses: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
         with:
           node-version-file: "package.json"
           cache: "pnpm"
@@ -38,7 +38,7 @@ jobs:
       - name: "Run build"
         run: "pnpm run build"
       - name: "Cache Playwright browsers"
-        uses: "actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae"
+        uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
         with:
           path: "~/.cache/ms-playwright/"
           key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}"
@@ -68,7 +68,7 @@ jobs:
             arch: "linux/arm64/v8"
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
       - name: "Export runtime variables"
         uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
       - name: "Set up Docker Buildx"
@@ -112,7 +112,7 @@ jobs:
               cache_from: ["type=gha,scope=${{ matrix.runtime.id }}-${{ matrix.platform.id }}"]
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
       - name: "Export runtime variables"
         uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
       - name: "Set up Docker Buildx"
@@ -138,21 +138,21 @@ jobs:
       packages: "write"
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
       - name: "Export runtime variables"
         uses: "hectorm/ghaction-runtime-export@c8ec870e62dd2ab91765f8a65e244c3ce842227c"
       - name: "Set up Docker Buildx"
         uses: "hectorm/ghaction-docker-buildx-setup@fec3efdbb455c2aa58a4fbfd11a9853f5de2cdba"
       - name: "Login to GitHub Container Registry"
         if: "github.event_name != 'pull_request'"
-        uses: "docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee"
+        uses: "docker/login-action@dbcb813823bdd20940b903addbd779551569679f"
         with:
           registry: "ghcr.io"
           username: "${{ github.actor }}"
           password: "${{ secrets.GITHUB_TOKEN }}"
       - name: "Extract metadata"
         id: "meta"
-        uses: "docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9"
+        uses: "docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302"
         with:
           images: |
             ghcr.io/${{ github.repository }}
