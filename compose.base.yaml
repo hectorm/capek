@@ -95,7 +95,7 @@ services:
             roles: ["member"]
         llmProviders:
           - name: "llama.cpp"
-            apiUrl: "http://host.docker.internal:11434/v1"
+            apiUrl: "http://host.docker.internal:9931/v1"
             apiKey: "llama"
             access:
               editors:
