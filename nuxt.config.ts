@@ -2,6 +2,9 @@ import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
   compatibilityDate: "2026-04-01",
+  future: {
+    compatibilityVersion: 5,
+  },
   modules: [
     "@nuxt/devtools",
     "@nuxt/eslint",
@@ -104,18 +107,6 @@ export default defineNuxtConfig({
     },
     plugins: [
       {
-        name: "suppress-sourcemap-warnings",
-        apply: "build",
-        configResolved(config) {
-          const original = config.build.rollupOptions.onwarn;
-          config.build.rollupOptions.onwarn = (warning, warn) => {
-            if (warning.code === "SOURCEMAP_BROKEN") return;
-            if (original) original(warning, warn);
-            else warn(warning);
-          };
-        },
-      },
-      {
         // Stub jsdom module on client side
         name: "jsdom-stub-plugin",
         enforce: "pre",
@@ -126,7 +117,10 @@ export default defineNuxtConfig({
         },
         load(id) {
           return id === "\0virtual:jsdom-stub"
-            ? `export const JSDOM = class { constructor() { throw new Error("Stub module"); } };`
+            ? {
+                moduleType: "js",
+                code: `export const JSDOM = class { constructor() { throw new Error("Stub module"); } };`,
+              }
             : null;
         },
       },
@@ -141,7 +135,10 @@ export default defineNuxtConfig({
         },
         load(id) {
           return id === "\0virtual:zod-jitless"
-            ? `import { z } from "zod/v4"; z.config({ jitless: true }); export { z };`
+            ? {
+                moduleType: "js",
+                code: `import { z } from "zod/v4"; z.config({ jitless: true }); export { z };`,
+              }
             : null;
         },
       },

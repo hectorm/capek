@@ -1,4 +1,4 @@
-import pako from "pako";
+import * as pako from "pako";
 
 import type { AuthUser } from "~~/server/lib/authn/strategies";
 import type { VFSSnapshot, VirtualFileSystem } from "~~/server/lib/code/vfs";
@@ -20,7 +20,7 @@ export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
         return;
       }
 
-      const decompressed = pako.inflate(row.data, { to: "string" });
+      const decompressed = pako.inflate(row.data, { toText: true });
       const snapshot = JSON.parse(decompressed) as VFSSnapshot;
 
       for (const [path, file] of Object.entries(snapshot.files)) {

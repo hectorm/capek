@@ -165,8 +165,7 @@ export class MockLLMServer {
   private handleTriageCompletion(request: OpenAICompletionRequest, res: http.ServerResponse): void {
     const routeTool = request.tools?.find((t) => t.function.name === "route_to_specialist");
     const toolDef = routeTool?.function as
-      | { parameters?: { properties?: { specialistId?: { enum?: string[] } } } }
-      | undefined;
+      { parameters?: { properties?: { specialistId?: { enum?: string[] } } } } | undefined;
     const specialistIds = toolDef?.parameters?.properties?.specialistId?.enum ?? [];
 
     // Always route to the first specialist

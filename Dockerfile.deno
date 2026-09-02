@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/denoland/deno:debian-2.9.5@sha256:b429777c3dcff34a6488f365a1537db1640b2d48379b60f5e6206be034472463 AS build
+FROM mirror.gcr.io/denoland/deno:debian-2.9.6@sha256:2014dc167ece617ef7e7ba40631ac2234c59e75ce693e7cc2dc2602b3c87859d AS build
 
 ENV DENO_DIR=/deno
 ENV PATH=${DENO_DIR}/bin:${PATH}
@@ -13,7 +13,7 @@ WORKDIR /src/
 COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml /src/
 
 RUN --mount=type=cache,id=deno,dst=/deno/deps/ \
-	deno install --node-modules-dir=auto
+	deno install --node-modules-dir=auto --no-lock
 
 COPY ./ /src/
 
@@ -25,7 +25,7 @@ RUN --network=none \
 ## "main" stage
 ##################################################
 
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:a77defd6fedbb3392b175ba8ea3d1c22be963c1597c248c3ba987ddd80bfb512 AS main
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:c31ff9abcb1910f3ab25c7957bdaf0bfe12a01eb546e8df2282f1c8f682b606c AS main
 
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 ENV DENO_DIR=/tmp/deno
