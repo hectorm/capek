@@ -35,10 +35,9 @@ services:
       NUXT_OIDC_REDIRECT_URI: "https://capek.localhost/api/login/callback"
       NUXT_OIDC_CLIENT_ID: "capek"
       NUXT_OIDC_CLIENT_SECRET: "ourclientbythesewordsguarded"
-      NUXT_OIDC_SCOPES: "openid email profile"
-      NUXT_OIDC_USERNAME_ATTRIBUTE_PATH: "name"
+      NUXT_OIDC_SCOPES: "openid email profile groups"
       NUXT_OIDC_SYNC_ROLES: "true"
-      NUXT_OIDC_SYNC_GROUPS: "false"
+      NUXT_OIDC_SYNC_GROUPS: "true"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -153,27 +152,51 @@ configs:
       staticPasswords:
         - userID: "00000000-0000-7000-8000-000000000000"
           username: "alice"
+          name: "Alice Bennett"
+          preferredUsername: "alice"
           email: "alice@localhost"
+          emailVerified: true
+          groups: ["administrators"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000001"
           username: "bob"
+          name: "Bob Collins"
+          preferredUsername: "bob"
           email: "bob@localhost"
+          emailVerified: true
+          groups: ["administrators"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000002"
           username: "carol"
+          name: "Carol Davis"
+          preferredUsername: "carol"
           email: "carol@localhost"
+          emailVerified: true
+          groups: ["finance"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000003"
           username: "dan"
+          name: "Dan Edwards"
+          preferredUsername: "dan"
           email: "dan@localhost"
+          emailVerified: true
+          groups: ["sales"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000004"
           username: "erin"
+          name: "Erin Fisher"
+          preferredUsername: "erin"
           email: "erin@localhost"
+          emailVerified: true
+          groups: ["marketing"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000005"
           username: "frank"
+          name: "Frank Graham"
+          preferredUsername: "frank"
           email: "frank@localhost"
+          emailVerified: true
+          groups: ["hr"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
 
   postgres-capek.sql:
