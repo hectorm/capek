@@ -146,11 +146,11 @@ export class OIDC {
 
     this.as = {
       ...this.as,
-      authorization_endpoint: this.as.authorization_endpoint ?? as.authorization_endpoint,
-      token_endpoint: this.as.token_endpoint ?? as.token_endpoint,
-      userinfo_endpoint: this.as.userinfo_endpoint ?? as.userinfo_endpoint,
-      end_session_endpoint: this.as.end_session_endpoint ?? as.end_session_endpoint,
-      jwks_uri: this.as.jwks_uri ?? as.jwks_uri,
+      authorization_endpoint: this.as.authorization_endpoint !== "" ? this.as.authorization_endpoint : as.authorization_endpoint,
+      token_endpoint: this.as.token_endpoint !== "" ? this.as.token_endpoint : as.token_endpoint,
+      userinfo_endpoint: this.as.userinfo_endpoint !== "" ? this.as.userinfo_endpoint : as.userinfo_endpoint,
+      end_session_endpoint: this.as.end_session_endpoint !== "" ? this.as.end_session_endpoint : as.end_session_endpoint,
+      jwks_uri: this.as.jwks_uri !== "" ? this.as.jwks_uri : as.jwks_uri,
     };
   }
 
