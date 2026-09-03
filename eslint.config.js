@@ -76,7 +76,7 @@ export default withNuxt(
     files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
   },
-  globalIgnores(["node_modules/**", ".nitro/**", ".nuxt/**", ".output/**", "dist/**"]),
+  globalIgnores(["node_modules/**", ".cache/**", ".data/**", ".nitro/**", ".nuxt/**", ".output/**", "dist/**"]),
 ).prepend(
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
