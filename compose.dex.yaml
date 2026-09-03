@@ -150,7 +150,6 @@ configs:
       enablePasswordDB: true
       staticPasswords:
         - userID: "00000000-0000-7000-8000-000000000000"
-          username: "alice"
           name: "Alice Bennett"
           preferredUsername: "alice"
           email: "alice@localhost"
@@ -158,7 +157,6 @@ configs:
           groups: ["administrators"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000001"
-          username: "bob"
           name: "Bob Collins"
           preferredUsername: "bob"
           email: "bob@localhost"
@@ -166,7 +164,6 @@ configs:
           groups: ["administrators"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000002"
-          username: "carol"
           name: "Carol Davis"
           preferredUsername: "carol"
           email: "carol@localhost"
@@ -174,7 +171,6 @@ configs:
           groups: ["finance"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000003"
-          username: "dan"
           name: "Dan Edwards"
           preferredUsername: "dan"
           email: "dan@localhost"
@@ -182,7 +178,6 @@ configs:
           groups: ["sales"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000004"
-          username: "erin"
           name: "Erin Fisher"
           preferredUsername: "erin"
           email: "erin@localhost"
@@ -190,7 +185,6 @@ configs:
           groups: ["marketing"]
           hash: "$$2y$$10$$GG6ob33ztCJ21bQaAG1TtOTU6CLS7RcjvXZWWIcYJDswJSfMcBMwO"
         - userID: "00000000-0000-7000-8000-000000000005"
-          username: "frank"
           name: "Frank Graham"
           preferredUsername: "frank"
           email: "frank@localhost"
