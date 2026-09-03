@@ -27,7 +27,6 @@ services:
       NUXT_AUTH_MODE: "oidc"
       NUXT_OIDC_ROOT_URL: "https://capek.localhost"
       NUXT_OIDC_ISSUER: "https://idp.localhost/realms/acme"
-      NUXT_OIDC_DISCOVERY_ENABLED: "false"
       NUXT_OIDC_AUTHORIZATION_ENDPOINT: "https://idp.localhost/realms/acme/protocol/openid-connect/auth"
       NUXT_OIDC_TOKEN_ENDPOINT: "https://idp.internal/realms/acme/protocol/openid-connect/token"
       NUXT_OIDC_USERINFO_ENDPOINT: "https://idp.internal/realms/acme/protocol/openid-connect/userinfo"
