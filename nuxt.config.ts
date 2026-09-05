@@ -38,6 +38,7 @@ export default defineNuxtConfig({
   },
   fonts: {
     provider: "local",
+    families: [{ name: "Inter Variable", provider: "none" }],
   },
   i18n: {
     langDir: "locales",
