@@ -101,9 +101,6 @@ importers:
       oauth4webapi:
         specifier: ~3.8.7
         version: 3.8.7
-      pako:
-        specifier: ~3.0.1
-        version: 3.0.1
       pg:
         specifier: ~8.23.0
         version: 8.23.0
@@ -5311,9 +5308,6 @@ packages:
 
   package-manager-detector@1.8.0:
     resolution: {integrity: sha512-yQA4H19AmPEoMUeavPMDIe1higySl/gH/yaQrkT/s07Qp+7pp2hYz30N3z2l5BkjVkF9Ow6o0wjJamm2y7Sn0A==}
-
-  pako@3.0.1:
-    resolution: {integrity: sha512-GupotUUI0mlhugKjUs4bjOwLt3nrehy9Ys2dxC0GtgVef5cnKggkDMmf2bq2poCCuVXopWPmqsc9VDT2iJUy+w==}
 
   parse-imports-exports@0.2.4:
     resolution: {integrity: sha512-4s6vd6dx1AotCx/RCI2m7t7GCh5bDRUtGNvRfHSP2wbBQdMi67pPe7mtzmgwcaQ8VKK/6IB7Glfyu3qdZJPybQ==}
@@ -12520,8 +12514,6 @@ snapshots:
   package-manager-detector@1.6.0: {}
 
   package-manager-detector@1.8.0: {}
-
-  pako@3.0.1: {}
 
   parse-imports-exports@0.2.4:
     dependencies:
