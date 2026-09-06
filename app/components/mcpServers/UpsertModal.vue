@@ -16,7 +16,6 @@ import UFormField from "@nuxt/ui/components/FormField.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
-import USlider from "@nuxt/ui/components/Slider.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
 
@@ -29,6 +28,7 @@ import { HttpHeadersSchema, HttpRedactedValue } from "~~/shared/http";
 import { MCPServerParameters, MCPServerParametersSchema } from "~~/shared/mcp";
 import { Permissions } from "~~/shared/rbac";
 
+import NumberParameterField from "~/components/ui/NumberParameterField.vue";
 import SearchMenu from "~/components/ui/SearchMenu.vue";
 
 type McpServerGetOutput = RouterOutputs["mcpServer"]["read"];
@@ -348,38 +348,16 @@ const onCancel = () => {
                 :label="$t(`pages.studio.mcpServers.form.${key}.label`)"
                 :description="$t(`pages.studio.mcpServers.form.${key}.hint`)"
               >
-                <div class="flex min-h-5 items-center gap-2 pt-0.5">
-                  <USwitch
-                    size="sm"
-                    :disabled="!canModify"
-                    :model-value="state[key] != null"
-                    @update:model-value="(v: boolean) => (state[key] = v ? params.default : null)"
-                  />
-                  <template v-if="state[key] != null">
-                    <USlider
-                      v-model="state[key]"
-                      size="sm"
-                      class="flex-1"
-                      :max="params.max"
-                      :min="params.min"
-                      :step="params.step"
-                      :disabled="!canModify"
-                    />
-                    <UInput
-                      v-model="state[key]"
-                      size="sm"
-                      type="number"
-                      :max="params.max"
-                      :min="params.min"
-                      :step="params.step"
-                      class="h-5 w-28 py-0"
-                      :disabled="!canModify"
-                    />
-                  </template>
-                  <span v-else class="text-sm text-muted">
-                    {{ $t("pages.studio.mcpServers.form.advancedSettings.default", { value: params.default }) }}
-                  </span>
-                </div>
+                <NumberParameterField
+                  :max="params.max"
+                  :min="params.min"
+                  :step="params.step"
+                  :disabled="!canModify"
+                  :default="params.default"
+                  :model-value="state[key]"
+                  :default-hint="$t('pages.studio.mcpServers.form.advancedSettings.default', { value: params.default })"
+                  @update:model-value="(v) => (state[key] = v)"
+                />
               </UFormField>
             </div>
           </template>
