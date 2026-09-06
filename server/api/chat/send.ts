@@ -5,12 +5,17 @@ import { AgentExecutor } from "~~/server/lib/agents/executor";
 import { requirePermissions } from "~~/server/lib/authz/permissions";
 import { withUserTransaction } from "~~/server/lib/database";
 import { AbortError, MaxIterationsError, TimeoutError } from "~~/server/lib/errors";
+import { ChatStreamEvents } from "~~/shared/chat";
 import { Permissions } from "~~/shared/rbac";
 
 const bodySchema = z.object({
   sessionId: z.uuid(),
   message: z.string().min(1).max(100000).trim(),
 });
+
+const errorEvent = (message: string): string => {
+  return `event: ${ChatStreamEvents.Error}\ndata: ${JSON.stringify(message)}\n\n`;
+};
 
 export default defineEventHandler(async (event) => {
   const logger = event.context.logger;
@@ -127,17 +132,17 @@ export default defineEventHandler(async (event) => {
       } else if (error instanceof TimeoutError) {
         logger.warn({ sessionId, userId: user.id }, "Agent execution timed out");
         if (!event.node.res.writableEnded) {
-          event.node.res.write("event: error\ndata: Agent execution timed out\n\n");
+          event.node.res.write(errorEvent("Agent execution timed out"));
         }
       } else if (error instanceof MaxIterationsError) {
         logger.warn({ sessionId, userId: user.id }, "Agent execution reached max iterations");
         if (!event.node.res.writableEnded) {
-          event.node.res.write("event: error\ndata: Agent execution reached maximum iterations\n\n");
+          event.node.res.write(errorEvent("Agent execution reached maximum iterations"));
         }
       } else {
         logger.error({ sessionId, userId: user.id, error }, "Agent execution failed");
         if (!event.node.res.writableEnded) {
-          event.node.res.write("event: error\ndata: Agent execution failed\n\n");
+          event.node.res.write(errorEvent("Agent execution failed"));
         }
       }
     } finally {

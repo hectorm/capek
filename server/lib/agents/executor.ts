@@ -19,10 +19,17 @@ import { OpenAIManager } from "~~/server/lib/openai/manager";
 import { OpenAIStreamProcessor } from "~~/server/lib/openai/stream";
 import { SSEProcessor } from "~~/server/lib/sse";
 import { AgentExecutorParameters } from "~~/shared/agent";
+import { ChatStreamEvents } from "~~/shared/chat";
 import { MCPToolSchema } from "~~/shared/mcp";
 import { OpenAICompletionResponseSchema, OpenAIFunctionParametersSchema } from "~~/shared/openai";
 
 const logger = useLogger();
+
+const streamEncoder = new TextEncoder();
+
+const encodeStreamEvent = (event: string, data: string): Uint8Array => {
+  return streamEncoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+};
 
 interface AgentExecutorConfig {
   sessionId: string;
@@ -226,7 +233,7 @@ export class AgentExecutor {
       throw new Error(`Selected specialist "${args.specialistId}" not found`);
     }
 
-    yield new TextEncoder().encode(`: ${args.routingReason}\n\n`);
+    yield encodeStreamEvent(ChatStreamEvents.Status, args.routingReason);
 
     await this.updateLastActivity();
 
@@ -327,131 +334,141 @@ export class AgentExecutor {
     const messageHistory: OpenAIMessage[] = [this.createMessage("system", systemInstructions), ...messages];
 
     let accumulatedContent = "";
+    let completed = false;
 
-    while (this.iterationCount < agent.maxIterations) {
-      if (!this.checkTimeout(agent)) {
-        throw new TimeoutError();
-      }
-
-      this.iterationCount++;
-
-      await this.updateLastActivity();
-
-      const openAIClient = this.getOpenAIClient(agent);
-      const completion = await openAIClient.completion(
-        {
-          messages: messageHistory,
-          model: agent.model,
-          temperature: agent.temperature ?? undefined,
-          max_completion_tokens: agent.maxTokens ?? undefined,
-          top_p: agent.topP ?? undefined,
-          frequency_penalty: agent.frequencyPenalty ?? undefined,
-          presence_penalty: agent.presencePenalty ?? undefined,
-          tools: tools.length > 0 ? tools : undefined,
-        },
-        signal,
-      );
-
-      if (!(completion instanceof ReadableStream)) {
-        const parsed = OpenAICompletionResponseSchema.safeParse(completion);
-        if (!parsed.success || !parsed.data.choices[0]) {
-          throw new Error("Invalid completion response from specialist agent");
+    try {
+      while (this.iterationCount < agent.maxIterations) {
+        if (!this.checkTimeout(agent)) {
+          throw new TimeoutError();
         }
 
-        const firstChoice = parsed.data.choices[0];
-        const content = firstChoice.message.content ?? "";
-        accumulatedContent += content;
+        this.iterationCount++;
 
-        const contentChunk = {
-          id: `chatcmpl-${String(Date.now())}`,
-          object: "chat.completion.chunk",
-          created: Math.floor(Date.now() / 1000),
-          model: agent.model,
-          choices: [
-            {
-              index: 0,
-              delta: { content },
-              finish_reason: null,
+        await this.updateLastActivity();
+
+        const openAIClient = this.getOpenAIClient(agent);
+        const completion = await openAIClient.completion(
+          {
+            messages: messageHistory,
+            model: agent.model,
+            temperature: agent.temperature ?? undefined,
+            max_completion_tokens: agent.maxTokens ?? undefined,
+            top_p: agent.topP ?? undefined,
+            frequency_penalty: agent.frequencyPenalty ?? undefined,
+            presence_penalty: agent.presencePenalty ?? undefined,
+            tools: tools.length > 0 ? tools : undefined,
+          },
+          signal,
+        );
+
+        if (!(completion instanceof ReadableStream)) {
+          const parsed = OpenAICompletionResponseSchema.safeParse(completion);
+          if (!parsed.success || !parsed.data.choices[0]) {
+            throw new Error("Invalid completion response from specialist agent");
+          }
+
+          const firstChoice = parsed.data.choices[0];
+          const content = firstChoice.message.content ?? "";
+          accumulatedContent += content;
+
+          if (content) {
+            yield encodeStreamEvent(ChatStreamEvents.Token, content);
+          }
+
+          const toolCalls = firstChoice.message.tool_calls;
+          if (!toolCalls || toolCalls.length === 0) {
+            completed = true;
+            break;
+          }
+
+          const assistantMessage = this.createMessage("assistant", firstChoice.message.content ?? "", {
+            toolCalls: firstChoice.message.tool_calls ?? undefined,
+          });
+          messageHistory.push(assistantMessage);
+          yield* this.handleToolCalls(
+            toolCalls,
+            mcpServers,
+            mcpServerBindings,
+            skillBindings,
+            messageHistory,
+            agent,
+            signal,
+          );
+          continue;
+        }
+
+        const reader = completion.getReader();
+        const streamProcessor = new OpenAIStreamProcessor();
+        const pendingTokens: string[] = [];
+
+        try {
+          const sseProcessor = new SSEProcessor({
+            onEvent: (event) => {
+              const chunk = streamProcessor.parseChunk(event.data);
+              if (chunk) {
+                streamProcessor.processChunk(chunk);
+                const delta = chunk.choices.at(0)?.delta.content;
+                if (delta) {
+                  pendingTokens.push(delta);
+                }
+              }
             },
-          ],
-        };
-        yield new TextEncoder().encode(`data: ${JSON.stringify(contentChunk)}\n\n`);
+          });
 
-        const toolCalls = firstChoice.message.tool_calls;
-        if (!toolCalls || toolCalls.length === 0) {
+          while (!signal?.aborted) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            sseProcessor.process(value);
+            while (pendingTokens.length > 0) {
+              yield encodeStreamEvent(ChatStreamEvents.Token, pendingTokens.shift() ?? "");
+            }
+          }
+
+          sseProcessor.flush();
+          while (pendingTokens.length > 0) {
+            yield encodeStreamEvent(ChatStreamEvents.Token, pendingTokens.shift() ?? "");
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        const contentDelta = streamProcessor.getContent();
+        accumulatedContent += contentDelta;
+
+        if (streamProcessor.hasToolCalls()) {
+          const currentToolCalls = streamProcessor.getToolCalls();
+          const assistantMessage = this.createMessage("assistant", contentDelta, { toolCalls: currentToolCalls });
+          messageHistory.push(assistantMessage);
+
+          yield* this.handleToolCalls(
+            currentToolCalls,
+            mcpServers,
+            mcpServerBindings,
+            skillBindings,
+            messageHistory,
+            agent,
+            signal,
+          );
+          streamProcessor.reset();
+        } else {
+          completed = true;
           break;
         }
-
-        const assistantMessage = this.createMessage("assistant", firstChoice.message.content ?? "", {
-          toolCalls: firstChoice.message.tool_calls ?? undefined,
-        });
-        messageHistory.push(assistantMessage);
-        yield* this.handleToolCalls(
-          toolCalls,
-          mcpServers,
-          mcpServerBindings,
-          skillBindings,
-          messageHistory,
-          agent,
-          signal,
-        );
-        continue;
       }
-
-      const reader = completion.getReader();
-      const streamProcessor = new OpenAIStreamProcessor();
-
-      try {
-        const sseProcessor = new SSEProcessor({
-          onEvent: (event) => {
-            const chunk = streamProcessor.parseChunk(event.data);
-            if (chunk) {
-              streamProcessor.processChunk(chunk);
-            }
-          },
-        });
-
-        while (!signal?.aborted) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          yield value;
-          sseProcessor.process(value);
+    } finally {
+      if (accumulatedContent) {
+        try {
+          await this.saveAssistantMessage(accumulatedContent);
+        } catch (error) {
+          logger.error({ executionId: this.executionId, error }, "Failed to persist streamed answer");
         }
-
-        sseProcessor.flush();
-      } finally {
-        reader.releaseLock();
-      }
-
-      const contentDelta = streamProcessor.getContent();
-      accumulatedContent += contentDelta;
-
-      if (streamProcessor.hasToolCalls()) {
-        const currentToolCalls = streamProcessor.getToolCalls();
-        const assistantMessage = this.createMessage("assistant", contentDelta, { toolCalls: currentToolCalls });
-        messageHistory.push(assistantMessage);
-
-        yield* this.handleToolCalls(
-          currentToolCalls,
-          mcpServers,
-          mcpServerBindings,
-          skillBindings,
-          messageHistory,
-          agent,
-          signal,
-        );
-        streamProcessor.reset();
-      } else {
-        break;
       }
     }
 
-    if (this.iterationCount >= agent.maxIterations) {
+    if (!completed) {
       throw new MaxIterationsError();
     }
-
-    await this.saveAssistantMessage(accumulatedContent);
   }
 
   private async *handleToolCalls(
@@ -485,7 +502,7 @@ export class AgentExecutor {
       yield* this.handleMcpToolCall(toolCall, mcpServers, messageHistory, agent, signal);
     }
 
-    yield new TextEncoder().encode(`: \n\n`);
+    yield encodeStreamEvent(ChatStreamEvents.Status, "");
 
     await this.updateLastActivity();
   }
@@ -509,7 +526,7 @@ export class AgentExecutor {
       return;
     }
 
-    yield new TextEncoder().encode(`: execute_code\n\n`);
+    yield encodeStreamEvent(ChatStreamEvents.Status, "execute_code");
 
     logger.debug(
       { executionId: this.executionId, codeLength: parsedArgs.code.length },
@@ -627,7 +644,7 @@ export class AgentExecutor {
       return;
     }
 
-    yield new TextEncoder().encode(`: ${toolName}\n\n`);
+    yield encodeStreamEvent(ChatStreamEvents.Status, toolName);
 
     try {
       const mcpManager = MCPManager.getInstance();
@@ -687,7 +704,7 @@ export class AgentExecutor {
       return;
     }
 
-    yield new TextEncoder().encode(`: skill_${skill.name}\n\n`);
+    yield encodeStreamEvent(ChatStreamEvents.Status, `skill_${skill.name}`);
 
     if (!skill.code) {
       const errorMessage = `Skill "${skill.name}" has no executable code`;

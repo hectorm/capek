@@ -122,6 +122,17 @@ export class MockLLMServer {
     const isAfterToolResponse = request.messages?.at(-1)?.role === "tool";
     const hasTool = (name: string): boolean => request.tools?.some((t) => t.function.name === name) ?? false;
 
+    // Emit partial content plus a tool call, so the loop exhausts its budget mid-answer
+    if (
+      request.tools?.length &&
+      !isAfterToolResponse &&
+      this.getLastUserMessageContent(request).includes("iteration limit")
+    ) {
+      if (request.stream) this.handleStreamingPartialThenToolCall(request, res);
+      else this.handleNonStreamingPartialThenToolCall(request, res);
+      return;
+    }
+
     // Code interpreter: call execute_code or handle its response
     if (hasTool("execute_code")) {
       if (!isAfterToolResponse) {
@@ -279,6 +290,100 @@ export class MockLLMServer {
       choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
     };
 
+    res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+
+    setTimeout(() => {
+      res.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }, 10);
+  }
+
+  private readonly partialContent = "Partial answer before cutoff";
+
+  private handleNonStreamingPartialThenToolCall(request: OpenAICompletionRequest, res: http.ServerResponse): void {
+    const response = {
+      id: "chatcmpl-mock-partial-tool",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: request.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: this.partialContent,
+            tool_calls: [
+              {
+                id: "call_partial_001",
+                type: "function",
+                function: {
+                  name: request.tools?.[0]?.function.name ?? "unknown_tool",
+                  arguments: JSON.stringify({ text: "hello" }),
+                },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+    };
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(response));
+  }
+
+  private handleStreamingPartialThenToolCall(request: OpenAICompletionRequest, res: http.ServerResponse): void {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+
+    const contentChunk = {
+      id: "chatcmpl-mock-partial-tool-stream",
+      object: "chat.completion.chunk",
+      created: Math.floor(Date.now() / 1000),
+      model: request.model,
+      choices: [{ index: 0, delta: { role: "assistant", content: this.partialContent }, finish_reason: null }],
+    };
+
+    const toolCallChunk = {
+      id: "chatcmpl-mock-partial-tool-stream",
+      object: "chat.completion.chunk",
+      created: Math.floor(Date.now() / 1000),
+      model: request.model,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_partial_001",
+                type: "function",
+                function: {
+                  name: request.tools?.[0]?.function.name ?? "unknown_tool",
+                  arguments: JSON.stringify({ text: "hello" }),
+                },
+              },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    };
+
+    const finalChunk = {
+      id: "chatcmpl-mock-partial-tool-stream",
+      object: "chat.completion.chunk",
+      created: Math.floor(Date.now() / 1000),
+      model: request.model,
+      choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+    };
+
+    res.write(`data: ${JSON.stringify(contentChunk)}\n\n`);
     res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
 
     setTimeout(() => {

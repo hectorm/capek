@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { computed, ref, shallowRef, triggerRef } from "vue";
 
 import type { ChatMessage, ChatSession } from "~~/shared/schema";
-import { OpenAIStreamChunkSchema } from "~~/shared/openai";
+import { ChatStreamEvents } from "~~/shared/chat";
 
 interface StreamState {
   controller: AbortController;
@@ -449,45 +449,32 @@ export const useChatStore = defineStore("chat", () => {
 
     const parseStreamLine = (line: string): void => {
       const trimmed = line.trim();
-      if (trimmed === "" || trimmed === "data: [DONE]") return;
+      if (trimmed === "") return;
 
-      // Handle SSE event
       if (trimmed.startsWith("event: ")) {
         eventType = trimmed.slice(7);
         return;
       }
 
-      // Handle SSE comments (status messages)
-      if (trimmed.startsWith(":")) {
-        const status = trimmed.slice(1).trim();
-        options.onStatus?.(status);
-        return;
-      }
-
-      // Handle SSE data
       if (trimmed.startsWith("data: ")) {
-        const data = trimmed.slice(6);
+        const raw = trimmed.slice(6);
         const currentEventType = eventType;
         eventType = null;
 
-        // Handle error events
-        if (currentEventType === "error") {
-          options.onError?.(data || "Agent execution failed");
+        let value: string;
+        try {
+          value = JSON.parse(raw) as string;
+        } catch (error) {
+          console.debug("Failed to parse stream data", { error, line: trimmed });
           return;
         }
 
-        // Handle OpenAI stream chunks
-        try {
-          const rawData: unknown = JSON.parse(data);
-          const chunk = OpenAIStreamChunkSchema.safeParse(rawData);
-          if (chunk.success && chunk.data.choices[0]) {
-            const delta = chunk.data.choices[0].delta;
-            if (delta.content) {
-              options.onChunk?.(delta.content);
-            }
-          }
-        } catch (error) {
-          console.debug("Failed to parse stream chunk", { error, line: trimmed });
+        if (currentEventType === ChatStreamEvents.Error) {
+          options.onError?.(value || "Agent execution failed");
+        } else if (currentEventType === ChatStreamEvents.Status) {
+          options.onStatus?.(value);
+        } else if (currentEventType === ChatStreamEvents.Token) {
+          options.onChunk?.(value);
         }
       }
     };
