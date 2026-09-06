@@ -1,13 +1,16 @@
 import { z } from "zod/v4";
 
-// prettier-ignore
 export const MCPServerParameters = {
   toolCallTimeoutSec: { min: 1, max: 3600, step: 1, default: 60 },
 } as const;
 
-// prettier-ignore
 export const MCPServerParametersSchema = z.object({
-  toolCallTimeoutSec: z.number().int().min(MCPServerParameters.toolCallTimeoutSec.min).max(MCPServerParameters.toolCallTimeoutSec.max).nullish(),
+  toolCallTimeoutSec: z
+    .number()
+    .int()
+    .min(MCPServerParameters.toolCallTimeoutSec.min)
+    .max(MCPServerParameters.toolCallTimeoutSec.max)
+    .nullish(),
 });
 
 export const MCPConfigSchema = z.record(
