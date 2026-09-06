@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 
 import type { Database } from "~~/shared/schema";
+import { FALLBACK_ROLE } from "~~/server/lib/database/rls";
 
 export const up = async (db: Kysely<Database>): Promise<void> => {
   // =============================================================================
@@ -1524,6 +1525,61 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
       WITH CHECK (
         security.can_any(ARRAY['chat:update:own']) AND security.is_owner('execution', execution_id)
       );
+  `.execute(db);
+
+  // Provision the non-superuser role that a superuser connection de-escalates to, so the policies apply.
+  const role = sql.raw(FALLBACK_ROLE);
+  await sql`
+    DO $$
+    DECLARE
+      r RECORD;
+    BEGIN
+      IF (SELECT usesuper FROM pg_user WHERE usename = CURRENT_USER) THEN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${role}') THEN
+          CREATE ROLE ${role} NOSUPERUSER NOBYPASSRLS;
+        END IF;
+        GRANT USAGE ON SCHEMA public, security TO ${role};
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${role};
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${role};
+        GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA security TO ${role};
+        EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', current_database(), '${role}');
+        FOR r IN
+          SELECT nspname
+          FROM pg_namespace
+          WHERE nspname IN ('public', 'security')
+        LOOP
+          EXECUTE format('ALTER SCHEMA %I OWNER TO %I', r.nspname, '${role}');
+        END LOOP;
+        FOR r IN
+          SELECT schemaname, tablename
+          FROM pg_tables
+          WHERE schemaname IN ('public', 'security') AND tablename NOT LIKE 'kysely_%'
+        LOOP
+          EXECUTE format('ALTER TABLE %I.%I OWNER TO %I', r.schemaname, r.tablename, '${role}');
+        END LOOP;
+        FOR r IN
+          SELECT schemaname, sequencename
+          FROM pg_sequences
+          WHERE schemaname IN ('public', 'security')
+        LOOP
+          EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO %I', r.schemaname, r.sequencename, '${role}');
+        END LOOP;
+        FOR r IN
+          SELECT p.oid::regprocedure AS sig, p.prokind
+          FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname IN ('public', 'security') AND p.prokind IN ('f', 'p')
+        LOOP
+          EXECUTE format(
+            'ALTER %s %s OWNER TO %I',
+            CASE r.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END,
+            r.sig,
+            '${role}'
+          );
+        END LOOP;
+      END IF;
+    END
+    $$;
   `.execute(db);
 };
 

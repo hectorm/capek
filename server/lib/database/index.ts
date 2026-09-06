@@ -8,6 +8,7 @@ import pg from "pg";
 
 import type { AuthUser } from "~~/server/lib/authn/strategies";
 import type { Database } from "~~/shared/schema";
+import { FALLBACK_ROLE, isSuperuser } from "~~/server/lib/database/rls";
 import { useLogger } from "~~/server/lib/logger";
 
 const config = useRuntimeConfig();
@@ -15,15 +16,19 @@ const logger = useLogger();
 
 let db: Kysely<Database> | null = null;
 
+const databaseUrl = new URL(config.databaseUrl);
+const usingPGlite = databaseUrl.protocol === "file:" || databaseUrl.protocol === "memory:";
+
+let connIsSuperuser = false;
+
 // Configure pg to parse JSONB as JSON objects
 pg.types.setTypeParser(3802, (val: string) => JSON.parse(val) as unknown);
 
 export const useDb = async (): Promise<Kysely<Database>> => {
   if (!db) {
-    const databaseUrl = new URL(config.databaseUrl);
     let pool: pg.Pool | undefined;
 
-    if (databaseUrl.protocol === "file:" || databaseUrl.protocol === "memory:") {
+    if (usingPGlite) {
       logger.warn("Using PGlite for database, this is only suitable for development and testing purposes");
 
       const { PGlite } = await import("@electric-sql/pglite");
@@ -83,6 +88,16 @@ export const useDb = async (): Promise<Kysely<Database>> => {
         }
       },
     });
+
+    connIsSuperuser = await isSuperuser(db);
+
+    if (connIsSuperuser && !usingPGlite) {
+      logger.warn(
+        "Database connection is a superuser, which bypasses row level security. " +
+          `Each request de-escalates to the "${FALLBACK_ROLE}" role so the policies apply, ` +
+          "but connecting as a non-superuser role is recommended instead.",
+      );
+    }
   }
 
   return db;
@@ -105,6 +120,9 @@ export const withUserTransaction = async <T>(
 ): Promise<T> => {
   const database = await useDb();
   return database.transaction().execute(async (trx) => {
+    if (connIsSuperuser) {
+      await sql`SET LOCAL ROLE ${sql.raw(FALLBACK_ROLE)}`.execute(trx);
+    }
     await Promise.all([
       sql`SELECT set_config('app.user_id', ${user.id}::UUID::TEXT, true)`.execute(trx),
       sql`SELECT set_config('app.user_groups', ARRAY[${sql.join(user.groups)}]::UUID[]::TEXT, true)`.execute(trx),
