@@ -19,7 +19,7 @@ import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";
 import { Permissions } from "~~/shared/rbac";
 
-import LazyDeleteModal from "~/components/mcpServers/DeleteModal.vue";
+import ConfirmDeleteModal from "~/components/ui/ConfirmDeleteModal.vue";
 import LazyUpsertModal from "~/components/mcpServers/UpsertModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["mcpServer"]["search"], void>>;
@@ -34,7 +34,7 @@ const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 
 const upsertModal = overlay.create(LazyUpsertModal);
-const deleteModal = overlay.create(LazyDeleteModal);
+const deleteModal = overlay.create(ConfirmDeleteModal);
 
 const table = useTemplateRef<ComponentPublicInstance>("table");
 const query = ref<SearchInput>({ limit: 100, orderBy: "name", order: "asc" });
@@ -193,7 +193,21 @@ const handleUpdateModal = async (mcpServer: McpServer): Promise<void> => {
 };
 
 const handleDeleteModal = async (mcpServer: McpServer): Promise<void> => {
-  const instance = deleteModal.open({ id: mcpServer.id });
+  const instance = deleteModal.open({
+    id: mcpServer.id,
+    i18nPrefix: "pages.studio.mcpServers",
+    deletePermissions: [Permissions.McpServerDeleteAll, Permissions.McpServerDeleteOwn],
+    load: async (id: string) => {
+      const [current, access] = await Promise.all([
+        $trpc.mcpServer.read.query({ id }),
+        $trpc.mcpServer.listAccess.query({ mcpServerId: id }),
+      ]);
+      return { name: current.name, editorPrincipalIds: access.filter((a) => a.role === "editor").map((a) => a.id) };
+    },
+    remove: async (id: string) => {
+      await $trpc.mcpServer.delete.mutate({ id });
+    },
+  });
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = mcpServers.value.findIndex((m) => m.id === mcpServer.id);

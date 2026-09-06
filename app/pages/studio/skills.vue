@@ -19,8 +19,8 @@ import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";
 import { Permissions } from "~~/shared/rbac";
 
-import LazyDeleteModal from "~/components/skills/DeleteModal.vue";
 import LazyUpsertModal from "~/components/skills/UpsertModal.vue";
+import ConfirmDeleteModal from "~/components/ui/ConfirmDeleteModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["skill"]["search"], void>>;
 type SearchOutput = RouterOutputs["skill"]["search"];
@@ -34,7 +34,7 @@ const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 
 const upsertModal = overlay.create(LazyUpsertModal);
-const deleteModal = overlay.create(LazyDeleteModal);
+const deleteModal = overlay.create(ConfirmDeleteModal);
 
 const table = useTemplateRef<ComponentPublicInstance>("table");
 const query = ref<SearchInput>({ limit: 100, orderBy: "name", order: "asc" });
@@ -179,7 +179,21 @@ const handleUpdateModal = async (skill: Skill): Promise<void> => {
 };
 
 const handleDeleteModal = async (skill: Skill): Promise<void> => {
-  const instance = deleteModal.open({ id: skill.id });
+  const instance = deleteModal.open({
+    id: skill.id,
+    i18nPrefix: "pages.studio.skills",
+    deletePermissions: [Permissions.SkillDeleteAll, Permissions.SkillDeleteOwn],
+    load: async (id: string) => {
+      const [current, access] = await Promise.all([
+        $trpc.skill.read.query({ id }),
+        $trpc.skill.listAccess.query({ skillId: id }),
+      ]);
+      return { name: current.name, editorPrincipalIds: access.filter((a) => a.role === "editor").map((a) => a.id) };
+    },
+    remove: async (id: string) => {
+      await $trpc.skill.delete.mutate({ id });
+    },
+  });
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = skills.value.findIndex((s) => s.id === skill.id);

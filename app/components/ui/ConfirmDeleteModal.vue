@@ -1,39 +1,36 @@
 <script setup lang="ts">
-import { useNuxtApp } from "nuxt/app";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UForm from "@nuxt/ui/components/Form.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 
+import type { PermissionName } from "~~/shared/rbac";
 import { usePermissions } from "~/composables/permissions";
-import { Permissions } from "~~/shared/rbac";
 
 const props = defineProps<{
   id: string;
+  i18nPrefix: string;
+  deletePermissions: PermissionName[];
+  load: (id: string) => Promise<{ name: string; editorPrincipalIds: string[] }>;
+  remove: (id: string) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
   close: [{ deleted: boolean; error: Error | null }];
 }>();
 
-const { $trpc } = useNuxtApp();
 const { canAny } = usePermissions();
 
-const [mcpServer, currentAccess] = await Promise.all([
-  $trpc.mcpServer.read.query({ id: props.id }),
-  $trpc.mcpServer.listAccess.query({ mcpServerId: props.id }),
-]);
+const loaded = await props.load(props.id);
+const name = ref<string>(loaded.name);
 
-const canDelete = computed(() => {
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([Permissions.McpServerDeleteAll, Permissions.McpServerDeleteOwn], principalIds);
-});
+const canDelete = computed(() => canAny(props.deletePermissions, loaded.editorPrincipalIds));
 
 const onSubmit = async (_event: FormSubmitEvent<unknown>) => {
   try {
-    await $trpc.mcpServer.delete.mutate({ id: mcpServer.id });
+    await props.remove(props.id);
     emit("close", { deleted: true, error: null });
   } catch (error) {
     emit("close", { deleted: false, error: error as Error });
@@ -49,20 +46,20 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t('pages.studio.mcpServers.delete.title')"
-    :description="$t('pages.studio.mcpServers.delete.description')"
+    :title="$t(`${props.i18nPrefix}.delete.title`)"
+    :description="$t(`${props.i18nPrefix}.delete.description`)"
   >
     <template #body>
       <UForm :state="{}" class="w-full max-w-150 space-y-4" @submit="onSubmit">
         <div>
-          {{ $t("pages.studio.mcpServers.delete.confirm", { name: mcpServer?.name }) }}
+          {{ $t(`${props.i18nPrefix}.delete.confirm`, { name }) }}
         </div>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("pages.studio.mcpServers.form.cancel") }}
+            {{ $t(`${props.i18nPrefix}.form.cancel`) }}
           </UButton>
           <UButton color="error" type="submit" variant="solid" :disabled="!canDelete" icon="i-lucide-trash-2">
-            {{ $t("pages.studio.mcpServers.form.delete") }}
+            {{ $t(`${props.i18nPrefix}.form.delete`) }}
           </UButton>
         </div>
       </UForm>

@@ -19,7 +19,7 @@ import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";
 import { Permissions } from "~~/shared/rbac";
 
-import LazyDeleteModal from "~/components/llmProviders/DeleteModal.vue";
+import ConfirmDeleteModal from "~/components/ui/ConfirmDeleteModal.vue";
 import LazyUpsertModal from "~/components/llmProviders/UpsertModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["llmProvider"]["search"], void>>;
@@ -34,7 +34,7 @@ const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 
 const upsertModal = overlay.create(LazyUpsertModal);
-const deleteModal = overlay.create(LazyDeleteModal);
+const deleteModal = overlay.create(ConfirmDeleteModal);
 
 const table = useTemplateRef<ComponentPublicInstance>("table");
 const query = ref<SearchInput>({ limit: 100, orderBy: "name", order: "asc" });
@@ -193,7 +193,21 @@ const handleUpdateModal = async (llmProvider: LlmProvider): Promise<void> => {
 };
 
 const handleDeleteModal = async (llmProvider: LlmProvider): Promise<void> => {
-  const instance = deleteModal.open({ id: llmProvider.id });
+  const instance = deleteModal.open({
+    id: llmProvider.id,
+    i18nPrefix: "pages.studio.llmProviders",
+    deletePermissions: [Permissions.LlmProviderDeleteAll, Permissions.LlmProviderDeleteOwn],
+    load: async (id: string) => {
+      const [current, access] = await Promise.all([
+        $trpc.llmProvider.read.query({ id }),
+        $trpc.llmProvider.listAccess.query({ llmProviderId: id }),
+      ]);
+      return { name: current.name, editorPrincipalIds: access.filter((a) => a.role === "editor").map((a) => a.id) };
+    },
+    remove: async (id: string) => {
+      await $trpc.llmProvider.delete.mutate({ id });
+    },
+  });
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = llmProviders.value.findIndex((p) => p.id === llmProvider.id);
