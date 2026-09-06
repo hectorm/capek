@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // eslint-disable-next-line no-restricted-syntax
   const db = await useDb();
   const lucia = useLucia();
   const oidc = useOIDC();

@@ -73,6 +73,18 @@ export default withNuxt(
     },
   },
   {
+    files: ["server/trpc/routers/**/*.ts", "server/api/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='useDb']",
+          message: "Scope request database access with withUserTransaction.",
+        },
+      ],
+    },
+  },
+  {
     files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
   },

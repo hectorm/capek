@@ -7,6 +7,7 @@ export default defineEventHandler(async (event) => {
   const logger = event.context.logger;
 
   try {
+    // eslint-disable-next-line no-restricted-syntax
     const db = await useDb();
     await sql`SELECT 1`.execute(db);
   } catch (error) {

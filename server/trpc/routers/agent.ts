@@ -54,6 +54,7 @@ export const agentRouter = createTRPCRouter({
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
         // Agent access was verified above, resolve the linked provider in system context
+        // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
           .selectFrom("llmProviders")
@@ -249,6 +250,7 @@ export const agentRouter = createTRPCRouter({
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
         // Agent access was verified above, resolve the linked provider in system context
+        // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
           .selectFrom("llmProviders")
@@ -342,6 +344,7 @@ export const agentRouter = createTRPCRouter({
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
         // Agent access was verified above, resolve the linked provider in system context
+        // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
           .selectFrom("llmProviders")
@@ -570,6 +573,7 @@ export const agentRouter = createTRPCRouter({
       }
 
       // Agent access was verified above, load linked specialists in system context
+      // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const specialists = await db
         .selectFrom("triageSpecialists")
@@ -739,6 +743,7 @@ export const agentRouter = createTRPCRouter({
       }
 
       // Agent access was verified above, load linked MCP servers in system context
+      // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const mcpServers = await db
         .selectFrom("agentMcpServers")
@@ -869,6 +874,7 @@ export const agentRouter = createTRPCRouter({
       }
 
       // Agent access was verified above, load linked skills in system context
+      // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const skills = await db
         .selectFrom("agentSkills")

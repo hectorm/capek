@@ -263,6 +263,7 @@ export const chatSessionRouter = createTRPCRouter({
         return chatSession;
       }
 
+      // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const agentLlmConfig = await db
         .selectFrom("agents")
