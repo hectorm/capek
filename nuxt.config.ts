@@ -18,7 +18,7 @@ export default defineNuxtConfig({
   ],
   typescript: {
     tsConfig: {
-      include: ["../tests/**/*.ts", "../playwright.config.ts"],
+      include: ["../tests/**/*.ts", "../playwright.config.ts", "../vitest.config.ts"],
     },
   },
   devtools: {

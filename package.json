@@ -31,7 +31,9 @@
     "format": "run-s format:eslint format:prettier",
     "format:eslint": "eslint --fix --cache --cache-strategy content --cache-location .cache/eslint/ ./",
     "format:prettier": "prettier --cache --cache-strategy content --cache-location .cache/prettier --write ./",
-    "test": "run-s test:chromium test:firefox test:webkit",
+    "test": "run-s test:unit test:chromium test:firefox test:webkit",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:chromium": "playwright test --project=chromium",
     "test:firefox": "playwright test --project=firefox",
     "test:webkit": "playwright test --project=webkit",
@@ -103,6 +105,7 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "~8.68.0",
     "vite": "~8.2.2",
+    "vitest": "~4.1.11",
     "vue-tsc": "~3.3.11"
   }
 }

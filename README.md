@@ -35,7 +35,7 @@ Capek is a self-hosted conversational AI platform.
 | Frontend  | Nuxt UI, Tailwind CSS, Pinia                |
 | API       | tRPC, Zod                                   |
 | Database  | PostgreSQL, Kysely (PGlite for development) |
-| Testing   | Playwright                                  |
+| Testing   | Vitest, Playwright                          |
 
 ## Code interpreter
 
