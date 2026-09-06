@@ -16,11 +16,11 @@ import UProgress from "@nuxt/ui/components/Progress.vue";
 import { useAgentStore } from "~/stores/agent";
 import { useChatStore } from "~/stores/chat";
 import { copyToClipboard } from "~/utils/clipboard";
-import { mdToHtml } from "~/utils/md-to-html";
 import { sidebarKey } from "~/utils/symbols";
 import { Permissions } from "~~/shared/rbac";
 
 import LazyDeleteModal from "~/components/chat/DeleteModal.vue";
+import MessageContent from "~/components/chat/MessageContent.vue";
 import LazyRenameModal from "~/components/chat/RenameModal.vue";
 import AgentSelect from "~/components/ui/AgentSelect.vue";
 
@@ -72,6 +72,13 @@ interface MessagePart {
   type: string;
   text?: string;
 }
+
+const getMessageText = (parts: MessagePart[]): string => {
+  return parts
+    .filter((p) => p.type === "text" && p.text)
+    .map((p) => p.text ?? "")
+    .join("");
+};
 
 const title = computed(() => {
   return chatStore.currentSession?.title ?? i18n.t("pages.chat.untitled");
@@ -366,9 +373,7 @@ definePageMeta({
         <template #content="{ message }">
           <template
             v-if="
-              chatStatus === 'streaming' &&
-              message.role === 'assistant' &&
-              message.parts.filter((p: MessagePart) => p.type === 'text' && p.text).length === 0
+              chatStatus === 'streaming' && message.role === 'assistant' && getMessageText(message.parts).length === 0
             "
           >
             <div class="flex items-center gap-2 py-3 text-muted">
@@ -380,19 +385,7 @@ definePageMeta({
             </div>
           </template>
           <template v-else>
-            <!-- eslint-disable vue/no-v-html -->
-            <div
-              class="markdown-body max-w-none"
-              v-html="
-                mdToHtml(
-                  message.parts
-                    .filter((p: MessagePart) => p.type === 'text' && p.text)
-                    .map((p: MessagePart) => p.text!)
-                    .join(''),
-                )
-              "
-            />
-            <!-- eslint-enable vue/no-v-html -->
+            <MessageContent :text="getMessageText(message.parts)" />
           </template>
         </template>
       </UChatMessages>
