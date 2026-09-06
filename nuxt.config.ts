@@ -89,12 +89,6 @@ export default defineNuxtConfig({
   routeRules: {
     "/**": {
       headers: {
-        "Content-Security-Policy": [
-          "default-src 'self'",
-          "style-src 'self' 'unsafe-inline'",
-          "script-src 'self' 'unsafe-inline'",
-          "img-src 'self' blob: data:",
-        ].join("; "),
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Resource-Policy": "same-origin",
         "Referrer-Policy": "same-origin",
