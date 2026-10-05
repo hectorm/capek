@@ -58,7 +58,7 @@
     "@vueuse/core": "~14.4.0",
     "@vueuse/nuxt": "~14.4.0",
     "comment-parser": "~1.4.8",
-    "dompurify": "~3.4.14",
+    "dompurify": "~3.4.16",
     "github-markdown-css": "~5.9.0",
     "h3": "~1.15.11",
     "jmespath": "~0.16.0",
