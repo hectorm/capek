@@ -77,10 +77,14 @@ export default defineNuxtConfig({
   },
   imports: {
     autoImport: false,
+    scan: false,
     dirs: [],
   },
   components: {
     dirs: [],
+    transform: {
+      exclude: [new RegExp(`^${RegExp.escape(import.meta.dirname)}/app/`)],
+    },
   },
   css: ["~/assets/css/main.css"],
   build: {
@@ -140,6 +144,16 @@ export default defineNuxtConfig({
     ],
   },
   nitro: {
+    imports: {
+      // TODO: remove when "@nuxtjs/i18n" and "trpc-nuxt" stop importing Nitro helpers from "#imports"
+      // https://github.com/nuxt-modules/i18n/issues/4175
+      imports: [
+        { name: "useRuntimeConfig", from: "nitropack/runtime" },
+        { name: "eventHandler", from: "h3" },
+        { name: "getRequestURL", from: "h3" },
+        { name: "getRequestWebStream", from: "h3" },
+      ],
+    },
     experimental: {
       tasks: true,
       wasm: true,

@@ -2,8 +2,6 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { definePageMeta, useToast } from "#imports";
-
 import UButton from "@nuxt/ui/components/Button.vue";
 import UFieldGroup from "@nuxt/ui/components/FieldGroup.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
@@ -11,10 +9,12 @@ import UInputNumber from "@nuxt/ui/components/InputNumber.vue";
 import USelect from "@nuxt/ui/components/Select.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";
 import { useSettingsStore } from "~/stores/settings";
+import { definePageMeta } from "~/utils/page-meta";
 import { Permissions } from "~~/shared/rbac";
 import { SettingType } from "~~/shared/settings";
 

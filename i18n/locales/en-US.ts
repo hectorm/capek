@@ -1,6 +1,4 @@
-import { defineI18nLocale } from "#i18n";
-
-export default defineI18nLocale(() => ({
+export default () => ({
   layouts: {
     default: {
       title: "Capek",
@@ -971,4 +969,4 @@ export default defineI18nLocale(() => ({
       description: "An unexpected error occurred. Please refresh the page.",
     },
   },
-}));
+});

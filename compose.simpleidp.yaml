@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
 name: "capek"
 
+# https://github.com/hectorm/simpleidp/pkgs/container/simpleidp
+x-simpleidp-image: &simpleidp-image "ghcr.io/hectorm/simpleidp:latest"
+
 services:
   traefik:
     extends:
@@ -42,9 +45,7 @@ services:
         condition: "service_completed_successfully"
 
   simpleidp:
-    image: "localhost/simpleidp:latest"
-    pull_policy: "build"
-    build: { context: "https://github.com/hectorm/simpleidp.git#master" }
+    image: *simpleidp-image
     container_name: "capek-simpleidp"
     hostname: "simpleidp"
     labels:

@@ -3,7 +3,7 @@ import { abortNavigation, defineNuxtRouteMiddleware, navigateTo } from "nuxt/app
 import type { PermissionName } from "~~/shared/rbac";
 import { usePermissions } from "~/composables/permissions";
 
-declare module "#app" {
+declare module "nuxt/app" {
   interface PageMeta {
     permissions?: PermissionName[];
     permissionsStrict?: boolean;

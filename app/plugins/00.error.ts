@@ -1,7 +1,7 @@
 import { defineNuxtPlugin } from "nuxt/app";
 import { useI18n } from "vue-i18n";
 
-import { useToast } from "#imports";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 export default defineNuxtPlugin((nuxtApp) => {
   const toast = useToast();

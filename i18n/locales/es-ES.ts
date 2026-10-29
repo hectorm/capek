@@ -1,6 +1,6 @@
-import { defineI18nLocale } from "#i18n";
+import type enUS from "./en-US";
 
-export default defineI18nLocale(() => ({
+export default (): ReturnType<typeof enUS> => ({
   layouts: {
     default: {
       title: "Capek",
@@ -971,4 +971,4 @@ export default defineI18nLocale(() => ({
       description: "Ocurrió un error inesperado. Por favor, actualice la página.",
     },
   },
-}));
+});

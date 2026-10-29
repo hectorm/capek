@@ -6,6 +6,8 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { z } from "zod/v4";
 
+import { NuxtLayout, NuxtLoadingIndicator, NuxtPage, NuxtRouteAnnouncer } from "#components";
+
 import type { ToasterProps } from "@nuxt/ui";
 import UApp from "@nuxt/ui/components/App.vue";
 import * as locales from "@nuxt/ui/locale";

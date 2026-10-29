@@ -4,8 +4,6 @@ import { computed, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
-import { useToast } from "#imports";
-
 import type { FormSubmitEvent } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UForm from "@nuxt/ui/components/Form.vue";
@@ -14,6 +12,7 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";

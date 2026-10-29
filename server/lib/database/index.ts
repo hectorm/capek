@@ -22,7 +22,7 @@ const usingPGlite = databaseUrl.protocol === "file:" || databaseUrl.protocol ===
 let connIsSuperuser = false;
 
 // Configure pg to parse JSONB as JSON objects
-pg.types.setTypeParser(3802, (val: string) => JSON.parse(val) as unknown);
+pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val) as unknown);
 
 export const useDb = async (): Promise<Kysely<Database>> => {
   if (!db) {

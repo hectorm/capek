@@ -2,13 +2,14 @@
 import { computed, inject } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { definePageMeta } from "#imports";
+import { NuxtPage } from "#components";
 
 import type { NavigationMenuItem } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 
 import { usePermissions } from "~/composables/permissions";
+import { definePageMeta } from "~/utils/page-meta";
 import { sidebarKey } from "~/utils/symbols";
 import { Permissions } from "~~/shared/rbac";
 

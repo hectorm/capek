@@ -1,10 +1,9 @@
 <script setup lang="ts">
+import { useNuxtApp } from "nuxt/app";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
-
-import { useColorMode } from "#imports";
 
 import type { DropdownMenuItem } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
@@ -18,7 +17,7 @@ defineProps<{
   collapsed?: boolean;
 }>();
 
-const colorMode = useColorMode();
+const { $colorMode: colorMode } = useNuxtApp();
 const i18n = useI18n();
 
 const userStore = useUserStore();

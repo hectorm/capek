@@ -2,7 +2,7 @@
 name: "capek"
 
 # https://hub.docker.com/r/dexidp/dex
-x-dex-image: &dex-image "mirror.gcr.io/dexidp/dex:v2.45.1"
+x-dex-image: &dex-image "mirror.gcr.io/dexidp/dex:v2.46.1"
 
 services:
   traefik:
@@ -132,9 +132,12 @@ configs:
         responseTypes: ["code"]
         skipApprovalScreen: true
         alwaysShowLoginScreen: false
+      signer:
+        type: "local"
+        config:
+          keysRotationPeriod: "6h"
       expiry:
         deviceRequests: "5m"
-        signingKeys: "6h"
         idTokens: "24h"
         authRequests: "24h"
         refreshTokens:

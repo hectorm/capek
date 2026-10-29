@@ -5,12 +5,14 @@ import { computed, onMounted, provide, readonly, ref, useTemplateRef, watch } fr
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
-import { useOverlay, useToast } from "#imports";
+import { NuxtLink } from "#components";
 
 import UButton from "@nuxt/ui/components/Button.vue";
 import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 import USlideover from "@nuxt/ui/components/Slideover.vue";
 import UTooltip from "@nuxt/ui/components/Tooltip.vue";
+import { useOverlay } from "@nuxt/ui/composables/useOverlay";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import { useChatUI } from "~/composables/chat-ui";
 import { useAgentStore } from "~/stores/agent";
@@ -93,7 +95,7 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
       title: i18n.t("pages.welcome.actions.deleteChat.success.title"),
       description: i18n.t("pages.welcome.actions.deleteChat.success.description"),
     });
-    if (route.params.id === id) {
+    if (route.name === "chat-id" && route.params.id === id) {
       void navigateTo("/");
     }
   } else if (result.error) {

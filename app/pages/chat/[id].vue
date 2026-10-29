@@ -4,18 +4,20 @@ import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } fr
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
-import { definePageMeta, useOverlay, useToast } from "#imports";
-
+import UButton from "@nuxt/ui/components/Button.vue";
 import UChatMessages from "@nuxt/ui/components/ChatMessages.vue";
 import UChatPrompt from "@nuxt/ui/components/ChatPrompt.vue";
 import UChatPromptSubmit from "@nuxt/ui/components/ChatPromptSubmit.vue";
 import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UProgress from "@nuxt/ui/components/Progress.vue";
+import { useOverlay } from "@nuxt/ui/composables/useOverlay";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import { useAgentStore } from "~/stores/agent";
 import { useChatStore } from "~/stores/chat";
 import { copyToClipboard } from "~/utils/clipboard";
+import { definePageMeta } from "~/utils/page-meta";
 import { sidebarKey } from "~/utils/symbols";
 import { Permissions } from "~~/shared/rbac";
 
@@ -25,7 +27,7 @@ import LazyRenameModal from "~/components/chat/RenameModal.vue";
 import AgentSelect from "~/components/ui/AgentSelect.vue";
 
 const i18n = useI18n();
-const route = useRoute();
+const route = useRoute("chat-id");
 const agentStore = useAgentStore();
 const chatStore = useChatStore();
 const toast = useToast();
@@ -42,7 +44,7 @@ const promptRef = ref<InstanceType<typeof UChatPrompt>>();
 const copied = ref<boolean>(false);
 const copyTimeoutId = ref<ReturnType<typeof setTimeout>>();
 
-const sessionId = computed(() => route.params.id as string);
+const sessionId = computed(() => route.params.id);
 const currentSession = computed(() => chatStore.currentSession);
 const streamState = computed(() => chatStore.getStream(sessionId.value));
 const chatStatus = computed(() => (streamState.value ? "streaming" : "ready"));

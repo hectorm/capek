@@ -4,8 +4,6 @@ import { computed, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
-import { useToast } from "#imports";
-
 import type { AccordionItem, FormSubmitEvent } from "@nuxt/ui";
 import UAccordion from "@nuxt/ui/components/Accordion.vue";
 import UBadge from "@nuxt/ui/components/Badge.vue";
@@ -18,6 +16,7 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import type { HttpHeader } from "~~/shared/http";

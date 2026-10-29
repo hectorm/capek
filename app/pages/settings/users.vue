@@ -6,8 +6,6 @@ import { storeToRefs } from "pinia";
 import { computed, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { definePageMeta, useOverlay, useToast } from "#imports";
-
 import type { DropdownMenuItem, TableColumn } from "@nuxt/ui";
 import UBadge from "@nuxt/ui/components/Badge.vue";
 import UButton from "@nuxt/ui/components/Button.vue";
@@ -17,10 +15,13 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UPopover from "@nuxt/ui/components/Popover.vue";
 import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
 import UTable from "@nuxt/ui/components/Table.vue";
+import { useOverlay } from "@nuxt/ui/composables/useOverlay";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "~/types/trpc";
 import { usePermissions } from "~/composables/permissions";
 import { useUserStore } from "~/stores/user";
+import { definePageMeta } from "~/utils/page-meta";
 import { Permissions } from "~~/shared/rbac";
 
 import SearchMenu from "~/components/ui/SearchMenu.vue";

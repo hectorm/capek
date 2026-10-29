@@ -3,15 +3,15 @@ import { navigateTo } from "nuxt/app";
 import { computed, inject, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
-import { definePageMeta, useToast } from "#imports";
-
 import UButton from "@nuxt/ui/components/Button.vue";
 import UChatPrompt from "@nuxt/ui/components/ChatPrompt.vue";
 import UChatPromptSubmit from "@nuxt/ui/components/ChatPromptSubmit.vue";
+import { useToast } from "@nuxt/ui/composables/useToast";
 
 import { useAgentStore } from "~/stores/agent";
 import { useChatStore } from "~/stores/chat";
 import { useSettingsStore } from "~/stores/settings";
+import { definePageMeta } from "~/utils/page-meta";
 import { sidebarKey } from "~/utils/symbols";
 
 import AgentSelect from "~/components/ui/AgentSelect.vue";

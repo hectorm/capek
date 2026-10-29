@@ -36,6 +36,17 @@ export default withNuxt(
           hoist: "all",
         },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^#(?!components$)",
+              message: "Import from the source package instead of a Nuxt virtual module.",
+            },
+          ],
+        },
+      ],
       "preserve-caught-error": ["off"],
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -64,6 +75,7 @@ export default withNuxt(
           sortLineLength: true,
         },
       ],
+      "vue/no-undef-components": ["error"],
       "vue/define-macros-order": [
         "error",
         {
