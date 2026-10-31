@@ -9,6 +9,9 @@ node_modules/
 /.output/
 /dist/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Test outputs
 /tests/**/.output/
 /tests/**/.report/

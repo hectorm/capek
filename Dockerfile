@@ -22,7 +22,7 @@ COPY ./ /src/
 
 RUN --network=none \
 	--mount=type=cache,id=pnpm,dst=/pnpm/store/ \
-	pnpm run prepare && pnpm run build
+	pnpm exec nuxt prepare && pnpm run build
 
 ##################################################
 ## "main" stage

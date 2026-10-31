@@ -18,7 +18,37 @@ export default defineNuxtConfig({
   ],
   typescript: {
     tsConfig: {
+      compilerOptions: {
+        strict: true,
+        erasableSyntaxOnly: true,
+        verbatimModuleSyntax: true,
+        allowUnreachableCode: false,
+        allowUnusedLabels: false,
+        allowArbitraryExtensions: true,
+        noFallthroughCasesInSwitch: true,
+        noImplicitAny: true,
+        noImplicitOverride: true,
+        noImplicitReturns: true,
+        noImplicitThis: true,
+        noUncheckedIndexedAccess: true,
+        noUnusedParameters: true,
+        allowJs: true,
+        checkJs: true,
+        incremental: true,
+      },
       include: ["../tests/**/*.ts", "../playwright.config.ts", "../vitest.config.ts"],
+    },
+    appTsConfig: {
+      compilerOptions: { tsBuildInfoFile: "../.cache/typescript/app.tsbuildinfo" },
+    },
+    serverTsConfig: {
+      compilerOptions: { tsBuildInfoFile: "../.cache/typescript/server.tsbuildinfo" },
+    },
+    sharedTsConfig: {
+      compilerOptions: { tsBuildInfoFile: "../.cache/typescript/shared.tsbuildinfo" },
+    },
+    nodeTsConfig: {
+      compilerOptions: { tsBuildInfoFile: "../.cache/typescript/node.tsbuildinfo" },
     },
   },
   devtools: {
@@ -70,6 +100,7 @@ export default defineNuxtConfig({
   icon: {
     serverBundle: {
       collections: ["lucide", "simple-icons"],
+      externalizeIconsJson: true,
     },
   },
   vueuse: {
@@ -89,6 +120,11 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
   build: {
     transpile: ["trpc-nuxt"],
+  },
+  $production: {
+    sourcemap: {
+      server: false,
+    },
   },
   routeRules: {
     "/**": {

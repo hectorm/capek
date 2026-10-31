@@ -19,7 +19,7 @@ COPY ./ /src/
 
 RUN --network=none \
 	--mount=type=cache,id=bun,dst=/bun/install/cache/ \
-	bun run prepare && bun run build
+	bun run nuxt prepare && bun run build
 
 ##################################################
 ## "main" stage
