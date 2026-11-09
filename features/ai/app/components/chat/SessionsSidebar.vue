@@ -56,8 +56,8 @@ const handleNewChat = async (): Promise<void> => {
     console.error("Failed to create chat session", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.welcome.actions.createChat.error.title"),
-      description: i18n.t("pages.welcome.actions.createChat.error.description"),
+      title: i18n.t("ai.pages.welcome.actions.createChat.error.title"),
+      description: i18n.t("ai.pages.welcome.actions.createChat.error.description"),
     });
   }
 };
@@ -69,8 +69,8 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
   if (result.deleted) {
     toast.add({
       color: "success",
-      title: i18n.t("pages.welcome.actions.deleteChat.success.title"),
-      description: i18n.t("pages.welcome.actions.deleteChat.success.description"),
+      title: i18n.t("ai.pages.welcome.actions.deleteChat.success.title"),
+      description: i18n.t("ai.pages.welcome.actions.deleteChat.success.description"),
     });
     if (route.name === "ai-chat-id" && route.params.id === id) {
       void navigateTo("/ai");
@@ -78,8 +78,8 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
   } else if (result.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.welcome.actions.deleteChat.error.title"),
-      description: i18n.t("pages.welcome.actions.deleteChat.error.description"),
+      title: i18n.t("ai.pages.welcome.actions.deleteChat.error.title"),
+      description: i18n.t("ai.pages.welcome.actions.deleteChat.error.description"),
     });
   }
 };
@@ -114,7 +114,7 @@ useInfiniteScroll(
         :loading="chatStore.isCreatingSession"
         @click="handleNewChat"
       >
-        {{ $t("pages.welcome.newChat") }}
+        {{ $t("ai.pages.welcome.newChat") }}
       </UButton>
     </div>
     <div v-else class="border-b border-default p-2">
@@ -127,7 +127,7 @@ useInfiniteScroll(
         icon="i-lucide-plus"
         :disabled="!agentStore.hasAgents"
         :loading="chatStore.isCreatingSession"
-        :aria-label="$t('pages.welcome.newChat')"
+        :aria-label="$t('ai.pages.welcome.newChat')"
         @click="handleNewChat"
       />
     </div>
@@ -148,7 +148,7 @@ useInfiniteScroll(
                   color="neutral"
                   variant="ghost"
                   icon="i-lucide-x"
-                  :aria-label="$t('layouts.default.sidebar.deleteChat')"
+                  :aria-label="$t('ai.layouts.default.sidebar.deleteChat')"
                   class="p-0.5 text-muted hover:bg-accented/50 hover:text-primary focus-visible:bg-accented/50"
                   @click.stop.prevent="() => void openChatDeleteModal(item.id)"
                 />

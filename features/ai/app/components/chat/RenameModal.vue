@@ -64,8 +64,8 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t('components.chat.renameModal.title')"
-    :description="$t('components.chat.renameModal.description')"
+    :title="$t('ai.components.chat.renameModal.title')"
+    :description="$t('ai.components.chat.renameModal.description')"
   >
     <template #body>
       <UForm
@@ -75,21 +75,21 @@ const onCancel = () => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="title" :label="$t('components.chat.renameModal.form.title.label')">
+        <UFormField required name="title" :label="$t('ai.components.chat.renameModal.form.title.label')">
           <UInput
             v-model="state.title"
             autofocus
             type="text"
             class="w-full"
-            :placeholder="$t('components.chat.renameModal.form.title.placeholder')"
+            :placeholder="$t('ai.components.chat.renameModal.form.title.placeholder')"
           />
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("components.chat.renameModal.form.cancel.label") }}
+            {{ $t("ai.components.chat.renameModal.form.cancel.label") }}
           </UButton>
           <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save">
-            {{ $t("components.chat.renameModal.form.save.label") }}
+            {{ $t("ai.components.chat.renameModal.form.save.label") }}
           </UButton>
         </div>
       </UForm>

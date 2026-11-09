@@ -134,7 +134,7 @@ const getDropdownActions = (mcpServer: McpServer): DropdownMenuItem[] => {
     ])
   ) {
     actions.push({
-      label: i18n.t("pages.studio.mcpServers.table.actions.update.label"),
+      label: i18n.t("ai.pages.studio.mcpServers.table.actions.update.label"),
       icon: "i-lucide-edit",
       color: "neutral",
       onSelect: () => void handleUpdateModal(mcpServer),
@@ -143,7 +143,7 @@ const getDropdownActions = (mcpServer: McpServer): DropdownMenuItem[] => {
 
   if (canAny([AiPermissions.McpServerDeleteAll, AiPermissions.McpServerDeleteOwn])) {
     actions.push({
-      label: i18n.t("pages.studio.mcpServers.table.actions.delete.label"),
+      label: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.label"),
       icon: "i-lucide-trash-2",
       color: "error",
       onSelect: () => void handleDeleteModal(mcpServer),
@@ -160,14 +160,14 @@ const handleCreateModal = async (): Promise<void> => {
     mcpServers.value = mcpServers.value.toSpliced(0, 0, modalResult.mcpServer);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.mcpServers.table.actions.create.success.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.create.success.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.create.success.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.create.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.mcpServers.table.actions.create.error.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.create.error.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.create.error.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.create.error.description"),
     });
   }
 };
@@ -181,14 +181,14 @@ const handleUpdateModal = async (mcpServer: McpServer): Promise<void> => {
     if (i >= 0) mcpServers.value = mcpServers.value.toSpliced(i, 1, updatedMcpServer);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.mcpServers.table.actions.update.success.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.update.success.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.update.success.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.update.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.mcpServers.table.actions.update.error.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.update.error.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.update.error.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.update.error.description"),
     });
   }
 };
@@ -196,7 +196,7 @@ const handleUpdateModal = async (mcpServer: McpServer): Promise<void> => {
 const handleDeleteModal = async (mcpServer: McpServer): Promise<void> => {
   const instance = deleteModal.open({
     id: mcpServer.id,
-    i18nPrefix: "pages.studio.mcpServers",
+    i18nPrefix: "ai.pages.studio.mcpServers",
     deletePermissions: [AiPermissions.McpServerDeleteAll, AiPermissions.McpServerDeleteOwn],
     load: async (id: string) => {
       const [current, access] = await Promise.all([
@@ -215,14 +215,14 @@ const handleDeleteModal = async (mcpServer: McpServer): Promise<void> => {
     if (i >= 0) mcpServers.value = mcpServers.value.toSpliced(i, 1);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.mcpServers.table.actions.delete.success.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.delete.success.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.success.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.mcpServers.table.actions.delete.error.title"),
-      description: i18n.t("pages.studio.mcpServers.table.actions.delete.error.description"),
+      title: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.error.title"),
+      description: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.error.description"),
     });
   }
 };
@@ -242,8 +242,8 @@ watch(i18n.locale, () => {
 });
 
 definePageMeta({
-  title: "pages.studio.mcpServers.title",
-  description: "pages.studio.mcpServers.description",
+  title: "ai.pages.studio.mcpServers.title",
+  description: "ai.pages.studio.mcpServers.description",
   permissions: [AiPermissions.McpServerCreate],
 });
 </script>
@@ -265,18 +265,22 @@ definePageMeta({
           color="neutral"
           variant="ghost"
           icon="i-lucide-plus"
-          :aria-label="$t('pages.studio.mcpServers.table.actions.create.label')"
+          :aria-label="$t('ai.pages.studio.mcpServers.table.actions.create.label')"
           @click="() => void handleCreateModal()"
         />
       </template>
-      <UFieldGroup v-else class="-mx-2.5 flex w-full flex-row" :aria-label="$t(`pages.studio.mcpServers.table.${id}`)">
+      <UFieldGroup
+        v-else
+        class="-mx-2.5 flex w-full flex-row"
+        :aria-label="$t(`ai.pages.studio.mcpServers.table.${id}`)"
+      >
         <UButton
           v-if="meta.sortable"
           class="flex-1"
           color="neutral"
           variant="ghost"
-          :label="$t(`pages.studio.mcpServers.table.${id}`)"
-          :aria-label="$t('pages.studio.mcpServers.table.sort')"
+          :label="$t(`ai.pages.studio.mcpServers.table.${id}`)"
+          :aria-label="$t('ai.pages.studio.mcpServers.table.sort')"
           :icon="
             hasOrder(column)
               ? query.order === 'asc'
@@ -291,13 +295,13 @@ definePageMeta({
           color="neutral"
           variant="ghost"
           class="flex-1 cursor-default"
-          :label="$t(`pages.studio.mcpServers.table.${id}`)"
+          :label="$t(`ai.pages.studio.mcpServers.table.${id}`)"
         />
         <UPopover v-if="meta.filterable">
           <UButton
             color="neutral"
             variant="ghost"
-            :aria-label="$t('pages.studio.mcpServers.table.filter')"
+            :aria-label="$t('ai.pages.studio.mcpServers.table.filter')"
             :icon="hasFilter(column) ? 'i-lucide-list-filter-plus' : 'i-lucide-list-filter'"
           />
           <template #content>
@@ -306,7 +310,7 @@ definePageMeta({
               color="neutral"
               variant="ghost"
               icon="i-lucide-search"
-              :aria-label="$t('pages.studio.mcpServers.table.search')"
+              :aria-label="$t('ai.pages.studio.mcpServers.table.search')"
               :model-value="hasFilter(column) && !Array.isArray(query.search) ? query.search : ''"
               @keydown.enter="setFilter(column, $event.target.value)"
             />
@@ -324,7 +328,7 @@ definePageMeta({
             color="neutral"
             variant="ghost"
             icon="i-lucide-ellipsis-vertical"
-            :aria-label="$t('pages.studio.mcpServers.table.actions.title')"
+            :aria-label="$t('ai.pages.studio.mcpServers.table.actions.title')"
           />
         </UDropdownMenu>
       </template>

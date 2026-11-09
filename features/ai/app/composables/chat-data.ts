@@ -27,8 +27,8 @@ export const useChatData = (): void => {
       console.error("Failed to fetch initial data", error);
       toast.add({
         color: "error",
-        title: i18n.t("pages.welcome.actions.fetchChats.error.title"),
-        description: i18n.t("pages.welcome.actions.fetchChats.error.description"),
+        title: i18n.t("ai.pages.welcome.actions.fetchChats.error.title"),
+        description: i18n.t("ai.pages.welcome.actions.fetchChats.error.description"),
       });
     }
   });

@@ -62,8 +62,8 @@ const selectedAgent = computed({
         console.error("Failed to update session agent", error);
         toast.add({
           color: "error",
-          title: i18n.t("pages.chat.actions.updateSession.error.title"),
-          description: i18n.t("pages.chat.actions.updateSession.error.description"),
+          title: i18n.t("ai.pages.chat.actions.updateSession.error.title"),
+          description: i18n.t("ai.pages.chat.actions.updateSession.error.description"),
         });
       }
     })();
@@ -83,7 +83,7 @@ const getMessageText = (parts: MessagePart[]): string => {
 };
 
 const title = computed(() => {
-  return chatStore.currentSession?.title ?? i18n.t("pages.chat.untitled");
+  return chatStore.currentSession?.title ?? i18n.t("ai.pages.chat.untitled");
 });
 
 const uiMessages = computed(() => {
@@ -102,17 +102,17 @@ const userProps = computed(() => ({
     chatStatus.value === "ready"
       ? [
           {
-            label: i18n.t("pages.chat.actions.edit"),
+            label: i18n.t("ai.pages.chat.actions.edit"),
             icon: "i-lucide-pencil",
             onClick: handleEditMessage,
           },
           {
-            label: i18n.t("pages.chat.actions.retry"),
+            label: i18n.t("ai.pages.chat.actions.retry"),
             icon: "i-lucide-rotate-cw",
             onClick: handleRetryMessage,
           },
           {
-            label: i18n.t("pages.chat.actions.delete"),
+            label: i18n.t("ai.pages.chat.actions.delete"),
             icon: "i-lucide-trash-2",
             onClick: handleDeleteMessage,
           },
@@ -126,17 +126,17 @@ const assistantProps = computed(() => ({
     chatStatus.value === "ready"
       ? [
           {
-            label: i18n.t("pages.chat.actions.copy"),
+            label: i18n.t("ai.pages.chat.actions.copy"),
             icon: copied.value ? "i-lucide-copy-check" : "i-lucide-copy",
             onClick: handleCopyMessage,
           },
           {
-            label: i18n.t("pages.chat.actions.regenerate"),
+            label: i18n.t("ai.pages.chat.actions.regenerate"),
             icon: "i-lucide-refresh-cw",
             onClick: handleRegenerateMessage,
           },
           {
-            label: i18n.t("pages.chat.actions.delete"),
+            label: i18n.t("ai.pages.chat.actions.delete"),
             icon: "i-lucide-trash-2",
             onClick: handleDeleteMessage,
           },
@@ -146,12 +146,12 @@ const assistantProps = computed(() => ({
 
 const actionItems = computed(() => [
   {
-    label: i18n.t("pages.chat.actions.rename"),
+    label: i18n.t("ai.pages.chat.actions.rename"),
     icon: "i-lucide-pencil",
     onSelect: handleRenameSession,
   },
   {
-    label: i18n.t("pages.chat.actions.delete"),
+    label: i18n.t("ai.pages.chat.actions.delete"),
     icon: "i-lucide-trash-2",
     onSelect: handleDeleteSession,
   },
@@ -164,8 +164,8 @@ const loadSession = async () => {
     console.error("Failed to load chat session", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.fetchChat.error.title"),
-      description: i18n.t("pages.chat.actions.fetchChat.error.description"),
+      title: i18n.t("ai.pages.chat.actions.fetchChat.error.title"),
+      description: i18n.t("ai.pages.chat.actions.fetchChat.error.description"),
     });
     await navigateTo("/ai");
   }
@@ -188,8 +188,8 @@ const handleSubmit = async (e: Event) => {
     console.error("Failed to send chat message", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.sendMessage.error.title"),
-      description: i18n.t("pages.chat.actions.sendMessage.error.description"),
+      title: i18n.t("ai.pages.chat.actions.sendMessage.error.title"),
+      description: i18n.t("ai.pages.chat.actions.sendMessage.error.description"),
     });
   }
 };
@@ -200,14 +200,14 @@ const handleRenameSession = async (): Promise<void> => {
   if (result.renamed) {
     toast.add({
       color: "success",
-      title: i18n.t("pages.chat.actions.renameSession.success.title"),
-      description: i18n.t("pages.chat.actions.renameSession.success.description"),
+      title: i18n.t("ai.pages.chat.actions.renameSession.success.title"),
+      description: i18n.t("ai.pages.chat.actions.renameSession.success.description"),
     });
   } else if (result.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.renameSession.error.title"),
-      description: i18n.t("pages.chat.actions.renameSession.error.description"),
+      title: i18n.t("ai.pages.chat.actions.renameSession.error.title"),
+      description: i18n.t("ai.pages.chat.actions.renameSession.error.description"),
     });
   }
 };
@@ -218,15 +218,15 @@ const handleDeleteSession = async (): Promise<void> => {
   if (result.deleted) {
     toast.add({
       color: "success",
-      title: i18n.t("pages.welcome.actions.deleteChat.success.title"),
-      description: i18n.t("pages.welcome.actions.deleteChat.success.description"),
+      title: i18n.t("ai.pages.welcome.actions.deleteChat.success.title"),
+      description: i18n.t("ai.pages.welcome.actions.deleteChat.success.description"),
     });
     await navigateTo("/ai");
   } else if (result.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.welcome.actions.deleteChat.error.title"),
-      description: i18n.t("pages.welcome.actions.deleteChat.error.description"),
+      title: i18n.t("ai.pages.welcome.actions.deleteChat.error.title"),
+      description: i18n.t("ai.pages.welcome.actions.deleteChat.error.description"),
     });
   }
 };
@@ -261,8 +261,8 @@ const handleEditMessage = async (_e: MouseEvent, message: { id: string; parts: M
     console.error("Failed to edit message", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.editMessage.error.title"),
-      description: i18n.t("pages.chat.actions.editMessage.error.description"),
+      title: i18n.t("ai.pages.chat.actions.editMessage.error.title"),
+      description: i18n.t("ai.pages.chat.actions.editMessage.error.description"),
     });
   }
 };
@@ -274,8 +274,8 @@ const handleRetryMessage = async (_e: MouseEvent, message: { id: string; parts: 
     console.error("Failed to retry message", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.retryMessage.error.title"),
-      description: i18n.t("pages.chat.actions.retryMessage.error.description"),
+      title: i18n.t("ai.pages.chat.actions.retryMessage.error.title"),
+      description: i18n.t("ai.pages.chat.actions.retryMessage.error.description"),
     });
   }
 };
@@ -287,8 +287,8 @@ const handleRegenerateMessage = async (_e: MouseEvent, message: { id: string; pa
     console.error("Failed to regenerate message", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.regenerateMessage.error.title"),
-      description: i18n.t("pages.chat.actions.regenerateMessage.error.description"),
+      title: i18n.t("ai.pages.chat.actions.regenerateMessage.error.title"),
+      description: i18n.t("ai.pages.chat.actions.regenerateMessage.error.description"),
     });
   }
 };
@@ -300,8 +300,8 @@ const handleDeleteMessage = async (_e: MouseEvent, message: { id: string; parts:
     console.error("Failed to delete message", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.chat.actions.deleteMessage.error.title"),
-      description: i18n.t("pages.chat.actions.deleteMessage.error.description"),
+      title: i18n.t("ai.pages.chat.actions.deleteMessage.error.title"),
+      description: i18n.t("ai.pages.chat.actions.deleteMessage.error.description"),
     });
   }
 };
@@ -333,8 +333,8 @@ useSeoMeta({
 });
 
 definePageMeta({
-  title: "pages.chat.title",
-  description: "pages.chat.description",
+  title: "ai.pages.chat.title",
+  description: "ai.pages.chat.description",
   permissions: [AiPermissions.ChatReadAll, AiPermissions.ChatReadOwn],
 });
 </script>
@@ -357,7 +357,7 @@ definePageMeta({
           color="neutral"
           variant="ghost"
           icon="i-lucide-ellipsis-vertical"
-          :aria-label="$t('pages.chat.actions.menu')"
+          :aria-label="$t('ai.pages.chat.actions.menu')"
         />
       </UDropdownMenu>
     </header>

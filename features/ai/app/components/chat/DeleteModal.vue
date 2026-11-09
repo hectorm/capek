@@ -43,20 +43,22 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t('components.chat.deleteModal.title')"
-    :description="$t('components.chat.deleteModal.description')"
+    :title="$t('ai.components.chat.deleteModal.title')"
+    :description="$t('ai.components.chat.deleteModal.description')"
   >
     <template #body>
       <UForm :state="{}" class="w-full max-w-150 space-y-4" @submit="onSubmit">
         <div>
-          {{ $t("components.chat.deleteModal.form.message", { title: session?.title || $t("pages.chat.untitled") }) }}
+          {{
+            $t("ai.components.chat.deleteModal.form.message", { title: session?.title || $t("ai.pages.chat.untitled") })
+          }}
         </div>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("components.chat.deleteModal.form.cancel.label") }}
+            {{ $t("ai.components.chat.deleteModal.form.cancel.label") }}
           </UButton>
           <UButton color="error" type="submit" variant="solid" icon="i-lucide-trash-2">
-            {{ $t("components.chat.deleteModal.form.delete.label") }}
+            {{ $t("ai.components.chat.deleteModal.form.delete.label") }}
           </UButton>
         </div>
       </UForm>

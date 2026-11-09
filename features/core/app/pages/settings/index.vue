@@ -14,6 +14,7 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 import type { RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useSettingsStore } from "#layers/core/app/stores/settings";
+import { featureMessageKey } from "#layers/core/app/utils/features";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
 import { CorePermissions } from "#layers/core/shared/rbac";
 import { SettingType } from "#layers/core/shared/settings";
@@ -38,21 +39,23 @@ const settingList = computed<SettingDefinition[]>(() => {
   return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }));
 });
 
+// Translations of a setting are part of the messages of the feature that defines it
+const fieldKey = (setting: SettingDefinition, name: string): string =>
+  featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
+
+// Categories are scoped to the feature that defines them
 const categoryList = computed(() => {
-  const categoryMap = new Map<string, SettingDefinition[]>();
+  const categoryMap = new Map<string, { label: string; settings: SettingDefinition[] }>();
   for (const setting of settingList.value) {
-    if (!categoryMap.has(setting.category)) {
-      categoryMap.set(setting.category, []);
-    }
-    const categorySettings = categoryMap.get(setting.category);
-    if (categorySettings) {
-      categorySettings.push(setting);
-    }
+    const id = `${setting.feature}:${setting.category}`;
+    const category = categoryMap.get(id) ?? {
+      label: featureMessageKey(setting.feature, `pages.settings.general.categories.${setting.category}`),
+      settings: [],
+    };
+    category.settings.push(setting);
+    categoryMap.set(id, category);
   }
-  return Array.from(categoryMap.entries()).map(([category, categorySettings]) => ({
-    category,
-    settings: categorySettings,
-  }));
+  return Array.from(categoryMap.entries()).map(([id, category]) => ({ id, ...category }));
 });
 
 const updateSettingValue = (setting: SettingDefinition, value: SettingValue): void => {
@@ -245,15 +248,15 @@ definePageMeta({
       {{ $t("pages.settings.general.messages.loading") }}
     </div>
     <template v-else-if="settingsStore.settings">
-      <div v-for="{ category, settings: categorySettings } in categoryList" :key="category" class="flex flex-col gap-4">
+      <div v-for="{ id, label, settings: categorySettings } in categoryList" :key="id" class="flex flex-col gap-4">
         <h2 class="text-lg font-semibold">
-          {{ $t(`pages.settings.general.categories.${category}`) }}
+          {{ $t(label) }}
         </h2>
         <div v-for="settingItem in categorySettings" :key="settingItem.key" class="flex flex-col gap-2">
           <div class="flex flex-col gap-2 rounded-lg border border-default p-4">
             <div class="flex items-center justify-between">
               <label class="font-medium" :for="settingItem.key">
-                {{ $t(`pages.settings.general.fields['${settingItem.key}'].label`) }}
+                {{ $t(fieldKey(settingItem, "label")) }}
               </label>
               <div class="flex items-center gap-2">
                 <span v-if="settingItem.isOverridden" class="text-xs text-primary">
@@ -265,7 +268,7 @@ definePageMeta({
               </div>
             </div>
             <p class="text-sm text-muted">
-              {{ $t(`pages.settings.general.fields['${settingItem.key}'].description`) }}
+              {{ $t(fieldKey(settingItem, "description")) }}
             </p>
             <!-- STRING -->
             <UFieldGroup
@@ -284,7 +287,7 @@ definePageMeta({
                 :required="settingItem.config.minLength > 0"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
-                :placeholder="$t(`pages.settings.general.fields['${settingItem.key}'].placeholder`)"
+                :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
                 @update:model-value="updateSettingValue(settingItem, $event)"
               />
               <UButton
@@ -312,7 +315,7 @@ definePageMeta({
                 :required="settingItem.config.minLength > 0"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
-                :placeholder="$t(`pages.settings.general.fields['${settingItem.key}'].placeholder`)"
+                :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
                 @update:model-value="updateSettingValue(settingItem, $event)"
               />
               <UButton
@@ -341,7 +344,7 @@ definePageMeta({
                   :minlength="settingItem.config.itemMinLength"
                   :required="settingItem.config.itemMinLength > 0"
                   :disabled="!can(CorePermissions.SettingsUpdateAll)"
-                  :placeholder="$t(`pages.settings.general.fields['${settingItem.key}'].placeholder`)"
+                  :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
                   @update:model-value="updateSettingListItem(settingItem, index, $event)"
                 />
                 <UButton
@@ -349,7 +352,7 @@ definePageMeta({
                   color="neutral"
                   variant="outline"
                   icon="i-lucide-trash-2"
-                  :aria-label="$t(`pages.settings.general.fields['${settingItem.key}'].remove`)"
+                  :aria-label="$t(fieldKey(settingItem, 'remove'))"
                   :disabled="
                     !can(CorePermissions.SettingsUpdateAll) ||
                     (formValues[settingItem.key] as string[])?.length <= settingItem.config.minItems
@@ -363,7 +366,7 @@ definePageMeta({
                   color="neutral"
                   variant="outline"
                   icon="i-lucide-plus"
-                  :label="$t(`pages.settings.general.fields['${settingItem.key}'].add`)"
+                  :label="$t(fieldKey(settingItem, 'add'))"
                   :disabled="
                     !can(CorePermissions.SettingsUpdateAll) ||
                     (formValues[settingItem.key] as string[])?.length >= settingItem.config.maxItems
@@ -392,7 +395,7 @@ definePageMeta({
                 :items="settingItem.config.options"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
-                :placeholder="$t(`pages.settings.general.fields['${settingItem.key}'].placeholder`)"
+                :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
                 @update:model-value="(value) => updateSettingValue(settingItem, String(value ?? ''))"
               />
               <UButton
@@ -461,7 +464,7 @@ definePageMeta({
                 :accept="settingItem.config.accept.join(',')"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :placeholder="
-                  $t(`pages.settings.general.fields['${settingItem.key}'].placeholder`, {
+                  $t(fieldKey(settingItem, 'placeholder'), {
                     maxSize: Math.round(settingItem.config.maxSize / 1024),
                   })
                 "

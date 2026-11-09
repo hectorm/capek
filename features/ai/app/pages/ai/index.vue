@@ -40,8 +40,8 @@ const handleCreateChat = async (prompt: string) => {
       console.error("Failed to send initial message", error);
       toast.add({
         color: "error",
-        title: i18n.t("pages.chat.actions.sendMessage.error.title"),
-        description: i18n.t("pages.chat.actions.sendMessage.error.description"),
+        title: i18n.t("ai.pages.chat.actions.sendMessage.error.title"),
+        description: i18n.t("ai.pages.chat.actions.sendMessage.error.description"),
       });
     });
     await navigateTo(`/ai/chat/${session.id}`);
@@ -50,8 +50,8 @@ const handleCreateChat = async (prompt: string) => {
     console.error("Failed to create chat session", error);
     toast.add({
       color: "error",
-      title: i18n.t("pages.welcome.actions.createChat.error.title"),
-      description: i18n.t("pages.welcome.actions.createChat.error.description"),
+      title: i18n.t("ai.pages.welcome.actions.createChat.error.title"),
+      description: i18n.t("ai.pages.welcome.actions.createChat.error.description"),
     });
   }
 };
@@ -68,8 +68,8 @@ const quickChats = computed(() => {
 });
 
 definePageMeta({
-  title: "pages.welcome.title",
-  description: "pages.welcome.description",
+  title: "ai.pages.welcome.title",
+  description: "ai.pages.welcome.description",
 });
 </script>
 
@@ -84,7 +84,7 @@ definePageMeta({
         :aria-label="$t('layouts.default.sidebar.toggle')"
         @click="sidebar?.toggle()"
       />
-      <h1 class="text-xl font-bold">{{ $t("pages.welcome.title") }}</h1>
+      <h1 class="text-xl font-bold">{{ $t("ai.pages.welcome.title") }}</h1>
     </header>
     <main class="flex flex-1 flex-col justify-center gap-4 px-4 py-8 sm:gap-6">
       <UChatPrompt
@@ -94,7 +94,7 @@ definePageMeta({
         :ui="{ footer: 'empty:hidden' }"
         :disabled="!agentStore.hasAgents"
         class="[view-transition-name:chat-prompt]"
-        :placeholder="$t('pages.welcome.prompt.enterMessage')"
+        :placeholder="$t('ai.pages.welcome.prompt.enterMessage')"
         @submit="handleSubmit"
       >
         <UChatPromptSubmit

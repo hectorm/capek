@@ -125,7 +125,7 @@ const getDropdownActions = (skill: Skill): DropdownMenuItem[] => {
     ])
   ) {
     actions.push({
-      label: i18n.t("pages.studio.skills.table.actions.update.label"),
+      label: i18n.t("ai.pages.studio.skills.table.actions.update.label"),
       icon: "i-lucide-edit",
       color: "neutral",
       onSelect: () => void handleUpdateModal(skill),
@@ -134,7 +134,7 @@ const getDropdownActions = (skill: Skill): DropdownMenuItem[] => {
 
   if (canAny([AiPermissions.SkillDeleteAll, AiPermissions.SkillDeleteOwn])) {
     actions.push({
-      label: i18n.t("pages.studio.skills.table.actions.delete.label"),
+      label: i18n.t("ai.pages.studio.skills.table.actions.delete.label"),
       icon: "i-lucide-trash-2",
       color: "error",
       onSelect: () => void handleDeleteModal(skill),
@@ -151,14 +151,14 @@ const handleCreateModal = async (): Promise<void> => {
     skills.value = skills.value.toSpliced(0, 0, modalResult.skill);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.skills.table.actions.create.success.title"),
-      description: i18n.t("pages.studio.skills.table.actions.create.success.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.create.success.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.create.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.skills.table.actions.create.error.title"),
-      description: i18n.t("pages.studio.skills.table.actions.create.error.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.create.error.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.create.error.description"),
     });
   }
 };
@@ -172,14 +172,14 @@ const handleUpdateModal = async (skill: Skill): Promise<void> => {
     if (i >= 0) skills.value = skills.value.toSpliced(i, 1, updatedSkill);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.skills.table.actions.update.success.title"),
-      description: i18n.t("pages.studio.skills.table.actions.update.success.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.update.success.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.update.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.skills.table.actions.update.error.title"),
-      description: i18n.t("pages.studio.skills.table.actions.update.error.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.update.error.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.update.error.description"),
     });
   }
 };
@@ -187,7 +187,7 @@ const handleUpdateModal = async (skill: Skill): Promise<void> => {
 const handleDeleteModal = async (skill: Skill): Promise<void> => {
   const instance = deleteModal.open({
     id: skill.id,
-    i18nPrefix: "pages.studio.skills",
+    i18nPrefix: "ai.pages.studio.skills",
     deletePermissions: [AiPermissions.SkillDeleteAll, AiPermissions.SkillDeleteOwn],
     load: async (id: string) => {
       const [current, access] = await Promise.all([
@@ -206,14 +206,14 @@ const handleDeleteModal = async (skill: Skill): Promise<void> => {
     if (i >= 0) skills.value = skills.value.toSpliced(i, 1);
     toast.add({
       color: "success",
-      title: i18n.t("pages.studio.skills.table.actions.delete.success.title"),
-      description: i18n.t("pages.studio.skills.table.actions.delete.success.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.delete.success.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.delete.success.description"),
     });
   } else if (modalResult.error) {
     toast.add({
       color: "error",
-      title: i18n.t("pages.studio.skills.table.actions.delete.error.title"),
-      description: i18n.t("pages.studio.skills.table.actions.delete.error.description"),
+      title: i18n.t("ai.pages.studio.skills.table.actions.delete.error.title"),
+      description: i18n.t("ai.pages.studio.skills.table.actions.delete.error.description"),
     });
   }
 };
@@ -233,8 +233,8 @@ watch(i18n.locale, () => {
 });
 
 definePageMeta({
-  title: "pages.studio.skills.title",
-  description: "pages.studio.skills.description",
+  title: "ai.pages.studio.skills.title",
+  description: "ai.pages.studio.skills.description",
   permissions: [AiPermissions.SkillCreate],
 });
 </script>
@@ -256,18 +256,18 @@ definePageMeta({
           color="neutral"
           variant="ghost"
           icon="i-lucide-plus"
-          :aria-label="$t('pages.studio.skills.table.actions.create.label')"
+          :aria-label="$t('ai.pages.studio.skills.table.actions.create.label')"
           @click="() => void handleCreateModal()"
         />
       </template>
-      <UFieldGroup v-else class="-mx-2.5 flex w-full flex-row" :aria-label="$t(`pages.studio.skills.table.${id}`)">
+      <UFieldGroup v-else class="-mx-2.5 flex w-full flex-row" :aria-label="$t(`ai.pages.studio.skills.table.${id}`)">
         <UButton
           v-if="meta.sortable"
           class="flex-1"
           color="neutral"
           variant="ghost"
-          :label="$t(`pages.studio.skills.table.${id}`)"
-          :aria-label="$t('pages.studio.skills.table.sort')"
+          :label="$t(`ai.pages.studio.skills.table.${id}`)"
+          :aria-label="$t('ai.pages.studio.skills.table.sort')"
           :icon="
             hasOrder(column)
               ? query.order === 'asc'
@@ -282,13 +282,13 @@ definePageMeta({
           color="neutral"
           variant="ghost"
           class="flex-1 cursor-default"
-          :label="$t(`pages.studio.skills.table.${id}`)"
+          :label="$t(`ai.pages.studio.skills.table.${id}`)"
         />
         <UPopover v-if="meta.filterable">
           <UButton
             color="neutral"
             variant="ghost"
-            :aria-label="$t('pages.studio.skills.table.filter')"
+            :aria-label="$t('ai.pages.studio.skills.table.filter')"
             :icon="hasFilter(column) ? 'i-lucide-list-filter-plus' : 'i-lucide-list-filter'"
           />
           <template #content>
@@ -297,7 +297,7 @@ definePageMeta({
               color="neutral"
               variant="ghost"
               icon="i-lucide-search"
-              :aria-label="$t('pages.studio.skills.table.search')"
+              :aria-label="$t('ai.pages.studio.skills.table.search')"
               :model-value="hasFilter(column) && !Array.isArray(query.search) ? query.search : ''"
               @keydown.enter="setFilter(column, $event.target.value)"
             />
@@ -315,7 +315,7 @@ definePageMeta({
             color="neutral"
             variant="ghost"
             icon="i-lucide-ellipsis-vertical"
-            :aria-label="$t('pages.studio.skills.table.actions.title')"
+            :aria-label="$t('ai.pages.studio.skills.table.actions.title')"
           />
         </UDropdownMenu>
       </template>

@@ -24,7 +24,7 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
   const formattedSessions = computed(() =>
     sessions.value.map((s: ChatSession) => ({
       id: s.id,
-      label: s.title || i18n.t("pages.chat.untitled"),
+      label: s.title || i18n.t("ai.pages.chat.untitled"),
       to: `/ai/chat/${s.id}`,
       updatedAt: s.updatedAt,
     })),
@@ -73,16 +73,16 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
     });
 
     if (today.length) {
-      groups.push({ id: "today", label: i18n.t("pages.chat.dateGroups.today"), items: today });
+      groups.push({ id: "today", label: i18n.t("ai.pages.chat.dateGroups.today"), items: today });
     }
     if (yesterday.length) {
-      groups.push({ id: "yesterday", label: i18n.t("pages.chat.dateGroups.yesterday"), items: yesterday });
+      groups.push({ id: "yesterday", label: i18n.t("ai.pages.chat.dateGroups.yesterday"), items: yesterday });
     }
     if (lastWeek.length) {
-      groups.push({ id: "last-week", label: i18n.t("pages.chat.dateGroups.lastWeek"), items: lastWeek });
+      groups.push({ id: "last-week", label: i18n.t("ai.pages.chat.dateGroups.lastWeek"), items: lastWeek });
     }
     if (lastMonth.length) {
-      groups.push({ id: "last-month", label: i18n.t("pages.chat.dateGroups.lastMonth"), items: lastMonth });
+      groups.push({ id: "last-month", label: i18n.t("ai.pages.chat.dateGroups.lastMonth"), items: lastMonth });
     }
 
     const sortedMonthYears = Object.keys(older).sort((a, b) => {

@@ -155,8 +155,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const action = props.id ? "update" : "create";
     toast.add({
       color: "error",
-      title: i18n.t(`pages.studio.llmProviders.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.studio.llmProviders.table.actions.${action}.error.description`),
+      title: i18n.t(`ai.pages.studio.llmProviders.table.actions.${action}.error.title`),
+      description: i18n.t(`ai.pages.studio.llmProviders.table.actions.${action}.error.description`),
     });
   }
 };
@@ -170,8 +170,8 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`pages.studio.llmProviders.${props.id ? 'edit' : 'create'}.title`)"
-    :description="$t(`pages.studio.llmProviders.${props.id ? 'edit' : 'create'}.description`)"
+    :title="$t(`ai.pages.studio.llmProviders.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`ai.pages.studio.llmProviders.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <UForm
@@ -181,45 +181,45 @@ const onCancel = () => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="name" :label="$t('pages.studio.llmProviders.form.name.label')">
+        <UFormField required name="name" :label="$t('ai.pages.studio.llmProviders.form.name.label')">
           <UInput
             v-model="state.name"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.llmProviders.form.name.placeholder')"
+            :placeholder="$t('ai.pages.studio.llmProviders.form.name.placeholder')"
           />
         </UFormField>
-        <UFormField name="description" :label="$t('pages.studio.llmProviders.form.description.label')">
+        <UFormField name="description" :label="$t('ai.pages.studio.llmProviders.form.description.label')">
           <UTextarea
             v-model="state.description"
             autoresize
             :maxrows="3"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.llmProviders.form.description.placeholder')"
+            :placeholder="$t('ai.pages.studio.llmProviders.form.description.placeholder')"
           />
         </UFormField>
-        <UFormField required name="apiUrl" :label="$t('pages.studio.llmProviders.form.apiUrl.label')">
+        <UFormField required name="apiUrl" :label="$t('ai.pages.studio.llmProviders.form.apiUrl.label')">
           <UInput
             v-model="state.apiUrl"
             type="url"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.llmProviders.form.apiUrl.placeholder')"
+            :placeholder="$t('ai.pages.studio.llmProviders.form.apiUrl.placeholder')"
           />
         </UFormField>
-        <UFormField name="apiKey" :label="$t('pages.studio.llmProviders.form.apiKey.label')">
+        <UFormField name="apiKey" :label="$t('ai.pages.studio.llmProviders.form.apiKey.label')">
           <UInput
             v-model="state.apiKey"
             class="w-full"
             type="password"
             :disabled="!canModify"
-            :placeholder="$t(`pages.studio.llmProviders.form.apiKey.placeholder`)"
+            :placeholder="$t(`ai.pages.studio.llmProviders.form.apiKey.placeholder`)"
             @input="state.apiKey === HttpRedactedValue && (state.apiKey = '')"
           />
         </UFormField>
-        <UFormField name="headers" :label="$t('pages.studio.llmProviders.form.headers.label')">
+        <UFormField name="headers" :label="$t('ai.pages.studio.llmProviders.form.headers.label')">
           <div class="flex flex-col gap-2">
             <UFieldGroup v-for="(header, index) in state.headers" :key="index">
               <UInput
@@ -232,7 +232,7 @@ const onCancel = () => {
                 autocomplete="off"
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
-                :placeholder="$t('pages.studio.llmProviders.form.headers.namePlaceholder')"
+                :placeholder="$t('ai.pages.studio.llmProviders.form.headers.namePlaceholder')"
               />
               <UInput
                 v-model="header.value"
@@ -243,7 +243,7 @@ const onCancel = () => {
                 variant="outline"
                 autocomplete="off"
                 :disabled="!canModify"
-                :placeholder="$t('pages.studio.llmProviders.form.headers.valuePlaceholder')"
+                :placeholder="$t('ai.pages.studio.llmProviders.form.headers.valuePlaceholder')"
                 @input="header.value === HttpRedactedValue && (header.value = '')"
               />
               <UButton
@@ -251,7 +251,7 @@ const onCancel = () => {
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-trash-2"
-                :aria-label="$t('pages.studio.llmProviders.form.headers.remove')"
+                :aria-label="$t('ai.pages.studio.llmProviders.form.headers.remove')"
                 @click="removeHeader(index)"
               />
             </UFieldGroup>
@@ -262,13 +262,13 @@ const onCancel = () => {
                 variant="outline"
                 icon="i-lucide-plus"
                 :disabled="!canModify"
-                :label="$t('pages.studio.llmProviders.form.headers.add')"
+                :label="$t('ai.pages.studio.llmProviders.form.headers.add')"
                 @click="addHeader"
               />
             </UFieldGroup>
           </div>
         </UFormField>
-        <UFormField name="editors" :label="$t('pages.studio.llmProviders.form.editors.label')">
+        <UFormField name="editors" :label="$t('ai.pages.studio.llmProviders.form.editors.label')">
           <SearchMenu
             v-model="state.editors"
             multiple
@@ -277,10 +277,10 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.llmProviders.form.editors.placeholder')"
+            :placeholder="$t('ai.pages.studio.llmProviders.form.editors.placeholder')"
           />
         </UFormField>
-        <UFormField name="users" :label="$t('pages.studio.llmProviders.form.users.label')">
+        <UFormField name="users" :label="$t('ai.pages.studio.llmProviders.form.users.label')">
           <SearchMenu
             v-model="state.users"
             multiple
@@ -289,15 +289,15 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.llmProviders.form.users.placeholder')"
+            :placeholder="$t('ai.pages.studio.llmProviders.form.users.placeholder')"
           />
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("pages.studio.llmProviders.form.cancel") }}
+            {{ $t("ai.pages.studio.llmProviders.form.cancel") }}
           </UButton>
           <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
-            {{ $t(`pages.studio.llmProviders.form.${props.id ? "save" : "create"}`) }}
+            {{ $t(`ai.pages.studio.llmProviders.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>
       </UForm>

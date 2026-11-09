@@ -7,18 +7,21 @@ const settingsCache = new Map<string, { value: unknown; expiresAt: number }>();
 // Low enough to not have to deal with invalidation, high enough to not hammer the DB on bursts
 const settingsCacheTtl = 1000;
 
-let settingDefinitions: Readonly<Record<string, SettingDefinition>> | null = null;
+// Setting definition along with the name of the feature that defines it
+export type FeatureSettingDefinition = SettingDefinition & { feature: string };
 
-export const useSettingDefinitions = (): Readonly<Record<string, SettingDefinition>> => {
+let settingDefinitions: Readonly<Record<string, FeatureSettingDefinition>> | null = null;
+
+export const useSettingDefinitions = (): Readonly<Record<string, FeatureSettingDefinition>> => {
   if (!settingDefinitions) {
-    const definitions: Record<string, SettingDefinition> = {};
+    const definitions: Record<string, FeatureSettingDefinition> = {};
     for (const feature of getServerFeatures()) {
       for (const [key, definition] of Object.entries(feature.settings ?? {})) {
         if (key in definitions) {
           throw new Error(`Duplicate setting "${key}" in feature "${feature.name}"`);
         }
         assertFeaturePrefix(feature.name, key, "Setting", ".");
-        definitions[key] = definition;
+        definitions[key] = { ...definition, feature: feature.name };
       }
     }
     settingDefinitions = definitions;

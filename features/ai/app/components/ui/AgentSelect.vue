@@ -83,7 +83,7 @@ watch(
     value-key="value"
     :icon="selectedAgentIcon"
     :model-value="props.modelValue"
-    :aria-label="t('components.agentSelect.label')"
+    :aria-label="t('ai.components.agentSelect.label')"
     class="hover:bg-default focus:bg-default data-[state=open]:bg-default"
     :ui="{
       content: 'w-fit max-w-[min(600px,95vw)]',

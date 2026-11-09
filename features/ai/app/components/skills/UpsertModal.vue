@@ -167,8 +167,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const action = props.id ? "update" : "create";
     toast.add({
       color: "error",
-      title: i18n.t(`pages.studio.skills.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.studio.skills.table.actions.${action}.error.description`),
+      title: i18n.t(`ai.pages.studio.skills.table.actions.${action}.error.title`),
+      description: i18n.t(`ai.pages.studio.skills.table.actions.${action}.error.description`),
     });
   }
 };
@@ -182,8 +182,8 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`pages.studio.skills.${props.id ? 'edit' : 'create'}.title`)"
-    :description="$t(`pages.studio.skills.${props.id ? 'edit' : 'create'}.description`)"
+    :title="$t(`ai.pages.studio.skills.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`ai.pages.studio.skills.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <UForm
@@ -193,26 +193,26 @@ const onCancel = () => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="name" :label="$t('pages.studio.skills.form.name.label')">
+        <UFormField required name="name" :label="$t('ai.pages.studio.skills.form.name.label')">
           <UInput
             v-model="state.name"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.skills.form.name.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.name.placeholder')"
           />
         </UFormField>
-        <UFormField name="description" :label="$t('pages.studio.skills.form.description.label')">
+        <UFormField name="description" :label="$t('ai.pages.studio.skills.form.description.label')">
           <UTextarea
             v-model="state.description"
             autoresize
             :maxrows="3"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.skills.form.description.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.description.placeholder')"
           />
         </UFormField>
-        <UFormField name="documentation" :label="$t('pages.studio.skills.form.documentation.label')">
+        <UFormField name="documentation" :label="$t('ai.pages.studio.skills.form.documentation.label')">
           <UTextarea
             v-model="state.documentation"
             autoresize
@@ -220,10 +220,10 @@ const onCancel = () => {
             :maxrows="15"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.skills.form.documentation.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.documentation.placeholder')"
           />
         </UFormField>
-        <UFormField name="code" :label="$t('pages.studio.skills.form.code.label')">
+        <UFormField name="code" :label="$t('ai.pages.studio.skills.form.code.label')">
           <UTextarea
             v-model="state.code"
             autoresize
@@ -231,10 +231,10 @@ const onCancel = () => {
             :disabled="!canModify"
             class="w-full font-mono text-sm"
             :ui="{ base: 'whitespace-pre overflow-x-auto' }"
-            :placeholder="$t('pages.studio.skills.form.code.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.code.placeholder')"
           />
         </UFormField>
-        <UFormField name="editors" :label="$t('pages.studio.skills.form.editors.label')">
+        <UFormField name="editors" :label="$t('ai.pages.studio.skills.form.editors.label')">
           <SearchMenu
             v-model="state.editors"
             multiple
@@ -243,10 +243,10 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.skills.form.editors.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.editors.placeholder')"
           />
         </UFormField>
-        <UFormField name="users" :label="$t('pages.studio.skills.form.users.label')">
+        <UFormField name="users" :label="$t('ai.pages.studio.skills.form.users.label')">
           <SearchMenu
             v-model="state.users"
             multiple
@@ -255,15 +255,15 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.skills.form.users.placeholder')"
+            :placeholder="$t('ai.pages.studio.skills.form.users.placeholder')"
           />
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("pages.studio.skills.form.cancel") }}
+            {{ $t("ai.pages.studio.skills.form.cancel") }}
           </UButton>
           <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
-            {{ $t(`pages.studio.skills.form.${props.id ? "save" : "create"}`) }}
+            {{ $t(`ai.pages.studio.skills.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>
       </UForm>

@@ -159,8 +159,8 @@ const selectedLlmProviderId = computed({
 });
 
 const typeOptions = [
-  { value: "specialist", label: i18n.t("pages.studio.agents.form.type.specialist") },
-  { value: "triage", label: i18n.t("pages.studio.agents.form.type.triage") },
+  { value: "specialist", label: i18n.t("ai.pages.studio.agents.form.type.specialist") },
+  { value: "triage", label: i18n.t("ai.pages.studio.agents.form.type.triage") },
 ];
 
 const llmProviderLabels = new Map<string, string>();
@@ -221,7 +221,7 @@ const advancedSettingsEntries = Object.entries(AgentExecutorParameters) as [
 
 const advancedSettingsItems = computed<AccordionItem[]>(() => [
   {
-    label: i18n.t("pages.studio.agents.form.advancedSettings.label"),
+    label: i18n.t("ai.pages.studio.agents.form.advancedSettings.label"),
     slot: "advanced" as const,
   },
 ]);
@@ -305,8 +305,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const action = props.id ? "update" : "create";
     toast.add({
       color: "error",
-      title: i18n.t(`pages.studio.agents.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.studio.agents.table.actions.${action}.error.description`),
+      title: i18n.t(`ai.pages.studio.agents.table.actions.${action}.error.title`),
+      description: i18n.t(`ai.pages.studio.agents.table.actions.${action}.error.description`),
     });
   }
 };
@@ -320,8 +320,8 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`pages.studio.agents.${props.id ? 'edit' : 'create'}.title`)"
-    :description="$t(`pages.studio.agents.${props.id ? 'edit' : 'create'}.description`)"
+    :title="$t(`ai.pages.studio.agents.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`ai.pages.studio.agents.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <UForm
@@ -331,46 +331,46 @@ const onCancel = () => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="name" :label="$t('pages.studio.agents.form.name.label')">
+        <UFormField required name="name" :label="$t('ai.pages.studio.agents.form.name.label')">
           <UInput
             v-model="state.name"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.name.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.name.placeholder')"
           />
         </UFormField>
-        <UFormField name="description" :label="$t('pages.studio.agents.form.description.label')">
+        <UFormField name="description" :label="$t('ai.pages.studio.agents.form.description.label')">
           <UTextarea
             v-model="state.description"
             autoresize
             :maxrows="3"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.description.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.description.placeholder')"
           />
         </UFormField>
-        <UFormField required name="instructions" :label="$t('pages.studio.agents.form.instructions.label')">
+        <UFormField required name="instructions" :label="$t('ai.pages.studio.agents.form.instructions.label')">
           <UTextarea
             v-model="state.instructions"
             autoresize
             :maxrows="10"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.instructions.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.instructions.placeholder')"
           />
         </UFormField>
-        <UFormField name="greetingMessage" :label="$t('pages.studio.agents.form.greetingMessage.label')">
+        <UFormField name="greetingMessage" :label="$t('ai.pages.studio.agents.form.greetingMessage.label')">
           <UTextarea
             v-model="state.greetingMessage"
             autoresize
             :maxrows="5"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.greetingMessage.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.greetingMessage.placeholder')"
           />
         </UFormField>
-        <UFormField name="editors" :label="$t('pages.studio.agents.form.editors.label')">
+        <UFormField name="editors" :label="$t('ai.pages.studio.agents.form.editors.label')">
           <SearchMenu
             v-model="state.editors"
             multiple
@@ -379,10 +379,10 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.editors.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.editors.placeholder')"
           />
         </UFormField>
-        <UFormField name="users" :label="$t('pages.studio.agents.form.users.label')">
+        <UFormField name="users" :label="$t('ai.pages.studio.agents.form.users.label')">
           <SearchMenu
             v-model="state.users"
             multiple
@@ -391,10 +391,10 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.users.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.users.placeholder')"
           />
         </UFormField>
-        <UFormField v-if="!props.id" required name="type" :label="$t('pages.studio.agents.form.type.label')">
+        <UFormField v-if="!props.id" required name="type" :label="$t('ai.pages.studio.agents.form.type.label')">
           <URadioGroup
             v-model="state.type"
             size="sm"
@@ -407,7 +407,7 @@ const onCancel = () => {
         <UFormField
           v-if="state.type === 'triage'"
           name="specialists"
-          :label="$t('pages.studio.agents.form.specialists.label')"
+          :label="$t('ai.pages.studio.agents.form.specialists.label')"
         >
           <SearchMenu
             v-model="state.specialists"
@@ -417,42 +417,42 @@ const onCancel = () => {
             :label-fn="getSpecialistLabel"
             :search-fn="searchSpecialists"
             :icon-fn="() => 'i-lucide-bot'"
-            :placeholder="$t('pages.studio.agents.form.specialists.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.specialists.placeholder')"
           />
         </UFormField>
-        <UFormField name="llmProviderId" :label="$t('pages.studio.agents.form.llmProvider.label')">
+        <UFormField name="llmProviderId" :label="$t('ai.pages.studio.agents.form.llmProvider.label')">
           <SearchMenu
             v-model="selectedLlmProviderId"
             class="w-full"
             :disabled="!canModify"
             :label-fn="getLlmProviderLabel"
             :search-fn="searchLlmProviders"
-            :placeholder="$t('pages.studio.agents.form.llmProvider.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.llmProvider.placeholder')"
           />
         </UFormField>
-        <UFormField required name="model" :label="$t('pages.studio.agents.form.model.label')">
+        <UFormField required name="model" :label="$t('ai.pages.studio.agents.form.model.label')">
           <UInput
             v-model="state.model"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.model.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.model.placeholder')"
           />
         </UFormField>
-        <UFormField name="summaryModel" :label="$t('pages.studio.agents.form.summaryModel.label')">
+        <UFormField name="summaryModel" :label="$t('ai.pages.studio.agents.form.summaryModel.label')">
           <UInput
             v-model="state.summaryModel"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.agents.form.summaryModel.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.summaryModel.placeholder')"
           />
         </UFormField>
         <UFormField
           v-if="state.type === 'specialist'"
           name="mcpServers"
-          :label="$t('pages.studio.agents.form.mcpServers.label')"
-          :description="$t('pages.studio.agents.form.mcpServers.hint')"
+          :label="$t('ai.pages.studio.agents.form.mcpServers.label')"
+          :description="$t('ai.pages.studio.agents.form.mcpServers.hint')"
         >
           <SearchMenu
             v-model="state.mcpServers"
@@ -461,14 +461,14 @@ const onCancel = () => {
             :disabled="!canModify"
             :label-fn="getMcpServerLabel"
             :search-fn="searchMcpServers"
-            :placeholder="$t('pages.studio.agents.form.mcpServers.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.mcpServers.placeholder')"
           />
         </UFormField>
         <UFormField
           v-if="state.type === 'specialist'"
           name="skills"
-          :label="$t('pages.studio.agents.form.skills.label')"
-          :description="$t('pages.studio.agents.form.skills.hint')"
+          :label="$t('ai.pages.studio.agents.form.skills.label')"
+          :description="$t('ai.pages.studio.agents.form.skills.hint')"
         >
           <SearchMenu
             v-model="state.skills"
@@ -477,29 +477,29 @@ const onCancel = () => {
             :disabled="!canModify"
             :label-fn="getSkillLabel"
             :search-fn="searchSkills"
-            :placeholder="$t('pages.studio.agents.form.skills.placeholder')"
+            :placeholder="$t('ai.pages.studio.agents.form.skills.placeholder')"
           />
         </UFormField>
         <UFormField
           v-if="state.type === 'specialist'"
           name="streaming"
-          :label="$t('pages.studio.agents.form.streaming.label')"
+          :label="$t('ai.pages.studio.agents.form.streaming.label')"
         >
           <USwitch
             v-model="state.streaming"
             :disabled="!canModify"
-            :description="$t('pages.studio.agents.form.streaming.description')"
+            :description="$t('ai.pages.studio.agents.form.streaming.description')"
           />
         </UFormField>
         <UFormField
           v-if="state.type === 'specialist'"
           name="codeInterpreter"
-          :label="$t('pages.studio.agents.form.codeInterpreter.label')"
+          :label="$t('ai.pages.studio.agents.form.codeInterpreter.label')"
         >
           <USwitch
             v-model="state.codeInterpreter"
             :disabled="!canModify"
-            :description="$t('pages.studio.agents.form.codeInterpreter.description')"
+            :description="$t('ai.pages.studio.agents.form.codeInterpreter.description')"
           />
         </UFormField>
         <UAccordion :ui="{ trigger: 'pt-0' }" :items="advancedSettingsItems">
@@ -508,7 +508,7 @@ const onCancel = () => {
           </template>
           <template #trailing="{ open }">
             <UBadge v-if="advancedSettingsCount > 0" size="sm" color="primary" variant="subtle">
-              {{ $t("pages.studio.agents.form.advancedSettings.customized", { count: advancedSettingsCount }) }}
+              {{ $t("ai.pages.studio.agents.form.advancedSettings.customized", { count: advancedSettingsCount }) }}
             </UBadge>
             <div class="flex flex-1 justify-end">
               <UIcon class="size-5 text-muted" :name="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
@@ -520,8 +520,8 @@ const onCancel = () => {
                 v-for="[key, params] in advancedSettingsEntries"
                 :key="key"
                 :name="key"
-                :label="$t(`pages.studio.agents.form.${key}.label`)"
-                :description="$t(`pages.studio.agents.form.${key}.hint`)"
+                :label="$t(`ai.pages.studio.agents.form.${key}.label`)"
+                :description="$t(`ai.pages.studio.agents.form.${key}.hint`)"
               >
                 <NumberParameterField
                   :max="params.max"
@@ -530,7 +530,7 @@ const onCancel = () => {
                   :disabled="!canModify"
                   :default="params.default"
                   :model-value="state[key]"
-                  :default-hint="$t('pages.studio.agents.form.advancedSettings.default', { value: params.default })"
+                  :default-hint="$t('ai.pages.studio.agents.form.advancedSettings.default', { value: params.default })"
                   @update:model-value="(v) => (state[key] = v)"
                 />
               </UFormField>
@@ -539,10 +539,10 @@ const onCancel = () => {
         </UAccordion>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("pages.studio.agents.form.cancel") }}
+            {{ $t("ai.pages.studio.agents.form.cancel") }}
           </UButton>
           <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
-            {{ $t(`pages.studio.agents.form.${props.id ? "save" : "create"}`) }}
+            {{ $t(`ai.pages.studio.agents.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>
       </UForm>

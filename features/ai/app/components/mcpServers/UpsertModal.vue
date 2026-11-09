@@ -129,7 +129,7 @@ const advancedSettingsEntries = Object.entries(MCPServerParameters) as [
 
 const advancedSettingsItems = computed<AccordionItem[]>(() => [
   {
-    label: i18n.t("pages.studio.mcpServers.form.advancedSettings.label"),
+    label: i18n.t("ai.pages.studio.mcpServers.form.advancedSettings.label"),
     slot: "advanced" as const,
   },
 ]);
@@ -181,8 +181,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const action = props.id ? "update" : "create";
     toast.add({
       color: "error",
-      title: i18n.t(`pages.studio.mcpServers.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.studio.mcpServers.table.actions.${action}.error.description`),
+      title: i18n.t(`ai.pages.studio.mcpServers.table.actions.${action}.error.title`),
+      description: i18n.t(`ai.pages.studio.mcpServers.table.actions.${action}.error.description`),
     });
   }
 };
@@ -196,8 +196,8 @@ const onCancel = () => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`pages.studio.mcpServers.${props.id ? 'edit' : 'create'}.title`)"
-    :description="$t(`pages.studio.mcpServers.${props.id ? 'edit' : 'create'}.description`)"
+    :title="$t(`ai.pages.studio.mcpServers.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`ai.pages.studio.mcpServers.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <UForm
@@ -207,35 +207,35 @@ const onCancel = () => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="name" :label="$t('pages.studio.mcpServers.form.name.label')">
+        <UFormField required name="name" :label="$t('ai.pages.studio.mcpServers.form.name.label')">
           <UInput
             v-model="state.name"
             type="text"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.mcpServers.form.name.placeholder')"
+            :placeholder="$t('ai.pages.studio.mcpServers.form.name.placeholder')"
           />
         </UFormField>
-        <UFormField name="description" :label="$t('pages.studio.mcpServers.form.description.label')">
+        <UFormField name="description" :label="$t('ai.pages.studio.mcpServers.form.description.label')">
           <UTextarea
             v-model="state.description"
             autoresize
             :maxrows="3"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.mcpServers.form.description.placeholder')"
+            :placeholder="$t('ai.pages.studio.mcpServers.form.description.placeholder')"
           />
         </UFormField>
-        <UFormField required name="url" :label="$t('pages.studio.mcpServers.form.url.label')">
+        <UFormField required name="url" :label="$t('ai.pages.studio.mcpServers.form.url.label')">
           <UInput
             v-model="state.url"
             type="url"
             class="w-full"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.mcpServers.form.url.placeholder')"
+            :placeholder="$t('ai.pages.studio.mcpServers.form.url.placeholder')"
           />
         </UFormField>
-        <UFormField name="headers" :label="$t('pages.studio.mcpServers.form.headers.label')">
+        <UFormField name="headers" :label="$t('ai.pages.studio.mcpServers.form.headers.label')">
           <div class="flex flex-col gap-2">
             <UFieldGroup v-for="(header, index) in state.headers" :key="index">
               <UInput
@@ -248,7 +248,7 @@ const onCancel = () => {
                 autocomplete="off"
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
-                :placeholder="$t('pages.studio.mcpServers.form.headers.namePlaceholder')"
+                :placeholder="$t('ai.pages.studio.mcpServers.form.headers.namePlaceholder')"
               />
               <UInput
                 v-model="header.value"
@@ -259,7 +259,7 @@ const onCancel = () => {
                 variant="outline"
                 autocomplete="off"
                 :disabled="!canModify"
-                :placeholder="$t('pages.studio.mcpServers.form.headers.valuePlaceholder')"
+                :placeholder="$t('ai.pages.studio.mcpServers.form.headers.valuePlaceholder')"
                 @input="header.value === HttpRedactedValue && (header.value = '')"
               />
               <UButton
@@ -267,7 +267,7 @@ const onCancel = () => {
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-trash-2"
-                :aria-label="$t('pages.studio.mcpServers.form.headers.remove')"
+                :aria-label="$t('ai.pages.studio.mcpServers.form.headers.remove')"
                 @click="removeHeader(index)"
               />
             </UFieldGroup>
@@ -278,20 +278,20 @@ const onCancel = () => {
                 variant="outline"
                 icon="i-lucide-plus"
                 :disabled="!canModify"
-                :label="$t('pages.studio.mcpServers.form.headers.add')"
+                :label="$t('ai.pages.studio.mcpServers.form.headers.add')"
                 @click="addHeader"
               />
             </UFieldGroup>
           </div>
         </UFormField>
-        <UFormField name="stateful" :label="$t('pages.studio.mcpServers.form.stateful.label')">
+        <UFormField name="stateful" :label="$t('ai.pages.studio.mcpServers.form.stateful.label')">
           <USwitch
             v-model="state.stateful"
             :disabled="!canModify"
-            :description="$t('pages.studio.mcpServers.form.stateful.description')"
+            :description="$t('ai.pages.studio.mcpServers.form.stateful.description')"
           />
         </UFormField>
-        <UFormField name="editors" :label="$t('pages.studio.mcpServers.form.editors.label')">
+        <UFormField name="editors" :label="$t('ai.pages.studio.mcpServers.form.editors.label')">
           <SearchMenu
             v-model="state.editors"
             multiple
@@ -300,10 +300,10 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.mcpServers.form.editors.placeholder')"
+            :placeholder="$t('ai.pages.studio.mcpServers.form.editors.placeholder')"
           />
         </UFormField>
-        <UFormField name="users" :label="$t('pages.studio.mcpServers.form.users.label')">
+        <UFormField name="users" :label="$t('ai.pages.studio.mcpServers.form.users.label')">
           <SearchMenu
             v-model="state.users"
             multiple
@@ -312,7 +312,7 @@ const onCancel = () => {
             :search-fn="search"
             :label-fn="getLabel"
             :disabled="!canModify"
-            :placeholder="$t('pages.studio.mcpServers.form.users.placeholder')"
+            :placeholder="$t('ai.pages.studio.mcpServers.form.users.placeholder')"
           />
         </UFormField>
         <UAccordion :ui="{ trigger: 'pt-0' }" :items="advancedSettingsItems">
@@ -321,7 +321,7 @@ const onCancel = () => {
           </template>
           <template #trailing="{ open }">
             <UBadge v-if="advancedSettingsCount > 0" size="sm" color="primary" variant="subtle">
-              {{ $t("pages.studio.mcpServers.form.advancedSettings.customized", { count: advancedSettingsCount }) }}
+              {{ $t("ai.pages.studio.mcpServers.form.advancedSettings.customized", { count: advancedSettingsCount }) }}
             </UBadge>
             <div class="flex flex-1 justify-end">
               <UIcon class="size-5 text-muted" :name="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
@@ -333,8 +333,8 @@ const onCancel = () => {
                 v-for="[key, params] in advancedSettingsEntries"
                 :key="key"
                 :name="key"
-                :label="$t(`pages.studio.mcpServers.form.${key}.label`)"
-                :description="$t(`pages.studio.mcpServers.form.${key}.hint`)"
+                :label="$t(`ai.pages.studio.mcpServers.form.${key}.label`)"
+                :description="$t(`ai.pages.studio.mcpServers.form.${key}.hint`)"
               >
                 <NumberParameterField
                   :max="params.max"
@@ -343,7 +343,9 @@ const onCancel = () => {
                   :disabled="!canModify"
                   :default="params.default"
                   :model-value="state[key]"
-                  :default-hint="$t('pages.studio.mcpServers.form.advancedSettings.default', { value: params.default })"
+                  :default-hint="
+                    $t('ai.pages.studio.mcpServers.form.advancedSettings.default', { value: params.default })
+                  "
                   @update:model-value="(v) => (state[key] = v)"
                 />
               </UFormField>
@@ -352,10 +354,10 @@ const onCancel = () => {
         </UAccordion>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("pages.studio.mcpServers.form.cancel") }}
+            {{ $t("ai.pages.studio.mcpServers.form.cancel") }}
           </UButton>
           <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
-            {{ $t(`pages.studio.mcpServers.form.${props.id ? "save" : "create"}`) }}
+            {{ $t(`ai.pages.studio.mcpServers.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>
       </UForm>
