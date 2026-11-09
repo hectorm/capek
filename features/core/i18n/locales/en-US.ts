@@ -1,7 +1,6 @@
 export default () => ({
   layouts: {
     default: {
-      title: "Capek",
       description: "Conversational AI platform",
       sidebar: {
         title: "Menu",

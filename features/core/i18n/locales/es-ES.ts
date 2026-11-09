@@ -3,7 +3,6 @@ import type enUS from "./en-US";
 export default (): ReturnType<typeof enUS> => ({
   layouts: {
     default: {
-      title: "Capek",
       description: "Plataforma de IA conversacional",
       sidebar: {
         title: "Menú",

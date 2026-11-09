@@ -6,6 +6,7 @@ import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
 import coreFeature from "#layers/core/server/feature";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
+import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { applySecurity, protectTable } from "#layers/core/server/lib/database/security";
 import { asUser, closeDb, createTestDb, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
@@ -59,7 +60,7 @@ describe("rls core", () => {
       const r = await sql<{ roleName: string }>`SELECT CURRENT_USER AS role_name`.execute(trx);
       return r.rows[0]?.roleName;
     });
-    expect(role).toBe("capek");
+    expect(role).toBe(FALLBACK_ROLE);
   });
 
   it("only shows a member their own user", async () => {

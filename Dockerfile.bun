@@ -31,12 +31,12 @@ FROM gcr.io/distroless/cc-debian13:nonroot@sha256:3ee00291cf386ec52a552e6a858d55
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 
 COPY --from=build --chown=0:0 /usr/local/bin/bun /bun
-COPY --from=build --chown=0:0 /src/.output/ /capek/
-COPY --from=build --chown=0:0 /src/bin/ /capek/server/bin/
+COPY --from=build --chown=0:0 /src/.output/ /app/
+COPY --from=build --chown=0:0 /src/bin/ /app/server/bin/
 
-WORKDIR /capek/server/
+WORKDIR /app/server/
 
 HEALTHCHECK --start-period=60s --start-interval=5s --interval=30s --timeout=5s --retries=2 \
-	CMD ["/bun", "run", "/capek/server/bin/healthcheck.mjs", "http://localhost:3000"]
+	CMD ["/bun", "run", "/app/server/bin/healthcheck.mjs", "http://localhost:3000"]
 
-ENTRYPOINT ["/bun", "run", "/capek/server/bin/entrypoint.mjs", "/capek/server/index.mjs"]
+ENTRYPOINT ["/bun", "run", "/app/server/bin/entrypoint.mjs", "/app/server/index.mjs"]

@@ -18,6 +18,6 @@ Permissions are named `<resource>:<action>`, followed by a scope when the action
 
 ## Row level security
 
-Every user request runs in a transaction that sets the ID, groups and permissions of the user in session variables, which the policies of each table check through the functions of the `security` schema (`security.can_any()`, `security.has_access()`, `security.is_owner()`, etc.). Operations without a user, such as migrations and tasks, are not restricted. Superuser connections switch to the `capek` role in those transactions, so the policies still apply.
+Every user request runs in a transaction that sets the ID, groups and permissions of the user in session variables, which the policies of each table check through the functions of the `security` schema (`security.can_any()`, `security.has_access()`, `security.is_owner()`, etc.). Operations without a user, such as migrations and tasks, are not restricted. Superuser connections switch to the `app_rls` role in those transactions, so the policies still apply.
 
 See the [database section](../README.md#database) of the features guide for how features define their policies.

@@ -7,7 +7,7 @@ test.describe("Settings", () => {
 
     await expect(page.locator("h1")).toContainText(/settings/i);
     await expect(page.getByRole("heading", { name: /branding/i })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: /application name/i })).toHaveValue("Capek");
+    await expect(page.getByRole("textbox", { name: /application name/i })).toHaveValue("Test");
   });
 
   test("should list the signed in user", async ({ page }) => {

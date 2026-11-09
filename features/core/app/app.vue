@@ -42,8 +42,7 @@ useHeadSafe(
 useSeoMeta({
   title: () => {
     const appName = settingsStore.get("branding.name")?.value ?? "";
-    const pageTitle = i18n.t(typeof route.meta.title === "string" ? route.meta.title : "layouts.default.title");
-    return appName === pageTitle ? pageTitle : `${pageTitle} - ${appName}`;
+    return typeof route.meta.title === "string" ? `${i18n.t(route.meta.title)} - ${appName}` : appName;
   },
   description: () => {
     return i18n.t(typeof route.meta.description === "string" ? route.meta.description : "layouts.default.description");
