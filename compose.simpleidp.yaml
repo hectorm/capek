@@ -16,10 +16,10 @@ services:
           - "capek.internal"
           - "idp.internal"
 
-  capek:
+  app:
     extends:
       file: "./compose.base.yaml"
-      service: "capek"
+      service: "app"
     networks:
       - "external"
       - "internal"
@@ -66,7 +66,7 @@ services:
       SIMPLE_IDP_CLIENT_CAPEK_SECRET: "ourclientbythesewordsguarded"
       SIMPLE_IDP_CLIENT_CAPEK_REDIRECT_URL: "https://capek.localhost/api/login/callback http://localhost:3000/api/login/callback"
       SIMPLE_IDP_CLIENT_CAPEK_POST_LOGOUT_REDIRECT_URL: "https://capek.localhost/ http://localhost:3000/"
-      SIMPLE_IDP_CLIENT_CAPEK_BACKCHANNEL_LOGOUT_URI: "http://capek:3000/api/logout/backchannel"
+      SIMPLE_IDP_CLIENT_CAPEK_BACKCHANNEL_LOGOUT_URI: "http://app:3000/api/logout/backchannel"
       SIMPLE_IDP_CLIENT_CAPEK_BACKCHANNEL_LOGOUT_SESSION_REQUIRED: "true"
       SIMPLE_IDP_USER_ALICE_USERNAME: "alice"
       SIMPLE_IDP_USER_ALICE_PASSWORD: "password"

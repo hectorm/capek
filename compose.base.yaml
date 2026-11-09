@@ -47,23 +47,23 @@ services:
       timeout: "10s"
       retries: 2
 
-  capek:
+  app:
     profiles: ["production"]
     image: "localhost/capek:latest"
     build:
       context: "./"
       dockerfile: "${COMPOSE_DOCKERFILE:-./Dockerfile}"
       args: { FEATURES: "${FEATURES:-}" }
-    container_name: "capek"
-    hostname: "capek"
+    container_name: "capek-app"
+    hostname: "app"
     labels:
       traefik.enable: "true"
-      traefik.http.routers.capek.rule: "Host(`capek.localhost`) || Host(`capek.internal`)"
-      traefik.http.routers.capek.entryPoints: "websecure"
-      traefik.http.routers.capek.tls: "true"
-      traefik.http.routers.capek.service: "capek@docker"
-      traefik.http.routers.capek.middlewares: "compress@docker"
-      traefik.http.services.capek.loadBalancer.server.port: "3000"
+      traefik.http.routers.app.rule: "Host(`capek.localhost`) || Host(`capek.internal`)"
+      traefik.http.routers.app.entryPoints: "websecure"
+      traefik.http.routers.app.tls: "true"
+      traefik.http.routers.app.service: "app@docker"
+      traefik.http.routers.app.middlewares: "compress@docker"
+      traefik.http.services.app.loadBalancer.server.port: "3000"
       traefik.http.middlewares.compress.compress.includedContentTypes: "application/json,application/wasm,application/xml,image/svg+xml,text/css,text/html,text/javascript,text/plain"
     restart: "always"
     extra_hosts:

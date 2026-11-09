@@ -12,12 +12,12 @@ services:
         aliases:
           - "capek.internal"
 
-  capek:
+  app:
     extends:
       file: "./compose.base.yaml"
-      service: "capek"
+      service: "app"
     labels:
-      traefik.http.routers.capek.middlewares: "proxy-headers@docker,compress@docker"
+      traefik.http.routers.app.middlewares: "proxy-headers@docker,compress@docker"
       traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Proxy-Secret: "H4!b5at+kWls-8yh4Guq"
       traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-User: "alice"
       traefik.http.middlewares.proxy-headers.headers.customRequestHeaders.X-Forwarded-Email: "alice@localhost"

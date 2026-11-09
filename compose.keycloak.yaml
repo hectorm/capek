@@ -16,10 +16,10 @@ services:
           - "capek.internal"
           - "idp.internal"
 
-  capek:
+  app:
     extends:
       file: "./compose.base.yaml"
-      service: "capek"
+      service: "app"
     networks:
       - "external"
       - "internal"
@@ -179,7 +179,7 @@ configs:
             "authorizationServicesEnabled": false,
             "attributes": {
               "post.logout.redirect.uris": "https://capek.localhost/*##http://localhost:3000/*",
-              "backchannel.logout.url": "http://capek:3000/api/logout/backchannel",
+              "backchannel.logout.url": "http://app:3000/api/logout/backchannel",
               "backchannel.logout.session.required": "true"
             },
             "secret": "ourclientbythesewordsguarded",

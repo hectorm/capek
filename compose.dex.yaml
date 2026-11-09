@@ -16,10 +16,10 @@ services:
           - "capek.internal"
           - "idp.internal"
 
-  capek:
+  app:
     extends:
       file: "./compose.base.yaml"
-      service: "capek"
+      service: "app"
     networks:
       - "external"
       - "internal"

@@ -114,7 +114,7 @@ jobs:
       COMPOSE_PROFILES: "production"
       COMPOSE_OVERRIDE: |
         services:
-          capek:
+          app:
             platform: "${{ matrix.platform.arch }}"
             build:
               dockerfile: "${{ matrix.runtime.dockerfile }}"
