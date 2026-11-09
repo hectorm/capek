@@ -1,20 +1,25 @@
 import { describe, expect, it } from "vitest";
 
+import { orderFeatures } from "#layers/core/modules/features/order";
 import coreFeature from "#layers/core/server/feature";
 import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { composeSecurity } from "#layers/core/server/lib/database/security";
-import { assertFeaturePrefix, sortFeatures } from "#layers/core/server/lib/features/define";
+import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
 
 describe("features", () => {
   it("sets up features after the ones they depend on", () => {
-    const sorted = sortFeatures([{ name: "core" }, { name: "reports", dependsOn: ["files"] }, { name: "files" }]);
-    expect(sorted.map((feature) => feature.name)).toEqual(["core", "files", "reports"]);
-    expect(() => sortFeatures([{ name: "reports", dependsOn: ["files"] }])).toThrow(
-      /depends on missing feature "files"/,
+    const ordered = orderFeatures([
+      { name: "core", dependsOn: [] },
+      { name: "reports", dependsOn: ["files"] },
+      { name: "files", dependsOn: [] },
+    ]);
+    expect(ordered.map((feature) => feature.name)).toEqual(["core", "files", "reports"]);
+    expect(() => orderFeatures([{ name: "reports", dependsOn: ["files"] }])).toThrow(
+      /Feature "reports" depends on feature "files", which is not part of the build/,
     );
     expect(() =>
-      sortFeatures([
+      orderFeatures([
         { name: "a", dependsOn: ["b"] },
         { name: "b", dependsOn: ["a"] },
       ]),

@@ -3,8 +3,10 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { addTemplate, defineNuxtModule, getLayerDirectories } from "nuxt/kit";
 
-interface Feature {
-  name: string;
+import type { FeatureNode } from "./order.ts";
+import { orderFeatures } from "./order.ts";
+
+interface Feature extends FeatureNode {
   dirs: ReturnType<typeof getLayerDirectories>[number];
   runtimeConfig: Record<string, unknown>;
 }
@@ -15,7 +17,7 @@ interface Module {
   from: string;
 }
 
-// Generates the `#features/*` registries from the feature layers, lowest priority first
+// Generates the `#features/*` registries from the feature layers, each one after the features it depends on
 export default defineNuxtModule({
   meta: {
     name: "features",
@@ -23,14 +25,23 @@ export default defineNuxtModule({
   setup(_options, nuxt) {
     const featuresDir = join(nuxt.options.rootDir, "features");
     const features: Feature[] = getLayerDirectories(nuxt)
-      .map((dirs, i) => ({
-        name: basename(dirs.root),
-        dirs,
-        runtimeConfig: nuxt.options._layers[i]?.config.runtimeConfig ?? {},
-      }))
+      .map((dirs, i) => {
+        const layer = nuxt.options._layers[i];
+        const config = layer?.config;
+        const meta = (layer?.meta ?? {}) as { dependsOn?: unknown };
+        return {
+          name: basename(dirs.root),
+          dirs,
+          dependsOn: Array.isArray(meta.dependsOn) ? meta.dependsOn.map(String) : [],
+          runtimeConfig: config?.runtimeConfig ?? {},
+        };
+      })
       .filter((feature) => dirname(feature.dirs.root) === featuresDir);
 
     checkFeatureNames(nuxt.options.rootDir, features);
+
+    // Lowest priority first, fails when a feature depends on one that is not part of the build
+    const ordered = orderFeatures(features.toReversed());
 
     // Features in the build, for the tools that do not load the Nuxt configuration
     const enabled = features.map((feature) => feature.name);
@@ -51,8 +62,7 @@ export default defineNuxtModule({
     };
     const importPath = (path: string): string => JSON.stringify(path.replaceAll("\\", "/").replace(/\.ts$/, ""));
     const modules = (dir: "app" | "server", file: string): Module[] =>
-      features
-        .toReversed()
+      ordered
         .map((feature) => ({ feature: feature.name, path: join(feature.dirs[dir], file) }))
         .filter(({ path }) => existsSync(path))
         .map(({ feature, path }, i) => ({ feature, binding: `module${String(i)}`, from: importPath(path) }));
@@ -79,7 +89,7 @@ export default defineNuxtModule({
     const routers = modules("server", "trpc/routers/index.ts");
     const record = ({ feature }: Module, value: string): string =>
       feature === "core" ? value : `{ ${feature}: ${value} }`;
-    const init = importPath(join(import.meta.dirname, "../server/trpc/init.ts"));
+    const init = importPath(join(import.meta.dirname, "../../server/trpc/init.ts"));
     register(
       "router",
       [

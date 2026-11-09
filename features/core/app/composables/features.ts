@@ -6,7 +6,7 @@ import features from "#features/app";
 import type { AppFeature, AppMenuItem } from "#layers/core/app/utils/features";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 
-// Client side features of all layers, from the lowest to the highest priority
+// Client side features of all layers, each one after the features it depends on
 export const getAppFeatures = (): readonly AppFeature[] => features;
 
 const byOrder = (a: { order?: number }, b: { order?: number }): number => (a.order ?? 0) - (b.order ?? 0);
