@@ -17,12 +17,12 @@ Layers import each other through the `#layers/<name>/` aliases, and `core` canno
 
 A feature is a layer in `features/<name>/`, named `<name>` with the `$meta.name` option of its `nuxt.config.ts`. It contributes any of the following files, which the `core` layer discovers at build time and registers in the `#features/*` modules:
 
-| File                           | Contribution                                                                                                               |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `server/feature.ts`            | `defineServerFeature()`: dependencies, migrations, row level security, permissions, role grants, settings and seed handler |
-| `server/trpc/routers/index.ts` | `routers` object merged into the application tRPC router                                                                   |
-| `app/feature.ts`               | `defineAppFeature()`: home page, main navigation, sidebar sections, user menu entries, and studio and settings tabs        |
-| `shared/*.d.ts`                | Declaration merging into the core registries (e.g. the tables of the `Database` interface)                                 |
+| File                           | Contribution                                                                                                                            |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/feature.ts`            | `defineServerFeature()`: dependencies, migrations, row level security, permissions, role grants, settings, seed handler and CSP sources |
+| `server/trpc/routers/index.ts` | `routers` object merged into the application tRPC router                                                                                |
+| `app/feature.ts`               | `defineAppFeature()`: home page, main navigation, sidebar sections, user menu entries, and studio and settings tabs                     |
+| `shared/*.d.ts`                | Declaration merging into the core registries (e.g. the tables of the `Database` interface)                                              |
 
 Everything else is merged by Nuxt as usual: pages, layouts, components, plugins, middleware, server routes and tasks, runtime config and i18n messages (each layer declares its locales with the same `code` and `language` as `core`). A feature that does not need the database just omits the migrations and security definitions.
 

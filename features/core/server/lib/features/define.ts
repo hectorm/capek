@@ -1,5 +1,6 @@
 import type { Migration } from "kysely/migration";
 
+import type { CspContribution } from "#layers/core/server/lib/csp";
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { SettingDefinition } from "#layers/core/server/lib/settings/define";
@@ -18,6 +19,8 @@ export interface ServerFeature {
   settings?: Readonly<Record<string, SettingDefinition>>;
   // Handler for the section of the seed configuration owned by the feature
   seed?: SeedDefinition;
+  // Sources added to the Content Security Policy, like the origins of the content that the feature embeds
+  csp?: CspContribution;
 }
 
 // Names outside core start with the name of their feature, like "ai_agents" or "ai.quickChats"
