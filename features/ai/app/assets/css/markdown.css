@@ -1,0 +1,25 @@
+@reference "tailwindcss";
+
+html.light {
+  @import "github-markdown-css/github-markdown-light.css";
+}
+
+html.dark {
+  @import "github-markdown-css/github-markdown-dark.css";
+}
+
+.markdown-body {
+  @apply bg-transparent! font-sans!;
+
+  ul,
+  ol {
+    @apply list-[revert]!;
+  }
+
+  th,
+  li {
+    & > p {
+      @apply m-0!;
+    }
+  }
+}

@@ -1,19 +1,59 @@
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 import { defineConfig, devices } from "@playwright/test";
+
+import selection from "./.nuxt/features/selection.json" with { type: "json" };
 
 const isCI = Boolean(process.env.CI);
 
 process.env.PLAYWRIGHT_TMP_DIR ??= mkdtempSync(join(tmpdir(), "playwright-tmp-"));
 
+// Features can provide a "setup.ts" (seed data and environment) and a "global-setup.ts" in "tests/integration/"
+interface IntegrationSetup {
+  seed?: Record<string, unknown>;
+  env?: Record<string, string>;
+}
+
+const integrationDirs = selection.enabled
+  .map((name) => join(import.meta.dirname, "features", name, "tests/integration"))
+  .filter((dir) => existsSync(dir));
+
+const setups = await Promise.all(
+  integrationDirs
+    .filter((dir) => existsSync(join(dir, "setup.ts")))
+    .map(
+      async (dir) =>
+        ((await import(pathToFileURL(join(dir, "setup.ts")).href)) as { default: IntegrationSetup }).default,
+    ),
+);
+
+// Seed data of different layers is merged, concatenating the lists under the same key
+const mergeSeed = (target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> => {
+  for (const [key, value] of Object.entries(source)) {
+    const current = target[key];
+    target[key] =
+      Array.isArray(current) && Array.isArray(value)
+        ? [...(current as unknown[]), ...(value as unknown[])]
+        : isRecord(current) && isRecord(value)
+          ? mergeSeed({ ...current }, value)
+          : value;
+  }
+  return target;
+};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const seed = setups.reduce<Record<string, unknown>>((merged, setup) => mergeSeed(merged, setup.seed ?? {}), {});
+
 export default defineConfig({
-  testDir: "./tests/integration/",
-  outputDir: "./tests/integration/.output/",
-  globalSetup: "./tests/integration/global-setup.ts",
-  reporter: isCI ? [["dot"]] : [["list"], ["html", { outputFolder: "./tests/integration/.report/", open: "never" }]],
+  testDir: "./features/",
+  testMatch: selection.enabled.map((name) => `features/${name}/tests/integration/**/*.spec.ts`),
+  outputDir: "./.cache/playwright/output/",
+  globalSetup: integrationDirs.map((dir) => join(dir, "global-setup.ts")).filter((file) => existsSync(file)),
+  reporter: isCI ? [["dot"]] : [["list"], ["html", { outputFolder: "./.cache/playwright/report/", open: "never" }]],
   timeout: 60000,
   expect: {
     timeout: 5000,
@@ -52,149 +92,9 @@ export default defineConfig({
       NUXT_SINGLE_USER_USERNAME: "admin",
       NUXT_SINGLE_USER_FULLNAME: "Admin",
       NUXT_SINGLE_USER_EMAIL: "admin@localhost",
-      NUXT_SEED_CONFIG: JSON.stringify({
-        llmProviders: [
-          {
-            name: "Mock LLM",
-            apiUrl: "http://localhost:51235/v1",
-            apiKey: "hunter2",
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-        ],
-        mcpServers: [
-          {
-            name: "Mock MCP",
-            url: "http://localhost:51236/mcp",
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-        ],
-        skills: [
-          {
-            name: "rot13",
-            description: "Encodes or decodes text using the ROT13 cipher",
-            documentation: [
-              "# ROT13 Cipher Skill",
-              "",
-              "This skill encodes or decodes text using the ROT13 substitution cipher.",
-              "ROT13 replaces each letter with the letter 13 positions after it in the alphabet.",
-              "",
-              "## Parameters",
-              "",
-              "- `text` (string): The text to encode or decode",
-              "",
-              "## Returns",
-              "",
-              "An object with:",
-              "- `original`: The input text",
-              "- `encoded`: The ROT13-transformed text",
-              "",
-              "## Example",
-              "",
-              "```js",
-              'const result = await $rot13({ text: "Hello World" });',
-              '// result.encoded === "Uryyb Jbeyq"',
-              "```",
-            ].join("\n"),
-            code: [
-              "/**",
-              " * Encodes or decodes text using the ROT13 cipher.",
-              " * @param {Object} params",
-              " * @param {string} params.text - The text to encode/decode",
-              " */",
-              "export default async function (params) {",
-              "  const original = params.text || '';",
-              "  const encoded = original.replace(/[a-zA-Z]/g, (c) => {",
-              "    const base = c <= 'Z' ? 65 : 97;",
-              "    return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);",
-              "  });",
-              "  return { original, encoded };",
-              "}",
-            ].join("\n"),
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-        ],
-        agents: [
-          {
-            name: "Mock specialist tool agent",
-            description: "A specialist agent for testing purposes",
-            instructions: "You are a helpful specialist agent used for testing.",
-            type: "specialist",
-            llmProvider: "Mock LLM",
-            model: "goody-2",
-            mcpServers: ["Mock MCP"],
-            skills: ["rot13"],
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-          {
-            name: "Mock specialist code agent",
-            description: "A specialist agent for testing purposes",
-            instructions: "You are a helpful specialist agent used for testing.",
-            type: "specialist",
-            llmProvider: "Mock LLM",
-            model: "goody-2",
-            codeInterpreter: true,
-            mcpServers: ["Mock MCP"],
-            skills: ["rot13"],
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-          {
-            name: "Mock triage agent",
-            description: "A triage agent for testing purposes",
-            instructions: "You are a helpful triage agent used for testing.",
-            type: "triage",
-            llmProvider: "Mock LLM",
-            model: "goody-2",
-            specialists: ["Mock specialist tool agent", "Mock specialist code agent"],
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-          {
-            name: "Mock single iteration agent",
-            description: "A specialist agent limited to a single iteration",
-            instructions: "You are a helpful specialist agent used for testing.",
-            type: "specialist",
-            llmProvider: "Mock LLM",
-            model: "goody-2",
-            maxIterations: 1,
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-          {
-            name: "Mock single iteration cutoff agent",
-            description: "A specialist agent with tools limited to a single iteration",
-            instructions: "You are a helpful specialist agent used for testing.",
-            type: "specialist",
-            llmProvider: "Mock LLM",
-            model: "goody-2",
-            maxIterations: 1,
-            skills: ["rot13"],
-            access: {
-              editors: { users: ["admin"] },
-              users: { users: ["admin"] },
-            },
-          },
-        ],
-      }),
+      NUXT_SEED_CONFIG: JSON.stringify(seed),
       NUXT_LOG_LEVEL: "debug",
+      ...Object.fromEntries(setups.flatMap((setup) => Object.entries(setup.env ?? {}))),
     },
   },
 });

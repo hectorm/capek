@@ -1,0 +1,232 @@
+import type { RoleName } from "#layers/core/shared/rbac";
+import { Roles } from "#layers/core/shared/rbac";
+
+export const AiPermissions = {
+  ChatReadAll: "ai_chat:read:all",
+  ChatReadOwn: "ai_chat:read:own",
+  ChatListAll: "ai_chat:list:all",
+  ChatListOwn: "ai_chat:list:own",
+  ChatCreate: "ai_chat:create",
+  ChatUpdateAll: "ai_chat:update:all",
+  ChatUpdateOwn: "ai_chat:update:own",
+  ChatDeleteAll: "ai_chat:delete:all",
+  ChatDeleteOwn: "ai_chat:delete:own",
+
+  AgentReadAll: "ai_agent:read:all",
+  AgentReadOwn: "ai_agent:read:own",
+  AgentListAll: "ai_agent:list:all",
+  AgentListOwn: "ai_agent:list:own",
+  AgentCreate: "ai_agent:create",
+  AgentUpdateAll: "ai_agent:update:all",
+  AgentUpdateOwn: "ai_agent:update:own",
+  AgentDeleteAll: "ai_agent:delete:all",
+  AgentDeleteOwn: "ai_agent:delete:own",
+  AgentUseAll: "ai_agent:use:all",
+  AgentUseOwn: "ai_agent:use:own",
+
+  LlmProviderReadAll: "ai_llm_provider:read:all",
+  LlmProviderReadOwn: "ai_llm_provider:read:own",
+  LlmProviderListAll: "ai_llm_provider:list:all",
+  LlmProviderListOwn: "ai_llm_provider:list:own",
+  LlmProviderCreate: "ai_llm_provider:create",
+  LlmProviderUpdateAll: "ai_llm_provider:update:all",
+  LlmProviderUpdateOwn: "ai_llm_provider:update:own",
+  LlmProviderDeleteAll: "ai_llm_provider:delete:all",
+  LlmProviderDeleteOwn: "ai_llm_provider:delete:own",
+  LlmProviderUseAll: "ai_llm_provider:use:all",
+  LlmProviderUseOwn: "ai_llm_provider:use:own",
+
+  McpServerReadAll: "ai_mcp_server:read:all",
+  McpServerReadOwn: "ai_mcp_server:read:own",
+  McpServerListAll: "ai_mcp_server:list:all",
+  McpServerListOwn: "ai_mcp_server:list:own",
+  McpServerCreate: "ai_mcp_server:create",
+  McpServerUpdateAll: "ai_mcp_server:update:all",
+  McpServerUpdateOwn: "ai_mcp_server:update:own",
+  McpServerDeleteAll: "ai_mcp_server:delete:all",
+  McpServerDeleteOwn: "ai_mcp_server:delete:own",
+  McpServerUseAll: "ai_mcp_server:use:all",
+  McpServerUseOwn: "ai_mcp_server:use:own",
+
+  SkillReadAll: "ai_skill:read:all",
+  SkillReadOwn: "ai_skill:read:own",
+  SkillListAll: "ai_skill:list:all",
+  SkillListOwn: "ai_skill:list:own",
+  SkillCreate: "ai_skill:create",
+  SkillUpdateAll: "ai_skill:update:all",
+  SkillUpdateOwn: "ai_skill:update:own",
+  SkillDeleteAll: "ai_skill:delete:all",
+  SkillDeleteOwn: "ai_skill:delete:own",
+  SkillUseAll: "ai_skill:use:all",
+  SkillUseOwn: "ai_skill:use:own",
+
+  AgentExecutionReadAll: "ai_agent_execution:read:all",
+  AgentExecutionReadOwn: "ai_agent_execution:read:own",
+  AgentExecutionListAll: "ai_agent_execution:list:all",
+  AgentExecutionListOwn: "ai_agent_execution:list:own",
+  AgentExecutionCancelAll: "ai_agent_execution:cancel:all",
+  AgentExecutionCancelOwn: "ai_agent_execution:cancel:own",
+} as const;
+
+export type AiPermissionName = (typeof AiPermissions)[keyof typeof AiPermissions];
+
+declare module "#layers/core/shared/rbac" {
+  interface PermissionRegistry {
+    ai: AiPermissionName;
+  }
+}
+
+export const AiRolePermissions = {
+  [Roles.Admin]: [
+    AiPermissions.ChatReadOwn,
+    AiPermissions.ChatListOwn,
+    AiPermissions.ChatCreate,
+    AiPermissions.ChatUpdateOwn,
+    AiPermissions.ChatDeleteOwn,
+
+    AiPermissions.AgentReadAll,
+    AiPermissions.AgentListAll,
+    AiPermissions.AgentCreate,
+    AiPermissions.AgentUpdateAll,
+    AiPermissions.AgentDeleteAll,
+    AiPermissions.AgentUseAll,
+
+    AiPermissions.LlmProviderReadAll,
+    AiPermissions.LlmProviderListAll,
+    AiPermissions.LlmProviderCreate,
+    AiPermissions.LlmProviderUpdateAll,
+    AiPermissions.LlmProviderDeleteAll,
+    AiPermissions.LlmProviderUseAll,
+
+    AiPermissions.McpServerReadAll,
+    AiPermissions.McpServerListAll,
+    AiPermissions.McpServerCreate,
+    AiPermissions.McpServerUpdateAll,
+    AiPermissions.McpServerDeleteAll,
+    AiPermissions.McpServerUseAll,
+
+    AiPermissions.SkillReadAll,
+    AiPermissions.SkillListAll,
+    AiPermissions.SkillCreate,
+    AiPermissions.SkillUpdateAll,
+    AiPermissions.SkillDeleteAll,
+    AiPermissions.SkillUseAll,
+
+    AiPermissions.AgentExecutionReadAll,
+    AiPermissions.AgentExecutionListAll,
+    AiPermissions.AgentExecutionCancelAll,
+  ],
+  [Roles.Auditor]: [
+    AiPermissions.ChatReadOwn,
+    AiPermissions.ChatListOwn,
+    AiPermissions.ChatCreate,
+    AiPermissions.ChatUpdateOwn,
+    AiPermissions.ChatDeleteOwn,
+
+    AiPermissions.AgentReadAll,
+    AiPermissions.AgentListAll,
+    AiPermissions.AgentCreate,
+    AiPermissions.AgentUpdateOwn,
+    AiPermissions.AgentDeleteOwn,
+    AiPermissions.AgentUseOwn,
+
+    AiPermissions.LlmProviderReadAll,
+    AiPermissions.LlmProviderListAll,
+    AiPermissions.LlmProviderCreate,
+    AiPermissions.LlmProviderUpdateOwn,
+    AiPermissions.LlmProviderDeleteOwn,
+    AiPermissions.LlmProviderUseOwn,
+
+    AiPermissions.McpServerReadAll,
+    AiPermissions.McpServerListAll,
+    AiPermissions.McpServerCreate,
+    AiPermissions.McpServerUpdateOwn,
+    AiPermissions.McpServerDeleteOwn,
+    AiPermissions.McpServerUseOwn,
+
+    AiPermissions.SkillReadAll,
+    AiPermissions.SkillListAll,
+    AiPermissions.SkillCreate,
+    AiPermissions.SkillUpdateOwn,
+    AiPermissions.SkillDeleteOwn,
+    AiPermissions.SkillUseOwn,
+
+    AiPermissions.AgentExecutionReadAll,
+    AiPermissions.AgentExecutionListAll,
+    AiPermissions.AgentExecutionCancelOwn,
+  ],
+  [Roles.Creator]: [
+    AiPermissions.ChatReadOwn,
+    AiPermissions.ChatListOwn,
+    AiPermissions.ChatCreate,
+    AiPermissions.ChatUpdateOwn,
+    AiPermissions.ChatDeleteOwn,
+
+    AiPermissions.AgentReadOwn,
+    AiPermissions.AgentListOwn,
+    AiPermissions.AgentCreate,
+    AiPermissions.AgentUpdateOwn,
+    AiPermissions.AgentDeleteOwn,
+    AiPermissions.AgentUseOwn,
+
+    AiPermissions.LlmProviderReadOwn,
+    AiPermissions.LlmProviderListOwn,
+    AiPermissions.LlmProviderCreate,
+    AiPermissions.LlmProviderUpdateOwn,
+    AiPermissions.LlmProviderDeleteOwn,
+    AiPermissions.LlmProviderUseOwn,
+
+    AiPermissions.McpServerReadOwn,
+    AiPermissions.McpServerListOwn,
+    AiPermissions.McpServerCreate,
+    AiPermissions.McpServerUpdateOwn,
+    AiPermissions.McpServerDeleteOwn,
+    AiPermissions.McpServerUseOwn,
+
+    AiPermissions.SkillReadOwn,
+    AiPermissions.SkillListOwn,
+    AiPermissions.SkillCreate,
+    AiPermissions.SkillUpdateOwn,
+    AiPermissions.SkillDeleteOwn,
+    AiPermissions.SkillUseOwn,
+
+    AiPermissions.AgentExecutionReadOwn,
+    AiPermissions.AgentExecutionListOwn,
+    AiPermissions.AgentExecutionCancelOwn,
+  ],
+  [Roles.Member]: [
+    AiPermissions.ChatReadOwn,
+    AiPermissions.ChatListOwn,
+    AiPermissions.ChatCreate,
+    AiPermissions.ChatUpdateOwn,
+    AiPermissions.ChatDeleteOwn,
+
+    AiPermissions.AgentReadOwn,
+    AiPermissions.AgentListOwn,
+    AiPermissions.AgentUpdateOwn,
+    AiPermissions.AgentDeleteOwn,
+    AiPermissions.AgentUseOwn,
+
+    AiPermissions.LlmProviderReadOwn,
+    AiPermissions.LlmProviderListOwn,
+    AiPermissions.LlmProviderUpdateOwn,
+    AiPermissions.LlmProviderDeleteOwn,
+    AiPermissions.LlmProviderUseOwn,
+
+    AiPermissions.McpServerReadOwn,
+    AiPermissions.McpServerListOwn,
+    AiPermissions.McpServerUpdateOwn,
+    AiPermissions.McpServerDeleteOwn,
+    AiPermissions.McpServerUseOwn,
+
+    AiPermissions.SkillReadOwn,
+    AiPermissions.SkillListOwn,
+    AiPermissions.SkillUpdateOwn,
+    AiPermissions.SkillDeleteOwn,
+    AiPermissions.SkillUseOwn,
+
+    AiPermissions.AgentExecutionReadOwn,
+    AiPermissions.AgentExecutionListOwn,
+    AiPermissions.AgentExecutionCancelOwn,
+  ],
+} as const satisfies Record<RoleName, readonly AiPermissionName[]>;

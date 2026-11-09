@@ -50,7 +50,10 @@ services:
   capek:
     profiles: ["production"]
     image: "localhost/capek:latest"
-    build: { context: "./", dockerfile: "${COMPOSE_DOCKERFILE:-./Dockerfile}" }
+    build:
+      context: "./"
+      dockerfile: "${COMPOSE_DOCKERFILE:-./Dockerfile}"
+      args: { FEATURES: "${FEATURES:-}" }
     container_name: "capek"
     hostname: "capek"
     labels:
@@ -72,7 +75,7 @@ services:
     environment:
       NUXT_DATABASE_URL: "postgresql://capek:password@postgres:5432/capek"
       NUXT_DATABASE_MAX_CONNECTIONS: "150"
-      NUXT_WELCOME_QUICK_CHATS: >-
+      NUXT_AI_QUICK_CHATS: >-
         Give me a fun fact;
         What tools are available to you?;
         Go to wikipedia.org and tell me what today's featured article is about;
@@ -93,126 +96,127 @@ services:
             roles: ["member"]
           - name: "hr"
             roles: ["member"]
-        llmProviders:
-          - name: "llama.cpp"
-            apiUrl: "http://host.docker.internal:9931/v1"
-            apiKey: "llama"
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators"]
-        mcpServers:
-          - name: "Playwright"
-            url: "http://playwright-mcp:8931/mcp"
-            stateful: true
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators"]
-        skills:
-          - name: "runBrowserScript"
-            description: "Run browser automation scripts with Playwright"
-            documentation: |
-              # runBrowserScript
+        ai:
+          llmProviders:
+            - name: "llama.cpp"
+              apiUrl: "http://host.docker.internal:9931/v1"
+              apiKey: "llama"
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
+          mcpServers:
+            - name: "Playwright"
+              url: "http://playwright-mcp:8931/mcp"
+              stateful: true
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
+          skills:
+            - name: "runBrowserScript"
+              description: "Run browser automation scripts with Playwright"
+              documentation: |
+                # runBrowserScript
 
-              Run Playwright automation scripts with access to a `page` object.
+                Run Playwright automation scripts with access to a `page` object.
 
-              ## Parameters
+                ## Parameters
 
-              - `code` (string, required): An async function string receiving a Playwright `page` object.
+                - `code` (string, required): An async function string receiving a Playwright `page` object.
 
-              ## Example
+                ## Example
 
-              ```js
-              const { $$runBrowserScript } = await import("/skills/index.js");
+                ```js
+                const { $$runBrowserScript } = await import("/skills/index.js");
 
-              // Navigate and extract all links
-              const links = await $$runBrowserScript({
-                code: `async (page) => {
-                  await page.goto("https://example.com");
-                  return await page.locator("a").allTextContents();
-                }`
-              });
-              ```
+                // Navigate and extract all links
+                const links = await $$runBrowserScript({
+                  code: `async (page) => {
+                    await page.goto("https://example.com");
+                    return await page.locator("a").allTextContents();
+                  }`
+                });
+                ```
 
-              ## Common methods
+                ## Common methods
 
-              - `page.goto(url)` - Navigate to URL
-              - `page.title()` - Get page title
-              - `page.locator(selector)` - Find elements
-              - `page.locator(sel).allTextContents()` - Get text from all matching elements
-              - `page.fill(selector, value)` - Fill input fields
-              - `page.click(selector)` - Click elements
-              - `page.getByRole(role, { name })` - Find by accessibility role
-            code: |
-              import { $$browser_run_code } from "/servers/Playwright/index.js";
+                - `page.goto(url)` - Navigate to URL
+                - `page.title()` - Get page title
+                - `page.locator(selector)` - Find elements
+                - `page.locator(sel).allTextContents()` - Get text from all matching elements
+                - `page.fill(selector, value)` - Fill input fields
+                - `page.click(selector)` - Click elements
+                - `page.getByRole(role, { name })` - Find by accessibility role
+              code: |
+                import { $$browser_run_code_unsafe } from "/servers/Playwright/index.js";
 
-              /**
-               * Run browser automation scripts with Playwright
-               * @param {Object} params
-               * @param {string} params.code - The Playwright script to execute
-               */
-              export default async function (params) {
-                const result = await $$browser_run_code(params);
-                if (typeof result === "string" && result.startsWith("### Result\n")) {
-                  const payload = result.split("\n", 2)[1]?.trim();
-                  if (payload) try { return JSON.parse(payload); } catch {}
+                /**
+                 * Run browser automation scripts with Playwright
+                 * @param {Object} params
+                 * @param {string} params.code - The Playwright script to execute
+                 */
+                export default async function (params) {
+                  const result = await $$browser_run_code_unsafe(params);
+                  if (typeof result === "string" && result.startsWith("### Result\n")) {
+                    const payload = result.split("\n", 2)[1]?.trim();
+                    if (payload) try { return JSON.parse(payload); } catch {}
+                  }
+                  return result;
                 }
-                return result;
-              }
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators"]
-        agents:
-          - name: "General assistant"
-            description: "A general-purpose assistant for a variety of tasks."
-            instructions: >-
-              You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
-              Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
-            type: "specialist"
-            llmProvider: "llama.cpp"
-            model: "local"
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators"]
-          - name: "Developer assistant"
-            description: "An agent that helps with programming and software development tasks."
-            instructions: >-
-              You are a skilled software developer.
-              You can write, debug, and optimize code in various programming languages.
-              You are also knowledgeable about software design patterns and best practices.
-            type: "specialist"
-            llmProvider: "llama.cpp"
-            model: "local"
-            mcpServers: ["Playwright"]
-            skills: ["runBrowserScript"]
-            codeInterpreter: true
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators"]
-          - name: "Smart assistant"
-            description: "An agent that routes user requests to the appropriate specialist agent."
-            instructions: >-
-              You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
-              Analyze the user request carefully and determine which specialist is best suited to handle it.
-              If multiple specialists could help, choose the one that is most relevant.
-            type: "triage"
-            llmProvider: "llama.cpp"
-            model: "local"
-            specialists: ["General assistant", "Developer assistant"]
-            access:
-              editors:
-                groups: ["administrators"]
-              users:
-                groups: ["administrators", "finance", "sales", "marketing", "hr"]
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
+          agents:
+            - name: "General assistant"
+              description: "A general-purpose assistant for a variety of tasks."
+              instructions: >-
+                You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
+                Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
+              type: "specialist"
+              llmProvider: "llama.cpp"
+              model: "local"
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
+            - name: "Developer assistant"
+              description: "An agent that helps with programming and software development tasks."
+              instructions: >-
+                You are a skilled software developer.
+                You can write, debug, and optimize code in various programming languages.
+                You are also knowledgeable about software design patterns and best practices.
+              type: "specialist"
+              llmProvider: "llama.cpp"
+              model: "local"
+              mcpServers: ["Playwright"]
+              skills: ["runBrowserScript"]
+              codeInterpreter: true
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
+            - name: "Smart assistant"
+              description: "An agent that routes user requests to the appropriate specialist agent."
+              instructions: >-
+                You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
+                Analyze the user request carefully and determine which specialist is best suited to handle it.
+                If multiple specialists could help, choose the one that is most relevant.
+              type: "triage"
+              llmProvider: "llama.cpp"
+              model: "local"
+              specialists: ["General assistant", "Developer assistant"]
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators", "finance", "sales", "marketing", "hr"]
       NUXT_LOG_LEVEL: "${NUXT_LOG_LEVEL:-debug}"
       NODE_TLS_REJECT_UNAUTHORIZED: "0" # for self-signed certs in dev
 

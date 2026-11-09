@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./public/logo.svg" alt="Capek" width="384" />
+  <img src="./features/core/public/logo.svg" alt="Capek" width="384" />
 </p>
 
 Capek is a self-hosted conversational AI platform.
@@ -37,20 +37,9 @@ Capek is a self-hosted conversational AI platform.
 | Database  | PostgreSQL, Kysely (PGlite for development) |
 | Testing   | Vitest, Playwright                          |
 
-## Code interpreter
+## Architecture
 
-The code interpreter runs JavaScript code in a [QuickJS](https://bellard.org/quickjs/) WASM build with memory and execution time constraints.
-
-Each chat session has its own in-memory Virtual File System (VFS). The `/workspace` directory is writable; other paths are read-only. A Node.js-like `fs` API is available for file operations.
-
-Skills and MCP tools are exposed as ES modules under `/skills/index.js` and `/servers/index.js`:
-
-```js
-const { $mySkill } = await import("/skills/index.js");
-const { $myTool } = await import("/servers/myServer/index.js");
-```
-
-The agent is provided with usage context and can dynamically discover available tools and skills by exploring the VFS (e.g., reading `SKILL.md` files for documentation).
+The application is composed of [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers), each one providing a feature. See [`features/`](./features/README.md) for how they work and the documentation of each one.
 
 ## Development
 
@@ -89,6 +78,15 @@ pnpm start
 ```sh
 docker build -t localhost/capek:latest ./
 docker run -it --rm -p 127.0.0.1:3000:3000/tcp localhost/capek:latest
+```
+
+### Selecting features
+
+Builds include all features by default. The `FEATURES` environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is always included. For example, to build only the core platform:
+
+```sh
+FEATURES=core pnpm build
+docker build --build-arg FEATURES=core -t localhost/capek:core ./
 ```
 
 ### Docker Compose

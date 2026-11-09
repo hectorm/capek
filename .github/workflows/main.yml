@@ -47,6 +47,15 @@ jobs:
         run: "pnpm exec playwright install --with-deps chromium firefox webkit"
       - name: "Run tests"
         run: "pnpm run test"
+      - name: "Check the core layer in isolation"
+        env:
+          FEATURES: "core"
+        run: |
+          rm -rf ./.cache/eslint/
+          pnpm run lint
+          pnpm run test:unit
+          pnpm run build
+          pnpm run test:chromium
 
   build:
     name: "Build on ${{ matrix.runtime.name }} (${{ matrix.platform.arch }})"

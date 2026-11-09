@@ -6,6 +6,25 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import withNuxt from "./.nuxt/eslint.config.mjs";
+import selection from "./.nuxt/features/selection.json" with { type: "json" };
+
+const virtualModulePatterns = [
+  {
+    regex: "^#(?!components$|layers/|features/)",
+    message: "Import from the source package instead of a Nuxt virtual module.",
+  },
+];
+
+const layerImportPatterns = [
+  {
+    regex: "^(~~?|@@?)(/|$)",
+    message: "Import files of a layer through its #layers/<name>/ alias.",
+  },
+  {
+    regex: "^\\.\\./",
+    message: "Import files of a layer through its #layers/<name>/ alias.",
+  },
+];
 
 export default withNuxt(
   {
@@ -39,12 +58,7 @@ export default withNuxt(
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              regex: "^#(?!components$)",
-              message: "Import from the source package instead of a Nuxt virtual module.",
-            },
-          ],
+          patterns: virtualModulePatterns,
         },
       ],
       "preserve-caught-error": ["off"],
@@ -85,7 +99,30 @@ export default withNuxt(
     },
   },
   {
-    files: ["server/trpc/routers/**/*.ts", "server/api/**/*.ts"],
+    files: ["features/**/*.ts", "features/**/*.vue"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [...virtualModulePatterns, ...layerImportPatterns] }],
+    },
+  },
+  {
+    files: ["features/core/**/*.ts", "features/core/**/*.vue"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^#(?!components$|layers/core/|features/)",
+              message: "The core layer can only import from itself and the generated feature registries.",
+            },
+            ...layerImportPatterns,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["features/*/server/trpc/**/*.ts", "features/*/server/api/**/*.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -100,7 +137,17 @@ export default withNuxt(
     files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
   },
-  globalIgnores(["node_modules/**", ".cache/**", ".data/**", ".nitro/**", ".nuxt/**", ".output/**", "dist/**"]),
+  globalIgnores([
+    "node_modules/**",
+    ".cache/**",
+    ".data/**",
+    ".nitro/**",
+    ".nuxt/**",
+    ".output/**",
+    "dist/**",
+    // Excluded features are not part of the TypeScript projects
+    ...selection.excluded.map((name) => `features/${name}/**`),
+  ]),
 ).prepend(
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,

@@ -20,6 +20,7 @@ RUN --mount=type=cache,id=pnpm,dst=/pnpm/store/ \
 
 COPY ./ /src/
 
+ARG FEATURES=
 RUN --network=none \
 	--mount=type=cache,id=pnpm,dst=/pnpm/store/ \
 	pnpm exec nuxt prepare && pnpm run build

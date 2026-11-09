@@ -12,10 +12,6 @@ node_modules/
 # TypeScript build info
 *.tsbuildinfo
 
-# Test outputs
-/tests/**/.output/
-/tests/**/.report/
-
 # Local env files
 .env
 .env.*
