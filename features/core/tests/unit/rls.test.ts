@@ -156,6 +156,15 @@ describe("rls core", () => {
     }
   });
 
+  it("rejects a fallback role that bypasses row level security", async () => {
+    await sql`ALTER ROLE ${sql.raw(FALLBACK_ROLE)} BYPASSRLS`.execute(db);
+    try {
+      await expect(applySecurity(db, [coreFeature])).rejects.toThrow(/bypasses row level security/);
+    } finally {
+      await sql`ALTER ROLE ${sql.raw(FALLBACK_ROLE)} NOBYPASSRLS`.execute(db);
+    }
+  });
+
   it("grants objects created after the security was applied to the fallback role", async () => {
     await sql`CREATE TABLE public.late_objects (id SERIAL PRIMARY KEY)`.execute(db);
     try {

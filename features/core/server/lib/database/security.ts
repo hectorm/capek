@@ -357,6 +357,8 @@ const roleStatements = (): string[] => [
       IF (SELECT usesuper FROM pg_user WHERE usename = CURRENT_USER) THEN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${FALLBACK_ROLE}') THEN
           CREATE ROLE ${FALLBACK_ROLE} NOSUPERUSER NOBYPASSRLS;
+        ELSIF (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = '${FALLBACK_ROLE}') THEN
+          RAISE EXCEPTION 'Role "%" already exists and bypasses row level security', '${FALLBACK_ROLE}';
         END IF;
         IF NOT has_database_privilege('${FALLBACK_ROLE}', current_database(), 'CREATE') THEN
           EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', current_database(), '${FALLBACK_ROLE}');
