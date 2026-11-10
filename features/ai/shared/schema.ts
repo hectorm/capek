@@ -1,7 +1,8 @@
 import type { ColumnType, Insertable, Selectable, Updateable } from "kysely";
 
+import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { MCPTool } from "#layers/ai/shared/mcp";
-import type { OpenAIApiType, OpenAIFunctionParameters } from "#layers/ai/shared/openai";
+import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { ResourceAccessTable } from "#layers/core/shared/schema";
 
@@ -52,7 +53,7 @@ export interface LlmProvidersTable {
   name: string;
   description: string;
   apiUrl: string;
-  apiType: OpenAIApiType;
+  apiType: LlmProviderApiType;
   apiKey: string;
   headers: ColumnType<HttpHeader[], string, string>;
   createdAt: ColumnType<Date, never, never>;

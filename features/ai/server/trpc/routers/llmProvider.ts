@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
-import { OpenAIApiTypeSchema } from "#layers/ai/shared/openai";
+import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
@@ -131,7 +131,7 @@ export const llmProviderRouter = createTRPCRouter({
         name: z.string().min(1).max(100).trim(),
         description: z.string().max(1000).trim().default(""),
         apiUrl: z.url(),
-        apiType: OpenAIApiTypeSchema.default("chat-completions"),
+        apiType: LlmProviderApiTypeSchema.default("chat-completions"),
         apiKey: z.string().max(1000).trim().default(""),
         headers: HttpHeadersSchema.optional(),
       }),
@@ -191,7 +191,7 @@ export const llmProviderRouter = createTRPCRouter({
         name: z.string().min(1).max(100).trim().optional(),
         description: z.string().max(1000).trim().optional(),
         apiUrl: z.url().optional(),
-        apiType: OpenAIApiTypeSchema.optional(),
+        apiType: LlmProviderApiTypeSchema.optional(),
         apiKey: z.string().max(1000).trim().optional(),
         headers: HttpHeadersSchema.optional(),
       }),

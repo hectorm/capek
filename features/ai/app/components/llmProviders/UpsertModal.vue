@@ -22,7 +22,7 @@ import { usePrincipalSearch } from "#layers/core/app/composables/principal-searc
 import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
-import { OpenAIApiTypeSchema } from "#layers/ai/shared/openai";
+import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
@@ -84,7 +84,7 @@ const schema = z.object({
   name: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).trim().default(""),
   apiUrl: z.url(),
-  apiType: OpenAIApiTypeSchema,
+  apiType: LlmProviderApiTypeSchema,
   apiKey: z.string().max(1000).trim().default(""),
   headers: HttpHeadersSchema.default([]),
   editors: z.array(z.string()).default([]),

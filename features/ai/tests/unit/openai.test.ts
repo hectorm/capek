@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { OpenAIApiType, OpenAICompletionRequest } from "#layers/ai/shared/openai";
+import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
 import { OpenAIClient } from "#layers/ai/server/lib/openai/client";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAIStreamProcessor } from "#layers/ai/server/lib/openai/stream";
@@ -14,7 +15,7 @@ const request: OpenAICompletionRequest = {
   tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object", properties: {} } } }],
 };
 
-const createClient = (respond: () => Response, apiType?: OpenAIApiType) => {
+const createClient = (respond: () => Response, apiType?: LlmProviderApiType) => {
   const sent: SentRequest[] = [];
   const paths: string[] = [];
   vi.stubGlobal("fetch", (url: URL, init: RequestInit) => {

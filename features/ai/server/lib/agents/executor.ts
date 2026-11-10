@@ -4,7 +4,8 @@ import { z } from "zod/v4";
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
-import type { OpenAIApiType, OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
+import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
@@ -69,7 +70,7 @@ interface AgentConfig {
   maxToolResponseChars: number;
   llmProviderId: string;
   apiUrl: string;
-  apiType: OpenAIApiType;
+  apiType: LlmProviderApiType;
   apiKey: string;
   headers: HttpHeader[];
 }

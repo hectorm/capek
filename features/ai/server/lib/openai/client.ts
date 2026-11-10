@@ -1,9 +1,5 @@
-import type {
-  OpenAIApiType,
-  OpenAICompletionRequest,
-  OpenAICompletionResponse,
-  OpenAIMessage,
-} from "#layers/ai/shared/openai";
+import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { OpenAICompletionRequest, OpenAICompletionResponse, OpenAIMessage } from "#layers/ai/shared/openai";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAICompletionResponseSchema, OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
@@ -13,7 +9,7 @@ const logger = useLogger();
 
 export interface OpenAIClientOptions {
   apiUrl: string;
-  apiType?: OpenAIApiType | null;
+  apiType?: LlmProviderApiType | null;
   apiKey?: string;
   headers?: HttpHeader[] | null;
   availableModels?: string[] | null;
@@ -24,7 +20,7 @@ export interface OpenAIClientOptions {
 
 export class OpenAIClient {
   private readonly apiUrl: string;
-  private readonly apiType: OpenAIApiType;
+  private readonly apiType: LlmProviderApiType;
   private readonly apiKey: string;
   private readonly headers: Record<string, string>;
   private readonly availableModels: string[] | null;
