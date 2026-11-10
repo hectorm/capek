@@ -147,6 +147,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("llmProviderId", "uuid", (col) => col.references("public.aiLlmProviders.id").onDelete("restrict"))
     .addColumn("model", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("summaryModel", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
+    .addColumn("reasoningEffort", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("codeInterpreter", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("toolProviders", sql`varchar(100)[]`, (col) => col.notNull().defaultTo(sql`'{}'`))
     .addColumn("streaming", "boolean", (col) => col.notNull().defaultTo(true))

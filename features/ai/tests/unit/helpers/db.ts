@@ -20,6 +20,7 @@ export const insertAgent = async (db: Kysely<Database>, name: string): Promise<s
       llmProviderId: null,
       model: "m",
       summaryModel: "",
+      reasoningEffort: "",
       codeInterpreter: false,
       streaming: true,
       temperature: null,

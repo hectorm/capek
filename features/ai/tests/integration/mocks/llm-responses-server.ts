@@ -23,6 +23,7 @@ interface OpenAIResponsesRequest {
     output?: string;
   }[];
   stream?: boolean;
+  reasoning?: { effort?: string };
   tools?: { type: string; name: string }[];
   tool_choice?: string;
 }
@@ -120,6 +121,7 @@ export class MockLLMResponsesServer {
         model: request.model,
         messages,
         stream: request.stream,
+        reasoning_effort: request.reasoning?.effort,
         tools: request.tools?.map(({ type, ...tool }) => ({ type, function: tool })),
         tool_choice: request.tool_choice,
       }),

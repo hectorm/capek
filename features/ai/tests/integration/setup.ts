@@ -138,6 +138,19 @@ export default {
           },
         },
         {
+          name: "Mock Responses reasoning agent",
+          description: "A specialist agent with a reasoning effort of a provider with the Responses API",
+          instructions: "You are a helpful specialist agent used for testing.",
+          type: "specialist",
+          llmProvider: "Mock LLM Responses",
+          model: "goody-2",
+          reasoningEffort: "low",
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
           name: "Mock Responses triage agent",
           description: "A triage agent of a provider with the Responses API",
           instructions: "You are a helpful triage agent used for testing.",

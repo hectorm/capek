@@ -55,6 +55,7 @@ interface AgentConfig {
   type: "triage" | "specialist";
   model: string;
   summaryModel: string | null;
+  reasoningEffort: string;
   codeInterpreter: boolean;
   streaming: boolean;
   temperature: number | null;
@@ -213,6 +214,7 @@ export class AgentExecutor {
       {
         messages: contextMessages,
         model: agent.model,
+        reasoning_effort: agent.reasoningEffort || undefined,
         temperature: agent.temperature ?? undefined,
         max_completion_tokens: agent.maxTokens ?? undefined,
         top_p: agent.topP ?? undefined,
@@ -395,6 +397,7 @@ export class AgentExecutor {
           {
             messages: messageHistory,
             model: agent.model,
+            reasoning_effort: agent.reasoningEffort || undefined,
             temperature: agent.temperature ?? undefined,
             max_completion_tokens: agent.maxTokens ?? undefined,
             top_p: agent.topP ?? undefined,
@@ -1040,6 +1043,7 @@ export class AgentExecutor {
         "aiAgents.type",
         "aiAgents.model",
         "aiAgents.summaryModel",
+        "aiAgents.reasoningEffort",
         "aiAgents.codeInterpreter",
         "aiAgents.streaming",
         "aiAgents.temperature",
@@ -1087,6 +1091,7 @@ export class AgentExecutor {
         "aiAgents.type",
         "aiAgents.model",
         "aiAgents.summaryModel",
+        "aiAgents.reasoningEffort",
         "aiAgents.codeInterpreter",
         "aiAgents.streaming",
         "aiAgents.temperature",

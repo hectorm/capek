@@ -221,6 +221,10 @@ export default () => ({
               label: "Summary model",
               placeholder: "Leave empty to use main model",
             },
+            reasoningEffort: {
+              label: "Reasoning effort",
+              placeholder: "Leave empty to use model default",
+            },
             mcpServers: {
               label: "MCP servers",
               placeholder: "Select MCP servers",

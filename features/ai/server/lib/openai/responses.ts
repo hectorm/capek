@@ -64,6 +64,7 @@ export const toResponsesRequest = (request: OpenAICompletionRequest): OpenAIResp
     // The conversation is sent in full with every request, so the provider does not have to keep it
     store: false,
     max_output_tokens: request.max_completion_tokens,
+    reasoning: request.reasoning_effort ? { effort: request.reasoning_effort } : undefined,
     temperature: request.temperature,
     top_p: request.top_p,
     frequency_penalty: request.frequency_penalty,

@@ -114,6 +114,7 @@ describe("openai responses", () => {
       model: "reasoner",
       stream: true,
       max_completion_tokens: 1024,
+      reasoning_effort: "low",
       temperature: 0.2,
       tool_choice: { type: "function", function: { name: "get_weather" } },
       messages: [
@@ -145,6 +146,7 @@ describe("openai responses", () => {
       stream: true,
       store: false,
       max_output_tokens: 1024,
+      reasoning: { effort: "low" },
       temperature: 0.2,
       tool_choice: { type: "function", name: "get_weather" },
       input: [

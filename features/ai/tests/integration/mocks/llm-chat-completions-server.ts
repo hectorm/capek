@@ -9,6 +9,7 @@ interface OpenAICompletionRequest {
   model: string;
   messages?: { role: string; content: string | null; tool_calls?: unknown[] }[];
   stream?: boolean;
+  reasoning_effort?: string;
   tools?: { type: string; function: { name: string } }[];
   tool_choice?: string | { type: string; function: { name: string } };
 }
@@ -167,6 +168,13 @@ export class MockLLMChatCompletionsServer {
       if (request.stream) this.handleStreamingCompletion(request, res, endDelay);
       else this.handleNonStreamingCompletion(request, res);
     }
+  }
+
+  // An answer about the reasoning effort tells the one of the request
+  private getResponse(request: OpenAICompletionRequest): string {
+    return this.getLastUserMessageContent(request).includes("reasoning effort")
+      ? `Reasoning effort: ${request.reasoning_effort ?? "default"}`
+      : this.response;
   }
 
   private getLastUserMessageContent(request: OpenAICompletionRequest): string {
@@ -404,7 +412,7 @@ export class MockLLMChatCompletionsServer {
       choices: [
         {
           index: 0,
-          message: { role: "assistant", content: this.response },
+          message: { role: "assistant", content: this.getResponse(request) },
           finish_reason: "stop",
         },
       ],
@@ -426,7 +434,7 @@ export class MockLLMChatCompletionsServer {
       Connection: "keep-alive",
     });
 
-    const chunks = this.response.split(" ");
+    const chunks = this.getResponse(request).split(" ");
     let index = 0;
 
     const sendChunk = (): void => {

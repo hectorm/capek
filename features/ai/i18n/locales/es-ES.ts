@@ -223,6 +223,10 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Modelo de resumen",
               placeholder: "Dejar vacío para usar el modelo principal",
             },
+            reasoningEffort: {
+              label: "Esfuerzo de razonamiento",
+              placeholder: "Dejar vacío para usar el predeterminado del modelo",
+            },
             mcpServers: {
               label: "Servidores MCP",
               placeholder: "Seleccionar servidores MCP",

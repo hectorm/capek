@@ -12,6 +12,7 @@ import UForm from "@nuxt/ui/components/Form.vue";
 import UFormField from "@nuxt/ui/components/FormField.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
+import UInputMenu from "@nuxt/ui/components/InputMenu.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
@@ -103,6 +104,7 @@ const schema = z
     llmProviderId: z.uuid().nullable(),
     model: z.string().min(1).max(100).trim(),
     summaryModel: z.string().max(100).trim().default(""),
+    reasoningEffort: z.string().max(20).trim().default(""),
     mcpServers: z.array(z.string()).default([]),
     skills: z.array(z.string()).default([]),
     codeInterpreter: z.boolean().default(false),
@@ -141,6 +143,7 @@ const state = reactive<
   llmProviderId: agent?.llmProviderId ?? null,
   model: agent?.model,
   summaryModel: agent?.summaryModel,
+  reasoningEffort: agent?.reasoningEffort,
   mcpServers: currentMcpServers.map((m) => m.id),
   skills: currentSkills.map((a) => a.id),
   codeInterpreter: agent?.codeInterpreter ?? false,
@@ -167,6 +170,8 @@ const typeOptions = [
   { value: "specialist", label: i18n.t("ai.pages.studio.agents.form.type.specialist") },
   { value: "triage", label: i18n.t("ai.pages.studio.agents.form.type.triage") },
 ];
+
+const reasoningEffortOptions = ["none", "low", "medium", "high", "xhigh"];
 
 const llmProviderLabels = new Map<string, string>();
 if (agent?.llmProviderId && agent.llmProviderName) {
@@ -290,6 +295,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         llmProviderId: event.data.llmProviderId,
         model: event.data.model,
         summaryModel: event.data.summaryModel,
+        reasoningEffort: event.data.reasoningEffort,
         codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
         toolProviders: event.data.type === "specialist" ? getEnabledToolProviders() : [],
         streaming: event.data.streaming,
@@ -315,6 +321,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         llmProviderId: event.data.llmProviderId,
         model: event.data.model,
         summaryModel: event.data.summaryModel,
+        reasoningEffort: event.data.reasoningEffort,
         codeInterpreter: event.data.codeInterpreter,
         toolProviders: getEnabledToolProviders(),
         streaming: event.data.streaming,
@@ -494,6 +501,18 @@ const onCancel = () => {
             class="w-full"
             :disabled="!canModify"
             :placeholder="$t('ai.pages.studio.agents.form.summaryModel.placeholder')"
+          />
+        </UFormField>
+        <UFormField name="reasoningEffort" :label="$t('ai.pages.studio.agents.form.reasoningEffort.label')">
+          <UInputMenu
+            v-model="state.reasoningEffort"
+            ignore-filter
+            open-on-click
+            class="w-full"
+            mode="autocomplete"
+            :disabled="!canModify"
+            :items="reasoningEffortOptions"
+            :placeholder="$t('ai.pages.studio.agents.form.reasoningEffort.placeholder')"
           />
         </UFormField>
         <UFormField

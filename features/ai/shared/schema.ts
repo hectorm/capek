@@ -132,6 +132,7 @@ export interface AgentsTable {
   llmProviderId: string | null;
   model: string;
   summaryModel: string;
+  reasoningEffort: string;
   codeInterpreter: boolean;
   toolProviders: ColumnType<string[], string[] | undefined, string[]>;
   streaming: boolean;
