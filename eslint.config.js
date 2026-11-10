@@ -41,6 +41,9 @@ export default withNuxt(
         ...globals.node,
       },
     },
+    settings: {
+      features: selection.enabled,
+    },
     rules: {
       "no-console": [
         "error",
