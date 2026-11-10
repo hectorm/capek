@@ -276,6 +276,7 @@ export const chatSessionRouter = createTRPCRouter({
           "aiAgents.model",
           "aiAgents.summaryModel",
           "aiLlmProviders.apiUrl",
+          "aiLlmProviders.apiType",
           "aiLlmProviders.apiKey",
           "aiLlmProviders.headers",
         ])
@@ -291,6 +292,7 @@ export const chatSessionRouter = createTRPCRouter({
       const clientId = `summary-${input.id}-${String(Date.now())}`;
       const openAIClient = openAIManager.addClient(clientId, {
         apiUrl: agentLlmConfig.apiUrl,
+        apiType: agentLlmConfig.apiType,
         apiKey: agentLlmConfig.apiKey ?? "",
         headers: agentLlmConfig.headers ?? [],
         model: agentLlmConfig.model,

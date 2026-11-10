@@ -369,6 +369,11 @@ export default (): ReturnType<typeof enUS> => ({
               label: "URL de API",
               placeholder: "https://api.example.com/v1",
             },
+            apiType: {
+              label: "Tipo de API",
+              chatCompletions: "Chat Completions",
+              responses: "Responses",
+            },
             apiKey: {
               label: "Clave de API",
               placeholder: "Introduce la clave de API",

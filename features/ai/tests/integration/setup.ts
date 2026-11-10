@@ -4,8 +4,18 @@ export default {
     ai: {
       llmProviders: [
         {
-          name: "Mock LLM",
+          name: "Mock LLM Chat Completions",
           apiUrl: "http://localhost:51235/v1",
+          apiKey: "hunter2",
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
+          name: "Mock LLM Responses",
+          apiUrl: "http://localhost:51237/v1",
+          apiType: "responses",
           apiKey: "hunter2",
           access: {
             editors: { users: ["admin"] },
@@ -77,7 +87,7 @@ export default {
           description: "A specialist agent for testing purposes",
           instructions: "You are a helpful specialist agent used for testing.",
           type: "specialist",
-          llmProvider: "Mock LLM",
+          llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           mcpServers: ["Mock MCP"],
           skills: ["rot13"],
@@ -91,7 +101,7 @@ export default {
           description: "A specialist agent for testing purposes",
           instructions: "You are a helpful specialist agent used for testing.",
           type: "specialist",
-          llmProvider: "Mock LLM",
+          llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           codeInterpreter: true,
           mcpServers: ["Mock MCP"],
@@ -106,9 +116,35 @@ export default {
           description: "A triage agent for testing purposes",
           instructions: "You are a helpful triage agent used for testing.",
           type: "triage",
-          llmProvider: "Mock LLM",
+          llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           specialists: ["Mock specialist tool agent", "Mock specialist code agent"],
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
+          name: "Mock Responses tool agent",
+          description: "A specialist agent of a provider with the Responses API",
+          instructions: "You are a helpful specialist agent used for testing.",
+          type: "specialist",
+          llmProvider: "Mock LLM Responses",
+          model: "goody-2",
+          mcpServers: ["Mock MCP"],
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
+          name: "Mock Responses triage agent",
+          description: "A triage agent of a provider with the Responses API",
+          instructions: "You are a helpful triage agent used for testing.",
+          type: "triage",
+          llmProvider: "Mock LLM Responses",
+          model: "goody-2",
+          specialists: ["Mock Responses tool agent"],
           access: {
             editors: { users: ["admin"] },
             users: { users: ["admin"] },
@@ -119,7 +155,7 @@ export default {
           description: "A specialist agent limited to a single iteration",
           instructions: "You are a helpful specialist agent used for testing.",
           type: "specialist",
-          llmProvider: "Mock LLM",
+          llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           maxIterations: 1,
           access: {
@@ -132,7 +168,7 @@ export default {
           description: "A specialist agent with tools limited to a single iteration",
           instructions: "You are a helpful specialist agent used for testing.",
           type: "specialist",
-          llmProvider: "Mock LLM",
+          llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           maxIterations: 1,
           skills: ["rot13"],

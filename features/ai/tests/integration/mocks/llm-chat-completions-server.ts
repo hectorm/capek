@@ -1,7 +1,7 @@
 import http from "node:http";
 import { setTimeout } from "node:timers";
 
-export interface MockLLMServerOptions {
+export interface MockLLMChatCompletionsServerOptions {
   port: number;
 }
 
@@ -13,12 +13,12 @@ interface OpenAICompletionRequest {
   tool_choice?: string | { type: string; function: { name: string } };
 }
 
-export class MockLLMServer {
+export class MockLLMChatCompletionsServer {
   private server: http.Server | null = null;
   private port: number;
   private readonly response = "This is a mock response";
 
-  public constructor(options: MockLLMServerOptions) {
+  public constructor(options: MockLLMChatCompletionsServerOptions) {
     this.port = options.port;
   }
 
@@ -30,7 +30,7 @@ export class MockLLMServer {
 
       this.server.on("error", reject);
       this.server.listen(this.port, () => {
-        console.info(`Mock LLM server listening on port ${String(this.port)}`);
+        console.info(`Mock LLM Chat Completions server listening on port ${String(this.port)}`);
         resolve();
       });
     });
@@ -40,7 +40,7 @@ export class MockLLMServer {
     return new Promise((resolve) => {
       if (this.server) {
         this.server.close(() => {
-          console.info("Mock LLM server stopped");
+          console.info("Mock LLM Chat Completions server stopped");
           resolve();
         });
       } else {

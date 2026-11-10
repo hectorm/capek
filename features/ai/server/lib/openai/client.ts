@@ -1,5 +1,11 @@
-import type { OpenAICompletionRequest, OpenAICompletionResponse, OpenAIMessage } from "#layers/ai/shared/openai";
+import type {
+  OpenAIApiType,
+  OpenAICompletionRequest,
+  OpenAICompletionResponse,
+  OpenAIMessage,
+} from "#layers/ai/shared/openai";
 import type { HttpHeader } from "#layers/core/shared/http";
+import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAICompletionResponseSchema, OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
 import { useLogger } from "#layers/core/server/lib/logger";
 
@@ -7,6 +13,7 @@ const logger = useLogger();
 
 export interface OpenAIClientOptions {
   apiUrl: string;
+  apiType?: OpenAIApiType | null;
   apiKey?: string;
   headers?: HttpHeader[] | null;
   availableModels?: string[] | null;
@@ -17,6 +24,7 @@ export interface OpenAIClientOptions {
 
 export class OpenAIClient {
   private readonly apiUrl: string;
+  private readonly apiType: OpenAIApiType;
   private readonly apiKey: string;
   private readonly headers: Record<string, string>;
   private readonly availableModels: string[] | null;
@@ -27,6 +35,7 @@ export class OpenAIClient {
 
   public constructor(options: OpenAIClientOptions) {
     this.apiUrl = options.apiUrl;
+    this.apiType = options.apiType ?? "chat-completions";
     this.apiKey = options.apiKey ?? "";
     this.headers = Object.fromEntries((options.headers ?? []).map((h) => [h.name, h.value]));
     this.availableModels = options.availableModels ?? null;
@@ -105,9 +114,12 @@ export class OpenAIClient {
   ): Promise<OpenAICompletionResponse | ReadableStream<Uint8Array>> {
     const model = request.model ?? (await this.getModel());
     const stream = request.stream ?? this.streaming ?? true;
-    const body = { ...request, model, stream };
+    const responses = this.apiType === "responses";
 
-    const response = await this.request("/chat/completions", {
+    // Requests and responses have the format of Chat Completions, translated for the providers of the Responses API
+    const body = responses ? toResponsesRequest({ ...request, model, stream }) : { ...request, model, stream };
+
+    const response = await this.request(responses ? "/responses" : "/chat/completions", {
       method: "POST",
       body: JSON.stringify(body),
       signal,
@@ -123,9 +135,13 @@ export class OpenAIClient {
         throw new Error("No response body for AI service streaming completion");
       }
 
-      return response.body;
+      return responses ? fromResponsesStream(response.body) : response.body;
     } else {
       const rawCompletion: unknown = await response.json();
+      if (responses) {
+        return fromResponsesResponse(rawCompletion);
+      }
+
       const completion = OpenAICompletionResponseSchema.safeParse(rawCompletion);
       if (!completion.success) {
         throw new Error(`Invalid AI service completion response format: ${completion.error.message}`);

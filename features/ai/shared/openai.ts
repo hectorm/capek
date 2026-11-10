@@ -1,7 +1,15 @@
 import { z } from "zod/v4";
 
 // =============================================================================
-// Tools & Functions
+// Common
+// =============================================================================
+
+export const OpenAIApiTypeSchema = z.enum(["chat-completions", "responses"]);
+
+export type OpenAIApiType = z.infer<typeof OpenAIApiTypeSchema>;
+
+// =============================================================================
+// Chat Completions API
 // =============================================================================
 
 export const OpenAIFunctionParametersSchema = z.object({
@@ -50,10 +58,6 @@ export const OpenAIToolCallSchema = z.object({
 
 export type OpenAIToolCall = z.infer<typeof OpenAIToolCallSchema>;
 
-// =============================================================================
-// Messages
-// =============================================================================
-
 export const OpenAIMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool", "developer"]),
   content: z.string().nullish(),
@@ -64,10 +68,6 @@ export const OpenAIMessageSchema = z.object({
 });
 
 export type OpenAIMessage = z.infer<typeof OpenAIMessageSchema>;
-
-// =============================================================================
-// Requests
-// =============================================================================
 
 export const OpenAICompletionRequestSchema = z.object({
   model: z.string().min(1).optional(),
@@ -87,10 +87,6 @@ export const OpenAICompletionRequestSchema = z.object({
 });
 
 export type OpenAICompletionRequest = z.infer<typeof OpenAICompletionRequestSchema>;
-
-// =============================================================================
-// Responses
-// =============================================================================
 
 export const OpenAIUsageSchema = z.object({
   prompt_tokens: z.number(),
@@ -164,6 +160,118 @@ export const OpenAIStreamChunkSchema = z.object({
 });
 
 export type OpenAIStreamChunk = z.infer<typeof OpenAIStreamChunkSchema>;
+
+// =============================================================================
+// Responses API
+// =============================================================================
+
+export const OpenAIResponsesToolSchema = z.object({
+  type: z.literal("function"),
+  name: z.string(),
+  description: z.string().optional(),
+  parameters: OpenAIFunctionParametersSchema.optional(),
+  strict: z.boolean().optional(),
+});
+
+export type OpenAIResponsesTool = z.infer<typeof OpenAIResponsesToolSchema>;
+
+export const OpenAIResponsesToolChoiceSchema = z.union([
+  z.literal("none"),
+  z.literal("auto"),
+  z.literal("required"),
+  z.object({
+    type: z.literal("function"),
+    name: z.string(),
+  }),
+]);
+
+export type OpenAIResponsesToolChoice = z.infer<typeof OpenAIResponsesToolChoiceSchema>;
+
+export const OpenAIResponsesInputItemSchema = z.union([
+  z.object({
+    type: z.literal("message"),
+    role: z.enum(["system", "user", "assistant", "developer"]),
+    content: z.string(),
+  }),
+  z.object({
+    type: z.literal("function_call"),
+    call_id: z.string(),
+    name: z.string(),
+    arguments: z.string(),
+  }),
+  z.object({
+    type: z.literal("function_call_output"),
+    call_id: z.string(),
+    output: z.string(),
+  }),
+]);
+
+export type OpenAIResponsesInputItem = z.infer<typeof OpenAIResponsesInputItemSchema>;
+
+export const OpenAIResponsesRequestSchema = z.object({
+  model: z.string().min(1).optional(),
+  input: z.array(OpenAIResponsesInputItemSchema).min(1),
+  stream: z.boolean().optional(),
+  store: z.boolean().optional(),
+  max_output_tokens: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  top_p: z.number().min(0).max(1).optional(),
+  frequency_penalty: z.number().min(-2).max(2).optional(),
+  presence_penalty: z.number().min(-2).max(2).optional(),
+  tools: z.array(OpenAIResponsesToolSchema).optional(),
+  tool_choice: OpenAIResponsesToolChoiceSchema.optional(),
+  parallel_tool_calls: z.boolean().optional(),
+});
+
+export type OpenAIResponsesRequest = z.infer<typeof OpenAIResponsesRequestSchema>;
+
+export const OpenAIResponsesOutputItemSchema = z.object({
+  type: z.string(),
+  content: z.array(z.object({ type: z.string(), text: z.string().nullish(), refusal: z.string().nullish() })).nullish(),
+  call_id: z.string().nullish(),
+  name: z.string().nullish(),
+  arguments: z.string().nullish(),
+});
+
+export type OpenAIResponsesOutputItem = z.infer<typeof OpenAIResponsesOutputItemSchema>;
+
+export const OpenAIResponsesUsageSchema = z.object({
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  total_tokens: z.number(),
+});
+
+export type OpenAIResponsesUsage = z.infer<typeof OpenAIResponsesUsageSchema>;
+
+export const OpenAIResponsesResponseSchema = z.object({
+  id: z.string(),
+  created_at: z.number().nullish(),
+  model: z.string(),
+  status: z.string().nullish(),
+  error: z.object({ message: z.string().nullish() }).nullish(),
+  incomplete_details: z.object({ reason: z.string().nullish() }).nullish(),
+  output: z.array(OpenAIResponsesOutputItemSchema),
+  usage: OpenAIResponsesUsageSchema.nullish(),
+});
+
+export type OpenAIResponsesResponse = z.infer<typeof OpenAIResponsesResponseSchema>;
+
+export const OpenAIResponsesStreamEventSchema = z.object({
+  type: z.string(),
+  output_index: z.number().nullish(),
+  delta: z.string().nullish(),
+  item: OpenAIResponsesOutputItemSchema.nullish(),
+  // Some providers only send the whole response in the last event
+  response: OpenAIResponsesResponseSchema.partial().nullish(),
+  message: z.string().nullish(),
+  error: z.object({ message: z.string().nullish() }).nullish(),
+});
+
+export type OpenAIResponsesStreamEvent = z.infer<typeof OpenAIResponsesStreamEventSchema>;
+
+// =============================================================================
+// Models API
+// =============================================================================
 
 export const OpenAIModelsResponseSchema = z.object({
   object: z.literal("list").optional(),

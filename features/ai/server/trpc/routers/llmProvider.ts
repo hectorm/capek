@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
+import { OpenAIApiTypeSchema } from "#layers/ai/shared/openai";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
@@ -26,7 +27,7 @@ export const llmProviderRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const llmProvider = await trx
           .selectFrom("aiLlmProviders")
-          .select(["id", "name", "description", "apiUrl", "apiKey", "headers"])
+          .select(["id", "name", "description", "apiUrl", "apiType", "apiKey", "headers"])
           .where("id", "=", input.id)
           .executeTakeFirst();
 
@@ -130,6 +131,7 @@ export const llmProviderRouter = createTRPCRouter({
         name: z.string().min(1).max(100).trim(),
         description: z.string().max(1000).trim().default(""),
         apiUrl: z.url(),
+        apiType: OpenAIApiTypeSchema.default("chat-completions"),
         apiKey: z.string().max(1000).trim().default(""),
         headers: HttpHeadersSchema.optional(),
       }),
@@ -146,6 +148,7 @@ export const llmProviderRouter = createTRPCRouter({
               name: input.name,
               description: input.description,
               apiUrl: input.apiUrl,
+              apiType: input.apiType,
               apiKey: input.apiKey,
               headers: JSON.stringify(input.headers ?? []),
             })
@@ -158,7 +161,7 @@ export const llmProviderRouter = createTRPCRouter({
 
           const llmProvider = await trx
             .selectFrom("aiLlmProviders")
-            .select(["id", "name", "description", "apiUrl", "apiKey", "headers"])
+            .select(["id", "name", "description", "apiUrl", "apiType", "apiKey", "headers"])
             .where("id", "=", llmProviderId)
             .executeTakeFirstOrThrow();
 
@@ -188,6 +191,7 @@ export const llmProviderRouter = createTRPCRouter({
         name: z.string().min(1).max(100).trim().optional(),
         description: z.string().max(1000).trim().optional(),
         apiUrl: z.url().optional(),
+        apiType: OpenAIApiTypeSchema.optional(),
         apiKey: z.string().max(1000).trim().optional(),
         headers: HttpHeadersSchema.optional(),
       }),
@@ -217,7 +221,7 @@ export const llmProviderRouter = createTRPCRouter({
             .updateTable("aiLlmProviders")
             .set({ ...updateData, apiKey, headers, updatedAt: new Date() })
             .where("id", "=", id)
-            .returning(["id", "name", "description", "apiUrl", "apiKey", "headers"])
+            .returning(["id", "name", "description", "apiUrl", "apiType", "apiKey", "headers"])
             .executeTakeFirst();
 
           if (!llmProvider) {

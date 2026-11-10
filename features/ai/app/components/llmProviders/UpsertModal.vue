@@ -11,6 +11,7 @@ import UForm from "@nuxt/ui/components/Form.vue";
 import UFormField from "@nuxt/ui/components/FormField.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
+import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
@@ -21,6 +22,7 @@ import { usePrincipalSearch } from "#layers/core/app/composables/principal-searc
 import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
+import { OpenAIApiTypeSchema } from "#layers/ai/shared/openai";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
@@ -82,6 +84,7 @@ const schema = z.object({
   name: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).trim().default(""),
   apiUrl: z.url(),
+  apiType: OpenAIApiTypeSchema,
   apiKey: z.string().max(1000).trim().default(""),
   headers: HttpHeadersSchema.default([]),
   editors: z.array(z.string()).default([]),
@@ -106,11 +109,17 @@ const state = reactive<
   name: llmProvider?.name,
   description: llmProvider?.description,
   apiUrl: llmProvider?.apiUrl,
+  apiType: llmProvider?.apiType ?? "chat-completions",
   apiKey: llmProvider?.apiKey,
   headers: llmProvider?.headers ?? [],
   editors: editorIds,
   users: userIds,
 });
+
+const apiTypeOptions = [
+  { value: "chat-completions", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.chatCompletions") },
+  { value: "responses", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.responses") },
+];
 
 const addHeader = () => {
   state.headers.push({ name: "", value: "" });
@@ -130,6 +139,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         name: event.data.name,
         description: event.data.description,
         apiUrl: event.data.apiUrl,
+        apiType: event.data.apiType,
         apiKey: event.data.apiKey,
         headers: event.data.headers,
       });
@@ -140,6 +150,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         name: event.data.name,
         description: event.data.description,
         apiUrl: event.data.apiUrl,
+        apiType: event.data.apiType,
         apiKey: event.data.apiKey,
         headers: event.data.headers,
       });
@@ -207,6 +218,16 @@ const onCancel = () => {
             class="w-full"
             :disabled="!canModify"
             :placeholder="$t('ai.pages.studio.llmProviders.form.apiUrl.placeholder')"
+          />
+        </UFormField>
+        <UFormField required name="apiType" :label="$t('ai.pages.studio.llmProviders.form.apiType.label')">
+          <URadioGroup
+            v-model="state.apiType"
+            size="sm"
+            variant="table"
+            :disabled="!canModify"
+            :items="apiTypeOptions"
+            orientation="horizontal"
           />
         </UFormField>
         <UFormField name="apiKey" :label="$t('ai.pages.studio.llmProviders.form.apiKey.label')">

@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
-import type { OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
+import type { OpenAIApiType, OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
@@ -68,6 +68,7 @@ interface AgentConfig {
   maxToolResponseChars: number;
   llmProviderId: string;
   apiUrl: string;
+  apiType: OpenAIApiType;
   apiKey: string;
   headers: HttpHeader[];
 }
@@ -1052,6 +1053,7 @@ export class AgentExecutor {
         "aiAgents.maxToolResponseChars",
         "aiLlmProviders.id as llmProviderId",
         "aiLlmProviders.apiUrl",
+        "aiLlmProviders.apiType",
         "aiLlmProviders.apiKey",
         "aiLlmProviders.headers",
       ])
@@ -1098,6 +1100,7 @@ export class AgentExecutor {
         "aiAgents.maxToolResponseChars",
         "aiLlmProviders.id as llmProviderId",
         "aiLlmProviders.apiUrl",
+        "aiLlmProviders.apiType",
         "aiLlmProviders.apiKey",
         "aiLlmProviders.headers",
       ])
@@ -1285,6 +1288,7 @@ export class AgentExecutor {
     this.openAIClientIds.push(clientId);
     return openAIManager.addClient(clientId, {
       apiUrl: agent.apiUrl,
+      apiType: agent.apiType,
       apiKey: agent.apiKey,
       headers: agent.headers,
       model: agent.model,

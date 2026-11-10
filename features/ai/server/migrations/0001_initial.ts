@@ -70,6 +70,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("name", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().unique())
     .addColumn("description", sql`text COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("apiUrl", sql`text COLLATE "C"`, (col) => col.notNull())
+    .addColumn("apiType", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo("chat-completions"))
     .addColumn("apiKey", sql`text COLLATE "C"`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("headers", "jsonb", (col) => col.defaultTo(sql`'[]'::jsonb`).notNull())
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
@@ -81,6 +82,13 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   ////////////////////////////////
 
   await createAccessTable(db, LlmProviderResource);
+
+  ////////////////////////////////
+
+  await db.schema
+    .alterTable("public.aiLlmProviders")
+    .addCheckConstraint("ai_llm_providers_api_type_check", sql`api_type IN ('chat-completions', 'responses')`)
+    .execute();
 
   ////////////////////////////////
 

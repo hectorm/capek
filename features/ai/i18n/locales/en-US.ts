@@ -367,6 +367,11 @@ export default () => ({
               label: "API URL",
               placeholder: "https://api.example.com/v1",
             },
+            apiType: {
+              label: "API type",
+              chatCompletions: "Chat Completions",
+              responses: "Responses",
+            },
             apiKey: {
               label: "API key",
               placeholder: "Enter API key",

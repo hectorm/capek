@@ -5,6 +5,7 @@ import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } 
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
+import { OpenAIApiTypeSchema } from "#layers/ai/shared/openai";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
 import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/tools/define";
@@ -14,6 +15,7 @@ const seedLLMProviderSchema = z.object({
   name: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).trim().default(""),
   apiUrl: z.url(),
+  apiType: OpenAIApiTypeSchema.default("chat-completions"),
   apiKey: z.string().max(1000).trim().default(""),
   headers: HttpHeadersSchema.optional(),
   access: seedAccessSchema,
@@ -90,6 +92,7 @@ export const aiSeed = defineSeed({
             name: llmProviderConfig.name,
             description: llmProviderConfig.description,
             apiUrl: llmProviderConfig.apiUrl,
+            apiType: llmProviderConfig.apiType,
             apiKey: llmProviderConfig.apiKey,
             headers: JSON.stringify(llmProviderConfig.headers ?? []),
           })
