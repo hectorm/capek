@@ -36,7 +36,7 @@ const featurePaths = (...paths: string[]): string[] =>
 export default defineNuxtConfig({
   extends: enabledFeatures.map((name) => `./features/${name}`),
   srcDir: "app/",
-  compatibilityDate: "2026-04-01",
+  compatibilityDate: "2026-11-10",
   future: {
     compatibilityVersion: 5,
   },
