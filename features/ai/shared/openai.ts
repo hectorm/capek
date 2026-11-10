@@ -97,6 +97,16 @@ export const OpenAIUsageSchema = z.object({
 
 export type OpenAIUsage = z.infer<typeof OpenAIUsageSchema>;
 
+const OpenAIContentSchema = z.union([
+  z.string(),
+  z.array(z.object({ type: z.string(), text: z.string().nullish() })).transform((parts) =>
+    parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text ?? "")
+      .join(""),
+  ),
+]);
+
 export const OpenAICompletionResponseSchema = z.object({
   id: z.string(),
   object: z.literal("chat.completion"),
@@ -109,7 +119,7 @@ export const OpenAICompletionResponseSchema = z.object({
         index: z.number(),
         message: z.object({
           role: z.string(),
-          content: z.string().nullish(),
+          content: OpenAIContentSchema.nullish(),
           refusal: z.string().nullish(),
           tool_calls: z.array(OpenAIToolCallSchema).nullish(),
         }),
@@ -148,7 +158,7 @@ export const OpenAIStreamChunkSchema = z.object({
       index: z.number(),
       delta: z.object({
         role: z.string().optional(),
-        content: z.string().nullish(),
+        content: OpenAIContentSchema.nullish(),
         refusal: z.string().nullish(),
         tool_calls: z.array(OpenAIStreamDeltaToolCallSchema).nullish(),
       }),

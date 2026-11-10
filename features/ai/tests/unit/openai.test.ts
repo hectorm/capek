@@ -75,6 +75,60 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("openai chat completions", () => {
+  it("keeps the text of an answer split in parts", async () => {
+    const { client } = createClient(() =>
+      Response.json({
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: 0,
+        model: "reasoner",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: [
+                { type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }], closed: true },
+                { type: "text", text: "Sunny" },
+              ],
+            },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+    );
+
+    await expect(client.completion(request)).resolves.toMatchObject({ choices: [{ message: { content: "Sunny" } }] });
+  });
+
+  it("keeps the text of a streamed answer split in parts", () => {
+    const processor = new OpenAIStreamProcessor();
+    const deltas = [
+      [{ type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }] }],
+      [{ type: "text", text: "Sun" }],
+      "ny",
+    ];
+
+    for (const content of deltas) {
+      const chunk = processor.parseChunk(
+        JSON.stringify({
+          object: "chat.completion.chunk",
+          created: 0,
+          model: "reasoner",
+          choices: [{ index: 0, delta: { content } }],
+        }),
+      );
+      expect(chunk).not.toBeNull();
+      if (chunk) {
+        processor.processChunk(chunk);
+      }
+    }
+
+    expect(processor.getContent()).toBe("Sunny");
+  });
+});
+
 describe("openai responses", () => {
   it("uses the Responses API of the providers set up with it", async () => {
     const { client, sent, paths } = createClient(
