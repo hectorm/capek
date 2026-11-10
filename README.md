@@ -15,6 +15,7 @@ Capek is a self-hosted conversational AI platform.
 - OpenAI-compatible LLM provider integration.
 - MCP server integration.
 - Skills with a sandboxed code interpreter.
+- Datasources (ClickHouse, MariaDB, PostgreSQL and SQL Server) that agents can query.
 - Dark/Light theme.
 - Customizable branding.
 - Internationalization.

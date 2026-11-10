@@ -4,6 +4,7 @@ Each directory is a [Nuxt layer](https://nuxt.com/docs/guide/going-further/layer
 
 - [`core`](./core/README.md): the platform every feature builds on.
 - [`ai`](./ai/README.md): the conversational AI feature.
+- [`datasources`](./datasources/README.md): the databases that users connect to.
 
 ## Layers
 
