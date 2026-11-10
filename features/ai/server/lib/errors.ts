@@ -18,3 +18,10 @@ export class MaxIterationsError extends Error {
     this.name = "MaxIterationsError";
   }
 }
+
+export class ConcurrentExecutionError extends Error {
+  public constructor(message = "An execution is already in progress for this session") {
+    super(message);
+    this.name = "ConcurrentExecutionError";
+  }
+}

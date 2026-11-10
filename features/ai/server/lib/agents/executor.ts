@@ -17,7 +17,7 @@ import {
 import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
-import { AbortError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
+import { AbortError, ConcurrentExecutionError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered, findServerForTool } from "#layers/ai/server/lib/mcp/tools";
 import { OpenAIManager } from "#layers/ai/server/lib/openai/manager";
@@ -29,6 +29,7 @@ import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
 import { OpenAICompletionResponseSchema, OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
+import { isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 
@@ -95,34 +96,44 @@ export class AgentExecutor {
   }
 
   public async createExecution(agentId: string): Promise<string> {
-    return withUserTransaction(this.config.user, async (trx) => {
-      const userMessage = await trx
-        .insertInto("aiChatMessages")
-        .values({
-          sessionId: this.config.sessionId,
-          role: "user",
-          content: this.config.message,
-        })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
+    try {
+      return await withUserTransaction(this.config.user, async (trx) => {
+        const userMessage = await trx
+          .insertInto("aiChatMessages")
+          .values({
+            sessionId: this.config.sessionId,
+            role: "user",
+            content: this.config.message,
+          })
+          .returning(["id"])
+          .executeTakeFirstOrThrow();
 
-      const execution = await trx
-        .insertInto("aiAgentExecutions")
-        .values({
-          sessionId: this.config.sessionId,
-          agentId,
-          userId: this.config.user.id,
-          status: "running",
-          inputMessageId: userMessage.id,
-          startedAt: this.startedAt,
-          lastActivityAt: this.startedAt,
-        })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
+        const execution = await trx
+          .insertInto("aiAgentExecutions")
+          .values({
+            sessionId: this.config.sessionId,
+            agentId,
+            userId: this.config.user.id,
+            status: "running",
+            inputMessageId: userMessage.id,
+            startedAt: this.startedAt,
+            lastActivityAt: this.startedAt,
+          })
+          .returning(["id"])
+          .executeTakeFirstOrThrow();
 
-      this.executionId = execution.id;
-      return execution.id;
-    });
+        this.executionId = execution.id;
+        return execution.id;
+      });
+    } catch (error) {
+      if (
+        isUniqueViolation(error) &&
+        (error as { constraint?: string }).constraint === "ai_agent_executions_session_running_uniq_idx"
+      ) {
+        throw new ConcurrentExecutionError();
+      }
+      throw error;
+    }
   }
 
   public async *executeStream(agentId: string, signal?: AbortSignal): AsyncGenerator<Uint8Array> {

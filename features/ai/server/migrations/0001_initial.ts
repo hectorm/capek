@@ -273,6 +273,14 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .columns(["status", "lastActivityAt"])
     .execute();
 
+  await db.schema
+    .createIndex("aiAgentExecutionsSessionRunningUniqIdx")
+    .on("public.aiAgentExecutions")
+    .column("sessionId")
+    .where(sql.ref("status"), "=", sql.lit("running"))
+    .unique()
+    .execute();
+
   ////////////////////////////////
 
   await db.schema

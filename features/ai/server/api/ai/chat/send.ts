@@ -2,7 +2,7 @@ import { createError, defineEventHandler, readBody, setResponseHeaders } from "h
 import { z } from "zod/v4";
 
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
-import { AbortError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
+import { AbortError, ConcurrentExecutionError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny, requirePermissions } from "#layers/core/server/lib/authz/permissions";
@@ -108,9 +108,26 @@ export default defineEventHandler(async (event) => {
     abortController.abort();
   });
 
-  try {
-    const executor = new AgentExecutor({ sessionId, user, message });
+  const executor = new AgentExecutor({ sessionId, user, message });
 
+  try {
+    await executor.createExecution(session.agentId);
+  } catch (error) {
+    if (error instanceof ConcurrentExecutionError) {
+      logger.warn({ sessionId, userId: user.id }, "An execution is already in progress for this session");
+      throw createError({
+        statusCode: 409,
+        message: "An execution is already in progress for this session",
+      });
+    }
+    logger.error({ sessionId, userId: user.id, error }, "Failed to start agent execution");
+    throw createError({
+      statusCode: 500,
+      message: "Failed to start agent execution",
+    });
+  }
+
+  try {
     setResponseHeaders(event, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
