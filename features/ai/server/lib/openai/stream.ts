@@ -7,7 +7,10 @@ const logger = useLogger();
 export class OpenAIStreamProcessor {
   private id = "";
   private content = "";
-  private toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
+  private toolCalls = new Map<
+    number,
+    { id: string; name: string; arguments: string; extraContent?: OpenAIToolCall["extra_content"] }
+  >();
 
   public getId(): string {
     return this.id;
@@ -25,6 +28,7 @@ export class OpenAIStreamProcessor {
         name: tc.name,
         arguments: tc.arguments,
       },
+      extra_content: tc.extraContent,
     }));
   }
 
@@ -62,7 +66,7 @@ export class OpenAIStreamProcessor {
 
     if (delta.tool_calls) {
       for (const tc of delta.tool_calls) {
-        const index = tc.index ?? 0;
+        const index = tc.index ?? (tc.id ? this.toolCalls.size : Math.max(this.toolCalls.size - 1, 0));
         const existing = this.toolCalls.get(index);
 
         if (tc.id && tc.function?.name) {
@@ -70,6 +74,7 @@ export class OpenAIStreamProcessor {
             id: tc.id,
             name: tc.function.name,
             arguments: tc.function.arguments ?? "",
+            extraContent: tc.extra_content ?? undefined,
           });
         } else if (existing && tc.function?.arguments) {
           existing.arguments += tc.function.arguments;

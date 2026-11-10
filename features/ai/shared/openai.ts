@@ -54,6 +54,7 @@ export const OpenAIToolCallSchema = z.object({
     name: z.string(),
     arguments: z.string(),
   }),
+  extra_content: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export type OpenAIToolCall = z.infer<typeof OpenAIToolCallSchema>;
@@ -143,6 +144,7 @@ export const OpenAIStreamDeltaToolCallSchema = z.object({
       arguments: z.string().nullish(),
     })
     .nullish(),
+  extra_content: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export type OpenAIStreamDeltaToolCall = z.infer<typeof OpenAIStreamDeltaToolCallSchema>;

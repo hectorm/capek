@@ -169,6 +169,55 @@ describe("openai chat completions", () => {
       { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
     ]);
   });
+
+  it("keeps the streamed tool calls without an index and the data that the provider needs back with them", () => {
+    const processor = new OpenAIStreamProcessor();
+    const signature = { google: { thought_signature: "signature" } };
+    const deltas = [
+      {
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
+            extra_content: signature,
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        tool_calls: [
+          { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
+        ],
+      },
+    ];
+
+    for (const delta of deltas) {
+      const chunk = processor.parseChunk(
+        JSON.stringify({
+          object: "chat.completion.chunk",
+          created: 0,
+          model: "reasoner",
+          choices: [{ index: 0, delta }],
+        }),
+      );
+      expect(chunk).not.toBeNull();
+      if (chunk) {
+        processor.processChunk(chunk);
+      }
+    }
+
+    expect(processor.getToolCalls()).toEqual([
+      {
+        id: "call-1",
+        type: "function",
+        function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
+        extra_content: signature,
+      },
+      { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
+    ]);
+  });
 });
 
 describe("openai responses", () => {
