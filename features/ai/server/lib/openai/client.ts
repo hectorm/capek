@@ -7,6 +7,36 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+interface OpenAIClientApi {
+  path: string;
+  toRequest: (request: OpenAICompletionRequest) => unknown;
+  fromResponse: (rawResponse: unknown) => OpenAICompletionResponse;
+  fromStream: (stream: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>;
+}
+
+// Requests and responses have the format of Chat Completions, translated for the providers of the other APIs
+const apis: Record<LlmProviderApiType, OpenAIClientApi> = {
+  "chat-completions": {
+    path: "/chat/completions",
+    toRequest: (request) => request,
+    fromResponse: (rawResponse) => {
+      const completion = OpenAICompletionResponseSchema.safeParse(rawResponse);
+      if (!completion.success) {
+        throw new Error(`Invalid AI service completion response format: ${completion.error.message}`);
+      }
+
+      return completion.data;
+    },
+    fromStream: (stream) => stream,
+  },
+  responses: {
+    path: "/responses",
+    toRequest: toResponsesRequest,
+    fromResponse: fromResponsesResponse,
+    fromStream: fromResponsesStream,
+  },
+};
+
 export interface OpenAIClientOptions {
   apiUrl: string;
   apiType?: LlmProviderApiType | null;
@@ -20,7 +50,7 @@ export interface OpenAIClientOptions {
 
 export class OpenAIClient {
   private readonly apiUrl: string;
-  private readonly apiType: LlmProviderApiType;
+  private readonly api: OpenAIClientApi;
   private readonly apiKey: string;
   private readonly headers: Record<string, string>;
   private readonly availableModels: string[] | null;
@@ -31,7 +61,7 @@ export class OpenAIClient {
 
   public constructor(options: OpenAIClientOptions) {
     this.apiUrl = options.apiUrl;
-    this.apiType = options.apiType ?? "chat-completions";
+    this.api = apis[options.apiType ?? "chat-completions"];
     this.apiKey = options.apiKey ?? "";
     this.headers = Object.fromEntries((options.headers ?? []).map((h) => [h.name, h.value]));
     this.availableModels = options.availableModels ?? null;
@@ -110,14 +140,10 @@ export class OpenAIClient {
   ): Promise<OpenAICompletionResponse | ReadableStream<Uint8Array>> {
     const model = request.model ?? (await this.getModel());
     const stream = request.stream ?? this.streaming ?? true;
-    const responses = this.apiType === "responses";
 
-    // Requests and responses have the format of Chat Completions, translated for the providers of the Responses API
-    const body = responses ? toResponsesRequest({ ...request, model, stream }) : { ...request, model, stream };
-
-    const response = await this.request(responses ? "/responses" : "/chat/completions", {
+    const response = await this.request(this.api.path, {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(this.api.toRequest({ ...request, model, stream })),
       signal,
     });
 
@@ -131,19 +157,10 @@ export class OpenAIClient {
         throw new Error("No response body for AI service streaming completion");
       }
 
-      return responses ? fromResponsesStream(response.body) : response.body;
+      return this.api.fromStream(response.body);
     } else {
       const rawCompletion: unknown = await response.json();
-      if (responses) {
-        return fromResponsesResponse(rawCompletion);
-      }
-
-      const completion = OpenAICompletionResponseSchema.safeParse(rawCompletion);
-      if (!completion.success) {
-        throw new Error(`Invalid AI service completion response format: ${completion.error.message}`);
-      }
-
-      return completion.data;
+      return this.api.fromResponse(rawCompletion);
     }
   }
 
