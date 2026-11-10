@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { addTemplate, defineNuxtModule, getLayerDirectories } from "nuxt/kit";
 
@@ -8,7 +9,16 @@ import { orderFeatures } from "./order.ts";
 
 interface Feature extends FeatureNode {
   dirs: ReturnType<typeof getLayerDirectories>[number];
+  // Name given in the `$meta` option of the layer
+  metaName: unknown;
   runtimeConfig: Record<string, unknown>;
+  localeFiles: string[];
+}
+
+// Options of the i18n module that locate the messages of a layer
+interface I18nOptions {
+  langDir?: string;
+  locales?: (string | { file?: string })[];
 }
 
 interface Module {
@@ -22,23 +32,31 @@ export default defineNuxtModule({
   meta: {
     name: "features",
   },
-  setup(_options, nuxt) {
+  async setup(_options, nuxt) {
     const featuresDir = join(nuxt.options.rootDir, "features");
     const features: Feature[] = getLayerDirectories(nuxt)
       .map((dirs, i) => {
         const layer = nuxt.options._layers[i];
         const config = layer?.config;
-        const meta = (layer?.meta ?? {}) as { dependsOn?: unknown };
+        const meta = (layer?.meta ?? {}) as { name?: unknown; dependsOn?: unknown };
+        const i18n = (config as { i18n?: I18nOptions } | undefined)?.i18n;
         return {
           name: basename(dirs.root),
           dirs,
+          metaName: meta.name,
           dependsOn: Array.isArray(meta.dependsOn) ? meta.dependsOn.map(String) : [],
           runtimeConfig: config?.runtimeConfig ?? {},
+          localeFiles: (i18n?.locales ?? []).flatMap((locale) =>
+            typeof locale === "object" && locale.file !== undefined
+              ? [join(dirs.root, "i18n", i18n?.langDir ?? "locales", locale.file)]
+              : [],
+          ),
         };
       })
       .filter((feature) => dirname(feature.dirs.root) === featuresDir);
 
-    checkFeatureNames(nuxt.options.rootDir, features);
+    checkFeatureIdentity(features);
+    await checkFeatureNames(nuxt.options.rootDir, features);
 
     // Lowest priority first, fails when a feature depends on one that is not part of the build
     const ordered = orderFeatures(features.toReversed());
@@ -110,10 +128,22 @@ export default defineNuxtModule({
   },
 });
 
-// Outside core, the files and runtime config that Nuxt merges between layers start with the name of the feature
-const checkFeatureNames = (rootDir: string, features: readonly Feature[]): void => {
+// Features are named after their directory, and the name is used in identifiers
+const checkFeatureIdentity = (features: readonly Feature[]): void => {
+  for (const { name, metaName } of features) {
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+      throw new Error(`Invalid feature name "${name}", it must be a lowercase identifier`);
+    }
+    if (metaName !== name) {
+      throw new Error(`Feature "${name}" must set the "$meta.name" option of its layer to its name`);
+    }
+  }
+};
+
+// Outside core, the files, runtime config and messages that Nuxt merges between layers start with the name of the feature
+const checkFeatureNames = async (rootDir: string, features: readonly Feature[]): Promise<void> => {
   const errors: string[] = [];
-  for (const { name, dirs, runtimeConfig } of features) {
+  for (const { name, dirs, runtimeConfig, localeFiles } of features) {
     if (name === "core") {
       continue;
     }
@@ -147,6 +177,17 @@ const checkFeatureNames = (rootDir: string, features: readonly Feature[]): void 
     for (const key of [...Object.keys(runtimeConfig), ...Object.keys(publicConfig)]) {
       if (key !== name && key !== "public") {
         errors.push(`runtimeConfig.${key} (${name})`);
+      }
+    }
+
+    for (const file of localeFiles) {
+      const { default: messages } = (await import(pathToFileURL(file).href)) as {
+        default: Record<string, unknown> | (() => Record<string, unknown>);
+      };
+      for (const key of Object.keys(typeof messages === "function" ? messages() : messages)) {
+        if (key !== name) {
+          errors.push(`${relative(rootDir, file)} (${key})`);
+        }
       }
     }
   }

@@ -40,9 +40,10 @@ Except in core, everything that can collide with other features starts with the 
 - Pages under `/<feature>/`, also in the Studio and Settings sections of core (`/studio/ai/agents`), while `/` redirects to the `home` page with the lowest `order` among the features.
 - Plugins, middleware and layouts as `<feature>-*`.
 - Runtime config under `runtimeConfig.<feature>` (`NUXT_<FEATURE>_*` variables), settings as `<feature>.*` and seed configuration in a `<feature>` section.
-- Pinia stores and i18n keys under `<feature>.*`, and browser storage keys with a `<feature>` prefix.
+- i18n keys under `<feature>.*`.
+- Pinia stores under `<feature>.*`, and browser storage keys with a `<feature>` prefix.
 
-The build or the startup fails when a name does not follow this rule, except for Pinia stores, i18n keys and browser storage keys.
+The build or the startup fails when a name does not follow this rule, except for Pinia stores and browser storage keys.
 
 ## Database
 
