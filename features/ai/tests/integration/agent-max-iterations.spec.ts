@@ -40,6 +40,9 @@ test.describe("Agent max iterations", () => {
     const assistantMessage = page.locator("article").filter({ hasText: "This is a mock response" });
     await expect(assistantMessage).toBeVisible({ timeout: 15000 });
 
+    // Wait for the answer to end, since it is saved and its errors are reported after the last token
+    await expect(page.getByRole("button", { name: /send prompt/i })).toBeVisible({ timeout: 15000 });
+
     // A clean completion must not surface a send error
     await expect(page.getByText("Failed to send message", { exact: true })).toHaveCount(0);
 
