@@ -79,6 +79,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema.createIndex("aiLlmProvidersNameIdx").on("public.aiLlmProviders").column("name").execute();
 
   ////////////////////////////////
+
   await createAccessTable(db, LlmProviderResource);
 
   ////////////////////////////////
@@ -100,6 +101,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema.createIndex("aiMcpServersNameIdx").on("public.aiMcpServers").column("name").execute();
 
   ////////////////////////////////
+
   await createAccessTable(db, McpServerResource);
 
   ////////////////////////////////
@@ -121,6 +123,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema.createIndex("aiSkillsNameIdx").on("public.aiSkills").column("name").execute();
 
   ////////////////////////////////
+
   await createAccessTable(db, SkillResource);
 
   ////////////////////////////////
@@ -164,9 +167,11 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .execute();
 
   ////////////////////////////////
+
   await createAccessTable(db, AgentResource);
 
   ////////////////////////////////
+
   await db.schema
     .alterTable("public.aiAgents")
     .addCheckConstraint("ai_agents_type_check", sql`type IN ('triage', 'specialist')`)
