@@ -105,7 +105,7 @@ export class OpenAIClient {
   ): Promise<OpenAICompletionResponse | ReadableStream<Uint8Array>> {
     const model = request.model ?? (await this.getModel());
     const stream = request.stream ?? this.streaming ?? true;
-    const body = this.applyQuirks({ ...request, model, stream });
+    const body = { ...request, model, stream };
 
     const response = await this.request("/chat/completions", {
       method: "POST",
@@ -204,21 +204,5 @@ export class OpenAIClient {
     }
 
     return data.data.data.map((m) => m.id);
-  }
-
-  private applyQuirks(request: OpenAICompletionRequest): OpenAICompletionRequest | Record<string, unknown> {
-    const host = new URL(this.apiUrl).host.toLowerCase();
-    let body: OpenAICompletionRequest | Record<string, unknown> = request;
-
-    switch (host) {
-      case "api.mistral.ai":
-        if (request.max_completion_tokens !== undefined) {
-          const { max_completion_tokens, ...rest } = request;
-          body = { ...rest, max_tokens: max_completion_tokens };
-        }
-        break;
-    }
-
-    return body;
   }
 }
