@@ -54,6 +54,7 @@ export default defineConfig({
   outputDir: "./.cache/playwright/output/",
   globalSetup: integrationDirs.map((dir) => join(dir, "global-setup.ts")).filter((file) => existsSync(file)),
   reporter: isCI ? [["dot"]] : [["list"], ["html", { outputFolder: "./.cache/playwright/report/", open: "never" }]],
+  workers: isCI ? 1 : undefined,
   timeout: 60000,
   expect: {
     timeout: 5000,

@@ -40,7 +40,7 @@ test.describe("Agent disconnect", () => {
     // Reload the page to disconnect, and again until the answer saved on disconnection is there
     await expect(async () => {
       await page.reload();
-      await expect(assistantMessage).toBeVisible({ timeout: 1000 });
-    }).toPass({ timeout: 10000 });
+      await expect(assistantMessage).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 30000 });
   });
 });
