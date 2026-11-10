@@ -172,10 +172,23 @@ export default defineTask({
 
         logger.info("Starting resource seeding from configuration");
 
+        const sectionOf = (name: string): Record<string, unknown> =>
+          (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
+
         for (const { name, seed } of features) {
           if (seed) {
-            const section = (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
-            await db.transaction().execute((trx) => seed.run(section, createSeedContext(trx, logger)));
+            await db
+              .transaction()
+              .execute((trx) => seed.run(sectionOf(name), createSeedContext(trx, logger, features)));
+          }
+        }
+
+        // References between features are seeded once the resources of all of them exist
+        for (const { name, seed } of features) {
+          if (seed?.link) {
+            await db.transaction().execute(async (trx) => {
+              await seed.link?.(sectionOf(name), createSeedContext(trx, logger, features));
+            });
           }
         }
 

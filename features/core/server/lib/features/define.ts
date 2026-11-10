@@ -4,6 +4,7 @@ import type { CspContribution } from "#layers/core/server/lib/csp";
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { SettingDefinition } from "#layers/core/server/lib/settings/define";
+import type { ToolProvider } from "#layers/core/server/lib/tools/define";
 
 // Server side contribution of a layer (its `server/feature.ts`), extensible through declaration merging
 export interface ServerFeature {
@@ -19,6 +20,8 @@ export interface ServerFeature {
   seed?: SeedDefinition;
   // Sources added to the Content Security Policy, like the origins of the content that the feature embeds
   csp?: CspContribution;
+  // Tools given to automated callers, like the agents of the AI feature
+  tools?: readonly ToolProvider[];
 }
 
 // Names outside core start with the name of their feature, like "ai_agents" or "ai.quickChats"

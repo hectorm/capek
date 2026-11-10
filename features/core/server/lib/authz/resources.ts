@@ -13,6 +13,8 @@ export interface SharedResource {
   readonly accessTable: string;
   // Access table column referencing the resource
   readonly foreignKey: string;
+  // Column with the name that identifies each resource
+  readonly nameColumn: string;
 }
 
 export const defineSharedResource = (resource: {
@@ -20,12 +22,52 @@ export const defineSharedResource = (resource: {
   table: string;
   accessTable?: string;
   foreignKey?: string;
+  nameColumn?: string;
 }): SharedResource => ({
   type: resource.type,
   table: resource.table,
   accessTable: resource.accessTable ?? `${resource.type}_access`,
   foreignKey: resource.foreignKey ?? `${resource.type}_id`,
+  nameColumn: resource.nameColumn ?? "name",
 });
+
+export interface ResourceName {
+  id: string;
+  name: string;
+}
+
+// Resources by ID, name or search, among the ones that the database connection can read
+export const listResources = async (
+  db: Kysely<Database>,
+  resource: SharedResource,
+  filter: { ids: readonly string[] } | { names: readonly string[] } | { search?: string; limit: number },
+): Promise<ResourceName[]> => {
+  const name = sql.ref(resource.nameColumn);
+
+  let condition = sql`TRUE`;
+  let limit = sql``;
+  if ("ids" in filter || "names" in filter) {
+    const values = "ids" in filter ? filter.ids : filter.names;
+    if (values.length === 0) {
+      return [];
+    }
+    condition = sql`${"ids" in filter ? sql.ref("id") : name} IN (${sql.join(values)})`;
+  } else {
+    if (filter.search) {
+      condition = sql`${name} ILIKE ${`%${filter.search}%`}`;
+    }
+    limit = sql`LIMIT ${filter.limit}`;
+  }
+
+  const result = await sql<ResourceName>`
+    SELECT id, ${name} AS name
+    FROM ${sql.table(resource.table)}
+    WHERE ${condition}
+    ORDER BY ${name}, id
+    ${limit}
+  `.execute(db);
+  return result.rows;
+};
 
 const accessKey = (access: PrincipalAccess): string => `${access.type}:${access.id.toLowerCase()}:${access.role}`;
 
