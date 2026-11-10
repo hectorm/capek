@@ -77,7 +77,7 @@ export const getFileHandlers = (): FileHandler[] => getAppFeatures().flatMap((fe
 // features/reports/app/feature.ts
 export default defineAppFeature({
   name: "reports",
-  fileHandlers: [{ extension: "pbireport", viewer: () => import("#layers/reports/app/components/PowerBIViewer.vue") }],
+  fileHandlers: [{ extension: "report", viewer: () => import("#layers/reports/app/components/ReportViewer.vue") }],
 });
 ```
 
