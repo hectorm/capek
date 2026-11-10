@@ -162,7 +162,9 @@ export class MockLLMServer {
       if (request.stream) this.handleStreamingToolCallCompletion(request, res);
       else this.handleNonStreamingToolCallCompletion(request, res);
     } else {
-      if (request.stream) this.handleStreamingCompletion(request, res);
+      // An answer that ends slowly leaves time to disconnect while it is streamed
+      const endDelay = this.getLastUserMessageContent(request).includes("end slowly") ? 5000 : 10;
+      if (request.stream) this.handleStreamingCompletion(request, res, endDelay);
       else this.handleNonStreamingCompletion(request, res);
     }
   }
@@ -413,7 +415,11 @@ export class MockLLMServer {
     res.end(JSON.stringify(response));
   }
 
-  private handleStreamingCompletion(request: OpenAICompletionRequest, res: http.ServerResponse): void {
+  private handleStreamingCompletion(
+    request: OpenAICompletionRequest,
+    res: http.ServerResponse,
+    endDelay: number,
+  ): void {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -440,7 +446,7 @@ export class MockLLMServer {
         };
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         index++;
-        setTimeout(sendChunk, 10);
+        setTimeout(sendChunk, index < chunks.length ? 10 : endDelay);
       } else {
         const finalChunk = {
           id: "chatcmpl-mock-stream",

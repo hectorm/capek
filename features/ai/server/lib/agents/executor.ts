@@ -464,10 +464,10 @@ export class AgentExecutor {
           }
         } finally {
           reader.releaseLock();
+          accumulatedContent += streamProcessor.getContent();
         }
 
         const contentDelta = streamProcessor.getContent();
-        accumulatedContent += contentDelta;
 
         if (streamProcessor.hasToolCalls()) {
           const currentToolCalls = streamProcessor.getToolCalls();
