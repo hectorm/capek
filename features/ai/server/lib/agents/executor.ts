@@ -1176,6 +1176,9 @@ export class AgentExecutor {
       .where("sessionId", "=", this.config.sessionId)
       .where("role", "in", ["user", "assistant", "system"])
       .orderBy("createdAt", "desc")
+      .orderBy("id", "desc")
+      // Caps the context scan so a long session doesn't read its whole history each turn
+      .limit(2000)
       .execute();
 
     const result: OpenAIMessage[] = [];
@@ -1183,7 +1186,8 @@ export class AgentExecutor {
     let totalChars = 0;
     for (const m of messages) {
       const msg = m as { role: string; content: string };
-      if (totalChars + msg.content.length > agent.maxContextChars) break;
+      // Always keep the newest message, even if it alone exceeds the budget
+      if (result.length > 0 && totalChars + msg.content.length > agent.maxContextChars) break;
       result.push(this.createMessage(msg.role as "user" | "assistant" | "system", msg.content));
       totalChars += msg.content.length;
     }
