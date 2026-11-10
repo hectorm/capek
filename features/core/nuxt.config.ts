@@ -188,6 +188,7 @@ export default defineNuxtConfig({
       headerGroups: "X-Forwarded-Groups",
       syncRoles: true,
       syncGroups: true,
+      cacheTtlSec: 30,
     },
     session: {
       cookieName: "session",

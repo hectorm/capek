@@ -110,6 +110,16 @@ export class OIDCStrategy implements AuthStrategy {
   }
 }
 
+interface ProxyCacheEntry {
+  expiresAt: number;
+  user: AuthUser;
+}
+
+const PROXY_CACHE_MAX_ENTRIES = 10_000;
+const proxyCache = new Map<string, ProxyCacheEntry>();
+
+const parseHeaderList = (value: string | undefined): string[] => (value ? value.split(/\s*[|;,]+\s*/) : []);
+
 export class ProxyStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
     const expectedSecret = config.proxy.secret;
@@ -135,25 +145,45 @@ export class ProxyStrategy implements AuthStrategy {
     }
 
     const picture = getHeader(event, config.proxy.headerPicture) ?? null;
+    const roles = config.proxy.syncRoles ? parseHeaderList(getHeader(event, config.proxy.headerRoles)) : null;
+    const groups = config.proxy.syncGroups ? parseHeaderList(getHeader(event, config.proxy.headerGroups)) : null;
+
+    const ttlMs = config.proxy.cacheTtlSec * 1000;
+    const cacheKey = ttlMs > 0 ? JSON.stringify([username, fullname, email, picture, roles, groups]) : null;
+    const now = Date.now();
+
+    if (cacheKey !== null) {
+      const cached = proxyCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.user;
+      }
+    }
 
     try {
       const user = await getOrCreateUserFromProxy({ username, fullname, email, picture });
 
-      if (config.proxy.syncRoles) {
-        const rolesHeader = getHeader(event, config.proxy.headerRoles);
-        const roles = rolesHeader ? rolesHeader.split(/\s*[|;,]+\s*/) : [];
+      if (roles !== null) {
         await syncUserRoles(user.id, roles);
       }
 
-      if (config.proxy.syncGroups) {
-        const groupsHeader = getHeader(event, config.proxy.headerGroups);
-        const groups = groupsHeader ? groupsHeader.split(/\s*[|;,]+\s*/) : [];
+      if (groups !== null) {
         await syncUserGroups(user.id, groups);
       }
 
       const ctx = await getUserAuthContext(user.id);
+      const authUser: AuthUser = { ...user, ...ctx };
 
-      return { ...user, ...ctx };
+      if (cacheKey !== null) {
+        proxyCache.set(cacheKey, { expiresAt: now + ttlMs, user: authUser });
+        if (proxyCache.size > PROXY_CACHE_MAX_ENTRIES) {
+          const oldest = proxyCache.keys().next().value;
+          if (oldest !== undefined) {
+            proxyCache.delete(oldest);
+          }
+        }
+      }
+
+      return authUser;
     } catch (error) {
       logger.error({ username, email, error }, "User creation via proxy headers failed");
       return null;
