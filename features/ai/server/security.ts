@@ -103,7 +103,10 @@ export const aiSecurity: SecurityDefinition = {
       CREATE POLICY ai_chat_messages_insert ON public.ai_chat_messages
         FOR INSERT
         WITH CHECK (
-          security.can_any(ARRAY['ai_chat:create']) AND security.is_owner('ai_chat', session_id)
+          security.can_any(ARRAY['ai_chat:create'])
+          AND security.is_owner('ai_chat', session_id)
+          -- Users author only 'user' turns, server-authored roles need a trusted-write transaction
+          AND (role = 'user' OR (role IN ('assistant', 'app', 'system', 'tool') AND security.is_trusted_write()))
         );
     `,
     `

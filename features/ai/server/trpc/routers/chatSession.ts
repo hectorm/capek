@@ -123,43 +123,47 @@ export const chatSessionRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const title = input.title ?? "";
 
-      return withUserTransaction(ctx.user, async (trx) => {
-        let greetingMessage: string | null = null;
-        if (input.agentId) {
-          const agent = await trx
-            .selectFrom("aiAgents")
-            .select(["greetingMessage"])
-            .where("id", "=", input.agentId)
-            .executeTakeFirst();
-          greetingMessage = agent?.greetingMessage ?? null;
-        }
-
-        try {
-          const session = await trx
-            .insertInto("aiChatSessions")
-            .values({ userId: ctx.user.id, agentId: input.agentId ?? null, title })
-            .returning(["id", "userId", "agentId", "title", "createdAt", "updatedAt"])
-            .executeTakeFirstOrThrow();
-
-          if (greetingMessage && greetingMessage.trim().length > 0) {
-            await trx
-              .insertInto("aiChatMessages")
-              .values({ sessionId: session.id, role: "app", content: greetingMessage })
-              .execute();
+      return withUserTransaction(
+        ctx.user,
+        async (trx) => {
+          let greetingMessage: string | null = null;
+          if (input.agentId) {
+            const agent = await trx
+              .selectFrom("aiAgents")
+              .select(["greetingMessage"])
+              .where("id", "=", input.agentId)
+              .executeTakeFirst();
+            greetingMessage = agent?.greetingMessage ?? null;
           }
 
-          ctx.logger.info({ sessionId: session.id }, "Chat session created");
-          return session;
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have access to this agent",
-            });
+          try {
+            const session = await trx
+              .insertInto("aiChatSessions")
+              .values({ userId: ctx.user.id, agentId: input.agentId ?? null, title })
+              .returning(["id", "userId", "agentId", "title", "createdAt", "updatedAt"])
+              .executeTakeFirstOrThrow();
+
+            if (greetingMessage && greetingMessage.trim().length > 0) {
+              await trx
+                .insertInto("aiChatMessages")
+                .values({ sessionId: session.id, role: "app", content: greetingMessage })
+                .execute();
+            }
+
+            ctx.logger.info({ sessionId: session.id }, "Chat session created");
+            return session;
+          } catch (error) {
+            if (isRLSViolation(error)) {
+              throw new TRPCError({
+                code: "FORBIDDEN",
+                message: "You don't have access to this agent",
+              });
+            }
+            throw error;
           }
-          throw error;
-        }
-      });
+        },
+        { trustedWrites: true },
+      );
     }),
 
   update: authorizedProcedure([AiPermissions.ChatUpdateAll, AiPermissions.ChatUpdateOwn])

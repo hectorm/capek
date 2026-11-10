@@ -114,9 +114,15 @@ export const closeDb = async (): Promise<void> => {
   }
 };
 
+export interface UserTransactionOptions {
+  // Sets the GUC that RLS policies check to allow server-authored rows
+  trustedWrites?: boolean;
+}
+
 export const withUserTransaction = async <T>(
   user: AuthUser,
   callback: (trx: Transaction<Database>) => Promise<T>,
+  options: UserTransactionOptions = {},
 ): Promise<T> => {
   const database = await useDb();
   return database.transaction().execute(async (trx) => {
@@ -129,6 +135,7 @@ export const withUserTransaction = async <T>(
       sql`SELECT set_config('app.user_permissions', ARRAY[${sql.join(user.permissions)}]::TEXT[]::TEXT, true)`.execute(
         trx,
       ),
+      ...(options.trustedWrites ? [sql`SELECT set_config('app.trusted_write', 'on', true)`.execute(trx)] : []),
     ]);
     return callback(trx);
   });

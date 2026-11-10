@@ -1196,31 +1196,35 @@ export class AgentExecutor {
   }
 
   private async saveAssistantMessage(content: string): Promise<void> {
-    await withUserTransaction(this.config.user, async (trx) => {
-      const assistantMessage = await trx
-        .insertInto("aiChatMessages")
-        .values({
-          sessionId: this.config.sessionId,
-          role: "assistant",
-          content,
-        })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
+    await withUserTransaction(
+      this.config.user,
+      async (trx) => {
+        const assistantMessage = await trx
+          .insertInto("aiChatMessages")
+          .values({
+            sessionId: this.config.sessionId,
+            role: "assistant",
+            content,
+          })
+          .returning(["id"])
+          .executeTakeFirstOrThrow();
 
-      if (this.executionId) {
+        if (this.executionId) {
+          await trx
+            .updateTable("aiAgentExecutions")
+            .set({ outputMessageId: assistantMessage.id })
+            .where("id", "=", this.executionId)
+            .execute();
+        }
+
         await trx
-          .updateTable("aiAgentExecutions")
-          .set({ outputMessageId: assistantMessage.id })
-          .where("id", "=", this.executionId)
+          .updateTable("aiChatSessions")
+          .set({ updatedAt: new Date() })
+          .where("id", "=", this.config.sessionId)
           .execute();
-      }
-
-      await trx
-        .updateTable("aiChatSessions")
-        .set({ updatedAt: new Date() })
-        .where("id", "=", this.config.sessionId)
-        .execute();
-    });
+      },
+      { trustedWrites: true },
+    );
   }
 
   private async updateLastActivity(): Promise<void> {

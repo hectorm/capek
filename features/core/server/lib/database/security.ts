@@ -271,6 +271,17 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT NULLIF(CURRENT_SETTING('app.user_permissions', TRUE), '')::TEXT[];
     $$
   `,
+  // Function to check whether the transaction was opened as a trusted server-authored write
+  `
+    CREATE FUNCTION security.is_trusted_write()
+    RETURNS BOOLEAN
+    LANGUAGE SQL
+    STABLE
+    PARALLEL SAFE
+    AS $$
+      SELECT COALESCE(CURRENT_SETTING('app.trusted_write', TRUE) = 'on', FALSE);
+    $$
+  `,
   // Function to check if user has ALL permissions from the list
   `
     CREATE FUNCTION security.can(permissions TEXT[])
