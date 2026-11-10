@@ -17,10 +17,26 @@ permissions: {}
 
 jobs:
   test:
-    name: "Test"
-    runs-on: "ubuntu-26.04"
+    name: "Test (${{ matrix.features.name }})"
+    runs-on: "${{ matrix.runner }}"
     permissions:
       contents: "read"
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ["ubuntu-26.04"]
+        features:
+          - id: "all"
+            name: "all features"
+            value: ""
+            tests: "test"
+          - id: "core"
+            name: "core feature"
+            value: "core"
+            tests: "test:unit test:chromium"
+    env:
+      FEATURES: "${{ matrix.features.value }}"
+      PLAYWRIGHT_BROWSERS_PATH: "${{ github.workspace }}/.cache/ms-playwright/"
     steps:
       - name: "Checkout"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
@@ -33,29 +49,24 @@ jobs:
           cache: "pnpm"
       - name: "Install dependencies"
         run: "pnpm install --frozen-lockfile"
+      - name: "Cache tools"
+        uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+        with:
+          path: "./.cache/"
+          key: "cache-${{ matrix.runner }}-${{ matrix.features.id }}-${{ github.sha }}"
+          restore-keys: "cache-${{ matrix.runner }}-${{ matrix.features.id }}-"
       - name: "Run linter"
+        env:
+          NODE_OPTIONS: "--disable-warning=ESLintPoorConcurrencyWarning"
         run: "pnpm run lint"
       - name: "Run build"
         run: "pnpm run build"
-      - name: "Cache Playwright browsers"
-        uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
-        with:
-          path: "~/.cache/ms-playwright/"
-          key: "playwright-ubuntu-26.04-${{ hashFiles('pnpm-lock.yaml') }}"
-          restore-keys: "playwright-ubuntu-26.04-"
       - name: "Install Playwright browsers"
         run: "pnpm exec playwright install --with-deps chromium firefox webkit"
       - name: "Run tests"
-        run: "pnpm run test"
-      - name: "Check the core layer in isolation"
         env:
-          FEATURES: "core"
-        run: |
-          rm -rf ./.cache/eslint/
-          pnpm run lint
-          pnpm run test:unit
-          pnpm run build
-          pnpm run test:chromium
+          TESTS: "${{ matrix.features.tests }}"
+        run: "pnpm exec run-s ${TESTS}"
 
   build:
     name: "Build on ${{ matrix.runtime.name }} (${{ matrix.platform.arch }})"
