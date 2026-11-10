@@ -33,6 +33,8 @@ export class ClickhouseDriver implements DatasourceDriver {
         format: "JSONEachRow",
         clickhouse_settings: {
           readonly: "1",
+          output_format_json_quote_64bit_integers: 1,
+          output_format_json_quote_decimals: 1,
           ...(settings.statementTimeoutMs
             ? {
                 max_execution_time: Math.ceil(settings.statementTimeoutMs / 1000),
