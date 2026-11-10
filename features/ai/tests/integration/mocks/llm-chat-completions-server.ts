@@ -114,8 +114,8 @@ export class MockLLMChatCompletionsServer {
       return;
     }
 
-    // Check if this is a triage agent request (tool_choice: "required" with route_to_specialist tool)
-    if (request.tool_choice === "required" && request.tools?.some((t) => t.function.name === "route_to_specialist")) {
+    // Check if this is a triage agent request (with route_to_specialist tool)
+    if (request.tools?.some((t) => t.function.name === "route_to_specialist")) {
       this.handleTriageCompletion(request, res);
       return;
     }

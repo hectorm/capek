@@ -221,7 +221,6 @@ export class AgentExecutor {
         frequency_penalty: agent.frequencyPenalty ?? undefined,
         presence_penalty: agent.presencePenalty ?? undefined,
         tools,
-        tool_choice: "required",
         stream: false,
       },
       signal,
