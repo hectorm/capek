@@ -137,6 +137,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("model", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("summaryModel", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("codeInterpreter", "boolean", (col) => col.notNull().defaultTo(false))
+    .addColumn("toolProviders", sql`varchar(100)[]`, (col) => col.notNull().defaultTo(sql`'{}'`))
     .addColumn("streaming", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("temperature", "real")
     .addColumn("maxTokens", "integer")
@@ -198,6 +199,24 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .execute();
 
   await db.schema.createIndex("aiAgentSkillsSkillIdIdx").on("public.aiAgentSkills").column("skillId").execute();
+
+  ////////////////////////////////
+
+  // Resources of other features are referenced by type instead of with a foreign key, since those features are optional
+  await db.schema
+    .createTable("public.aiAgentToolResources")
+    .addColumn("agentId", "uuid", (col) => col.references("public.aiAgents.id").onDelete("cascade").notNull())
+    .addColumn("resourceType", "varchar(100)", (col) => col.notNull())
+    .addColumn("resourceId", "uuid", (col) => col.notNull())
+    .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
+    .addPrimaryKeyConstraint("aiAgentToolResourcesPk", ["agentId", "resourceType", "resourceId"])
+    .execute();
+
+  await db.schema
+    .createIndex("aiAgentToolResourcesResourceIdx")
+    .on("public.aiAgentToolResources")
+    .columns(["resourceType", "resourceId"])
+    .execute();
 
   ////////////////////////////////
 
@@ -283,6 +302,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("executionId", "uuid", (col) => col.references("public.aiAgentExecutions.id").onDelete("set null"))
     .addColumn("mcpServerId", "uuid", (col) => col.references("public.aiMcpServers.id").onDelete("set null"))
     .addColumn("skillId", "uuid", (col) => col.references("public.aiSkills.id").onDelete("set null"))
+    .addColumn("toolProvider", sql`varchar(100) COLLATE "C"`)
     .addColumn("codeExecutionId", "uuid", (col) =>
       col.references("public.aiAgentCodeExecutions.id").onDelete("set null"),
     )

@@ -5,7 +5,10 @@ import { newQuickJSAsyncWASMModuleFromVariant, Scope } from "quickjs-emscripten-
 
 import type { MCPServerBinding } from "#layers/ai/server/lib/code/generators";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
+import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { ToolContext } from "#layers/core/server/lib/tools/define";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
+import { findAgentTool } from "#layers/ai/server/lib/tools";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 export interface ConsoleLog {
@@ -23,10 +26,20 @@ export interface MCPCallLog {
   durationMs: number;
 }
 
+export interface ToolCallLog {
+  provider: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  result: string | null;
+  error: string | null;
+  durationMs: number;
+}
+
 export interface ExecutionResult {
   result: unknown;
   consoleLogs: ConsoleLog[];
   mcpCallLogs: MCPCallLog[];
+  toolCallLogs: ToolCallLog[];
   error: string | null;
   executionMs: number;
 }
@@ -35,6 +48,7 @@ export interface ExecuteCodeOptions {
   chatSessionId: string;
   vfs: VirtualFileSystem;
   mcpServers: MCPServerBinding[];
+  tools?: { toolsets: AgentToolset[]; context: ToolContext };
   maxExecutionMs: number;
   maxMemoryBytes: number;
   signal?: AbortSignal;
@@ -58,6 +72,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
   const deadline = startTime + options.maxExecutionMs;
   const consoleLogs: ConsoleLog[] = [];
   const mcpCallLogs: MCPCallLog[] = [];
+  const toolCallLogs: ToolCallLog[] = [];
   let result: unknown = null;
   let error: string | null = null;
 
@@ -77,6 +92,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
       setupConsoleAPI(context, scope, consoleLogs);
       setupFsAPI(context, scope, options.vfs, pendingCalls);
       setupMCPCall(context, scope, options, mcpCallLogs, pendingCalls);
+      setupToolCall(context, scope, options, toolCallLogs, pendingCalls);
 
       const wrappedCode = `(async () => { ${code} })()`;
       const evalResult = await context.evalCodeAsync(wrappedCode);
@@ -109,7 +125,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
     logger.warn({ error, codeLength: code.length }, "Code execution failed");
   }
 
-  return { result, consoleLogs, mcpCallLogs, error, executionMs: Date.now() - startTime };
+  return { result, consoleLogs, mcpCallLogs, toolCallLogs, error, executionMs: Date.now() - startTime };
 }
 
 function extractError(context: QuickJSContext, handle: QuickJSHandle): string {
@@ -310,6 +326,42 @@ function setupFsAPI(
   context.setProp(context.global, "global", context.global);
 }
 
+// Exposes an asynchronous host function to the sandbox, with text arguments and result
+function setupHostCall(
+  context: QuickJSAsyncContext,
+  scope: Scope,
+  name: string,
+  pendingCalls: Promise<void>[],
+  call: (...args: string[]) => Promise<string>,
+): void {
+  const hostFn = scope.manage(
+    context.newFunction(name, (...handles) => {
+      const args = handles.map((handle) => context.getString(handle));
+
+      const deferred = context.newPromise();
+      const promiseHandle = deferred.handle;
+
+      const callPromise = (async () => {
+        try {
+          const resultHandle = context.newString(await call(...args));
+          deferred.resolve(resultHandle);
+          resultHandle.dispose();
+        } catch (err) {
+          const errorHandle = context.newError(err instanceof Error ? err.message : String(err));
+          deferred.reject(errorHandle);
+          errorHandle.dispose();
+        } finally {
+          deferred.dispose();
+        }
+      })();
+      pendingCalls.push(callPromise);
+
+      return promiseHandle;
+    }),
+  );
+  context.setProp(context.global, name, hostFn);
+}
+
 function setupMCPCall(
   context: QuickJSAsyncContext,
   scope: Scope,
@@ -317,82 +369,89 @@ function setupMCPCall(
   mcpCallLogs: MCPCallLog[],
   pendingCalls: Promise<void>[],
 ): void {
-  const mcpCallFn = scope.manage(
-    context.newFunction("__mcpCall", (serverNameHandle, toolNameHandle, argsJsonHandle) => {
-      const serverName = context.getString(serverNameHandle);
-      const toolName = context.getString(toolNameHandle);
-      const argsJson = context.getString(argsJsonHandle);
+  setupHostCall(context, scope, "__mcpCall", pendingCalls, async (serverName, toolName, argsJson) => {
+    let args: Record<string, unknown> = {};
+    try {
+      args = JSON.parse(argsJson) as Record<string, unknown>;
+    } catch (error) {
+      logger.warn({ serverName, toolName, argsJson, error }, "__mcpCall: failed to parse args JSON");
+    }
 
-      let args: Record<string, unknown> = {};
-      try {
-        args = JSON.parse(argsJson) as Record<string, unknown>;
-      } catch (error) {
-        logger.warn({ serverName, toolName, argsJson, error }, "__mcpCall: failed to parse args JSON");
-      }
+    const server = options.mcpServers.find((s) => s.name === serverName);
+    if (!server) {
+      throw new Error(`MCP server not found: ${serverName}`);
+    }
 
-      const server = options.mcpServers.find((s) => s.name === serverName);
-      if (!server) {
-        const errorDeferred = context.newPromise();
-        const errorHandle = context.newError(`MCP server not found: ${serverName}`);
-        errorDeferred.reject(errorHandle);
-        errorHandle.dispose();
-        const handle = errorDeferred.handle;
-        errorDeferred.dispose();
-        return handle;
-      }
+    const callStart = Date.now();
+    try {
+      const mcpManager = MCPManager.getInstance();
+      const result = await mcpManager.callTool(
+        server.name,
+        server.url,
+        server.headers,
+        toolName,
+        args,
+        options.chatSessionId,
+        server.stateful,
+        server.toolCallTimeoutSec,
+        options.signal,
+      );
+      mcpCallLogs.push({ serverName, toolName, args, result, error: null, durationMs: Date.now() - callStart });
+      return result;
+    } catch (err) {
+      const callError = err instanceof Error ? err.message : String(err);
+      mcpCallLogs.push({
+        serverName,
+        toolName,
+        args,
+        result: null,
+        error: callError,
+        durationMs: Date.now() - callStart,
+      });
+      throw new Error(callError);
+    }
+  });
+}
 
-      const deferred = context.newPromise();
-      const promiseHandle = deferred.handle;
+function setupToolCall(
+  context: QuickJSAsyncContext,
+  scope: Scope,
+  options: ExecuteCodeOptions,
+  toolCallLogs: ToolCallLog[],
+  pendingCalls: Promise<void>[],
+): void {
+  setupHostCall(context, scope, "__toolCall", pendingCalls, async (toolName, argsJson) => {
+    let args: Record<string, unknown> = {};
+    try {
+      args = JSON.parse(argsJson) as Record<string, unknown>;
+    } catch (error) {
+      logger.warn({ toolName, argsJson, error }, "__toolCall: failed to parse args JSON");
+    }
 
-      const callStart = Date.now();
+    const found = options.tools && findAgentTool(options.tools.toolsets, toolName);
+    if (!options.tools || !found) {
+      throw new Error(`Tool not found: ${toolName}`);
+    }
+    const { provider, tool } = found;
 
-      const callPromise = (async () => {
-        let result: string;
-
-        try {
-          const mcpManager = MCPManager.getInstance();
-          result = await mcpManager.callTool(
-            server.name,
-            server.url,
-            server.headers,
-            toolName,
-            args,
-            options.chatSessionId,
-            server.stateful,
-            server.toolCallTimeoutSec,
-            options.signal,
-          );
-        } catch (err) {
-          const callError = err instanceof Error ? err.message : String(err);
-          mcpCallLogs.push({
-            serverName,
-            toolName,
-            args,
-            result: null,
-            error: callError,
-            durationMs: Date.now() - callStart,
-          });
-
-          const errorHandle = context.newError(callError);
-          deferred.reject(errorHandle);
-          errorHandle.dispose();
-          deferred.dispose();
-          return;
-        }
-
-        mcpCallLogs.push({ serverName, toolName, args, result, error: null, durationMs: Date.now() - callStart });
-
-        const resultHandle = context.newString(result);
-        deferred.resolve(resultHandle);
-        resultHandle.dispose();
-        deferred.dispose();
-      })();
-      pendingCalls.push(callPromise);
-
-      return promiseHandle;
-    }),
-  );
-  context.setProp(context.global, "__mcpCall", mcpCallFn);
+    const callStart = Date.now();
+    try {
+      const result = await tool.execute(args, options.tools.context);
+      toolCallLogs.push({ provider, toolName, args, result, error: null, durationMs: Date.now() - callStart });
+      return result;
+    } catch (err) {
+      const callError = err instanceof Error ? err.message : String(err);
+      toolCallLogs.push({
+        provider,
+        toolName,
+        args,
+        result: null,
+        error: callError,
+        durationMs: Date.now() - callStart,
+      });
+      throw new Error(callError);
+    }
+  });
 }
 
 function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHandle {

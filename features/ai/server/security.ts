@@ -262,6 +262,44 @@ export const aiSecurity: SecurityDefinition = {
         );
     `,
 
+    // Agent Tool Resources
+    ...protectTable("ai_agent_tool_resources"),
+    `
+      CREATE POLICY ai_agent_tool_resources_select ON public.ai_agent_tool_resources
+        FOR SELECT
+        USING (
+          security.can_any(ARRAY['ai_agent:read:all', 'ai_agent:update:all', 'ai_agent:use:all'])
+          OR (
+            security.can_any(ARRAY['ai_agent:read:own', 'ai_agent:update:own', 'ai_agent:use:own'])
+            AND security.has_access('ai_agent', agent_id)
+          )
+        );
+    `,
+    `
+      CREATE POLICY ai_agent_tool_resources_insert ON public.ai_agent_tool_resources
+        FOR INSERT
+        WITH CHECK (
+          -- Requires update permission on the agent
+          (
+            security.can_any(ARRAY['ai_agent:update:all'])
+            OR (security.can_any(ARRAY['ai_agent:update:own']) AND security.has_access('ai_agent', agent_id, ARRAY['editor']))
+          )
+          -- Requires use permission on the resource being assigned
+          AND (
+            security.can_any(ARRAY[resource_type || ':use:all'])
+            OR (security.can_any(ARRAY[resource_type || ':use:own']) AND security.has_access(resource_type, resource_id))
+          )
+        );
+    `,
+    `
+      CREATE POLICY ai_agent_tool_resources_delete ON public.ai_agent_tool_resources
+        FOR DELETE
+        USING (
+          security.can_any(ARRAY['ai_agent:update:all'])
+          OR (security.can_any(ARRAY['ai_agent:update:own']) AND security.has_access('ai_agent', agent_id, ARRAY['editor']))
+        );
+    `,
+
     // Triage Specialists
     ...protectTable("ai_triage_specialists"),
     `

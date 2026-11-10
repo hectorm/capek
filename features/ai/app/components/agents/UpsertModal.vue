@@ -57,6 +57,11 @@ let [agent, currentAccess, currentMcpServers, currentSkills, currentSpecialists]
   props.id ? $trpc.ai.agent.listSpecialists.query({ triageAgentId: props.id }) : Promise.resolve([]),
 ]);
 
+const [toolProviders, currentToolResources] = await Promise.all([
+  $trpc.ai.agent.listToolProviders.query(),
+  props.id ? $trpc.ai.agent.listToolResources.query({ agentId: props.id }) : Promise.resolve([]),
+]);
+
 if (!props.id && userStore.user) {
   currentAccess = [
     {
@@ -202,6 +207,40 @@ const getSkillLabel = (id: string) => {
   return skillLabels.get(id) ?? id;
 };
 
+const assignableToolProviders = toolProviders.filter((provider) => provider.assignable);
+const switchableToolProviders = toolProviders.filter((provider) => !provider.assignable);
+
+const enabledToolProviders = reactive<Record<string, boolean>>(
+  Object.fromEntries(
+    switchableToolProviders.map((provider) => [provider.name, agent?.toolProviders.includes(provider.name) ?? false]),
+  ),
+);
+const getEnabledToolProviders = (): string[] => {
+  return switchableToolProviders
+    .filter((provider) => enabledToolProviders[provider.name])
+    .map((provider) => provider.name);
+};
+
+const toolResources = reactive<Record<string, string[]>>(
+  Object.fromEntries(
+    assignableToolProviders.map((provider) => [
+      provider.name,
+      currentToolResources.filter((resource) => resource.provider === provider.name).map((resource) => resource.id),
+    ]),
+  ),
+);
+const toolResourceLabels = new Map(currentToolResources.map((resource) => [resource.id, resource.name]));
+const searchToolResources = async (provider: string, query?: string) => {
+  const resources = await $trpc.ai.agent.searchToolResources.query({ provider, search: query, limit: 25 });
+  resources.forEach((resource) => {
+    toolResourceLabels.set(resource.id, resource.name);
+  });
+  return resources.map((resource) => resource.id);
+};
+const getToolResourceLabel = (id: string) => {
+  return toolResourceLabels.get(id) ?? id;
+};
+
 const specialistLabels = new Map(currentSpecialists.map((specialist) => [specialist.id, specialist.name]));
 const searchSpecialists = async (query?: string) => {
   const result = await $trpc.ai.agent.search.query({ search: query, type: "specialist", limit: 25 });
@@ -252,6 +291,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         model: event.data.model,
         summaryModel: event.data.summaryModel,
         codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
+        toolProviders: event.data.type === "specialist" ? getEnabledToolProviders() : [],
         streaming: event.data.streaming,
         temperature: event.data.temperature,
         maxTokens: event.data.maxTokens,
@@ -276,6 +316,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         model: event.data.model,
         summaryModel: event.data.summaryModel,
         codeInterpreter: event.data.codeInterpreter,
+        toolProviders: getEnabledToolProviders(),
         streaming: event.data.streaming,
         temperature: event.data.temperature,
         maxTokens: event.data.maxTokens,
@@ -296,6 +337,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     await Promise.all([
       $trpc.ai.agent.syncMcpServers.mutate({ agentId, mcpServerIds: event.data.mcpServers }),
       $trpc.ai.agent.syncSkills.mutate({ agentId, skillIds: event.data.skills }),
+      ...assignableToolProviders.map((provider) =>
+        $trpc.ai.agent.syncToolResources.mutate({
+          agentId,
+          provider: provider.name,
+          resourceIds: toolResources[provider.name] ?? [],
+        }),
+      ),
       $trpc.ai.agent.syncSpecialists.mutate({ triageAgentId: agentId, specialistIds: event.data.specialists }),
       $trpc.ai.agent.syncAccess.mutate({ agentId, access }),
     ]);
@@ -480,6 +528,24 @@ const onCancel = () => {
             :placeholder="$t('ai.pages.studio.agents.form.skills.placeholder')"
           />
         </UFormField>
+        <template v-if="state.type === 'specialist'">
+          <UFormField
+            v-for="provider in assignableToolProviders"
+            :key="provider.name"
+            :label="$t(provider.label)"
+            :description="$t('ai.pages.studio.agents.form.toolResources.hint')"
+          >
+            <SearchMenu
+              v-model="toolResources[provider.name]"
+              multiple
+              class="w-full"
+              :disabled="!canModify"
+              :label-fn="getToolResourceLabel"
+              :placeholder="$t('ai.pages.studio.agents.form.toolResources.placeholder')"
+              :search-fn="(query?: string) => searchToolResources(provider.name, query)"
+            />
+          </UFormField>
+        </template>
         <UFormField
           v-if="state.type === 'specialist'"
           name="streaming"
@@ -502,6 +568,15 @@ const onCancel = () => {
             :description="$t('ai.pages.studio.agents.form.codeInterpreter.description')"
           />
         </UFormField>
+        <template v-if="state.type === 'specialist'">
+          <UFormField v-for="provider in switchableToolProviders" :key="provider.name" :label="$t(provider.label)">
+            <USwitch
+              v-model="enabledToolProviders[provider.name]"
+              :disabled="!canModify"
+              :description="$t('ai.pages.studio.agents.form.toolProviders.description')"
+            />
+          </UFormField>
+        </template>
         <UAccordion :ui="{ trigger: 'pt-0' }" :items="advancedSettingsItems">
           <template #leading>
             <UIcon class="size-5" name="i-lucide-settings-2" />

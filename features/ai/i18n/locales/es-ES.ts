@@ -233,6 +233,13 @@ export default (): ReturnType<typeof enUS> => ({
               placeholder: "Seleccionar habilidades",
               hint: "Habilidades disponibles para el agente durante la ejecución",
             },
+            toolProviders: {
+              description: "Permitir que el agente use estas herramientas en nombre del usuario al que responde",
+            },
+            toolResources: {
+              placeholder: "Seleccionar recursos",
+              hint: "Recursos cuyas herramientas están disponibles para el agente durante la ejecución",
+            },
             codeInterpreter: {
               label: "Intérprete de código",
               description: "Habilitar ejecución de código para este agente",

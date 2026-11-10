@@ -1,10 +1,13 @@
+import { sql } from "kysely";
 import { z } from "zod/v4";
 
 import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
+import { listResources } from "#layers/core/server/lib/authz/resources";
 import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
+import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/tools/define";
 import { HttpHeadersSchema } from "#layers/core/shared/http";
 
 const seedLLMProviderSchema = z.object({
@@ -48,6 +51,12 @@ const seedAgentSchema = z
     specialists: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
     mcpServers: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
     skills: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
+    tools: z
+      .record(
+        z.string().min(1).max(100),
+        z.union([z.literal(true), z.array(z.string().min(1).max(255).trim()).max(100)]),
+      )
+      .default({}),
     codeInterpreter: z.boolean().default(false),
     streaming: z.boolean().default(true),
     access: seedAccessSchema,
@@ -273,6 +282,70 @@ export const aiSeed = defineSeed({
           .onConflict((oc) => oc.doNothing())
           .execute();
         logger.info(`Assigned specialist "${specialistName}" to triage "${agentConfig.name}"`);
+      }
+    }
+  },
+  async link(config, { db, logger, features }) {
+    const providers = collectToolProviders(features);
+
+    // Give the tools of other features to the agents
+    for (const agentConfig of config.agents) {
+      const entries = Object.entries(agentConfig.tools);
+      if (entries.length === 0) {
+        continue;
+      }
+
+      const agent = await db
+        .selectFrom("aiAgents")
+        .where("name", "=", agentConfig.name)
+        .select("id")
+        .executeTakeFirst();
+      if (!agent) {
+        continue;
+      }
+
+      for (const [providerName, resourceNames] of entries) {
+        const provider = providers.find((candidate) => candidate.name === providerName);
+        if (!provider) {
+          logger.warn(`Tool provider "${providerName}" not found for agent "${agentConfig.name}"`);
+          continue;
+        }
+
+        if (resourceNames === true) {
+          if (hasToolResources(provider)) {
+            logger.warn(
+              `Tool provider "${providerName}" of agent "${agentConfig.name}" needs the names of its resources`,
+            );
+            continue;
+          }
+          await db
+            .updateTable("aiAgents")
+            .set({ toolProviders: sql<string[]>`array_append(tool_providers, ${providerName}::VARCHAR)` })
+            .where("id", "=", agent.id)
+            .where(sql<boolean>`NOT (${providerName} = ANY(tool_providers))`)
+            .execute();
+          logger.info(`Switched on "${providerName}" for agent "${agentConfig.name}"`);
+          continue;
+        }
+        if (!hasToolResources(provider)) {
+          logger.warn(`Tool provider "${providerName}" of agent "${agentConfig.name}" has no resources to assign`);
+          continue;
+        }
+
+        const resources = await listResources(db, provider.resource, { names: resourceNames });
+        for (const resourceName of resourceNames) {
+          const resource = resources.find((candidate) => candidate.name === resourceName);
+          if (!resource) {
+            logger.warn(`Resource "${resourceName}" of "${providerName}" not found for agent "${agentConfig.name}"`);
+            continue;
+          }
+          await db
+            .insertInto("aiAgentToolResources")
+            .values({ agentId: agent.id, resourceType: provider.resource.type, resourceId: resource.id })
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+          logger.info(`Assigned "${resourceName}" of "${providerName}" to agent "${agentConfig.name}"`);
+        }
       }
     }
   },

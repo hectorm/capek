@@ -21,7 +21,23 @@ export function buildSkillToolsPrompt(): string {
   ].join("\n");
 }
 
-export function buildCodeInterpreterPrompt(): string {
+export function buildToolsetsPrompt(
+  toolsets: { instructions?: string; documents?: Readonly<Record<string, string>> }[],
+): string {
+  return toolsets
+    .flatMap((toolset) => [
+      ...(toolset.instructions ? [toolset.instructions] : []),
+      ...Object.entries(toolset.documents ?? {}).map(
+        ([name, content]) => `### ${name.replace(/\.md$/, "")}\n\n${content}`,
+      ),
+    ])
+    .join("\n\n");
+}
+
+export function buildCodeInterpreterPrompt(options: { toolProviders?: string[] } = {}): string {
+  const toolProviders = options.toolProviders ?? [];
+  const tools = toolProviders.length > 0;
+
   return [
     "## Code execution environment",
     "",
@@ -31,7 +47,7 @@ export function buildCodeInterpreterPrompt(): string {
     "",
     "- Code is already `async` wrapped, use `await` directly.",
     "- Use `return` for results, use `console.log` for debugging.",
-    "- No `require`, static `import`, `process` or external modules (except `/skills/` & `/servers/`).",
+    `- No \`require\`, static \`import\`, \`process\` or external modules (except \`/skills/\`${tools ? ", `/servers/` & `/tools/`" : " & `/servers/`"}).`,
     "",
     "### File system",
     "",
@@ -41,6 +57,7 @@ export function buildCodeInterpreterPrompt(): string {
     "- Paths:",
     "  - `/skills/`: reusable skills with code and documentation.",
     "  - `/servers/`: raw MCP tools (use if no suitable skill exists).",
+    ...(tools ? ["  - `/tools/`: tools of the application, with their usage instructions and documentation."] : []),
     "  - `/workspace/`: persists between executions. READ/WRITE here.",
     "",
     "### Skills structure",
@@ -54,6 +71,21 @@ export function buildCodeInterpreterPrompt(): string {
     "        └── main.js   # Skill implementation",
     "```",
     "",
+    ...(tools
+      ? [
+          "### Tools structure",
+          "",
+          "```",
+          "/tools/",
+          "├── index.js      # Main entry: const { $toolName } = await import('/tools/index.js')",
+          `└── <name>/       # Tools of one kind: ${toolProviders.join(", ")}`,
+          "    ├── README.md # Read for usage instructions",
+          "    ├── docs/     # Reference documents, read the relevant ones before calling a tool",
+          "    └── index.js  # Tool functions, which receive an object with their parameters",
+          "```",
+          "",
+        ]
+      : []),
     "### Examples",
     "",
     "Discover & Use:",

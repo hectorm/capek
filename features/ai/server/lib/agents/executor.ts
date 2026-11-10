@@ -3,12 +3,15 @@ import { z } from "zod/v4";
 
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
+import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
 import {
   buildCodeInterpreterPrompt,
   buildSkillToolsPrompt,
+  buildToolsetsPrompt,
   buildTriagePrompt,
 } from "#layers/ai/server/lib/agents/prompts";
 import { createVFS } from "#layers/ai/server/lib/code/generators";
@@ -20,12 +23,14 @@ import { ensureToolsDiscovered, findServerForTool } from "#layers/ai/server/lib/
 import { OpenAIManager } from "#layers/ai/server/lib/openai/manager";
 import { OpenAIStreamProcessor } from "#layers/ai/server/lib/openai/stream";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { findAgentTool, loadAgentToolsets } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
 import { OpenAICompletionResponseSchema, OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
+import { getToolProviders } from "#layers/core/server/lib/tools";
 
 const logger = useLogger();
 
@@ -82,6 +87,7 @@ export class AgentExecutor {
   private openAIClientIds: string[] = [];
   private iterationCount = 0;
   private startedAt: Date;
+  private toolCallDescriptions: string[] = [];
 
   public constructor(config: AgentExecutorConfig) {
     this.config = config;
@@ -269,12 +275,18 @@ export class AgentExecutor {
     }));
 
     const skillBindings: SkillBinding[] = agent.type === "specialist" ? await this.loadAgentSkills(agent.id) : [];
+    const toolsets: AgentToolset[] =
+      agent.type === "specialist" ? await loadAgentToolsets(db, getToolProviders(), agent.id) : [];
 
     let systemInstructions = agent.instructions;
     let tools: OpenAITool[];
 
     if (agent.codeInterpreter && agent.type === "specialist") {
-      systemInstructions = [agent.instructions, "", buildCodeInterpreterPrompt()].join("\n");
+      systemInstructions = [
+        agent.instructions,
+        "",
+        buildCodeInterpreterPrompt({ toolProviders: toolsets.map((toolset) => toolset.provider) }),
+      ].join("\n");
 
       tools = [
         {
@@ -327,10 +339,26 @@ export class AgentExecutor {
         },
       }));
 
-      tools = [...mcpTools, ...skillTools];
+      const featureTools: OpenAITool[] = toolsets.flatMap((toolset) =>
+        toolset.tools.map((tool) => ({
+          type: "function" as const,
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        })),
+      );
+
+      tools = [...mcpTools, ...skillTools, ...featureTools];
 
       if (executableSkills.length > 0) {
-        systemInstructions = [agent.instructions, "", buildSkillToolsPrompt()].join("\n");
+        systemInstructions = [systemInstructions, "", buildSkillToolsPrompt()].join("\n");
+      }
+
+      const toolsetsPrompt = buildToolsetsPrompt(toolsets);
+      if (toolsetsPrompt) {
+        systemInstructions = [systemInstructions, "", toolsetsPrompt].join("\n");
       }
     }
 
@@ -394,6 +422,7 @@ export class AgentExecutor {
             mcpServers,
             mcpServerBindings,
             skillBindings,
+            toolsets,
             messageHistory,
             agent,
             signal,
@@ -450,6 +479,7 @@ export class AgentExecutor {
             mcpServers,
             mcpServerBindings,
             skillBindings,
+            toolsets,
             messageHistory,
             agent,
             signal,
@@ -460,7 +490,15 @@ export class AgentExecutor {
           break;
         }
       }
+
+      const details = this.takeToolCallDetails();
+      if (details) {
+        accumulatedContent += details;
+        yield encodeStreamEvent(ChatStreamEvents.Token, details);
+      }
     } finally {
+      // Yielding here would stop a stream closed by its consumer before the answer is saved
+      accumulatedContent += this.takeToolCallDetails();
       if (accumulatedContent) {
         try {
           await this.saveAssistantMessage(accumulatedContent);
@@ -480,6 +518,7 @@ export class AgentExecutor {
     mcpServers: MCPServerInfo[],
     mcpServerBindings: MCPServerBinding[],
     skillBindings: SkillBinding[],
+    toolsets: AgentToolset[],
     messageHistory: OpenAIMessage[],
     agent: AgentConfig,
     signal?: AbortSignal,
@@ -490,7 +529,15 @@ export class AgentExecutor {
       const toolName = toolCall.function.name;
 
       if (toolName === "execute_code" && agent.codeInterpreter) {
-        yield* this.handleCodeExecution(toolCall, mcpServerBindings, skillBindings, messageHistory, agent, signal);
+        yield* this.handleCodeExecution(
+          toolCall,
+          mcpServerBindings,
+          skillBindings,
+          toolsets,
+          messageHistory,
+          agent,
+          signal,
+        );
         continue;
       }
 
@@ -501,6 +548,19 @@ export class AgentExecutor {
           yield* this.handleSkillToolCall(toolCall, skill, mcpServerBindings, messageHistory, agent, signal);
           continue;
         }
+      }
+
+      const featureTool = findAgentTool(toolsets, toolName);
+      if (featureTool) {
+        yield* this.handleFeatureToolCall(
+          toolCall,
+          featureTool.provider,
+          featureTool.tool,
+          messageHistory,
+          agent,
+          signal,
+        );
+        continue;
       }
 
       yield* this.handleMcpToolCall(toolCall, mcpServers, messageHistory, agent, signal);
@@ -515,6 +575,7 @@ export class AgentExecutor {
     toolCall: OpenAIToolCall,
     mcpServerBindings: MCPServerBinding[],
     skillBindings: SkillBinding[],
+    toolsets: AgentToolset[],
     messageHistory: OpenAIMessage[],
     agent: AgentConfig,
     signal?: AbortSignal,
@@ -537,7 +598,7 @@ export class AgentExecutor {
       "Executing code in interpreter",
     );
 
-    const vfs = createVFS(mcpServerBindings, skillBindings);
+    const vfs = createVFS(mcpServerBindings, skillBindings, toolsets);
 
     await loadSessionWorkspace(vfs, this.config.sessionId, this.config.user);
 
@@ -545,6 +606,7 @@ export class AgentExecutor {
       chatSessionId: this.config.sessionId,
       vfs,
       mcpServers: mcpServerBindings,
+      tools: { toolsets, context: { user: this.config.user, signal } },
       maxExecutionMs: agent.timeoutSec * 1000,
       maxMemoryBytes: 25 * 1024 * 1024,
       signal,
@@ -573,6 +635,18 @@ export class AgentExecutor {
       );
     }
 
+    for (const toolCallLog of executionResult.toolCallLogs) {
+      await this.saveToolCallFromCodeExecution(
+        codeExecutionId,
+        null,
+        toolCallLog.toolName,
+        JSON.stringify(toolCallLog.args),
+        toolCallLog.result,
+        toolCallLog.error,
+        toolCallLog.provider,
+      );
+    }
+
     let resultMessage: string;
     if (executionResult.error) {
       resultMessage = `Error: ${executionResult.error}`;
@@ -597,6 +671,10 @@ export class AgentExecutor {
 
       if (executionResult.mcpCallLogs.length > 0) {
         parts.push(`MCP calls made: ${String(executionResult.mcpCallLogs.length)}`);
+      }
+
+      if (executionResult.toolCallLogs.length > 0) {
+        parts.push(`Tool calls made: ${String(executionResult.toolCallLogs.length)}`);
       }
 
       parts.push(`Execution time: ${String(executionResult.executionMs)}ms`);
@@ -683,6 +761,69 @@ export class AgentExecutor {
 
       messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
     }
+  }
+
+  private async *handleFeatureToolCall(
+    toolCall: OpenAIToolCall,
+    provider: string,
+    tool: Tool,
+    messageHistory: OpenAIMessage[],
+    agent: AgentConfig,
+    signal?: AbortSignal,
+  ): AsyncGenerator<Uint8Array> {
+    let args: Record<string, unknown>;
+    try {
+      const raw: unknown = JSON.parse(toolCall.function.arguments);
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        throw new Error("Tool arguments must be a JSON object");
+      }
+      args = raw as Record<string, unknown>;
+    } catch (parseError) {
+      const errorMessage = `Failed to parse tool arguments: ${toolCall.function.arguments}`;
+      logger.error({ toolName: tool.name, executionId: this.executionId, parseError }, errorMessage);
+      await this.saveToolCall(toolCall, null, null, null, null, errorMessage, provider);
+      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      return;
+    }
+
+    yield encodeStreamEvent(ChatStreamEvents.Status, tool.name);
+
+    const description = tool.describe?.(args);
+    if (description) {
+      this.toolCallDescriptions.push(description);
+    }
+
+    try {
+      let result = await tool.execute(args, { user: this.config.user, signal });
+
+      await this.saveToolCall(toolCall, null, null, null, result, null, provider);
+
+      if (result.length > agent.maxToolResponseChars) {
+        const originalLength = result.length;
+        const truncatedLength = agent.maxToolResponseChars;
+        logger.debug({ toolName: tool.name, originalLength, truncatedLength }, "Tool response truncated");
+        result = result.slice(0, agent.maxToolResponseChars);
+        result += `\n\n[Response truncated: ${String(originalLength)} characters, showing first ${String(truncatedLength)}]`;
+      }
+
+      messageHistory.push(this.createMessage("tool", result, { toolCallId: toolCall.id }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ toolName: tool.name, provider, error: errorMessage }, "Tool execution failed");
+
+      await this.saveToolCall(toolCall, null, null, null, null, errorMessage, provider);
+
+      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+    }
+  }
+
+  private takeToolCallDetails(): string {
+    if (this.toolCallDescriptions.length === 0) {
+      return "";
+    }
+    const details = `\n\n<details><summary></summary>\n\n${this.toolCallDescriptions.join("\n\n")}\n\n</details>`;
+    this.toolCallDescriptions = [];
+    return details;
   }
 
   private async *handleSkillToolCall(
@@ -820,6 +961,7 @@ export class AgentExecutor {
     args: string,
     result: string | null,
     errorMessage: string | null,
+    toolProvider: string | null = null,
   ): Promise<void> {
     const executionId = this.executionId;
     if (!executionId) return;
@@ -831,6 +973,7 @@ export class AgentExecutor {
           executionId,
           codeExecutionId,
           mcpServerId,
+          toolProvider,
           toolName,
           arguments: args,
           result,
@@ -848,6 +991,7 @@ export class AgentExecutor {
     codeExecutionId: string | null,
     result: string | null,
     error: string | null,
+    toolProvider: string | null = null,
   ): Promise<void> {
     const executionId = this.executionId;
     if (!executionId) return;
@@ -859,6 +1003,7 @@ export class AgentExecutor {
           executionId,
           mcpServerId,
           skillId,
+          toolProvider,
           codeExecutionId,
           toolName: toolCall.function.name,
           arguments: toolCall.function.arguments,

@@ -6,6 +6,7 @@ import type {
   AgentSkillsTable,
   AgentsTable,
   AgentToolCallsTable,
+  AgentToolResourcesTable,
   ChatMessagesTable,
   ChatSessionsTable,
   ChatSessionVfsTable,
@@ -33,6 +34,7 @@ declare module "#layers/core/shared/schema" {
     aiAgentAccess: AgentAccessTable;
     aiAgentMcpServers: AgentMcpServersTable;
     aiAgentSkills: AgentSkillsTable;
+    aiAgentToolResources: AgentToolResourcesTable;
     aiTriageSpecialists: TriageSpecialistsTable;
     aiAgentExecutions: AgentExecutionsTable;
     aiAgentCodeExecutions: AgentCodeExecutionsTable;

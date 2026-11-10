@@ -132,6 +132,7 @@ export interface AgentsTable {
   model: string;
   summaryModel: string;
   codeInterpreter: boolean;
+  toolProviders: ColumnType<string[], string[] | undefined, string[]>;
   streaming: boolean;
   temperature: number | null;
   maxTokens: number | null;
@@ -178,6 +179,18 @@ export interface AgentSkillsTable {
 
 export type AgentSkill = Selectable<AgentSkillsTable>;
 export type NewAgentSkill = Insertable<AgentSkillsTable>;
+
+////////////////////////////////
+
+export interface AgentToolResourcesTable {
+  agentId: ColumnType<string, string, never>;
+  resourceType: ColumnType<string, string, never>;
+  resourceId: ColumnType<string, string, never>;
+  createdAt: ColumnType<Date, never, never>;
+}
+
+export type AgentToolResource = Selectable<AgentToolResourcesTable>;
+export type NewAgentToolResource = Insertable<AgentToolResourcesTable>;
 
 ////////////////////////////////
 
@@ -236,6 +249,7 @@ export interface AgentToolCallsTable {
   executionId: ColumnType<string, string, never>;
   mcpServerId: string | null;
   skillId: string | null;
+  toolProvider: string | null;
   codeExecutionId: string | null;
   toolName: string;
   arguments: string;

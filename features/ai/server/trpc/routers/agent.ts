@@ -4,13 +4,42 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import { AgentResource } from "#layers/ai/server/lib/resources";
+import { syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
-import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
+import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { getToolProviders } from "#layers/core/server/lib/tools";
+import { hasToolResources } from "#layers/core/server/lib/tools/define";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
+
+// Only the tool providers without resources to assign can be switched on for an agent
+const checkSwitchableToolProviders = (names: readonly string[]): string[] => {
+  const switchable = getToolProviders()
+    .filter((provider) => !hasToolResources(provider))
+    .map((provider) => provider.name);
+  const unknown = names.find((name) => !switchable.includes(name));
+  if (unknown !== undefined) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Tool provider "${unknown}" cannot be switched on`,
+    });
+  }
+  return [...new Set(names)];
+};
+
+const findResourceToolProvider = (name: string) => {
+  const provider = getToolProviders().find((candidate) => candidate.name === name);
+  if (!provider || !hasToolResources(provider)) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Tool provider not found",
+    });
+  }
+  return provider;
+};
 
 export const agentRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
@@ -30,6 +59,7 @@ export const agentRouter = createTRPCRouter({
             "model",
             "summaryModel",
             "codeInterpreter",
+            "toolProviders",
             "streaming",
             "temperature",
             "maxTokens",
@@ -165,11 +195,14 @@ export const agentRouter = createTRPCRouter({
           model: z.string().min(1).max(100).trim(),
           summaryModel: z.string().max(100).trim().default(""),
           codeInterpreter: z.boolean().default(false),
+          toolProviders: z.array(z.string().min(1).max(100)).max(100).default([]),
           streaming: z.boolean().default(true),
         })
         .extend(AgentExecutorParametersSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
+      const toolProviders = input.type === "specialist" ? checkSwitchableToolProviders(input.toolProviders) : [];
+
       const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
           const agentId = crypto.randomUUID();
@@ -187,6 +220,7 @@ export const agentRouter = createTRPCRouter({
               model: input.model,
               summaryModel: input.summaryModel,
               codeInterpreter: input.type === "specialist" ? input.codeInterpreter : false,
+              toolProviders,
               streaming: input.streaming,
               temperature: input.temperature ?? null,
               maxTokens: input.maxTokens ?? null,
@@ -218,6 +252,7 @@ export const agentRouter = createTRPCRouter({
               "model",
               "summaryModel",
               "codeInterpreter",
+              "toolProviders",
               "streaming",
               "temperature",
               "maxTokens",
@@ -281,18 +316,20 @@ export const agentRouter = createTRPCRouter({
           model: z.string().min(1).max(100).trim().optional(),
           summaryModel: z.string().max(100).trim().optional(),
           codeInterpreter: z.boolean().optional(),
+          toolProviders: z.array(z.string().min(1).max(100)).max(100).optional(),
           streaming: z.boolean().optional(),
         })
         .extend(AgentExecutorParametersSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
+      const toolProviders = updateData.toolProviders && checkSwitchableToolProviders(updateData.toolProviders);
 
       const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
           const updatedAgent = await trx
             .updateTable("aiAgents")
-            .set({ ...updateData, updatedAt: new Date() })
+            .set({ ...updateData, toolProviders, updatedAt: new Date() })
             .where("id", "=", id)
             .returning([
               "id",
@@ -305,6 +342,7 @@ export const agentRouter = createTRPCRouter({
               "model",
               "summaryModel",
               "codeInterpreter",
+              "toolProviders",
               "streaming",
               "temperature",
               "maxTokens",
@@ -844,6 +882,114 @@ export const agentRouter = createTRPCRouter({
             throw new TRPCError({
               code: "CONFLICT",
               message: "Duplicate skill assignment",
+            });
+          }
+          throw error;
+        }
+      });
+    }),
+
+  listToolProviders: authorizedProcedure([
+    AiPermissions.AgentReadAll,
+    AiPermissions.AgentReadOwn,
+    AiPermissions.AgentCreate,
+  ]).query(() => {
+    return getToolProviders().map((provider) => ({
+      name: provider.name,
+      label: provider.label,
+      assignable: hasToolResources(provider),
+    }));
+  }),
+
+  searchToolResources: authorizedProcedure([
+    AiPermissions.AgentCreate,
+    AiPermissions.AgentUpdateAll,
+    AiPermissions.AgentUpdateOwn,
+  ])
+    .input(
+      z.object({
+        provider: z.string().min(1).max(100),
+        search: z.string().max(255).optional(),
+        limit: z.number().min(1).max(100).default(25),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const provider = findResourceToolProvider(input.provider);
+
+      return withUserTransaction(ctx.user, async (trx) => {
+        const resources = await listResources(trx, provider.resource, { search: input.search, limit: input.limit });
+        ctx.logger.debug({ provider: provider.name }, "Tool resource list retrieved");
+        return resources;
+      });
+    }),
+
+  listToolResources: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
+    .input(z.object({ agentId: z.uuid() }))
+    .query(async ({ ctx, input }) => {
+      const agent = await withUserTransaction(ctx.user, async (trx) => {
+        return trx.selectFrom("aiAgents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
+      });
+
+      if (!agent) {
+        ctx.logger.warn({ agentId: input.agentId }, "Agent not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Agent not found",
+        });
+      }
+
+      // Agent access was verified above, load assigned resources in system context
+      // eslint-disable-next-line no-restricted-syntax
+      const db = await useDb();
+      const assigned = await db
+        .selectFrom("aiAgentToolResources")
+        .select(["resourceType", "resourceId"])
+        .where("agentId", "=", input.agentId)
+        .execute();
+
+      const resources: { provider: string; id: string; name: string }[] = [];
+      for (const provider of getToolProviders().filter(hasToolResources)) {
+        const ids = assigned
+          .filter((resource) => resource.resourceType === provider.resource.type)
+          .map((resource) => resource.resourceId);
+        for (const resource of await listResources(db, provider.resource, { ids })) {
+          resources.push({ provider: provider.name, ...resource });
+        }
+      }
+
+      ctx.logger.debug({ agentId: input.agentId }, "Agent tool resources list retrieved");
+      return resources;
+    }),
+
+  syncToolResources: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
+    .input(
+      z.object({
+        agentId: z.uuid(),
+        provider: z.string().min(1).max(100),
+        resourceIds: z.array(z.uuid()).max(100),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const provider = findResourceToolProvider(input.provider);
+
+      return withUserTransaction(ctx.user, async (trx) => {
+        try {
+          const { added, removed } = await syncAgentToolResources(trx, input.agentId, provider, input.resourceIds);
+          ctx.logger.info(
+            { agentId: input.agentId, provider: provider.name, added, removed },
+            "Agent tool resources synchronized",
+          );
+        } catch (error) {
+          if (isRLSViolation(error)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "You don't have permission to edit this agent or use these resources",
+            });
+          }
+          if (isUniqueViolation(error)) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Duplicate resource assignment",
             });
           }
           throw error;

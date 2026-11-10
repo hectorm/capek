@@ -1,5 +1,7 @@
+import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
+import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 
@@ -22,7 +24,11 @@ export interface SkillBinding {
   code: string | null;
 }
 
-export function createVFS(servers: MCPServerBinding[], skills: SkillBinding[]): VirtualFileSystem {
+export function createVFS(
+  servers: MCPServerBinding[],
+  skills: SkillBinding[],
+  toolsets: AgentToolset[] = [],
+): VirtualFileSystem {
   const vfs = new VirtualFileSystem();
 
   vfs.mkdir("/workspace");
@@ -62,7 +68,46 @@ export function createVFS(servers: MCPServerBinding[], skills: SkillBinding[]): 
   }
   vfs.writeFile("/skills/index.js", skillExports.join("\n\n") + "\n", { readonly: true });
 
+  if (toolsets.length > 0) {
+    const toolsetExports: string[] = [];
+    for (const toolset of toolsets) {
+      const provider = sanitizeId(toolset.provider);
+      const toolExports: string[] = [];
+
+      for (const tool of toolset.tools) {
+        const toolName = sanitizeId(tool.name);
+        vfs.writeFile(`/tools/${provider}/${toolName}.js`, generateFeatureToolModule(tool), { readonly: true });
+
+        const brief = tool.description.split("\n")[0]?.slice(0, 100) ?? tool.name;
+        toolExports.push(`/** ${brief} */\nexport { default as $${toolName} } from "./${toolName}.js";`);
+      }
+      vfs.writeFile(`/tools/${provider}/index.js`, toolExports.join("\n\n") + "\n", { readonly: true });
+
+      if (toolset.instructions) {
+        vfs.writeFile(`/tools/${provider}/README.md`, toolset.instructions, { readonly: true });
+      }
+      for (const [name, content] of Object.entries(toolset.documents ?? {})) {
+        const fileName = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+        vfs.writeFile(`/tools/${provider}/docs/${fileName}`, content, { readonly: true });
+      }
+
+      toolsetExports.push(`export * from "./${provider}/index.js";`);
+    }
+    vfs.writeFile("/tools/index.js", toolsetExports.join("\n") + "\n", { readonly: true });
+  }
+
   return vfs;
+}
+
+function generateFeatureToolModule(tool: Tool): string {
+  const jsdoc = generateJSDoc(tool.name, tool.description, tool.parameters);
+  return [
+    jsdoc,
+    "export default async function (params) {",
+    `  const result = await __toolCall(${JSON.stringify(tool.name)}, JSON.stringify(params || {}));`,
+    "  try { return JSON.parse(result); } catch { return result; }",
+    "}",
+  ].join("\n");
 }
 
 function generateToolModule(serverName: string, tool: MCPTool): string {
