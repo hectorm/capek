@@ -26,7 +26,7 @@ updates:
         patterns: ["*"]
     ignore:
       - dependency-name: "node"
-        versions: ["> 24.x"]
+        versions: ["> 26.x"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -2,7 +2,7 @@
 ## "build" stage
 ##################################################
 
-FROM mirror.gcr.io/node:24.22.2-trixie@sha256:5c6e2e57d7dd6652ce6f087ba0328312059d7c77f93baa8751865dbf103f1acb AS build
+FROM mirror.gcr.io/node:26.13.0-trixie@sha256:438603bbb5cda404b9416f0b5c8026f61501ab911760d861ec28c36b5d675725 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
@@ -34,6 +34,7 @@ FROM gcr.io/distroless/cc-debian13:nonroot@sha256:cc66d222f0a7ec996b78a99fe76a96
 ENV NUXT_DATABASE_URL=file:///tmp/pglite
 
 COPY --from=build --chown=0:0 /usr/local/bin/node /node
+COPY --from=build --chown=0:0 /usr/lib/*-linux-gnu/libatomic.so.1 /usr/lib/
 COPY --from=build --chown=0:0 /src/.output/ /app/
 COPY --from=build --chown=0:0 /src/bin/ /app/server/bin/
 
