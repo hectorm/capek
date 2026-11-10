@@ -134,15 +134,15 @@ export const OpenAICompletionResponseSchema = z.object({
 export type OpenAICompletionResponse = z.infer<typeof OpenAICompletionResponseSchema>;
 
 export const OpenAIStreamDeltaToolCallSchema = z.object({
-  index: z.number().optional(),
-  id: z.string().optional(),
-  type: z.literal("function").optional(),
+  index: z.number().nullish(),
+  id: z.string().nullish(),
+  type: z.literal("function").nullish(),
   function: z
     .object({
-      name: z.string().optional(),
-      arguments: z.string().optional(),
+      name: z.string().nullish(),
+      arguments: z.string().nullish(),
     })
-    .optional(),
+    .nullish(),
 });
 
 export type OpenAIStreamDeltaToolCall = z.infer<typeof OpenAIStreamDeltaToolCallSchema>;
@@ -157,7 +157,7 @@ export const OpenAIStreamChunkSchema = z.object({
     z.object({
       index: z.number(),
       delta: z.object({
-        role: z.string().optional(),
+        role: z.string().nullish(),
         content: OpenAIContentSchema.nullish(),
         refusal: z.string().nullish(),
         tool_calls: z.array(OpenAIStreamDeltaToolCallSchema).nullish(),

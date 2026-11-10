@@ -127,6 +127,48 @@ describe("openai chat completions", () => {
 
     expect(processor.getContent()).toBe("Sunny");
   });
+
+  it("reads the streamed tool calls of a provider that sends null for the fields it leaves out", () => {
+    const processor = new OpenAIStreamProcessor();
+    const toolCall = { index: 0, type: "function" };
+    const deltas = [
+      { role: "assistant", content: "" },
+      {
+        role: null,
+        content: null,
+        tool_calls: [{ ...toolCall, id: "call-1", function: { name: "get_weather", arguments: "" } }],
+      },
+      {
+        role: null,
+        content: null,
+        tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '{"city":' } }],
+      },
+      {
+        role: null,
+        content: null,
+        tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '"Madrid"}' } }],
+      },
+    ];
+
+    for (const delta of deltas) {
+      const chunk = processor.parseChunk(
+        JSON.stringify({
+          object: "chat.completion.chunk",
+          created: 0,
+          model: "reasoner",
+          choices: [{ index: 0, delta }],
+        }),
+      );
+      expect(chunk).not.toBeNull();
+      if (chunk) {
+        processor.processChunk(chunk);
+      }
+    }
+
+    expect(processor.getToolCalls()).toEqual([
+      { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
+    ]);
+  });
 });
 
 describe("openai responses", () => {
