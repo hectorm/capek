@@ -119,6 +119,7 @@ const state = reactive<
 const apiTypeOptions = [
   { value: "chat-completions", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.chatCompletions") },
   { value: "responses", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.responses") },
+  { value: "messages", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.messages") },
 ];
 
 const addHeader = () => {

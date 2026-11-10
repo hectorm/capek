@@ -375,6 +375,7 @@ export default () => ({
               label: "API type",
               chatCompletions: "Chat Completions",
               responses: "Responses",
+              messages: "Messages",
             },
             apiKey: {
               label: "API key",

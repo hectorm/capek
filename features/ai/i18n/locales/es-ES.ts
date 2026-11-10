@@ -377,6 +377,7 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Tipo de API",
               chatCompletions: "Chat Completions",
               responses: "Responses",
+              messages: "Messages",
             },
             apiKey: {
               label: "Clave de API",

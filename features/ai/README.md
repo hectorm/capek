@@ -4,7 +4,7 @@ This feature adds a chat where users ask questions and AI agents answer them. Ag
 
 ## Agents
 
-Each agent answers through an LLM provider, which can be any API compatible with OpenAI Chat Completions or [Open Responses](https://www.openresponses.org), and can call the tools of its MCP servers and skills. Specialist agents answer directly, while triage agents route each request to one of their specialists.
+Each agent answers through an LLM provider, which can be any API compatible with OpenAI Chat Completions, [Open Responses](https://www.openresponses.org) or Anthropic Messages, and can call the tools of its MCP servers and skills. Specialist agents answer directly, while triage agents route each request to one of their specialists.
 
 Agents can also use the tools that other features provide, like the datasources assigned to them.
 

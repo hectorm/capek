@@ -1,6 +1,7 @@
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { OpenAICompletionRequest, OpenAICompletionResponse, OpenAIMessage } from "#layers/ai/shared/openai";
 import type { HttpHeader } from "#layers/core/shared/http";
+import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAICompletionResponseSchema, OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -9,15 +10,19 @@ const logger = useLogger();
 
 interface OpenAIClientApi {
   path: string;
+  headers: (apiKey: string) => Record<string, string>;
   toRequest: (request: OpenAICompletionRequest) => unknown;
   fromResponse: (rawResponse: unknown) => OpenAICompletionResponse;
   fromStream: (stream: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>;
 }
 
+const bearerHeaders = (apiKey: string): Record<string, string> => (apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
+
 // Requests and responses have the format of Chat Completions, translated for the providers of the other APIs
 const apis: Record<LlmProviderApiType, OpenAIClientApi> = {
   "chat-completions": {
     path: "/chat/completions",
+    headers: bearerHeaders,
     toRequest: (request) => request,
     fromResponse: (rawResponse) => {
       const completion = OpenAICompletionResponseSchema.safeParse(rawResponse);
@@ -31,9 +36,17 @@ const apis: Record<LlmProviderApiType, OpenAIClientApi> = {
   },
   responses: {
     path: "/responses",
+    headers: bearerHeaders,
     toRequest: toResponsesRequest,
     fromResponse: fromResponsesResponse,
     fromStream: fromResponsesStream,
+  },
+  messages: {
+    path: "/messages",
+    headers: (apiKey) => ({ "anthropic-version": "2026-10-21", ...(apiKey ? { "x-api-key": apiKey } : {}) }),
+    toRequest: toMessagesRequest,
+    fromResponse: fromMessagesResponse,
+    fromStream: fromMessagesStream,
   },
 };
 
@@ -117,8 +130,8 @@ export class OpenAIClient {
       "Content-Type": "application/json",
     });
 
-    if (this.apiKey) {
-      headers.set("Authorization", `Bearer ${this.apiKey}`);
+    for (const [key, value] of Object.entries(this.api.headers(this.apiKey))) {
+      headers.set(key, value);
     }
 
     for (const [key, value] of Object.entries(this.headers)) {

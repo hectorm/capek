@@ -87,7 +87,10 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
 
   await db.schema
     .alterTable("public.aiLlmProviders")
-    .addCheckConstraint("ai_llm_providers_api_type_check", sql`api_type IN ('chat-completions', 'responses')`)
+    .addCheckConstraint(
+      "ai_llm_providers_api_type_check",
+      sql`api_type IN ('chat-completions', 'responses', 'messages')`,
+    )
     .execute();
 
   ////////////////////////////////
