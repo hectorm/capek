@@ -33,6 +33,8 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
 
+  await db.schema.createIndex("usersFullnameIdIdx").on("public.users").columns(["fullname", "id"]).execute();
+
   ////////////////////////////////
 
   await db.schema
