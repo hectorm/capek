@@ -60,7 +60,7 @@ jobs:
   build:
     name: "Build on ${{ matrix.runtime.name }} (${{ matrix.platform.arch }})"
     needs: ["test"]
-    runs-on: "ubuntu-26.04"
+    runs-on: "${{ matrix.platform.runner }}"
     permissions:
       contents: "read"
     strategy:
@@ -73,8 +73,10 @@ jobs:
         platform:
           - id: "linux-amd64"
             arch: "linux/amd64"
+            runner: "ubuntu-26.04"
           - id: "linux-arm64-v8"
             arch: "linux/arm64/v8"
+            runner: "ubuntu-26.04-arm"
     steps:
       - name: "Checkout"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
