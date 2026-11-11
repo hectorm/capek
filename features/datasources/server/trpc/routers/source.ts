@@ -333,11 +333,13 @@ export const sourceRouter = createTRPCRouter({
       // The secrets hidden in the form are taken from the stored datasource
       let config = parseConfig(datasourceType, input.config);
       if (id) {
+        // The lock limits the secrets to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("datasourcesSources")
             .select(["type", "config"])
             .where("id", "=", id)
+            .forUpdate()
             .executeTakeFirst();
         });
         config = datasourceType.definition.unredact(config, stored?.type === type ? stored.config : {});
