@@ -136,6 +136,8 @@ export const withUserTransaction = async <T>(
         trx,
       ),
       ...(options.trustedWrites ? [sql`SELECT set_config('app.trusted_write', 'on', true)`.execute(trx)] : []),
+      // The policies trigger JIT compilation in short queries, which is slower than running them
+      sql`SELECT set_config('jit', 'off', true)`.execute(trx),
     ]);
     return callback(trx);
   });

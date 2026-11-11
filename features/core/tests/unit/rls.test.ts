@@ -64,6 +64,14 @@ describe("rls core", () => {
     expect(role).toBe(FALLBACK_ROLE);
   });
 
+  it("runs the transactions of users without JIT compilation", async () => {
+    const jit = await asUser({ id: alice }, async (trx) => {
+      const r = await sql<{ jit: string }>`SHOW jit`.execute(trx);
+      return r.rows[0]?.jit;
+    });
+    expect(jit).toBe("off");
+  });
+
   it("only shows a member their own user", async () => {
     expect(await visibleIds("users", { id: alice, permissions: ["user:read:own"] })).toEqual([alice]);
   });
