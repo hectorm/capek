@@ -12,6 +12,7 @@ import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
@@ -143,52 +144,13 @@ export const agentRouter = createTRPCRouter({
           query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiAgents.${searchBy}`, "ilike", `%${v}%`))));
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorAgent = await trx
-            .selectFrom("aiAgents")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorAgent) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiAgents.${orderBy}`, ">", cursorAgent[orderBy]),
-                  eb.and([
-                    eb(`aiAgents.${orderBy}`, "=", cursorAgent[orderBy]),
-                    eb("aiAgents.id", ">", cursorAgent.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiAgents.${orderBy}`, "<", cursorAgent[orderBy]),
-                  eb.and([
-                    eb(`aiAgents.${orderBy}`, "=", cursorAgent[orderBy]),
-                    eb("aiAgents.id", "<", cursorAgent.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`aiAgents.${orderBy}`, order)
-          .orderBy("aiAgents.id", order)
-          .limit(limit + 1);
-
-        const agents = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (agents.length > limit) {
-          agents.pop();
-          nextCursor = agents[agents.length - 1]?.id;
-        }
+        const { rows: agents, nextCursor } = await paginate(query, {
+          table: "aiAgents",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("Agent list retrieved");
         return { agents, nextCursor };

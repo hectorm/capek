@@ -6,6 +6,7 @@ import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 export const chatSessionRouter = createTRPCRouter({
@@ -61,52 +62,13 @@ export const chatSessionRouter = createTRPCRouter({
           query = query.where((eb) => eb.or(searchList.map((v) => eb("aiChatSessions.title", "ilike", `%${v}%`))));
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorSession = await trx
-            .selectFrom("aiChatSessions")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorSession) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiChatSessions.${orderBy}`, ">", cursorSession[orderBy]),
-                  eb.and([
-                    eb(`aiChatSessions.${orderBy}`, "=", cursorSession[orderBy]),
-                    eb("aiChatSessions.id", ">", cursorSession.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiChatSessions.${orderBy}`, "<", cursorSession[orderBy]),
-                  eb.and([
-                    eb(`aiChatSessions.${orderBy}`, "=", cursorSession[orderBy]),
-                    eb("aiChatSessions.id", "<", cursorSession.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`aiChatSessions.${orderBy}`, order)
-          .orderBy("aiChatSessions.id", order)
-          .limit(limit + 1);
-
-        const sessions = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (sessions.length > limit) {
-          sessions.pop();
-          nextCursor = sessions[sessions.length - 1]?.id;
-        }
+        const { rows: sessions, nextCursor } = await paginate(query, {
+          table: "aiChatSessions",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("Chat session list retrieved");
         return { sessions, nextCursor };

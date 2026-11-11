@@ -57,6 +57,7 @@ Each feature owns its database changes:
 - Every table must have forced row level security (e.g. with `protectTable()`), otherwise the server refuses to start.
 - When a feature is removed its tables are kept, with row level security enabled and no policies, so they become inaccessible.
 - Migrations, policies and functions qualify their tables with the `public` schema, queries do not.
+- Lists are paged with `paginate()`, and the ones that can be long also filter by the rows of the user, since the policies alone do not use the indexes.
 
 ## Tools
 

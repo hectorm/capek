@@ -11,6 +11,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
@@ -70,52 +71,13 @@ export const mcpServerRouter = createTRPCRouter({
           query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiMcpServers.${searchBy}`, "ilike", `%${v}%`))));
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorMcpServer = await trx
-            .selectFrom("aiMcpServers")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorMcpServer) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiMcpServers.${orderBy}`, ">", cursorMcpServer[orderBy]),
-                  eb.and([
-                    eb(`aiMcpServers.${orderBy}`, "=", cursorMcpServer[orderBy]),
-                    eb("aiMcpServers.id", ">", cursorMcpServer.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiMcpServers.${orderBy}`, "<", cursorMcpServer[orderBy]),
-                  eb.and([
-                    eb(`aiMcpServers.${orderBy}`, "=", cursorMcpServer[orderBy]),
-                    eb("aiMcpServers.id", "<", cursorMcpServer.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`aiMcpServers.${orderBy}`, order)
-          .orderBy("aiMcpServers.id", order)
-          .limit(limit + 1);
-
-        const mcpServers = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (mcpServers.length > limit) {
-          mcpServers.pop();
-          nextCursor = mcpServers[mcpServers.length - 1]?.id;
-        }
+        const { rows: mcpServers, nextCursor } = await paginate(query, {
+          table: "aiMcpServers",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("MCP server list retrieved");
         return { mcpServers, nextCursor };

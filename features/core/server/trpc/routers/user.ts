@@ -6,6 +6,7 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter, publicProcedure } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
@@ -153,46 +154,13 @@ export const userRouter = createTRPCRouter({
           }
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorUser = await trx
-            .selectFrom("users")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorUser) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`users.${orderBy}`, ">", cursorUser[orderBy]),
-                  eb.and([eb(`users.${orderBy}`, "=", cursorUser[orderBy]), eb("users.id", ">", cursorUser.id)]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`users.${orderBy}`, "<", cursorUser[orderBy]),
-                  eb.and([eb(`users.${orderBy}`, "=", cursorUser[orderBy]), eb("users.id", "<", cursorUser.id)]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`users.${orderBy}`, order)
-          .orderBy("users.id", order)
-          .limit(limit + 1);
-
-        const users = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (users.length > limit) {
-          users.pop();
-          nextCursor = users[users.length - 1]?.id;
-        }
+        const { rows: users, nextCursor } = await paginate(query, {
+          table: "users",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         const usersWithDefaults = users.map((u) => ({
           ...u,

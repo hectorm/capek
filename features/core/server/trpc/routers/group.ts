@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { syncGroupRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
@@ -102,46 +103,13 @@ export const groupRouter = createTRPCRouter({
           }
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorGroup = await trx
-            .selectFrom("groups")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorGroup) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`groups.${orderBy}`, ">", cursorGroup[orderBy]),
-                  eb.and([eb(`groups.${orderBy}`, "=", cursorGroup[orderBy]), eb("groups.id", ">", cursorGroup.id)]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`groups.${orderBy}`, "<", cursorGroup[orderBy]),
-                  eb.and([eb(`groups.${orderBy}`, "=", cursorGroup[orderBy]), eb("groups.id", "<", cursorGroup.id)]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`groups.${orderBy}`, order)
-          .orderBy("groups.id", order)
-          .limit(limit + 1);
-
-        const groups = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (groups.length > limit) {
-          groups.pop();
-          nextCursor = groups[groups.length - 1]?.id;
-        }
+        const { rows: groups, nextCursor } = await paginate(query, {
+          table: "groups",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         const groupsWithDefaults = groups.map((g) => ({
           ...g,

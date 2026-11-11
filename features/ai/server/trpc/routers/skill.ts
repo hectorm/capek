@@ -10,6 +10,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
@@ -60,52 +61,13 @@ export const skillRouter = createTRPCRouter({
           query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiSkills.${searchBy}`, "ilike", `%${v}%`))));
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorSkill = await trx
-            .selectFrom("aiSkills")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorSkill) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiSkills.${orderBy}`, ">", cursorSkill[orderBy]),
-                  eb.and([
-                    eb(`aiSkills.${orderBy}`, "=", cursorSkill[orderBy]),
-                    eb("aiSkills.id", ">", cursorSkill.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiSkills.${orderBy}`, "<", cursorSkill[orderBy]),
-                  eb.and([
-                    eb(`aiSkills.${orderBy}`, "=", cursorSkill[orderBy]),
-                    eb("aiSkills.id", "<", cursorSkill.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`aiSkills.${orderBy}`, order)
-          .orderBy("aiSkills.id", order)
-          .limit(limit + 1);
-
-        const skills = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (skills.length > limit) {
-          skills.pop();
-          nextCursor = skills[skills.length - 1]?.id;
-        }
+        const { rows: skills, nextCursor } = await paginate(query, {
+          table: "aiSkills",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("Skill list retrieved");
         return { skills, nextCursor };

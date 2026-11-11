@@ -11,6 +11,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
@@ -74,52 +75,13 @@ export const llmProviderRouter = createTRPCRouter({
           );
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorLlmProvider = await trx
-            .selectFrom("aiLlmProviders")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorLlmProvider) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiLlmProviders.${orderBy}`, ">", cursorLlmProvider[orderBy]),
-                  eb.and([
-                    eb(`aiLlmProviders.${orderBy}`, "=", cursorLlmProvider[orderBy]),
-                    eb("aiLlmProviders.id", ">", cursorLlmProvider.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`aiLlmProviders.${orderBy}`, "<", cursorLlmProvider[orderBy]),
-                  eb.and([
-                    eb(`aiLlmProviders.${orderBy}`, "=", cursorLlmProvider[orderBy]),
-                    eb("aiLlmProviders.id", "<", cursorLlmProvider.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`aiLlmProviders.${orderBy}`, order)
-          .orderBy("aiLlmProviders.id", order)
-          .limit(limit + 1);
-
-        const llmProviders = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (llmProviders.length > limit) {
-          llmProviders.pop();
-          nextCursor = llmProviders[llmProviders.length - 1]?.id;
-        }
+        const { rows: llmProviders, nextCursor } = await paginate(query, {
+          table: "aiLlmProviders",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("LLM provider list retrieved");
         return { llmProviders, nextCursor };

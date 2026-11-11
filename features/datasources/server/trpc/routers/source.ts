@@ -8,6 +8,7 @@ import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
@@ -99,52 +100,13 @@ export const sourceRouter = createTRPCRouter({
           );
         }
 
-        // Apply cursor-based pagination
-        if (cursor) {
-          const cursorSource = await trx
-            .selectFrom("datasourcesSources")
-            .select(["id", orderBy])
-            .where("id", "=", cursor)
-            .executeTakeFirst();
-
-          if (cursorSource) {
-            if (order === "asc") {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`datasourcesSources.${orderBy}`, ">", cursorSource[orderBy]),
-                  eb.and([
-                    eb(`datasourcesSources.${orderBy}`, "=", cursorSource[orderBy]),
-                    eb("datasourcesSources.id", ">", cursorSource.id),
-                  ]),
-                ]),
-              );
-            } else {
-              query = query.where((eb) =>
-                eb.or([
-                  eb(`datasourcesSources.${orderBy}`, "<", cursorSource[orderBy]),
-                  eb.and([
-                    eb(`datasourcesSources.${orderBy}`, "=", cursorSource[orderBy]),
-                    eb("datasourcesSources.id", "<", cursorSource.id),
-                  ]),
-                ]),
-              );
-            }
-          }
-        }
-
-        // Apply ordering and limit
-        query = query
-          .orderBy(`datasourcesSources.${orderBy}`, order)
-          .orderBy("datasourcesSources.id", order)
-          .limit(limit + 1);
-
-        const sources = await query.execute();
-
-        let nextCursor: string | undefined = undefined;
-        if (sources.length > limit) {
-          sources.pop();
-          nextCursor = sources[sources.length - 1]?.id;
-        }
+        const { rows: sources, nextCursor } = await paginate(query, {
+          table: "datasourcesSources",
+          orderBy,
+          order,
+          limit,
+          cursor,
+        });
 
         ctx.logger.debug("Datasource list retrieved");
         return { sources, nextCursor };
