@@ -134,7 +134,7 @@ export default defineNuxtConfig({
       "auth:session-cleanup": { description: "Clean up expired sessions" },
     },
     scheduledTasks: {
-      "? */24 * * *": ["auth:session-cleanup"],
+      "0 0 * * *": ["auth:session-cleanup"],
     },
   },
   experimental: {

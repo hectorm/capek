@@ -1,5 +1,3 @@
-import cluster from "node:cluster";
-
 import { defineTask } from "nitropack/runtime/task";
 
 import { useDb } from "#layers/core/server/lib/database";
@@ -13,10 +11,6 @@ export default defineTask({
     description: "Clean up expired sessions",
   },
   async run() {
-    if (cluster.isWorker) {
-      return { result: true };
-    }
-
     logger.info("Starting session cleanup task");
 
     try {
