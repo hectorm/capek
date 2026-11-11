@@ -2,8 +2,12 @@ import { useNuxtApp } from "nuxt/app";
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef, triggerRef } from "vue";
 
-import type { ChatMessage, ChatSession } from "#layers/ai/shared/schema";
+import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import type { ChatSession } from "#layers/ai/shared/schema";
+import type { RouterOutputs } from "#layers/core/app/types/trpc";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
+
+type ChatMessage = RouterOutputs["ai"]["chatMessage"]["list"][number];
 
 interface StreamState {
   controller: AbortController;
@@ -202,6 +206,7 @@ export const useChatStore = defineStore("ai.chat", () => {
       sessionId,
       role: "user",
       content,
+      parts: [{ type: "text", text: content }],
       createdAt: now,
       updatedAt: now,
     };
@@ -211,6 +216,7 @@ export const useChatStore = defineStore("ai.chat", () => {
       sessionId,
       role: "assistant",
       content: "",
+      parts: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -259,7 +265,23 @@ export const useChatStore = defineStore("ai.chat", () => {
 
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg?.id === tempAssistantMessageId) {
-              const updatedMsg = { ...lastMsg, content: lastMsg.content + chunk };
+              const lastPart = lastMsg.parts.at(-1);
+              const parts: ChatMessagePart[] =
+                lastPart?.type === "text"
+                  ? [...lastMsg.parts.slice(0, -1), { type: "text", text: lastPart.text + chunk }]
+                  : [...lastMsg.parts, { type: "text", text: chunk }];
+              const updatedMsg = { ...lastMsg, content: lastMsg.content + chunk, parts };
+              messages.value.set(sessionId, [...msgs.slice(0, -1), updatedMsg]);
+              triggerRef(messages);
+            }
+          },
+          onTool: (part) => {
+            const msgs = messages.value.get(sessionId);
+            if (!msgs) return;
+
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg?.id === tempAssistantMessageId) {
+              const updatedMsg = { ...lastMsg, parts: [...lastMsg.parts, part] };
               messages.value.set(sessionId, [...msgs.slice(0, -1), updatedMsg]);
               triggerRef(messages);
             }
@@ -291,6 +313,7 @@ export const useChatStore = defineStore("ai.chat", () => {
           sessionId,
           role: "user",
           content,
+          parts: [{ type: "text", text: content }],
           createdAt: preservedNow,
           updatedAt: preservedNow,
         };
@@ -436,6 +459,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     body: ReadableStream<Uint8Array>,
     options: {
       onChunk?: (chunk: string) => void;
+      onTool?: (part: ChatMessagePart) => void;
       onStatus?: (status: string) => void;
       onError?: (message: string) => void;
       signal?: AbortSignal;
@@ -461,20 +485,22 @@ export const useChatStore = defineStore("ai.chat", () => {
         const currentEventType = eventType;
         eventType = null;
 
-        let value: string;
+        let value: unknown;
         try {
-          value = JSON.parse(raw) as string;
+          value = JSON.parse(raw);
         } catch (error) {
           console.debug("Failed to parse stream data", { error, line: trimmed });
           return;
         }
 
         if (currentEventType === ChatStreamEvents.Error) {
-          options.onError?.(value || "Agent execution failed");
+          options.onError?.((value as string) || "Agent execution failed");
         } else if (currentEventType === ChatStreamEvents.Status) {
-          options.onStatus?.(value);
+          options.onStatus?.(value as string);
         } else if (currentEventType === ChatStreamEvents.Token) {
-          options.onChunk?.(value);
+          options.onChunk?.(value as string);
+        } else if (currentEventType === ChatStreamEvents.Tool) {
+          options.onTool?.(value as ChatMessagePart);
         }
       }
     };

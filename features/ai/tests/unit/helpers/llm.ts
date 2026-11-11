@@ -1,9 +1,8 @@
 import { vi } from "vitest";
 
+import type { LlmItem, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
-import { OpenAIClient } from "#layers/ai/server/lib/openai/client";
-import { OpenAIStreamProcessor } from "#layers/ai/server/lib/openai/stream";
-import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { LlmClient } from "#layers/ai/server/lib/llm/client";
 
 // The requests of the client are answered by the given function and kept to check them
 export const createClient = (respond: () => Response, apiType?: LlmProviderApiType) => {
@@ -16,7 +15,7 @@ export const createClient = (respond: () => Response, apiType?: LlmProviderApiTy
     headers.push(new Headers(init.headers));
     return Promise.resolve(respond());
   });
-  const client = new OpenAIClient({
+  const client = new LlmClient({
     apiUrl: "http://llm.localhost/v1",
     apiType,
     apiKey: "hunter2",
@@ -29,9 +28,7 @@ const encoder = new TextEncoder();
 
 // Events are split in pieces that do not match their boundaries, like those of a network stream
 export const streamOf = (events: Record<string, unknown>[]): ReadableStream<Uint8Array> => {
-  const bytes = encoder.encode(
-    events.map((event) => `event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`).join(""),
-  );
+  const bytes = encoder.encode(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""));
   return new ReadableStream<Uint8Array>({
     start(controller) {
       for (let offset = 0; offset < bytes.length; offset += 50) {
@@ -43,29 +40,21 @@ export const streamOf = (events: Record<string, unknown>[]): ReadableStream<Uint
 };
 
 // Reads a translated stream the way the agents do
-export const readStream = async (stream: ReadableStream<Uint8Array>) => {
-  const processor = new OpenAIStreamProcessor();
-  const finishReasons: string[] = [];
-  const sseProcessor = new SSEProcessor({
-    onEvent: (event) => {
-      const chunk = processor.parseChunk(event.data);
-      if (chunk) {
-        processor.processChunk(chunk);
-        const finishReason = chunk.choices[0]?.finish_reason;
-        if (finishReason) {
-          finishReasons.push(finishReason);
-        }
-      }
-    },
-  });
+export const readStream = async (stream: ReadableStream<LlmStreamEvent>) => {
+  let text = "";
+  let output: LlmItem[] = [];
 
   const reader = stream.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    sseProcessor.process(value);
-  }
-  sseProcessor.flush();
 
-  return { content: processor.getContent(), toolCalls: processor.getToolCalls(), finishReasons };
+    if (value.type === "response.output_text.delta") {
+      text += value.delta;
+    } else {
+      output = value.response.output;
+    }
+  }
+
+  return { text, output };
 };

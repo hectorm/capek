@@ -1,42 +1,16 @@
 import type {
   AnthropicMessagesInputBlock,
   AnthropicMessagesMessage,
+  AnthropicMessagesOutputBlock,
   AnthropicMessagesRequest,
-  AnthropicMessagesToolChoice,
-  AnthropicMessagesUsage,
 } from "#layers/ai/shared/anthropic";
-import type {
-  OpenAICompletionRequest,
-  OpenAICompletionResponse,
-  OpenAIStreamChunk,
-  OpenAIToolCall,
-} from "#layers/ai/shared/openai";
+import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { AnthropicMessagesResponseSchema, AnthropicMessagesStreamEventSchema } from "#layers/ai/shared/anthropic";
 
 const failure = (message?: string | null): Error =>
   new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
-
-const toUsage = (usage?: AnthropicMessagesUsage | null): OpenAICompletionResponse["usage"] =>
-  usage && {
-    prompt_tokens: usage.input_tokens ?? 0,
-    completion_tokens: usage.output_tokens ?? 0,
-    total_tokens: (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0),
-  };
-
-const toFinishReason = (stopReason?: string | null): string => {
-  switch (stopReason) {
-    case "tool_use":
-      return "tool_calls";
-    case "max_tokens":
-      return "length";
-    case "refusal":
-      return "content_filter";
-    default:
-      return "stop";
-  }
-};
 
 const toToolInput = (toolArguments: string): Record<string, unknown> => {
   try {
@@ -49,159 +23,103 @@ const toToolInput = (toolArguments: string): Record<string, unknown> => {
   }
 };
 
-const toToolChoice = (request: OpenAICompletionRequest): AnthropicMessagesToolChoice | undefined => {
-  if (request.tool_choice === undefined && request.parallel_tool_calls !== false) {
-    return undefined;
+const toBlock = (item: LlmItem): AnthropicMessagesInputBlock => {
+  switch (item.type) {
+    case "message":
+      return { type: "text", text: item.content };
+    case "reasoning":
+      return item.content === undefined
+        ? { type: "redacted_thinking", data: item.encrypted_content ?? "" }
+        : { type: "thinking", thinking: item.content, signature: item.encrypted_content ?? "" };
+    case "function_call":
+      return { type: "tool_use", id: item.call_id, name: item.name, input: toToolInput(item.arguments) };
+    case "function_call_output":
+      return { type: "tool_result", tool_use_id: item.call_id, content: item.output };
   }
-  if (request.tool_choice === "none") {
-    return { type: "none" };
-  }
-
-  const toolChoice: AnthropicMessagesToolChoice =
-    typeof request.tool_choice === "object"
-      ? { type: "tool", name: request.tool_choice.function.name }
-      : { type: request.tool_choice === "required" ? "any" : "auto" };
-  if (request.parallel_tool_calls === false) {
-    toolChoice.disable_parallel_tool_use = true;
-  }
-
-  return toolChoice;
 };
 
-// Translates a request of Chat Completions to the Messages API of Anthropic
-export const toMessagesRequest = (request: OpenAICompletionRequest): AnthropicMessagesRequest => {
+const fromBlock = (block: AnthropicMessagesOutputBlock): LlmItem | undefined => {
+  switch (block.type) {
+    case "text":
+      return { type: "message", role: "assistant", content: block.text ?? "" };
+    case "thinking":
+      return { type: "reasoning", content: block.thinking ?? "", encrypted_content: block.signature ?? "" };
+    case "redacted_thinking":
+      return { type: "reasoning", encrypted_content: block.data ?? "" };
+    case "tool_use":
+      return block.id && block.name
+        ? { type: "function_call", call_id: block.id, name: block.name, arguments: JSON.stringify(block.input ?? {}) }
+        : undefined;
+    default:
+      return undefined;
+  }
+};
+
+const fromBlocks = (blocks: AnthropicMessagesOutputBlock[]): LlmItem[] =>
+  blocks.flatMap((block) => fromBlock(block) ?? []).filter((item) => item.type !== "message" || item.content);
+
+// Translates a request to the Messages API of Anthropic
+export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest => {
   const system: string[] = [];
   const messages: AnthropicMessagesMessage[] = [];
 
-  for (const message of request.messages) {
-    if (message.role === "system" || message.role === "developer") {
-      if (message.content) {
-        system.push(message.content);
+  for (const item of request.input) {
+    if (item.type === "message" && item.role === "system") {
+      if (item.content) {
+        system.push(item.content);
       }
       continue;
     }
-
-    const blocks: AnthropicMessagesInputBlock[] = [];
-    if (message.role === "tool") {
-      blocks.push({ type: "tool_result", tool_use_id: message.tool_call_id ?? "", content: message.content ?? "" });
-    } else {
-      if (message.content) {
-        blocks.push({ type: "text", text: message.content });
-      }
-      for (const toolCall of message.tool_calls ?? []) {
-        blocks.push({
-          type: "tool_use",
-          id: toolCall.id,
-          name: toolCall.function.name,
-          input: toToolInput(toolCall.function.arguments),
-        });
-      }
+    if (item.type === "message" && !item.content) {
+      continue;
     }
 
     // Messages take turns starting with the user, so the results of the tools called in a turn go together
-    const role = message.role === "assistant" ? "assistant" : "user";
+    const role =
+      item.type === "function_call_output" || (item.type === "message" && item.role === "user") ? "user" : "assistant";
     const last = messages.at(-1);
     if (last?.role === role) {
-      last.content.push(...blocks);
-    } else if (blocks.length > 0 && (last || role === "user")) {
-      messages.push({ role, content: blocks });
+      last.content.push(toBlock(item));
+    } else if (last || (item.type === "message" && role === "user")) {
+      messages.push({ role, content: [toBlock(item)] });
     }
   }
 
-  // The sampling parameters, the penalties and the seed of the request have no equivalent
+  // The sampling parameters and the penalties of the request have no equivalent
   return {
     model: request.model,
     system: system.length > 0 ? system.join("\n\n") : undefined,
     messages,
     stream: request.stream,
     // The limit of tokens is mandatory
-    max_tokens: request.max_completion_tokens ?? AgentExecutorParameters.maxTokens.default,
-    output_config: request.reasoning_effort ? { effort: request.reasoning_effort } : undefined,
-    stop_sequences: typeof request.stop === "string" ? [request.stop] : request.stop,
-    metadata: request.user ? { user_id: request.user } : undefined,
+    max_tokens: request.max_output_tokens ?? AgentExecutorParameters.maxTokens.default,
+    output_config: request.reasoning,
     tools: request.tools?.map((tool) => ({
-      name: tool.function.name,
-      description: tool.function.description,
-      input_schema: tool.function.parameters ?? { type: "object", properties: {} },
-      strict: tool.function.strict,
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.parameters,
     })),
-    tool_choice: toToolChoice(request),
   };
 };
 
-// Translates a response of the Messages API to Chat Completions
-export const fromMessagesResponse = (rawResponse: unknown): OpenAICompletionResponse => {
+// Translates a response of the Messages API
+export const fromMessagesResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = AnthropicMessagesResponseSchema.safeParse(rawResponse);
   if (!parsed.success) {
     throw new Error(`Invalid AI service completion response format: ${parsed.error.message}`);
   }
 
-  const response = parsed.data;
-
-  let content = "";
-  const toolCalls: OpenAIToolCall[] = [];
-
-  // The thinking of the model is not part of its answer
-  for (const block of response.content) {
-    if (block.type === "text") {
-      content += block.text ?? "";
-    } else if (block.type === "tool_use" && block.id && block.name) {
-      toolCalls.push({
-        id: block.id,
-        type: "function",
-        function: { name: block.name, arguments: JSON.stringify(block.input ?? {}) },
-      });
-    }
-  }
-
-  return {
-    id: response.id,
-    object: "chat.completion",
-    created: 0,
-    model: response.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: content || null,
-          tool_calls: toolCalls.length > 0 ? toolCalls : null,
-        },
-        finish_reason: toFinishReason(response.stop_reason),
-      },
-    ],
-    usage: toUsage(response.usage),
-  };
+  return { output: fromBlocks(parsed.data.content) };
 };
 
-// Translates the events of a streamed response of the Messages API to the chunks of Chat Completions
-export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> => {
-  const encoder = new TextEncoder();
+// Translates the events of a streamed response of the Messages API
+export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
   const pendingEvents: string[] = [];
   const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
 
-  let id = "";
-  let model = "";
-  let stopReason: string | null = null;
-  let usage: AnthropicMessagesUsage = {};
-  const toolCallsWithoutArguments = new Set<number>();
+  const items = new Map<number, LlmItem>();
 
-  const encodeChunk = (
-    choice: Omit<OpenAIStreamChunk["choices"][number], "index">,
-    chunkUsage?: OpenAIStreamChunk["usage"],
-  ): Uint8Array => {
-    const chunk: OpenAIStreamChunk = {
-      id,
-      object: "chat.completion.chunk",
-      created: 0,
-      model,
-      choices: [{ index: 0, ...choice }],
-      usage: chunkUsage,
-    };
-    return encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`);
-  };
-
-  const translateEvents = (controller: TransformStreamDefaultController<Uint8Array>): void => {
+  const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
     for (const data of pendingEvents.splice(0)) {
       let rawEvent: unknown;
       try {
@@ -216,47 +134,38 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
 
       const event = parsed.data;
       const index = event.index ?? 0;
+      const item = items.get(index);
 
       switch (event.type) {
-        case "message_start":
-          id = event.message?.id ?? id;
-          model = event.message?.model ?? model;
-          usage = { ...usage, ...event.message?.usage };
-          break;
-        case "content_block_start":
-          if (event.content_block?.type === "tool_use" && event.content_block.id && event.content_block.name) {
-            toolCallsWithoutArguments.add(index);
-            const toolCall = {
-              id: event.content_block.id,
-              type: "function" as const,
-              function: { name: event.content_block.name },
-            };
-            controller.enqueue(encodeChunk({ delta: { tool_calls: [{ index, ...toolCall }] } }));
+        case "content_block_start": {
+          const started = event.content_block && fromBlock(event.content_block);
+          if (started) {
+            items.set(index, started.type === "function_call" ? { ...started, arguments: "" } : started);
           }
           break;
+        }
         case "content_block_delta":
-          if (event.delta?.type === "text_delta" && event.delta.text) {
-            controller.enqueue(encodeChunk({ delta: { content: event.delta.text } }));
-          } else if (event.delta?.type === "input_json_delta" && event.delta.partial_json) {
-            toolCallsWithoutArguments.delete(index);
-            controller.enqueue(
-              encodeChunk({ delta: { tool_calls: [{ index, function: { arguments: event.delta.partial_json } }] } }),
-            );
+          if (item?.type === "message" && event.delta?.text) {
+            item.content += event.delta.text;
+            controller.enqueue({ type: "response.output_text.delta", delta: event.delta.text });
+          } else if (item?.type === "reasoning") {
+            item.content = (item.content ?? "") + (event.delta?.thinking ?? "");
+            item.encrypted_content = (item.encrypted_content ?? "") + (event.delta?.signature ?? "");
+          } else if (item?.type === "function_call") {
+            item.arguments += event.delta?.partial_json ?? "";
           }
           break;
         case "content_block_stop":
-          // A tool called without arguments streams none, where Chat Completions has an empty object
-          if (toolCallsWithoutArguments.delete(index)) {
-            controller.enqueue(encodeChunk({ delta: { tool_calls: [{ index, function: { arguments: "{}" } }] } }));
+          // A tool called without arguments streams none
+          if (item?.type === "function_call" && !item.arguments) {
+            item.arguments = "{}";
           }
           break;
-        case "message_delta":
-          stopReason = event.delta?.stop_reason ?? stopReason;
-          usage = { ...usage, ...event.usage };
-          break;
         case "message_stop":
-          controller.enqueue(encodeChunk({ delta: {}, finish_reason: toFinishReason(stopReason) }, toUsage(usage)));
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.enqueue({
+            type: "response.completed",
+            response: { output: Array.from(items.values()).filter((i) => i.type !== "message" || i.content) },
+          });
           break;
         case "error":
           controller.error(failure(event.error?.message));
@@ -266,7 +175,7 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
   };
 
   return stream.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
+    new TransformStream<Uint8Array, LlmStreamEvent>({
       transform(bytes, controller) {
         sseProcessor.process(bytes);
         translateEvents(controller);

@@ -4,8 +4,9 @@ import { z } from "zod/v4";
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import type { LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
-import type { OpenAIMessage, OpenAITool, OpenAIToolCall } from "#layers/ai/shared/openai";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
@@ -19,16 +20,15 @@ import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
 import { AbortError, ConcurrentExecutionError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
+import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
-import { OpenAIManager } from "#layers/ai/server/lib/openai/manager";
-import { OpenAIStreamProcessor } from "#layers/ai/server/lib/openai/stream";
-import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { loadAgentToolsets } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
+import { LlmItemSchema } from "#layers/ai/shared/llm";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
-import { OpenAICompletionResponseSchema, OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
+import { OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -38,7 +38,7 @@ const logger = useLogger();
 
 const streamEncoder = new TextEncoder();
 
-const encodeStreamEvent = (event: string, data: string): Uint8Array => {
+const encodeStreamEvent = (event: string, data: string | ChatMessagePart): Uint8Array => {
   return streamEncoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 };
 
@@ -82,18 +82,33 @@ interface AgentTool {
   toolProvider?: string;
 }
 
+type LlmFunctionCall = Extract<LlmItem, { type: "function_call" }>;
+
 const triageToolSchema = z.object({
   specialistId: z.string(),
   routingReason: z.string(),
 });
 
+const countChars = (items: LlmItem[]): number => {
+  return items.reduce((total, item) => {
+    switch (item.type) {
+      case "message":
+        return total + item.content.length;
+      case "reasoning":
+        return total;
+      case "function_call":
+        return total + item.arguments.length;
+      case "function_call_output":
+        return total + item.output.length;
+    }
+  }, 0);
+};
+
 export class AgentExecutor {
   private config: AgentExecutorConfig;
   private executionId: string | null = null;
-  private openAIClientIds: string[] = [];
   private iterationCount = 0;
   private startedAt: Date;
-  private toolCallDescriptions: string[] = [];
 
   public constructor(config: AgentExecutorConfig) {
     this.config = config;
@@ -165,8 +180,6 @@ export class AgentExecutor {
         await this.completeExecution("failed", error instanceof Error ? error.message : String(error));
       }
       throw error;
-    } finally {
-      this.cleanup();
     }
   }
 
@@ -179,47 +192,46 @@ export class AgentExecutor {
 
     const triageInstructions = buildTriagePrompt(agent.instructions, specialists);
 
-    const tools = [
+    const tools: LlmTool[] = [
       {
-        type: "function" as const,
-        function: {
-          name: "route_to_specialist",
-          description: "Route the user's request to the most appropriate specialist agent",
-          parameters: {
-            type: "object" as const,
-            properties: {
-              specialistId: {
-                type: "string",
-                enum: specialists.map((s) => s.id),
-                description: "The ID of the specialist to route to",
-              },
-              routingReason: {
-                type: "string",
-                description: [
-                  "A short, friendly message shown to the user explaining the routing decision.",
-                  "IMPORTANT: Write this message in the same language the user is using.",
-                  "Example (English): 'Routing to SQL Analyst to help with your query'",
-                  "Example (Spanish): 'Redirigiendo al Analista SQL para ayudarte con tu consulta'",
-                ].join("\n"),
-              },
+        type: "function",
+        name: "route_to_specialist",
+        description: "Route the user's request to the most appropriate specialist agent",
+        parameters: {
+          type: "object",
+          properties: {
+            specialistId: {
+              type: "string",
+              enum: specialists.map((s) => s.id),
+              description: "The ID of the specialist to route to",
             },
-            required: ["specialistId", "routingReason"],
+            routingReason: {
+              type: "string",
+              description: [
+                "A short, friendly message shown to the user explaining the routing decision.",
+                "IMPORTANT: Write this message in the same language the user is using.",
+                "Example (English): 'Routing to SQL Analyst to help with your query'",
+                "Example (Spanish): 'Redirigiendo al Analista SQL para ayudarte con tu consulta'",
+              ].join("\n"),
+            },
           },
+          required: ["specialistId", "routingReason"],
         },
       },
     ];
 
-    const messages = await this.buildMessageContext(agent);
-    const contextMessages: OpenAIMessage[] = [this.createMessage("system", triageInstructions), ...messages];
+    // The tools are called by the specialists, so only what was said matters to choose one
+    const context = await this.buildContext(agent, { toolCalls: false });
+    const items: LlmItem[] = [{ type: "message", role: "system", content: triageInstructions }, ...context];
 
-    const openAIClient = this.getOpenAIClient(agent);
-    const completion = await openAIClient.completion(
+    const llmClient = this.createLlmClient(agent);
+    const completion = await llmClient.completion(
       {
-        messages: contextMessages,
+        input: items,
         model: agent.model,
-        reasoning_effort: agent.reasoningEffort || undefined,
+        reasoning: agent.reasoningEffort ? { effort: agent.reasoningEffort } : undefined,
         temperature: agent.temperature ?? undefined,
-        max_completion_tokens: agent.maxTokens ?? undefined,
+        max_output_tokens: agent.maxTokens ?? undefined,
         top_p: agent.topP ?? undefined,
         frequency_penalty: agent.frequencyPenalty ?? undefined,
         presence_penalty: agent.presencePenalty ?? undefined,
@@ -233,22 +245,14 @@ export class AgentExecutor {
       throw new Error("Streaming not supported for triage agent");
     }
 
-    const parsed = OpenAICompletionResponseSchema.safeParse(completion);
-    if (!parsed.success || !parsed.data.choices[0]) {
-      throw new Error("Invalid completion response from triage agent");
-    }
-
-    const choice = parsed.data.choices[0];
-    const toolCalls = choice.message.tool_calls;
-    if (!toolCalls?.[0]) {
+    const functionCall = completion.output.find((item) => item.type === "function_call");
+    if (!functionCall) {
       throw new Error("Triage agent failed to select a specialist");
     }
 
-    const toolCall = toolCalls[0];
-
     let rawArgs: unknown;
     try {
-      rawArgs = JSON.parse(toolCall.function.arguments);
+      rawArgs = JSON.parse(functionCall.arguments);
     } catch {
       throw new Error("Triage agent returned invalid JSON for tool arguments");
     }
@@ -327,19 +331,19 @@ export class AgentExecutor {
       }
     }
 
-    const functionTools: OpenAITool[] = tools.map(({ tool }) => ({
-      type: "function" as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
+    const functionTools: LlmTool[] = tools.map(({ tool }) => ({
+      type: "function",
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
     }));
 
-    const messages = await this.buildMessageContext(agent);
-    const messageHistory: OpenAIMessage[] = [this.createMessage("system", systemInstructions), ...messages];
+    const context = await this.buildContext(agent, { toolCalls: true });
+    const items: LlmItem[] = [{ type: "message", role: "system", content: systemInstructions }, ...context];
+    const contextLength = items.length;
 
-    let accumulatedContent = "";
+    const llmClient = this.createLlmClient(agent);
+
     let completed = false;
 
     try {
@@ -352,14 +356,13 @@ export class AgentExecutor {
 
         await this.updateLastActivity();
 
-        const openAIClient = this.getOpenAIClient(agent);
-        const completion = await openAIClient.completion(
+        const completion = await llmClient.completion(
           {
-            messages: messageHistory,
+            input: items,
             model: agent.model,
-            reasoning_effort: agent.reasoningEffort || undefined,
+            reasoning: agent.reasoningEffort ? { effort: agent.reasoningEffort } : undefined,
             temperature: agent.temperature ?? undefined,
-            max_completion_tokens: agent.maxTokens ?? undefined,
+            max_output_tokens: agent.maxTokens ?? undefined,
             top_p: agent.topP ?? undefined,
             frequency_penalty: agent.frequencyPenalty ?? undefined,
             presence_penalty: agent.presencePenalty ?? undefined,
@@ -368,100 +371,57 @@ export class AgentExecutor {
           signal,
         );
 
-        if (!(completion instanceof ReadableStream)) {
-          const parsed = OpenAICompletionResponseSchema.safeParse(completion);
-          if (!parsed.success || !parsed.data.choices[0]) {
-            throw new Error("Invalid completion response from specialist agent");
-          }
+        let output: LlmItem[] = [];
 
-          const firstChoice = parsed.data.choices[0];
-          const content = firstChoice.message.content ?? "";
-          accumulatedContent += content;
+        if (completion instanceof ReadableStream) {
+          const reader = completion.getReader();
+          let text = "";
 
-          if (content) {
-            yield encodeStreamEvent(ChatStreamEvents.Token, content);
-          }
+          try {
+            while (!signal?.aborted) {
+              const { done, value } = await reader.read();
+              if (done) break;
 
-          const toolCalls = firstChoice.message.tool_calls;
-          if (!toolCalls || toolCalls.length === 0) {
-            completed = true;
-            break;
-          }
-
-          const assistantMessage = this.createMessage("assistant", firstChoice.message.content ?? "", {
-            toolCalls: firstChoice.message.tool_calls ?? undefined,
-          });
-          messageHistory.push(assistantMessage);
-          yield* this.handleToolCalls(toolCalls, tools, messageHistory, agent, signal);
-          continue;
-        }
-
-        const reader = completion.getReader();
-        const streamProcessor = new OpenAIStreamProcessor();
-        const pendingTokens: string[] = [];
-
-        try {
-          const sseProcessor = new SSEProcessor({
-            onEvent: (event) => {
-              const chunk = streamProcessor.parseChunk(event.data);
-              if (chunk) {
-                streamProcessor.processChunk(chunk);
-                const delta = chunk.choices.at(0)?.delta.content;
-                if (delta) {
-                  pendingTokens.push(delta);
-                }
+              if (value.type === "response.output_text.delta") {
+                text += value.delta;
+                yield encodeStreamEvent(ChatStreamEvents.Token, value.delta);
+              } else {
+                output = value.response.output;
               }
-            },
-          });
+            }
+          } finally {
+            reader.releaseLock();
+            // A stream that stops before its response is complete leaves the text that it sent
+            if (output.length === 0 && text) {
+              output = [{ type: "message", role: "assistant", content: text }];
+            }
+            items.push(...output);
+          }
+        } else {
+          output = completion.output;
+          items.push(...output);
 
-          while (!signal?.aborted) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            sseProcessor.process(value);
-            while (pendingTokens.length > 0) {
-              yield encodeStreamEvent(ChatStreamEvents.Token, pendingTokens.shift() ?? "");
+          for (const item of output) {
+            if (item.type === "message") {
+              yield encodeStreamEvent(ChatStreamEvents.Token, item.content);
             }
           }
-
-          sseProcessor.flush();
-          while (pendingTokens.length > 0) {
-            yield encodeStreamEvent(ChatStreamEvents.Token, pendingTokens.shift() ?? "");
-          }
-        } finally {
-          reader.releaseLock();
-          accumulatedContent += streamProcessor.getContent();
         }
 
-        const contentDelta = streamProcessor.getContent();
-
-        if (streamProcessor.hasToolCalls()) {
-          const currentToolCalls = streamProcessor.getToolCalls();
-          const assistantMessage = this.createMessage("assistant", contentDelta, { toolCalls: currentToolCalls });
-          messageHistory.push(assistantMessage);
-
-          yield* this.handleToolCalls(currentToolCalls, tools, messageHistory, agent, signal);
-          streamProcessor.reset();
-        } else {
+        const functionCalls = output.filter((item) => item.type === "function_call");
+        if (functionCalls.length === 0) {
           completed = true;
           break;
         }
-      }
 
-      const details = this.takeToolCallDetails();
-      if (details) {
-        accumulatedContent += details;
-        yield encodeStreamEvent(ChatStreamEvents.Token, details);
+        yield* this.handleToolCalls(functionCalls, tools, items, agent, signal);
       }
     } finally {
       // Yielding here would stop a stream closed by its consumer before the answer is saved
-      accumulatedContent += this.takeToolCallDetails();
-      if (accumulatedContent) {
-        try {
-          await this.saveAssistantMessage(accumulatedContent);
-        } catch (error) {
-          logger.error({ executionId: this.executionId, error }, "Failed to persist streamed answer");
-        }
+      try {
+        await this.saveAssistantMessage(items.slice(contextLength));
+      } catch (error) {
+        logger.error({ executionId: this.executionId, error }, "Failed to persist streamed answer");
       }
     }
 
@@ -471,16 +431,16 @@ export class AgentExecutor {
   }
 
   private async *handleToolCalls(
-    toolCalls: OpenAIToolCall[],
+    functionCalls: LlmFunctionCall[],
     tools: AgentTool[],
-    messageHistory: OpenAIMessage[],
+    items: LlmItem[],
     agent: AgentConfig,
     signal?: AbortSignal,
   ): AsyncGenerator<Uint8Array> {
     await this.updateLastActivity();
 
-    for (const toolCall of toolCalls) {
-      yield* this.handleToolCall(toolCall, tools, messageHistory, agent, signal);
+    for (const functionCall of functionCalls) {
+      yield* this.handleToolCall(functionCall, tools, items, agent, signal);
     }
 
     yield encodeStreamEvent(ChatStreamEvents.Status, "");
@@ -489,76 +449,73 @@ export class AgentExecutor {
   }
 
   private async *handleToolCall(
-    toolCall: OpenAIToolCall,
+    functionCall: LlmFunctionCall,
     tools: AgentTool[],
-    messageHistory: OpenAIMessage[],
+    items: LlmItem[],
     agent: AgentConfig,
     signal?: AbortSignal,
   ): AsyncGenerator<Uint8Array> {
-    const toolName = toolCall.function.name;
-    const agentTool = tools.find((candidate) => candidate.tool.name === toolName);
+    const toolName = functionCall.name;
+    // A skill or a tool of the application comes before the tool of an MCP server with its name
+    const agentTool = tools.findLast((candidate) => candidate.tool.name === toolName);
 
     if (!agentTool) {
       const errorMessage = `Tool "${toolName}" not found`;
       logger.error({ toolName, executionId: this.executionId }, errorMessage);
-      await this.saveToolCall(toolCall, null, null, errorMessage);
-      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      await this.saveToolCall(functionCall, null, null, errorMessage);
+      items.push({ type: "function_call_output", call_id: functionCall.call_id, output: `Error: ${errorMessage}` });
       return;
     }
 
     let args: Record<string, unknown>;
     try {
-      const raw: unknown = JSON.parse(toolCall.function.arguments);
+      const raw: unknown = JSON.parse(functionCall.arguments);
       if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         throw new Error("Tool arguments must be a JSON object");
       }
       args = raw as Record<string, unknown>;
     } catch (parseError) {
-      const errorMessage = `Failed to parse tool arguments: ${toolCall.function.arguments}`;
+      const errorMessage = `Failed to parse tool arguments: ${functionCall.arguments}`;
       logger.error({ toolName, executionId: this.executionId, parseError }, errorMessage);
-      await this.saveToolCall(toolCall, agentTool, null, errorMessage);
-      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      await this.saveToolCall(functionCall, agentTool, null, errorMessage);
+      items.push({ type: "function_call_output", call_id: functionCall.call_id, output: `Error: ${errorMessage}` });
       return;
     }
 
     yield encodeStreamEvent(ChatStreamEvents.Status, toolName);
 
-    const description = agentTool.tool.describe?.(args);
-    if (description) {
-      this.toolCallDescriptions.push(description);
+    functionCall.description = agentTool.tool.describe?.(args);
+    if (functionCall.description) {
+      yield encodeStreamEvent(ChatStreamEvents.Tool, {
+        type: "tool",
+        id: functionCall.call_id,
+        name: toolName,
+        description: functionCall.description,
+      });
     }
 
     try {
       let result = await agentTool.tool.execute(args, { user: this.config.user, signal });
 
-      await this.saveToolCall(toolCall, agentTool, result, null);
+      await this.saveToolCall(functionCall, agentTool, result, null);
 
       if (result.length > agent.maxToolResponseChars) {
         const originalLength = result.length;
         const truncatedLength = agent.maxToolResponseChars;
         logger.debug({ toolName, originalLength, truncatedLength }, "Tool response truncated");
-        result = result.slice(0, agent.maxToolResponseChars);
+        result = result.slice(0, agent.maxToolResponseChars).toWellFormed();
         result += `\n\n[Response truncated: ${String(originalLength)} characters, showing first ${String(truncatedLength)}]`;
       }
 
-      messageHistory.push(this.createMessage("tool", result, { toolCallId: toolCall.id }));
+      items.push({ type: "function_call_output", call_id: functionCall.call_id, output: result });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error({ toolName, executionId: this.executionId, error: errorMessage }, "Tool execution failed");
 
-      await this.saveToolCall(toolCall, agentTool, null, errorMessage);
+      await this.saveToolCall(functionCall, agentTool, null, errorMessage);
 
-      messageHistory.push(this.createMessage("tool", `Error: ${errorMessage}`, { toolCallId: toolCall.id }));
+      items.push({ type: "function_call_output", call_id: functionCall.call_id, output: `Error: ${errorMessage}` });
     }
-  }
-
-  private takeToolCallDetails(): string {
-    if (this.toolCallDescriptions.length === 0) {
-      return "";
-    }
-    const details = `\n\n<details><summary></summary>\n\n${this.toolCallDescriptions.join("\n\n")}\n\n</details>`;
-    this.toolCallDescriptions = [];
-    return details;
   }
 
   private createCodeTool(
@@ -834,7 +791,7 @@ export class AgentExecutor {
   }
 
   private async saveToolCall(
-    toolCall: OpenAIToolCall,
+    functionCall: LlmFunctionCall,
     agentTool: AgentTool | null,
     result: string | null,
     error: string | null,
@@ -850,8 +807,8 @@ export class AgentExecutor {
           mcpServerId: agentTool?.mcpServerId ?? null,
           skillId: agentTool?.skillId ?? null,
           toolProvider: agentTool?.toolProvider ?? null,
-          toolName: toolCall.function.name,
-          arguments: toolCall.function.arguments,
+          toolName: functionCall.name,
+          arguments: functionCall.arguments,
           result,
           errorMessage: error,
           completedAt: new Date(),
@@ -1006,11 +963,11 @@ export class AgentExecutor {
     });
   }
 
-  private async buildMessageContext(agent: AgentConfig): Promise<OpenAIMessage[]> {
+  private async buildContext(agent: AgentConfig, options: { toolCalls: boolean }): Promise<LlmItem[]> {
     const db = await useDb();
     const messages = await db
       .selectFrom("aiChatMessages")
-      .select(["role", "content"])
+      .select(["role", "content", "items"])
       .where("sessionId", "=", this.config.sessionId)
       .where("role", "in", ["user", "assistant", "system"])
       .orderBy("createdAt", "desc")
@@ -1019,21 +976,43 @@ export class AgentExecutor {
       .limit(2000)
       .execute();
 
-    const result: OpenAIMessage[] = [];
+    const result: LlmItem[][] = [];
 
     let totalChars = 0;
     for (const m of messages) {
-      const msg = m as { role: string; content: string };
+      const parsed = z.array(LlmItemSchema).safeParse(m.items);
+      const message: LlmItem = { type: "message", role: m.role as "user" | "assistant" | "system", content: m.content };
+      let items = options.toolCalls && parsed.success && parsed.data.length > 0 ? parsed.data : [message];
+      // An answer whose tool calls do not fit is kept as what it said
+      if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
+        items = [message];
+      }
       // Always keep the newest message, even if it alone exceeds the budget
-      if (result.length > 0 && totalChars + msg.content.length > agent.maxContextChars) break;
-      result.push(this.createMessage(msg.role as "user" | "assistant" | "system", msg.content));
-      totalChars += msg.content.length;
+      if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) break;
+      result.push(items);
+      totalChars += countChars(items);
     }
 
-    return result.reverse();
+    return result.reverse().flat();
   }
 
-  private async saveAssistantMessage(content: string): Promise<void> {
+  private async saveAssistantMessage(answer: LlmItem[]): Promise<void> {
+    const content = answer
+      .filter((item) => item.type === "message")
+      .map((item) => item.content)
+      .join("");
+
+    // The reasoning only lasts for the execution, and a tool call left without its output cannot be sent again
+    const callIds = new Set(answer.filter((item) => item.type === "function_call_output").map((item) => item.call_id));
+    const items = answer.filter(
+      (item) => item.type !== "reasoning" && (item.type !== "function_call" || callIds.has(item.call_id)),
+    );
+
+    // An answer without text is only kept for the tool calls that tell the user what they did
+    if (!content && !items.some((item) => item.type === "function_call" && item.description)) {
+      return;
+    }
+
     await withUserTransaction(
       this.config.user,
       async (trx) => {
@@ -1043,6 +1022,7 @@ export class AgentExecutor {
             sessionId: this.config.sessionId,
             role: "assistant",
             content,
+            items: JSON.stringify(items),
           })
           .returning(["id"])
           .executeTakeFirstOrThrow();
@@ -1094,34 +1074,8 @@ export class AgentExecutor {
     });
   }
 
-  private createMessage(
-    role: "user" | "assistant" | "system" | "tool",
-    content: string,
-    options?: { toolCallId?: string; toolCalls?: OpenAIToolCall[] },
-  ): OpenAIMessage {
-    const message: OpenAIMessage = { role, content };
-
-    if (options?.toolCallId) {
-      message.tool_call_id = options.toolCallId;
-    }
-    if (options?.toolCalls && options.toolCalls.length > 0) {
-      message.tool_calls = options.toolCalls;
-    }
-
-    return message;
-  }
-
-  private getOpenAIClient(agent: AgentConfig) {
-    const openAIManager = OpenAIManager.getInstance();
-    const executionId = this.executionId ?? "unknown";
-    const clientId = `exec-${executionId}-agent-${agent.id}`;
-
-    if (openAIManager.hasClient(clientId)) {
-      return openAIManager.getClient(clientId);
-    }
-
-    this.openAIClientIds.push(clientId);
-    return openAIManager.addClient(clientId, {
+  private createLlmClient(agent: AgentConfig): LlmClient {
+    return new LlmClient({
       apiUrl: agent.apiUrl,
       apiType: agent.apiType,
       apiKey: agent.apiKey,
@@ -1135,15 +1089,5 @@ export class AgentExecutor {
   private checkTimeout(agent: AgentConfig): boolean {
     const elapsed = (Date.now() - this.startedAt.getTime()) / 1000;
     return elapsed < agent.timeoutSec;
-  }
-
-  public cleanup(): void {
-    if (this.openAIClientIds.length > 0) {
-      const openAIManager = OpenAIManager.getInstance();
-      for (const clientId of this.openAIClientIds) {
-        openAIManager.removeClient(clientId);
-      }
-      this.openAIClientIds = [];
-    }
   }
 }

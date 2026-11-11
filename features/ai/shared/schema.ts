@@ -1,5 +1,6 @@
 import type { ColumnType, Insertable, Selectable, Updateable } from "kysely";
 
+import type { LlmItem } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
@@ -26,6 +27,7 @@ export interface ChatMessagesTable {
   sessionId: ColumnType<string, string, never>;
   role: "app" | "user" | "assistant" | "system" | "tool";
   content: string;
+  items: ColumnType<LlmItem[], string | undefined, string>;
   createdAt: ColumnType<Date, never, never>;
   updatedAt: ColumnType<Date, never, Date>;
 }

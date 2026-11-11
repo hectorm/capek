@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
-import { OpenAIManager } from "#layers/ai/server/lib/openai/manager";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
@@ -288,9 +288,7 @@ export const chatSessionRouter = createTRPCRouter({
         return chatSession;
       }
 
-      const openAIManager = OpenAIManager.getInstance();
-      const clientId = `summary-${input.id}-${String(Date.now())}`;
-      const openAIClient = openAIManager.addClient(clientId, {
+      const llmClient = new LlmClient({
         apiUrl: agentLlmConfig.apiUrl,
         apiType: agentLlmConfig.apiType,
         apiKey: agentLlmConfig.apiKey ?? "",
@@ -301,14 +299,12 @@ export const chatSessionRouter = createTRPCRouter({
 
       let title: string;
       try {
-        title = await openAIClient.summary(firstUserMessageContent);
+        title = await llmClient.summary(firstUserMessageContent);
         ctx.logger.debug({ sessionId: input.id }, "Chat session title summarized");
       } catch (error) {
         ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
         const content = firstUserMessageContent.trim();
         title = content.length <= 80 ? content : content.slice(0, 77) + "...";
-      } finally {
-        openAIManager.removeClient(clientId);
       }
 
       return withUserTransaction(ctx.user, async (trx) => {

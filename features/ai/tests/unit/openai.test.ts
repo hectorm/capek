@@ -1,23 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
+import type { LlmRequest } from "#layers/ai/shared/llm";
+import {
+  fromChatCompletionsResponse,
+  fromChatCompletionsStream,
+  toChatCompletionsRequest,
+} from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
-import { OpenAIStreamProcessor } from "#layers/ai/server/lib/openai/stream";
-import { createClient, readStream, streamOf } from "#layers/ai/tests/unit/helpers/openai";
+import { createClient, readStream, streamOf } from "#layers/ai/tests/unit/helpers/llm";
 
-const request: OpenAICompletionRequest = {
-  messages: [{ role: "user", content: "What is the weather in Madrid?" }],
+const request: LlmRequest = {
+  input: [{ type: "message", role: "user", content: "What is the weather in Madrid?" }],
   stream: false,
-  tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object", properties: {} } } }],
+  tools: [{ type: "function", name: "get_weather", parameters: { type: "object", properties: {} } }],
 };
+
+const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("openai chat completions", () => {
-  it("keeps the text of an answer split in parts", async () => {
-    const { client } = createClient(() =>
+  it("uses the Chat Completions API of the providers set up with it", async () => {
+    const { client, sent, paths, headers } = createClient(() =>
       Response.json({
         id: "chatcmpl-test",
         object: "chat.completion",
@@ -28,48 +34,151 @@ describe("openai chat completions", () => {
             index: 0,
             message: {
               role: "assistant",
-              content: [
-                { type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }], closed: true },
-                { type: "text", text: "Sunny" },
+              tool_calls: [
+                { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
               ],
             },
-            finish_reason: "stop",
+            finish_reason: "tool_calls",
           },
         ],
       }),
     );
 
-    await expect(client.completion(request)).resolves.toMatchObject({ choices: [{ message: { content: "Sunny" } }] });
+    await expect(client.completion(request)).resolves.toEqual({
+      output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
+    });
+    expect(paths).toEqual(["/v1/chat/completions"]);
+    expect(headers[0]?.get("authorization")).toBe("Bearer hunter2");
+    expect(sent[0]).toMatchObject({
+      model: "reasoner",
+      messages: [{ role: "user", content: "What is the weather in Madrid?" }],
+      tools: [{ type: "function", function: { name: "get_weather" } }],
+    });
   });
 
-  it("keeps the text of a streamed answer split in parts", () => {
-    const processor = new OpenAIStreamProcessor();
+  it("translates the conversation, the tools and the parameters of a request", () => {
+    const signature = { google: { thought_signature: "signature" } };
+    const completionRequest: LlmRequest = {
+      model: "reasoner",
+      stream: true,
+      max_output_tokens: 1024,
+      reasoning: { effort: "low" },
+      temperature: 0.2,
+      input: [
+        { type: "message", role: "system", content: "Be brief." },
+        { type: "message", role: "assistant", content: "" },
+        { type: "message", role: "user", content: "What is the weather in Madrid and in Paris?" },
+        { type: "message", role: "assistant", content: "Let me check." },
+        { type: "reasoning", encrypted_content: JSON.stringify(signature) },
+        { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
+        { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
+        { type: "function_call_output", call_id: "call-1", output: "Sunny" },
+        { type: "function_call_output", call_id: "call-2", output: "Rainy" },
+        { type: "function_call", call_id: "call-3", name: "get_weather", arguments: '{"city":"Lyon"}' },
+        { type: "function_call_output", call_id: "call-3", output: "Cloudy" },
+      ],
+      tools: [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get the weather of a city",
+          parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+        },
+      ],
+    };
+
+    expect(toChatCompletionsRequest(completionRequest)).toEqual({
+      model: "reasoner",
+      stream: true,
+      max_completion_tokens: 1024,
+      reasoning_effort: "low",
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: "Be brief." },
+        { role: "user", content: "What is the weather in Madrid and in Paris?" },
+        {
+          role: "assistant",
+          content: "Let me check.",
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
+              extra_content: signature,
+            },
+            { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
+          ],
+        },
+        { role: "tool", content: "Sunny", tool_call_id: "call-1" },
+        { role: "tool", content: "Rainy", tool_call_id: "call-2" },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { id: "call-3", type: "function", function: { name: "get_weather", arguments: '{"city":"Lyon"}' } },
+          ],
+        },
+        { role: "tool", content: "Cloudy", tool_call_id: "call-3" },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_weather",
+            description: "Get the weather of a city",
+            parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+          },
+        },
+      ],
+    });
+  });
+
+  it("keeps the text of an answer split in parts", () => {
+    const translated = fromChatCompletionsResponse({
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      created: 0,
+      model: "reasoner",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: [
+              { type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }], closed: true },
+              { type: "text", text: "Sunny" },
+            ],
+          },
+          finish_reason: "stop",
+        },
+      ],
+    });
+
+    expect(translated).toEqual({ output: [{ type: "message", role: "assistant", content: "Sunny" }] });
+  });
+
+  it("rejects a malformed response", () => {
+    expect(() => fromChatCompletionsResponse({ id: "chatcmpl-1" })).toThrow(
+      "Invalid AI service completion response format",
+    );
+  });
+
+  it("keeps the text of a streamed answer split in parts", async () => {
     const deltas = [
       [{ type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }] }],
       [{ type: "text", text: "Sun" }],
       "ny",
     ];
+    const stream = fromChatCompletionsStream(
+      streamOf(deltas.map((content) => ({ ...chunk, choices: [{ index: 0, delta: { content } }] }))),
+    );
 
-    for (const content of deltas) {
-      const chunk = processor.parseChunk(
-        JSON.stringify({
-          object: "chat.completion.chunk",
-          created: 0,
-          model: "reasoner",
-          choices: [{ index: 0, delta: { content } }],
-        }),
-      );
-      expect(chunk).not.toBeNull();
-      if (chunk) {
-        processor.processChunk(chunk);
-      }
-    }
-
-    expect(processor.getContent()).toBe("Sunny");
+    const { text, output } = await readStream(stream);
+    expect(text).toBe("Sunny");
+    expect(output).toEqual([{ type: "message", role: "assistant", content: "Sunny" }]);
   });
 
-  it("reads the streamed tool calls of a provider that sends null for the fields it leaves out", () => {
-    const processor = new OpenAIStreamProcessor();
+  it("reads the streamed tool calls of a provider that sends null for the fields it leaves out", async () => {
     const toolCall = { index: 0, type: "function" };
     const deltas = [
       { role: "assistant", content: "" },
@@ -89,29 +198,17 @@ describe("openai chat completions", () => {
         tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '"Madrid"}' } }],
       },
     ];
+    const stream = fromChatCompletionsStream(
+      streamOf(deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] }))),
+    );
 
-    for (const delta of deltas) {
-      const chunk = processor.parseChunk(
-        JSON.stringify({
-          object: "chat.completion.chunk",
-          created: 0,
-          model: "reasoner",
-          choices: [{ index: 0, delta }],
-        }),
-      );
-      expect(chunk).not.toBeNull();
-      if (chunk) {
-        processor.processChunk(chunk);
-      }
-    }
-
-    expect(processor.getToolCalls()).toEqual([
-      { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
+    const { output } = await readStream(stream);
+    expect(output).toEqual([
+      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
     ]);
   });
 
-  it("keeps the streamed tool calls without an index and the data that the provider needs back with them", () => {
-    const processor = new OpenAIStreamProcessor();
+  it("keeps the streamed tool calls without an index and the data that the provider needs back with them", async () => {
     const signature = { google: { thought_signature: "signature" } };
     const deltas = [
       {
@@ -132,37 +229,22 @@ describe("openai chat completions", () => {
         ],
       },
     ];
+    const stream = fromChatCompletionsStream(
+      streamOf(deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] }))),
+    );
 
-    for (const delta of deltas) {
-      const chunk = processor.parseChunk(
-        JSON.stringify({
-          object: "chat.completion.chunk",
-          created: 0,
-          model: "reasoner",
-          choices: [{ index: 0, delta }],
-        }),
-      );
-      expect(chunk).not.toBeNull();
-      if (chunk) {
-        processor.processChunk(chunk);
-      }
-    }
-
-    expect(processor.getToolCalls()).toEqual([
-      {
-        id: "call-1",
-        type: "function",
-        function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
-        extra_content: signature,
-      },
-      { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
+    const { output } = await readStream(stream);
+    expect(output).toEqual([
+      { type: "reasoning", encrypted_content: JSON.stringify(signature) },
+      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
+      { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
     ]);
   });
 });
 
 describe("openai responses", () => {
   it("uses the Responses API of the providers set up with it", async () => {
-    const { client, sent, paths } = createClient(
+    const { client, sent, paths, headers } = createClient(
       () =>
         Response.json({
           id: "resp-test",
@@ -174,54 +256,45 @@ describe("openai responses", () => {
       "responses",
     );
 
-    await expect(client.completion(request)).resolves.toMatchObject({
-      object: "chat.completion",
-      choices: [
-        {
-          message: {
-            tool_calls: [{ id: "call-1", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } }],
-          },
-          finish_reason: "tool_calls",
-        },
-      ],
+    await expect(client.completion(request)).resolves.toEqual({
+      output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
     });
     expect(paths).toEqual(["/v1/responses"]);
+    expect(headers[0]?.get("authorization")).toBe("Bearer hunter2");
     expect(sent[0]).toMatchObject({
       model: "reasoner",
       input: [{ type: "message", role: "user", content: "What is the weather in Madrid?" }],
       tools: [{ type: "function", name: "get_weather" }],
     });
-    expect(sent[0]).not.toHaveProperty("messages");
   });
 
   it("translates the conversation, the tools and the parameters of a request", () => {
-    const completionRequest: OpenAICompletionRequest = {
+    const completionRequest: LlmRequest = {
       model: "reasoner",
       stream: true,
-      max_completion_tokens: 1024,
-      reasoning_effort: "low",
+      max_output_tokens: 1024,
+      reasoning: { effort: "low" },
       temperature: 0.2,
-      tool_choice: { type: "function", function: { name: "get_weather" } },
-      messages: [
-        { role: "system", content: "" },
-        { role: "user", content: "What is the weather in Madrid?" },
+      input: [
+        { type: "message", role: "system", content: "" },
+        { type: "message", role: "user", content: "What is the weather in Madrid?" },
+        { type: "reasoning", content: "The user asks for the weather", encrypted_content: "encrypted" },
+        { type: "message", role: "assistant", content: "Let me check." },
         {
-          role: "assistant",
-          content: "Let me check.",
-          tool_calls: [
-            { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
-          ],
+          type: "function_call",
+          call_id: "call-1",
+          name: "get_weather",
+          arguments: '{"city":"Madrid"}',
+          description: "Weather of Madrid",
         },
-        { role: "tool", content: "Sunny", tool_call_id: "call-1" },
+        { type: "function_call_output", call_id: "call-1", output: "Sunny" },
       ],
       tools: [
         {
           type: "function",
-          function: {
-            name: "get_weather",
-            description: "Get the weather of a city",
-            parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
-          },
+          name: "get_weather",
+          description: "Get the weather of a city",
+          parameters: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
         },
       ],
     };
@@ -230,12 +303,18 @@ describe("openai responses", () => {
       model: "reasoner",
       stream: true,
       store: false,
+      include: ["reasoning.encrypted_content"],
       max_output_tokens: 1024,
       reasoning: { effort: "low" },
       temperature: 0.2,
-      tool_choice: { type: "function", name: "get_weather" },
       input: [
         { type: "message", role: "user", content: "What is the weather in Madrid?" },
+        {
+          type: "reasoning",
+          summary: [],
+          content: [{ type: "reasoning_text", text: "The user asks for the weather" }],
+          encrypted_content: "encrypted",
+        },
         { type: "message", role: "assistant", content: "Let me check." },
         { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
         { type: "function_call_output", call_id: "call-1", output: "Sunny" },
@@ -252,14 +331,19 @@ describe("openai responses", () => {
     });
   });
 
-  it("translates the answer and the tool calls of a response, without its reasoning", () => {
+  it("translates the reasoning, the answer and the tool calls of a response", () => {
     const translated = fromResponsesResponse({
       id: "resp-1",
       created_at: 1700000000,
       model: "reasoner",
       status: "completed",
       output: [
-        { type: "reasoning", content: [{ type: "reasoning_text", text: "The user asks for the weather" }] },
+        {
+          type: "reasoning",
+          summary: [],
+          content: [{ type: "reasoning_text", text: "The user asks for the weather" }],
+          encrypted_content: "encrypted",
+        },
         { type: "message", role: "assistant", content: [{ type: "output_text", text: "Let me check." }] },
         { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
       ],
@@ -267,38 +351,12 @@ describe("openai responses", () => {
     });
 
     expect(translated).toEqual({
-      id: "resp-1",
-      object: "chat.completion",
-      created: 1700000000,
-      model: "reasoner",
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: "Let me check.",
-            refusal: null,
-            tool_calls: [
-              { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
-            ],
-          },
-          finish_reason: "tool_calls",
-        },
+      output: [
+        { type: "reasoning", content: "The user asks for the weather", encrypted_content: "encrypted" },
+        { type: "message", role: "assistant", content: "Let me check." },
+        { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
       ],
-      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
     });
-  });
-
-  it("marks a response cut by the token limit", () => {
-    const translated = fromResponsesResponse({
-      id: "resp-1",
-      model: "reasoner",
-      status: "incomplete",
-      incomplete_details: { reason: "max_output_tokens" },
-      output: [],
-    });
-
-    expect(translated.choices[0]?.finish_reason).toBe("length");
   });
 
   it("rejects a failed or malformed response", () => {
@@ -315,40 +373,39 @@ describe("openai responses", () => {
   });
 
   it("translates the events of a streamed response", async () => {
-    const response = { id: "resp-1", created_at: 1700000000, model: "reasoner", output: [] };
+    const response = { id: "resp-1", created_at: 1700000000, model: "reasoner" };
+    const output = [
+      { type: "reasoning", summary: [], encrypted_content: "encrypted" },
+      { type: "message", role: "assistant", content: [{ type: "output_text", text: "Let me check." }] },
+      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
+    ];
     const stream = fromResponsesStream(
       streamOf([
-        { type: "response.created", response: { ...response, status: "in_progress" } },
-        { type: "response.output_item.added", output_index: 0, item: { type: "reasoning", content: [] } },
-        { type: "response.reasoning_text.delta", output_index: 0, delta: "The user asks for the weather" },
+        { type: "response.created", response: { ...response, status: "in_progress", output: [] } },
+        { type: "response.output_item.added", output_index: 0, item: { type: "reasoning", summary: [] } },
+        { type: "response.output_item.done", output_index: 0, item: output[0] },
         { type: "response.output_item.added", output_index: 1, item: { type: "message", content: [] } },
         { type: "response.output_text.delta", output_index: 1, delta: "Let me " },
         { type: "response.output_text.delta", output_index: 1, delta: "check." },
+        { type: "response.output_item.done", output_index: 1, item: output[1] },
         {
           type: "response.output_item.added",
           output_index: 2,
           item: { type: "function_call", call_id: "call-1", name: "get_weather", arguments: "" },
         },
-        { type: "response.function_call_arguments.delta", output_index: 2, delta: '{"city":' },
-        { type: "response.function_call_arguments.delta", output_index: 2, delta: '"Madrid"}' },
-        { type: "response.function_call_arguments.done", output_index: 2, arguments: '{"city":"Madrid"}' },
-        {
-          type: "response.completed",
-          response: {
-            ...response,
-            status: "completed",
-            usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
-          },
-        },
+        { type: "response.function_call_arguments.delta", output_index: 2, delta: '{"city":"Madrid"}' },
+        { type: "response.output_item.done", output_index: 2, item: output[2] },
+        { type: "response.completed", response: { ...response, status: "completed", output } },
       ]),
     );
 
-    const { content, toolCalls, finishReasons } = await readStream(stream);
-    expect(content).toBe("Let me check.");
-    expect(toolCalls).toEqual([
-      { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
+    const translated = await readStream(stream);
+    expect(translated.text).toBe("Let me check.");
+    expect(translated.output).toEqual([
+      { type: "reasoning", encrypted_content: "encrypted" },
+      { type: "message", role: "assistant", content: "Let me check." },
+      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
     ]);
-    expect(finishReasons).toEqual(["tool_calls"]);
   });
 
   it("fails the stream of a response that fails", async () => {

@@ -1,9 +1,26 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import type { LlmItem } from "#layers/ai/shared/llm";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
+
+// Of the items of a message, only its text and what its tool calls say about themselves are for the user
+const toParts = (content: string, items: LlmItem[]): ChatMessagePart[] => {
+  const parts = items.flatMap((item): ChatMessagePart[] => {
+    if (item.type === "message" && item.content) {
+      return [{ type: "text", text: item.content }];
+    }
+    if (item.type === "function_call" && item.description) {
+      return [{ type: "tool", id: item.call_id, name: item.name, description: item.description }];
+    }
+    return [];
+  });
+
+  return parts.length > 0 ? parts : [{ type: "text", text: content }];
+};
 
 export const chatMessageRouter = createTRPCRouter({
   list: authorizedProcedure([AiPermissions.ChatListAll, AiPermissions.ChatListOwn])
@@ -16,13 +33,13 @@ export const chatMessageRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const messages = await trx
           .selectFrom("aiChatMessages")
-          .select(["id", "sessionId", "role", "content", "createdAt", "updatedAt"])
+          .select(["id", "sessionId", "role", "content", "items", "createdAt", "updatedAt"])
           .where("sessionId", "=", input.sessionId)
           .orderBy("createdAt", "asc")
           .execute();
 
         ctx.logger.debug({ sessionId: input.sessionId }, "Chat messages retrieved");
-        return messages;
+        return messages.map(({ items, ...message }) => ({ ...message, parts: toParts(message.content, items) }));
       });
     }),
 
@@ -53,7 +70,7 @@ export const chatMessageRouter = createTRPCRouter({
           .execute();
 
         ctx.logger.info({ messageId: message.id, sessionId: input.sessionId }, "Chat message created");
-        return message;
+        return { ...message, parts: toParts(message.content, []) };
       });
     }),
 

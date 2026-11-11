@@ -170,11 +170,16 @@ export class MockLLMChatCompletionsServer {
     }
   }
 
-  // An answer about the reasoning effort tells the one of the request
+  // An answer about the reasoning effort or the tool results tells those of the request
   private getResponse(request: OpenAICompletionRequest): string {
-    return this.getLastUserMessageContent(request).includes("reasoning effort")
-      ? `Reasoning effort: ${request.reasoning_effort ?? "default"}`
-      : this.response;
+    const content = this.getLastUserMessageContent(request);
+    if (content.includes("reasoning effort")) {
+      return `Reasoning effort: ${request.reasoning_effort ?? "default"}`;
+    }
+    if (content.includes("tool results")) {
+      return `Tool results: ${String(request.messages?.filter((m) => m.role === "tool").length ?? 0)}`;
+    }
+    return this.response;
   }
 
   private getLastUserMessageContent(request: OpenAICompletionRequest): string {

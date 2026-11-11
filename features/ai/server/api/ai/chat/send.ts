@@ -165,7 +165,6 @@ export default defineEventHandler(async (event) => {
         }
       }
     } finally {
-      executor.cleanup();
       if (!event.node.res.writableEnded) {
         event.node.res.end();
       }

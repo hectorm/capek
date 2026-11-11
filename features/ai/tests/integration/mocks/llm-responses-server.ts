@@ -194,9 +194,12 @@ export class MockLLMResponsesServer {
     send({ type: "response.created", response: { ...response, status: "in_progress" } });
 
     // Output items are numbered in the order they start, the text of the answer being one of them
-    let outputCount = 0;
-    let messageIndex: number | null = null;
-    const toolCallIndexes = new Map<number, number>();
+    const output: unknown[] = [];
+    let message: { index: number; part: { type: "output_text"; text: string } } | null = null;
+    const toolCalls = new Map<
+      number,
+      { index: number; item: { type: "function_call"; call_id?: string; name?: string; arguments: string } }
+    >();
 
     let buffer = "";
     const decoder = new TextDecoder();
@@ -209,7 +212,7 @@ export class MockLLMResponsesServer {
         const data = block.replace(/^data: /, "");
         if (data === "[DONE]") {
           const usage = { input_tokens: 10, output_tokens: 20, total_tokens: 30 };
-          send({ type: "response.completed", response: { ...response, status: "completed", usage } });
+          send({ type: "response.completed", response: { ...response, status: "completed", output, usage } });
           continue;
         }
 
@@ -219,26 +222,39 @@ export class MockLLMResponsesServer {
         const delta = chunk.choices[0]?.delta;
 
         if (delta?.content) {
-          if (messageIndex === null) {
-            messageIndex = outputCount++;
+          if (message === null) {
+            message = { index: output.length, part: { type: "output_text", text: "" } };
+            output.push({ type: "message", role: "assistant", content: [message.part] });
             const item = { type: "message", role: "assistant", content: [] };
-            send({ type: "response.output_item.added", output_index: messageIndex, item });
+            send({ type: "response.output_item.added", output_index: message.index, item });
           }
-          send({ type: "response.output_text.delta", output_index: messageIndex, delta: delta.content });
+          message.part.text += delta.content;
+          send({ type: "response.output_text.delta", output_index: message.index, delta: delta.content });
         }
 
         for (const toolCall of delta?.tool_calls ?? []) {
           const index = toolCall.index ?? 0;
-          let outputIndex = toolCallIndexes.get(index);
-          if (outputIndex === undefined) {
-            outputIndex = outputCount++;
-            toolCallIndexes.set(index, outputIndex);
-            const item = { type: "function_call", call_id: toolCall.id, name: toolCall.function?.name, arguments: "" };
-            send({ type: "response.output_item.added", output_index: outputIndex, item });
+          let started = toolCalls.get(index);
+          if (started === undefined) {
+            const item = {
+              type: "function_call" as const,
+              call_id: toolCall.id,
+              name: toolCall.function?.name,
+              arguments: "",
+            };
+            started = { index: output.length, item };
+            toolCalls.set(index, started);
+            output.push(item);
+            send({ type: "response.output_item.added", output_index: started.index, item });
           }
           if (toolCall.function?.arguments) {
             const argumentsDelta = toolCall.function.arguments;
-            send({ type: "response.function_call_arguments.delta", output_index: outputIndex, delta: argumentsDelta });
+            started.item.arguments += argumentsDelta;
+            send({
+              type: "response.function_call_arguments.delta",
+              output_index: started.index,
+              delta: argumentsDelta,
+            });
           }
         }
       }

@@ -8,23 +8,23 @@ export const AnthropicMessagesToolSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   input_schema: z.record(z.string(), z.unknown()),
-  strict: z.boolean().optional(),
 });
 
 export type AnthropicMessagesTool = z.infer<typeof AnthropicMessagesToolSchema>;
-
-export const AnthropicMessagesToolChoiceSchema = z.object({
-  type: z.enum(["none", "auto", "any", "tool"]),
-  name: z.string().optional(),
-  disable_parallel_tool_use: z.boolean().optional(),
-});
-
-export type AnthropicMessagesToolChoice = z.infer<typeof AnthropicMessagesToolChoiceSchema>;
 
 export const AnthropicMessagesInputBlockSchema = z.union([
   z.object({
     type: z.literal("text"),
     text: z.string(),
+  }),
+  z.object({
+    type: z.literal("thinking"),
+    thinking: z.string(),
+    signature: z.string(),
+  }),
+  z.object({
+    type: z.literal("redacted_thinking"),
+    data: z.string(),
   }),
   z.object({
     type: z.literal("tool_use"),
@@ -55,10 +55,7 @@ export const AnthropicMessagesRequestSchema = z.object({
   stream: z.boolean().optional(),
   max_tokens: z.number().int().positive(),
   output_config: z.object({ effort: z.string().min(1) }).optional(),
-  stop_sequences: z.array(z.string()).optional(),
-  metadata: z.object({ user_id: z.string() }).optional(),
   tools: z.array(AnthropicMessagesToolSchema).optional(),
-  tool_choice: AnthropicMessagesToolChoiceSchema.optional(),
 });
 
 export type AnthropicMessagesRequest = z.infer<typeof AnthropicMessagesRequestSchema>;
@@ -66,6 +63,9 @@ export type AnthropicMessagesRequest = z.infer<typeof AnthropicMessagesRequestSc
 export const AnthropicMessagesOutputBlockSchema = z.object({
   type: z.string(),
   text: z.string().nullish(),
+  thinking: z.string().nullish(),
+  signature: z.string().nullish(),
+  data: z.string().nullish(),
   id: z.string().nullish(),
   name: z.string().nullish(),
   input: z.unknown().optional(),
@@ -99,6 +99,8 @@ export const AnthropicMessagesStreamEventSchema = z.object({
     .object({
       type: z.string().nullish(),
       text: z.string().nullish(),
+      thinking: z.string().nullish(),
+      signature: z.string().nullish(),
       partial_json: z.string().nullish(),
       stop_reason: z.string().nullish(),
     })

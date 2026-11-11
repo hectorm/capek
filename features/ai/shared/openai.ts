@@ -19,25 +19,10 @@ export const OpenAIToolSchema = z.object({
     name: z.string(),
     description: z.string().optional(),
     parameters: OpenAIFunctionParametersSchema.optional(),
-    strict: z.boolean().optional(),
   }),
 });
 
 export type OpenAITool = z.infer<typeof OpenAIToolSchema>;
-
-export const OpenAIToolChoiceSchema = z.union([
-  z.literal("none"),
-  z.literal("auto"),
-  z.literal("required"),
-  z.object({
-    type: z.literal("function"),
-    function: z.object({
-      name: z.string(),
-    }),
-  }),
-]);
-
-export type OpenAIToolChoice = z.infer<typeof OpenAIToolChoiceSchema>;
 
 export const OpenAIToolCallSchema = z.object({
   id: z.string(),
@@ -73,11 +58,6 @@ export const OpenAICompletionRequestSchema = z.object({
   frequency_penalty: z.number().min(-2).max(2).optional(),
   presence_penalty: z.number().min(-2).max(2).optional(),
   tools: z.array(OpenAIToolSchema).optional(),
-  tool_choice: OpenAIToolChoiceSchema.optional(),
-  parallel_tool_calls: z.boolean().optional(),
-  seed: z.number().int().optional(),
-  stop: z.union([z.string(), z.array(z.string())]).optional(),
-  user: z.string().optional(),
 });
 
 export type OpenAICompletionRequest = z.infer<typeof OpenAICompletionRequestSchema>;
@@ -180,23 +160,17 @@ export const OpenAIResponsesToolSchema = z.object({
 
 export type OpenAIResponsesTool = z.infer<typeof OpenAIResponsesToolSchema>;
 
-export const OpenAIResponsesToolChoiceSchema = z.union([
-  z.literal("none"),
-  z.literal("auto"),
-  z.literal("required"),
-  z.object({
-    type: z.literal("function"),
-    name: z.string(),
-  }),
-]);
-
-export type OpenAIResponsesToolChoice = z.infer<typeof OpenAIResponsesToolChoiceSchema>;
-
 export const OpenAIResponsesInputItemSchema = z.union([
   z.object({
     type: z.literal("message"),
     role: z.enum(["system", "user", "assistant", "developer"]),
     content: z.string(),
+  }),
+  z.object({
+    type: z.literal("reasoning"),
+    summary: z.array(z.object({ type: z.literal("summary_text"), text: z.string() })),
+    content: z.array(z.object({ type: z.literal("reasoning_text"), text: z.string() })).optional(),
+    encrypted_content: z.string().optional(),
   }),
   z.object({
     type: z.literal("function_call"),
@@ -218,6 +192,7 @@ export const OpenAIResponsesRequestSchema = z.object({
   input: z.array(OpenAIResponsesInputItemSchema).min(1),
   stream: z.boolean().optional(),
   store: z.boolean().optional(),
+  include: z.array(z.string()).optional(),
   max_output_tokens: z.number().int().positive().optional(),
   reasoning: z.object({ effort: z.string().min(1) }).optional(),
   temperature: z.number().min(0).max(2).optional(),
@@ -225,8 +200,6 @@ export const OpenAIResponsesRequestSchema = z.object({
   frequency_penalty: z.number().min(-2).max(2).optional(),
   presence_penalty: z.number().min(-2).max(2).optional(),
   tools: z.array(OpenAIResponsesToolSchema).optional(),
-  tool_choice: OpenAIResponsesToolChoiceSchema.optional(),
-  parallel_tool_calls: z.boolean().optional(),
 });
 
 export type OpenAIResponsesRequest = z.infer<typeof OpenAIResponsesRequestSchema>;
@@ -234,6 +207,7 @@ export type OpenAIResponsesRequest = z.infer<typeof OpenAIResponsesRequestSchema
 export const OpenAIResponsesOutputItemSchema = z.object({
   type: z.string(),
   content: z.array(z.object({ type: z.string(), text: z.string().nullish(), refusal: z.string().nullish() })).nullish(),
+  encrypted_content: z.string().nullish(),
   call_id: z.string().nullish(),
   name: z.string().nullish(),
   arguments: z.string().nullish(),

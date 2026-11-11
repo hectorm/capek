@@ -1,38 +1,35 @@
+import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
-import type { OpenAICompletionRequest, OpenAICompletionResponse, OpenAIMessage } from "#layers/ai/shared/openai";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
+import {
+  fromChatCompletionsResponse,
+  fromChatCompletionsStream,
+  toChatCompletionsRequest,
+} from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
-import { OpenAICompletionResponseSchema, OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
+import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
-interface OpenAIClientApi {
+interface LlmClientApi {
   path: string;
   headers: (apiKey: string) => Record<string, string>;
-  toRequest: (request: OpenAICompletionRequest) => unknown;
-  fromResponse: (rawResponse: unknown) => OpenAICompletionResponse;
-  fromStream: (stream: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>;
+  toRequest: (request: LlmRequest) => unknown;
+  fromResponse: (rawResponse: unknown) => LlmResponse;
+  fromStream: (stream: ReadableStream<Uint8Array>) => ReadableStream<LlmStreamEvent>;
 }
 
 const bearerHeaders = (apiKey: string): Record<string, string> => (apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
 
-// Requests and responses have the format of Chat Completions, translated for the providers of the other APIs
-const apis: Record<LlmProviderApiType, OpenAIClientApi> = {
+const apis: Record<LlmProviderApiType, LlmClientApi> = {
   "chat-completions": {
     path: "/chat/completions",
     headers: bearerHeaders,
-    toRequest: (request) => request,
-    fromResponse: (rawResponse) => {
-      const completion = OpenAICompletionResponseSchema.safeParse(rawResponse);
-      if (!completion.success) {
-        throw new Error(`Invalid AI service completion response format: ${completion.error.message}`);
-      }
-
-      return completion.data;
-    },
-    fromStream: (stream) => stream,
+    toRequest: toChatCompletionsRequest,
+    fromResponse: fromChatCompletionsResponse,
+    fromStream: fromChatCompletionsStream,
   },
   responses: {
     path: "/responses",
@@ -50,7 +47,7 @@ const apis: Record<LlmProviderApiType, OpenAIClientApi> = {
   },
 };
 
-export interface OpenAIClientOptions {
+export interface LlmClientOptions {
   apiUrl: string;
   apiType?: LlmProviderApiType | null;
   apiKey?: string;
@@ -61,9 +58,9 @@ export interface OpenAIClientOptions {
   streaming?: boolean | null;
 }
 
-export class OpenAIClient {
+export class LlmClient {
   private readonly apiUrl: string;
-  private readonly api: OpenAIClientApi;
+  private readonly api: LlmClientApi;
   private readonly apiKey: string;
   private readonly headers: Record<string, string>;
   private readonly availableModels: string[] | null;
@@ -72,7 +69,7 @@ export class OpenAIClient {
   private readonly streaming: boolean | null;
   private modelsCache: string[] | null = null;
 
-  public constructor(options: OpenAIClientOptions) {
+  public constructor(options: LlmClientOptions) {
     this.apiUrl = options.apiUrl;
     this.api = apis[options.apiType ?? "chat-completions"];
     this.apiKey = options.apiKey ?? "";
@@ -148,9 +145,9 @@ export class OpenAIClient {
   }
 
   public async completion(
-    request: OpenAICompletionRequest,
+    request: LlmRequest,
     signal?: AbortSignal,
-  ): Promise<OpenAICompletionResponse | ReadableStream<Uint8Array>> {
+  ): Promise<LlmResponse | ReadableStream<LlmStreamEvent>> {
     const model = request.model ?? (await this.getModel());
     const stream = request.stream ?? this.streaming ?? true;
 
@@ -180,8 +177,9 @@ export class OpenAIClient {
   public async summary(prompt: string, model?: string): Promise<string> {
     const summaryModel = model ?? (await this.getSummaryModel());
 
-    const messages: OpenAIMessage[] = [
+    const input: LlmItem[] = [
       {
+        type: "message",
         role: "system",
         content: [
           "You are a title generator. The user will provide a message, and you must generate a short title (max 80 characters) that describes the topic.",
@@ -201,6 +199,7 @@ export class OpenAIClient {
         ].join("\n"),
       },
       {
+        type: "message",
         role: "user",
         content: `Generate a title for the following message:\n\n${prompt}`,
       },
@@ -209,14 +208,14 @@ export class OpenAIClient {
     let summary: string | null = null;
 
     try {
-      const request: OpenAICompletionRequest = {
+      const request: LlmRequest = {
         model: summaryModel,
-        messages,
+        input,
         stream: false,
-        max_completion_tokens: 256,
+        max_output_tokens: 256,
       };
-      const completion = (await this.completion(request, undefined)) as OpenAICompletionResponse;
-      summary = completion.choices[0]?.message.content?.trim() ?? null;
+      const completion = (await this.completion(request, undefined)) as LlmResponse;
+      summary = completion.output.find((item) => item.type === "message")?.content.trim() ?? null;
     } catch (error) {
       logger.warn({ error }, "Summary generation failed, using truncated prompt");
     }

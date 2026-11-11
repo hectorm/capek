@@ -34,6 +34,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("sessionId", "uuid", (col) => col.references("public.aiChatSessions.id").onDelete("cascade").notNull())
     .addColumn("role", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("content", sql`text COLLATE ${naturalCs}`, (col) => col.notNull())
+    .addColumn("items", "jsonb", (col) => col.defaultTo(sql`'[]'::jsonb`).notNull())
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();

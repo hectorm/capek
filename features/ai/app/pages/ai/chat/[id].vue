@@ -8,6 +8,7 @@ import UButton from "@nuxt/ui/components/Button.vue";
 import UChatMessages from "@nuxt/ui/components/ChatMessages.vue";
 import UChatPrompt from "@nuxt/ui/components/ChatPrompt.vue";
 import UChatPromptSubmit from "@nuxt/ui/components/ChatPromptSubmit.vue";
+import UChatTool from "@nuxt/ui/components/ChatTool.vue";
 import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UProgress from "@nuxt/ui/components/Progress.vue";
@@ -75,13 +76,6 @@ interface MessagePart {
   text?: string;
 }
 
-const getMessageText = (parts: MessagePart[]): string => {
-  return parts
-    .filter((p) => p.type === "text" && p.text)
-    .map((p) => p.text ?? "")
-    .join("");
-};
-
 const title = computed(() => {
   return chatStore.currentSession?.title ?? i18n.t("ai.pages.chat.untitled");
 });
@@ -94,6 +88,10 @@ const uiMessages = computed(() => {
     parts: [{ type: "text" as const, text: msg.content }],
     createdAt: msg.createdAt,
   }));
+});
+
+const messageParts = computed(() => {
+  return new Map(chatStore.currentMessages.map((msg) => [msg.id, msg.parts]));
 });
 
 const userProps = computed(() => ({
@@ -374,9 +372,7 @@ definePageMeta({
       >
         <template #content="{ message }">
           <template
-            v-if="
-              chatStatus === 'streaming' && message.role === 'assistant' && getMessageText(message.parts).length === 0
-            "
+            v-if="chatStatus === 'streaming' && message.role === 'assistant' && !messageParts.get(message.id)?.length"
           >
             <div class="flex items-center gap-2 py-3 text-muted">
               <div class="flex gap-1">
@@ -386,9 +382,14 @@ definePageMeta({
               </div>
             </div>
           </template>
-          <template v-else>
-            <MessageContent :text="getMessageText(message.parts)" />
-          </template>
+          <div v-else class="flex flex-col gap-2">
+            <template v-for="(part, index) in messageParts.get(message.id)" :key="index">
+              <MessageContent v-if="part.type === 'text'" :text="part.text" />
+              <UChatTool v-else :text="part.name" icon="i-lucide-wrench">
+                <MessageContent :text="part.description" />
+              </UChatTool>
+            </template>
+          </div>
         </template>
       </UChatMessages>
       <div v-if="toolStatus" class="relative border-t border-default">
