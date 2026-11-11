@@ -1,0 +1,124 @@
+<script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
+import { useNuxtApp } from "nuxt/app";
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+import UButton from "@nuxt/ui/components/Button.vue";
+import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
+
+const props = defineProps<{
+  option: Record<string, unknown>;
+}>();
+
+const exportFormats = ["png", "svg"] as const;
+
+type ExportFormat = (typeof exportFormats)[number];
+
+const i18n = useI18n();
+const { $colorMode: colorMode } = useNuxtApp();
+
+const container = useTemplateRef<HTMLDivElement>("container");
+const frame = useTemplateRef<HTMLIFrameElement>("frame");
+
+const visible = ref<boolean>(false);
+const failed = ref<boolean>(false);
+const formats = ref<ExportFormat[]>([]);
+
+let exportFormat: ExportFormat | undefined;
+
+const exportItems = computed(() =>
+  formats.value.map((format) => ({
+    label: i18n.t(`ai.components.chat.chartFrame.export.${format}`),
+    onSelect: () => {
+      exportImage(format);
+    },
+  })),
+);
+
+const send = (message: Record<string, unknown>) => {
+  frame.value?.contentWindow?.postMessage(message, "*");
+};
+
+const draw = () => {
+  send({ type: "draw", option: props.option, dark: colorMode.value === "dark" });
+};
+
+const exportImage = (format: ExportFormat) => {
+  exportFormat = format;
+  send({ type: "export", format });
+};
+
+type FrameMessage = MessageEvent<{ type?: string; message?: string; formats?: unknown; url?: unknown }>;
+
+useEventListener("message", (event: FrameMessage) => {
+  if (!event.source || event.source !== frame.value?.contentWindow) return;
+
+  if (event.data.type === "ready") {
+    draw();
+  } else if (event.data.type === "error") {
+    console.error("Failed to draw chart", event.data.message);
+    failed.value = true;
+  } else if (event.data.type === "drawn") {
+    const drawn = event.data.formats;
+    formats.value = exportFormats.filter((format) => Array.isArray(drawn) && drawn.includes(format));
+  } else if (event.data.type === "export" && exportFormat) {
+    const url = event.data.url;
+    if (typeof url === "string" && url.startsWith("data:image/")) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `chart.${exportFormat}`;
+      link.click();
+    }
+    exportFormat = undefined;
+  }
+});
+
+watch([() => props.option, () => colorMode.value], draw);
+
+let observer: IntersectionObserver | undefined;
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    (entries) => {
+      visible.value = entries.at(-1)?.isIntersecting ?? false;
+    },
+    { scrollMargin: "100%" },
+  );
+  if (container.value) {
+    observer.observe(container.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  observer?.disconnect();
+});
+</script>
+
+<template>
+  <div ref="container" class="group/chart relative h-96">
+    <p v-if="failed" class="flex h-full items-center justify-center text-sm text-muted">
+      {{ $t("ai.components.chat.chartFrame.error") }}
+    </p>
+    <template v-else-if="visible">
+      <iframe
+        ref="frame"
+        class="size-full"
+        sandbox="allow-scripts"
+        src="/api/ai/chart/frame"
+        :title="$t('ai.components.chat.chartFrame.title')"
+      />
+      <UDropdownMenu v-if="formats.length > 0" :items="exportItems">
+        <UButton
+          square
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-download"
+          :aria-label="$t('ai.components.chat.chartFrame.export.label')"
+          class="absolute top-0 right-0 transition-opacity ease-out group-hover/chart:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0"
+        />
+      </UDropdownMenu>
+    </template>
+  </div>
+</template>

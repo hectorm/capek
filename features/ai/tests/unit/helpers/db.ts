@@ -34,6 +34,7 @@ export const insertAgent = async (db: Kysely<Database>, name: string): Promise<s
       timeoutSec: null,
       maxContextChars: null,
       maxToolResponseChars: null,
+      maxToolPartsChars: null,
     })
     .returning(["id"])
     .executeTakeFirstOrThrow();

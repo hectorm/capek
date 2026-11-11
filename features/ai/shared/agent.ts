@@ -11,6 +11,7 @@ export const AgentExecutorParameters = {
   timeoutSec:                    { min: 1,    max: 3600,       step: 1,         default: 600          },
   maxContextChars:               { min: 1000, max: 10000000,   step: 1000,      default: 500000       },
   maxToolResponseChars:          { min: 1000, max: 1000000,    step: 1000,      default: 100000       },
+  maxToolPartsChars:             { min: 1000, max: 10000000,   step: 1000,      default: 1000000      },
 } as const;
 
 // prettier-ignore
@@ -24,4 +25,5 @@ export const AgentExecutorParametersSchema = z.object({
   timeoutSec: z.number().int().min(AgentExecutorParameters.timeoutSec.min).max(AgentExecutorParameters.timeoutSec.max).nullish(),
   maxContextChars: z.number().int().min(AgentExecutorParameters.maxContextChars.min).max(AgentExecutorParameters.maxContextChars.max).nullish(),
   maxToolResponseChars: z.number().int().min(AgentExecutorParameters.maxToolResponseChars.min).max(AgentExecutorParameters.maxToolResponseChars.max).nullish(),
+  maxToolPartsChars: z.number().int().min(AgentExecutorParameters.maxToolPartsChars.min).max(AgentExecutorParameters.maxToolPartsChars.max).nullish(),
 });

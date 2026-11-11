@@ -225,6 +225,7 @@ export const aiSeed = defineSeed({
           timeoutSec: agentConfig.timeoutSec ?? null,
           maxContextChars: agentConfig.maxContextChars ?? null,
           maxToolResponseChars: agentConfig.maxToolResponseChars ?? null,
+          maxToolPartsChars: agentConfig.maxToolPartsChars ?? null,
         })
         .returning(["id", "name", "type"])
         .executeTakeFirstOrThrow();

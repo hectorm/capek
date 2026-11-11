@@ -275,7 +275,7 @@ export const useChatStore = defineStore("ai.chat", () => {
               triggerRef(messages);
             }
           },
-          onTool: (part) => {
+          onPart: (part) => {
             const msgs = messages.value.get(sessionId);
             if (!msgs) return;
 
@@ -459,7 +459,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     body: ReadableStream<Uint8Array>,
     options: {
       onChunk?: (chunk: string) => void;
-      onTool?: (part: ChatMessagePart) => void;
+      onPart?: (part: ChatMessagePart) => void;
       onStatus?: (status: string) => void;
       onError?: (message: string) => void;
       signal?: AbortSignal;
@@ -499,8 +499,8 @@ export const useChatStore = defineStore("ai.chat", () => {
           options.onStatus?.(value as string);
         } else if (currentEventType === ChatStreamEvents.Token) {
           options.onChunk?.(value as string);
-        } else if (currentEventType === ChatStreamEvents.Tool) {
-          options.onTool?.(value as ChatMessagePart);
+        } else if (currentEventType === ChatStreamEvents.Part) {
+          options.onPart?.(value as ChatMessagePart);
         }
       }
     };

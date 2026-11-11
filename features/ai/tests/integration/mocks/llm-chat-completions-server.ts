@@ -182,6 +182,21 @@ export class MockLLMChatCompletionsServer {
     return this.response;
   }
 
+  // The first tool of the request is called with a query, or with a chart when it is the one that shows them
+  private getToolArguments(request: OpenAICompletionRequest): string {
+    if (request.tools?.[0]?.function.name === "ai_chart") {
+      if (this.getLastUserMessageContent(request).includes("3D")) {
+        return JSON.stringify({
+          option: { grid3D: {}, xAxis3D: {}, yAxis3D: {}, zAxis3D: {}, series: [{ type: "bar3D", data: [[1, 2, 3]] }] },
+        });
+      }
+      return JSON.stringify({
+        option: { xAxis: { type: "category", data: ["a", "b"] }, yAxis: {}, series: [{ type: "bar", data: [1, 2] }] },
+      });
+    }
+    return JSON.stringify({ query: "mock test query" });
+  }
+
   private getLastUserMessageContent(request: OpenAICompletionRequest): string {
     const userMessages = request.messages?.filter((m) => m.role === "user") ?? [];
     const lastUserMessage = userMessages.at(-1)?.content ?? "";
@@ -247,7 +262,7 @@ export class MockLLMChatCompletionsServer {
                 type: "function",
                 function: {
                   name: request.tools?.[0]?.function.name ?? "unknown_tool",
-                  arguments: JSON.stringify({ query: "mock test query" }),
+                  arguments: this.getToolArguments(request),
                 },
               },
             ],
@@ -287,7 +302,7 @@ export class MockLLMChatCompletionsServer {
                 type: "function",
                 function: {
                   name: request.tools?.[0]?.function.name ?? "unknown_tool",
-                  arguments: JSON.stringify({ query: "mock test query" }),
+                  arguments: this.getToolArguments(request),
                 },
               },
             ],

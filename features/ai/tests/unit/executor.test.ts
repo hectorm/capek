@@ -12,7 +12,7 @@ import { closeDb, createAiTestDb, insertAgent } from "#layers/ai/tests/unit/help
 import { streamOf } from "#layers/ai/tests/unit/helpers/llm";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
-// Tools that stand in for the ones of another feature, the first one telling the user what it does
+// Tools that stand in for the ones of another feature, one telling what it does and another showing a chart
 vi.mock("#layers/core/server/lib/tools", () => {
   const provider: FeatureToolProvider = {
     name: "notes",
@@ -34,6 +34,16 @@ vi.mock("#layers/core/server/lib/tools", () => {
             parameters: { type: "object", properties: {} },
             execute: () => Promise.resolve("3"),
           },
+          {
+            name: "notes_chart",
+            description: "Chart the notes",
+            parameters: { type: "object", properties: { points: { type: "number" } } },
+            execute: (args, context) => {
+              const data = Array<number>(Number(args.points ?? 1)).fill(3);
+              context.show?.({ type: "chart", option: { series: [{ type: "bar", data }] } });
+              return Promise.resolve("Shown");
+            },
+          },
         ],
       }),
   };
@@ -54,10 +64,12 @@ let streamingAgentId: string;
 let smallContextAgentId: string;
 let singleIterationAgentId: string;
 let hiddenToolCallsAgentId: string;
+let smallPartsAgentId: string;
 let triageAgentId: string;
 
 const readNote = { id: "call-1", type: "function", function: { name: "notes_read", arguments: '{"note":"a"}' } };
 const countNotes = { id: "call-2", type: "function", function: { name: "notes_count", arguments: "{}" } };
+const chartNotes = { id: "call-3", type: "function", function: { name: "notes_chart", arguments: "{}" } };
 
 beforeAll(async () => {
   db = await createAiTestDb();
@@ -101,6 +113,7 @@ beforeAll(async () => {
   smallContextAgentId = await createAgent("executor-small-context-agent", { maxContextChars: 300 });
   singleIterationAgentId = await createAgent("executor-single-iteration-agent", { maxIterations: 1 });
   hiddenToolCallsAgentId = await createAgent("executor-hidden-tool-calls-agent", { showToolCalls: false });
+  smallPartsAgentId = await createAgent("executor-small-parts-agent", { maxToolPartsChars: 1000 });
   triageAgentId = await createAgent("executor-triage-agent", { type: "triage", toolProviders: [] });
 
   await db.insertInto("aiTriageSpecialists").values({ triageAgentId, specialistAgentId: agentId }).execute();
@@ -154,22 +167,22 @@ const chat = async (sessionId: string, sessionAgentId: string, message: string) 
   const executor = new AgentExecutor({ sessionId, user, message });
 
   let tokens = "";
-  const tools: unknown[] = [];
+  const parts: unknown[] = [];
   let error: unknown;
   try {
     for await (const bytes of executor.executeStream(sessionAgentId)) {
       const [, event, data] = /^event: (.*)\ndata: (.*)\n\n$/.exec(decoder.decode(bytes)) ?? [];
       if (event === "token" && data) {
         tokens += JSON.parse(data) as string;
-      } else if (event === "tool" && data) {
-        tools.push(JSON.parse(data));
+      } else if (event === "part" && data) {
+        parts.push(JSON.parse(data));
       }
     }
   } catch (caught) {
     error = caught;
   }
 
-  return { tokens, tools, error };
+  return { tokens, parts, error };
 };
 
 const answers = (sessionId: string) => {
@@ -191,10 +204,10 @@ describe("agent executor", () => {
     const sessionId = await createSession(agentId);
 
     const requests = fakeModel([answer(null, [readNote]), answer("The note says hello.")]);
-    const { tokens, tools } = await chat(sessionId, agentId, "What does the note a say?");
+    const { tokens, parts } = await chat(sessionId, agentId, "What does the note a say?");
 
     expect(tokens).toBe("The note says hello.");
-    expect(tools).toEqual([{ type: "tool", id: "call-1", name: "notes_read", description: 'Reads the note "a"' }]);
+    expect(parts).toEqual([{ type: "tool", id: "call-1", name: "notes_read", description: 'Reads the note "a"' }]);
     expect(requests[1]?.messages.slice(-2)).toMatchObject([
       { role: "assistant", tool_calls: [{ id: "call-1", function: { name: "notes_read" } }] },
       { role: "tool", tool_call_id: "call-1", content: expect.stringContaining("Content of a") as string },
@@ -279,13 +292,51 @@ describe("agent executor", () => {
     const sessionId = await createSession(hiddenToolCallsAgentId);
 
     fakeModel([answer(null, [readNote]), answer("The note says hello.")]);
-    const { tools } = await chat(sessionId, hiddenToolCallsAgentId, "What does the note a say?");
+    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "What does the note a say?");
 
-    expect(tools).toEqual([]);
+    expect(parts).toEqual([]);
     expect((await answers(sessionId)).flatMap((message) => message.items)).toEqual([
       { type: "function_call", call_id: "call-1", name: "notes_read", arguments: '{"note":"a"}' },
       { type: "function_call_output", call_id: "call-1", output: expect.stringContaining("Content of a") as string },
       { type: "message", role: "assistant", content: "The note says hello." },
+    ]);
+  });
+
+  it("shows the charts of the tool calls and keeps them with the answer", async () => {
+    const sessionId = await createSession(hiddenToolCallsAgentId);
+    const option = { series: [{ type: "bar", data: [3] }] };
+
+    fakeModel([answer(null, [chartNotes]), answer("There are 3 notes.")]);
+    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "Chart the notes.");
+
+    expect(parts).toEqual([{ type: "chart", option }]);
+    expect((await answers(sessionId)).flatMap((message) => message.items)).toMatchObject([
+      { type: "function_call", name: "notes_chart", parts: [{ type: "chart", option }] },
+      { type: "function_call_output", output: "Shown" },
+      { type: "message", content: "There are 3 notes." },
+    ]);
+  });
+
+  it("limits what the tool calls of an answer show in all", async () => {
+    const sessionId = await createSession(smallPartsAgentId);
+    const chartManyNotes = (id: string) => {
+      return { id, type: "function", function: { name: "notes_chart", arguments: '{"points":300}' } };
+    };
+
+    const requests = fakeModel([
+      answer(null, [chartManyNotes("call-4"), chartManyNotes("call-5")]),
+      answer("That is too much to show."),
+    ]);
+    const { parts } = await chat(sessionId, smallPartsAgentId, "Chart many notes, twice.");
+
+    expect(parts).toHaveLength(1);
+    expect(requests[1]?.messages.slice(-2)).toMatchObject([
+      { role: "tool", tool_call_id: "call-4", content: "Shown" },
+      {
+        role: "tool",
+        tool_call_id: "call-5",
+        content: expect.stringContaining("cannot show the user more than 1000 characters") as string,
+      },
     ]);
   });
 

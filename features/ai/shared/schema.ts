@@ -150,6 +150,7 @@ export interface AgentsTable {
   timeoutSec: number | null;
   maxContextChars: number | null;
   maxToolResponseChars: number | null;
+  maxToolPartsChars: number | null;
   createdAt: ColumnType<Date, never, never>;
   updatedAt: ColumnType<Date, never, Date>;
 }

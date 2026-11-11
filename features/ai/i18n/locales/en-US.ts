@@ -300,6 +300,10 @@ export default () => ({
               label: "Max tool response characters",
               hint: "Maximum characters for a single tool response before truncation",
             },
+            maxToolPartsChars: {
+              label: "Max tool parts characters",
+              hint: "Maximum total characters for what the tools show in a single answer, such as charts",
+            },
             testModel: {
               label: "Test model",
               testing: "Testing...",
@@ -687,6 +691,20 @@ export default () => ({
             },
           },
         },
+        chartFrame: {
+          title: "Chart",
+          error: "The chart could not be displayed",
+          export: {
+            label: "Download",
+            png: "PNG image",
+            svg: "SVG image",
+          },
+        },
+      },
+    },
+    tools: {
+      charts: {
+        label: "Charts",
       },
     },
   },

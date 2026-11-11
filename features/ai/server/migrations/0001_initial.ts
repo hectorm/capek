@@ -166,6 +166,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("timeoutSec", "integer")
     .addColumn("maxContextChars", "integer")
     .addColumn("maxToolResponseChars", "integer")
+    .addColumn("maxToolPartsChars", "integer")
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();

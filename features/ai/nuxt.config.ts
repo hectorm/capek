@@ -1,3 +1,6 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
@@ -47,6 +50,21 @@ export default defineNuxtConfig({
     experimental: {
       wasm: true,
     },
+    externals: {
+      inline: ["echarts", "echarts-gl"],
+    },
+    serverAssets: [
+      {
+        baseName: "echarts",
+        dir: dirname(fileURLToPath(import.meta.resolve("echarts/dist/echarts.min.js"))),
+        pattern: "echarts.min.js",
+      },
+      {
+        baseName: "echarts-gl",
+        dir: dirname(fileURLToPath(import.meta.resolve("echarts-gl/dist/echarts-gl.min.js"))),
+        pattern: "echarts-gl.min.js",
+      },
+    ],
     tasks: {
       "ai:mcp-session-cleanup": { description: "Clean up stale MCP sessions" },
       "ai:agent-execution-cleanup": { description: "Mark abandoned agent executions as failed" },

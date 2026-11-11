@@ -10,6 +10,7 @@ import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
+import type { ToolPart } from "#layers/core/shared/tools";
 import {
   buildCodeInterpreterPrompt,
   buildSkillToolsPrompt,
@@ -69,6 +70,7 @@ interface AgentConfig {
   timeoutSec: number;
   maxContextChars: number;
   maxToolResponseChars: number;
+  maxToolPartsChars: number;
   llmProviderId: string;
   apiUrl: string;
   apiType: LlmProviderApiType;
@@ -109,6 +111,7 @@ export class AgentExecutor {
   private config: AgentExecutorConfig;
   private executionId: string | null = null;
   private iterationCount = 0;
+  private partsChars = 0;
   private startedAt: Date;
 
   public constructor(config: AgentExecutorConfig) {
@@ -487,7 +490,7 @@ export class AgentExecutor {
 
     functionCall.description = agent.showToolCalls ? agentTool.tool.describe?.(args) : undefined;
     if (functionCall.description) {
-      yield encodeStreamEvent(ChatStreamEvents.Tool, {
+      yield encodeStreamEvent(ChatStreamEvents.Part, {
         type: "tool",
         id: functionCall.call_id,
         name: toolName,
@@ -495,8 +498,21 @@ export class AgentExecutor {
       });
     }
 
+    const parts: ToolPart[] = [];
+    let partsChars = this.partsChars;
+    const show = (part: ToolPart): void => {
+      const chars = JSON.stringify(part).length;
+      if (partsChars + chars > agent.maxToolPartsChars) {
+        throw new Error(
+          `The tool calls of an answer cannot show the user more than ${String(agent.maxToolPartsChars)} characters, reduce the data of what is shown`,
+        );
+      }
+      partsChars += chars;
+      parts.push(part);
+    };
+
     try {
-      let result = await agentTool.tool.execute(args, { user: this.config.user, signal });
+      let result = await agentTool.tool.execute(args, { user: this.config.user, signal, show });
 
       await this.saveToolCall(functionCall, agentTool, result, null);
 
@@ -509,6 +525,14 @@ export class AgentExecutor {
       }
 
       items.push({ type: "function_call_output", call_id: functionCall.call_id, output: result });
+
+      if (parts.length > 0) {
+        functionCall.parts = parts;
+        this.partsChars = partsChars;
+        for (const part of parts) {
+          yield encodeStreamEvent(ChatStreamEvents.Part, part);
+        }
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error({ toolName, executionId: this.executionId, error: errorMessage }, "Tool execution failed");
@@ -844,6 +868,7 @@ export class AgentExecutor {
         "aiAgents.timeoutSec",
         "aiAgents.maxContextChars",
         "aiAgents.maxToolResponseChars",
+        "aiAgents.maxToolPartsChars",
         "aiLlmProviders.id as llmProviderId",
         "aiLlmProviders.apiUrl",
         "aiLlmProviders.apiType",
@@ -863,6 +888,7 @@ export class AgentExecutor {
       timeoutSec: agent.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
       maxContextChars: agent.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
       maxToolResponseChars: agent.maxToolResponseChars ?? AgentExecutorParameters.maxToolResponseChars.default,
+      maxToolPartsChars: agent.maxToolPartsChars ?? AgentExecutorParameters.maxToolPartsChars.default,
     };
   }
 
@@ -893,6 +919,7 @@ export class AgentExecutor {
         "aiAgents.timeoutSec",
         "aiAgents.maxContextChars",
         "aiAgents.maxToolResponseChars",
+        "aiAgents.maxToolPartsChars",
         "aiLlmProviders.id as llmProviderId",
         "aiLlmProviders.apiUrl",
         "aiLlmProviders.apiType",
@@ -908,6 +935,7 @@ export class AgentExecutor {
       timeoutSec: s.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
       maxContextChars: s.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
       maxToolResponseChars: s.maxToolResponseChars ?? AgentExecutorParameters.maxToolResponseChars.default,
+      maxToolPartsChars: s.maxToolPartsChars ?? AgentExecutorParameters.maxToolPartsChars.default,
     }));
   }
 
@@ -1011,8 +1039,11 @@ export class AgentExecutor {
       (item) => item.type !== "reasoning" && (item.type !== "function_call" || callIds.has(item.call_id)),
     );
 
-    // An answer without text is only kept for the tool calls that tell the user what they did
-    if (!content && !items.some((item) => item.type === "function_call" && item.description)) {
+    // An answer without text is only kept for what its tool calls show the user
+    if (
+      !content &&
+      !items.some((item) => item.type === "function_call" && (item.parts !== undefined || item.description))
+    ) {
       return;
     }
 

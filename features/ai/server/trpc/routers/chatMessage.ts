@@ -7,17 +7,19 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
-// Of the items of a message, only its text and what its tool calls say about themselves are for the user
+// Of the items of a message, only its text and what its tool calls say about themselves and show are for the user
 const toParts = (content: string, items: LlmItem[]): ChatMessagePart[] => {
-  const parts = items.flatMap((item): ChatMessagePart[] => {
+  const parts: ChatMessagePart[] = [];
+  for (const item of items) {
     if (item.type === "message" && item.content) {
-      return [{ type: "text", text: item.content }];
+      parts.push({ type: "text", text: item.content });
+    } else if (item.type === "function_call") {
+      if (item.description) {
+        parts.push({ type: "tool", id: item.call_id, name: item.name, description: item.description });
+      }
+      parts.push(...(item.parts ?? []));
     }
-    if (item.type === "function_call" && item.description) {
-      return [{ type: "tool", id: item.call_id, name: item.name, description: item.description }];
-    }
-    return [];
-  });
+  }
 
   return parts.length > 0 ? parts : [{ type: "text", text: content }];
 };

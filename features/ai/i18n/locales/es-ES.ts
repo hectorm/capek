@@ -302,6 +302,10 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Caracteres máximos de respuesta de herramienta",
               hint: "Caracteres máximos para una respuesta de herramienta antes del truncamiento",
             },
+            maxToolPartsChars: {
+              label: "Caracteres máximos de partes de herramienta",
+              hint: "Caracteres totales máximos para lo que las herramientas muestran en una respuesta, como los gráficos",
+            },
             testModel: {
               label: "Probar modelo",
               testing: "Probando...",
@@ -689,6 +693,20 @@ export default (): ReturnType<typeof enUS> => ({
             },
           },
         },
+        chartFrame: {
+          title: "Gráfico",
+          error: "No se pudo mostrar el gráfico",
+          export: {
+            label: "Descargar",
+            png: "Imagen PNG",
+            svg: "Imagen SVG",
+          },
+        },
+      },
+    },
+    tools: {
+      charts: {
+        label: "Gráficos",
       },
     },
   },

@@ -22,6 +22,7 @@ import { definePageMeta } from "#layers/core/app/utils/page-meta";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
+import ChartFrame from "#layers/ai/app/components/chat/ChartFrame.vue";
 import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
 import MessageContent from "#layers/ai/app/components/chat/MessageContent.vue";
 import LazyRenameModal from "#layers/ai/app/components/chat/RenameModal.vue";
@@ -385,9 +386,10 @@ definePageMeta({
           <div v-else class="flex flex-col gap-2">
             <template v-for="(part, index) in messageParts.get(message.id)" :key="index">
               <MessageContent v-if="part.type === 'text'" :text="part.text" />
-              <UChatTool v-else :text="part.name" icon="i-lucide-wrench">
+              <UChatTool v-else-if="part.type === 'tool'" :text="part.name" icon="i-lucide-wrench">
                 <MessageContent :text="part.description" />
               </UChatTool>
+              <ChartFrame v-else :option="part.option" />
             </template>
           </div>
         </template>

@@ -75,6 +75,7 @@ export const agentRouter = createTRPCRouter({
             "timeoutSec",
             "maxContextChars",
             "maxToolResponseChars",
+            "maxToolPartsChars",
           ])
           .where("id", "=", input.id)
           .executeTakeFirst();
@@ -249,6 +250,7 @@ export const agentRouter = createTRPCRouter({
               timeoutSec: input.timeoutSec ?? null,
               maxContextChars: input.maxContextChars ?? null,
               maxToolResponseChars: input.maxToolResponseChars ?? null,
+              maxToolPartsChars: input.maxToolPartsChars ?? null,
             })
             .execute();
 
@@ -284,6 +286,7 @@ export const agentRouter = createTRPCRouter({
               "timeoutSec",
               "maxContextChars",
               "maxToolResponseChars",
+              "maxToolPartsChars",
             ])
             .where("id", "=", agentId)
             .executeTakeFirstOrThrow();
@@ -380,6 +383,7 @@ export const agentRouter = createTRPCRouter({
               "timeoutSec",
               "maxContextChars",
               "maxToolResponseChars",
+              "maxToolPartsChars",
             ])
             .executeTakeFirst();
 

@@ -61,6 +61,8 @@
     "@vueuse/nuxt": "~15.0.0",
     "comment-parser": "~1.4.9",
     "dompurify": "~3.4.17",
+    "echarts": "~6.1.0",
+    "echarts-gl": "~2.1.0",
     "github-markdown-css": "~5.9.0",
     "h3": "~1.15.11",
     "jmespath": "~0.16.0",

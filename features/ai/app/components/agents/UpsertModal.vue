@@ -164,6 +164,7 @@ const state = reactive<
   timeoutSec: agent?.timeoutSec,
   maxContextChars: agent?.maxContextChars,
   maxToolResponseChars: agent?.maxToolResponseChars,
+  maxToolPartsChars: agent?.maxToolPartsChars,
 });
 
 const selectedLlmProviderId = computed({
@@ -317,6 +318,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         timeoutSec: event.data.timeoutSec,
         maxContextChars: event.data.maxContextChars,
         maxToolResponseChars: event.data.maxToolResponseChars,
+        maxToolPartsChars: event.data.maxToolPartsChars,
       });
       agent = result;
       agentId = result.id;
@@ -345,6 +347,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         timeoutSec: event.data.timeoutSec,
         maxContextChars: event.data.maxContextChars,
         maxToolResponseChars: event.data.maxToolResponseChars,
+        maxToolPartsChars: event.data.maxToolPartsChars,
       });
       agent = result;
       agentId = result.id;
