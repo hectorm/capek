@@ -127,7 +127,7 @@ export default () => ({
               label: "Test connection",
               testing: "Testing...",
               success: "Connection successful",
-              error: "Connection failed: {error}",
+              error: "Connection failed",
             },
             cancel: "Cancel",
             create: "Create",

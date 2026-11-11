@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
-import { computed, reactive, ref, watch } from "vue";
+import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
-import UBadge from "@nuxt/ui/components/Badge.vue";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UForm from "@nuxt/ui/components/Form.vue";
 import UFormField from "@nuxt/ui/components/FormField.vue";
@@ -17,6 +16,7 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { DatasourceAuthType, DatasourceConfig } from "#layers/datasources/shared/datasource";
+import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
 import { useUserStore } from "#layers/core/app/stores/user";
@@ -227,24 +227,19 @@ const onCancel = () => {
   emit("close", { datasource: null, error: null });
 };
 
-const testing = ref(false);
-const testResult = ref<{ success: true } | { success: false; error: string } | null>(null);
+const { testing, test } = useFormTest({
+  success: i18n.t("datasources.pages.studio.datasources.form.testConnection.success"),
+  error: i18n.t("datasources.pages.studio.datasources.form.testConnection.error"),
+});
 
 const onTestConnection = async () => {
-  testing.value = true;
-  testResult.value = null;
-
-  try {
-    testResult.value = await $trpc.datasources.source.testConnection.mutate({
+  await test(
+    $trpc.datasources.source.testConnection.mutate({
       id: state.id,
       type: state.type,
       config: state.config,
-    });
-  } catch (error) {
-    testResult.value = { success: false, error: error instanceof Error ? error.message : String(error) };
-  } finally {
-    testing.value = false;
-  }
+    }),
+  );
 };
 </script>
 
@@ -402,36 +397,6 @@ const onTestConnection = async () => {
             />
           </UFormField>
         </template>
-        <div class="flex flex-col items-start gap-2">
-          <UButton
-            type="button"
-            color="neutral"
-            variant="outline"
-            :loading="testing"
-            icon="i-lucide-plug"
-            @click="onTestConnection"
-          >
-            {{
-              testing
-                ? $t("datasources.pages.studio.datasources.form.testConnection.testing")
-                : $t("datasources.pages.studio.datasources.form.testConnection.label")
-            }}
-          </UButton>
-          <UBadge v-if="testResult?.success" color="success" variant="subtle" icon="i-lucide-check-circle">
-            {{ $t("datasources.pages.studio.datasources.form.testConnection.success") }}
-          </UBadge>
-          <UBadge
-            v-else-if="testResult && !testResult.success"
-            color="error"
-            variant="subtle"
-            class="items-start"
-            icon="i-lucide-x-circle"
-          >
-            <span class="wrap-break-word whitespace-normal">
-              {{ $t("datasources.pages.studio.datasources.form.testConnection.error", { error: testResult.error }) }}
-            </span>
-          </UBadge>
-        </div>
         <UFormField name="editors" :label="$t('datasources.pages.studio.datasources.form.editors.label')">
           <SearchMenu
             v-model="state.editors"
@@ -457,6 +422,22 @@ const onTestConnection = async () => {
           />
         </UFormField>
         <div class="flex justify-end gap-2">
+          <UButton
+            type="button"
+            class="mr-auto"
+            color="neutral"
+            variant="outline"
+            :loading="testing"
+            icon="i-lucide-plug"
+            :disabled="!canModify"
+            @click="onTestConnection"
+          >
+            {{
+              testing
+                ? $t("datasources.pages.studio.datasources.form.testConnection.testing")
+                : $t("datasources.pages.studio.datasources.form.testConnection.label")
+            }}
+          </UButton>
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("datasources.pages.studio.datasources.form.cancel") }}
           </UButton>

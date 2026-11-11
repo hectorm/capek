@@ -1,10 +1,9 @@
+import type { TestResult } from "#layers/core/shared/types";
 import type { DatasourceConnectionParams, ServerDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 
 const logger = useLogger();
-
-export type TestConnectionResult = { success: true } | { success: false; error: string };
 
 export interface QuerySource extends DatasourceConnectionParams {
   id: string;
@@ -34,7 +33,7 @@ export async function executeQuery(source: QuerySource, sql: string): Promise<st
 export async function testConnection(
   type: ServerDatasourceType,
   params: DatasourceConnectionParams,
-): Promise<TestConnectionResult> {
+): Promise<TestResult> {
   try {
     await type.driver.execute(params, type.driver.validationQuery, {
       statementTimeoutMs: 5_000,

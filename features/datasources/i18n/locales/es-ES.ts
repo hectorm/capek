@@ -129,7 +129,7 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Probar conexión",
               testing: "Probando...",
               success: "Conexión exitosa",
-              error: "Conexión fallida: {error}",
+              error: "Conexión fallida",
             },
             cancel: "Cancelar",
             create: "Crear",
