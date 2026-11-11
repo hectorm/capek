@@ -1,0 +1,74 @@
+import type { IDToken } from "oauth4webapi";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { OIDC } from "#layers/core/server/lib/authn/oidc";
+
+const oidc = new OIDC({
+  rootUrl: "http://localhost:3000",
+  issuer: "https://idp.localhost",
+  discoveryCacheDurationSec: 3600,
+  authorizationEndpoint: "https://idp.localhost/authorize",
+  tokenEndpoint: "https://idp.localhost/token",
+  userinfoEndpoint: "https://idp.localhost/userinfo",
+  jwksUri: "https://idp.localhost/jwks",
+  clientId: "capek",
+  clientSecret: "secret",
+  scopes: "openid profile email",
+  prompt: "select_account",
+  usernameAttributePath: "preferred_username || email",
+  fullnameAttributePath: "name || preferred_username",
+  emailAttributePath: "email",
+  pictureAttributePath: "picture",
+  rolesAttributePath: "(type(roles) == 'array' && roles) || `[\"member\"]`",
+  groupsAttributePath: "(type(groups) == 'array' && groups) || `[]`",
+  allowedPath: "email_verified == `true`",
+  codeVerifierCookieName: "oidc_code_verifier",
+  stateCookieName: "oidc_state",
+  nonceCookieName: "oidc_nonce",
+});
+
+const answerUserInfo = (userInfo: Record<string, unknown>): void => {
+  vi.stubGlobal("fetch", () =>
+    Promise.resolve(new Response(JSON.stringify(userInfo), { headers: { "Content-Type": "application/json" } })),
+  );
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+const claims = (extra: Record<string, unknown>): IDToken =>
+  ({
+    sub: "alice",
+    preferred_username: "alice",
+    name: "Alice",
+    email: "alice@example.com",
+    email_verified: true,
+    picture: "https://idp.localhost/alice.png",
+    ...extra,
+  }) as unknown as IDToken;
+
+describe("oidc user profile", () => {
+  it("takes the roles and groups of the claims", async () => {
+    const profile = await oidc.getUserProfile(claims({ roles: ["admin"], groups: ["finance"] }), "token");
+    expect(profile).toMatchObject({ roles: ["admin"], groups: ["finance"] });
+  });
+
+  it("makes members of the users without roles", async () => {
+    const profile = await oidc.getUserProfile(claims({ groups: ["finance"] }), "token");
+    expect(profile?.roles).toEqual(["member"]);
+  });
+
+  it("leaves the users that come without groups in none, so they are removed from the ones they were in", async () => {
+    const withoutGroups = claims({ roles: ["admin"], groups: [] });
+    answerUserInfo(withoutGroups);
+    const profile = await oidc.getUserProfile(withoutGroups, "token");
+    expect(profile).toMatchObject({ roles: ["admin"], groups: [] });
+  });
+
+  it("rejects the users whose email is not verified", async () => {
+    const unverified = claims({ email_verified: false });
+    answerUserInfo(unverified);
+    expect(await oidc.getUserProfile(unverified, "token")).toBeNull();
+  });
+});

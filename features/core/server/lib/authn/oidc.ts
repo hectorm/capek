@@ -333,6 +333,14 @@ export class OIDC {
       profile.groups = [profile.groups];
     }
 
+    if (this.rolesAttributePath) {
+      profile.roles ??= [];
+    }
+
+    if (this.groupsAttributePath) {
+      profile.groups ??= [];
+    }
+
     if (!profile.preferred_username || !profile.name || !profile.email) {
       logger.warn({ profile }, "User profile is missing required fields (preferred_username, name or email)");
       return null;
