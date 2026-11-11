@@ -123,6 +123,18 @@ const assertComplete = (incomplete: LlmIncompleteDetails | undefined): void => {
   }
 };
 
+const truncate = (text: string, maxChars: number): string => {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return `${text.slice(0, maxChars).toWellFormed()}\n\n[Response truncated: ${String(text.length)} characters, showing first ${String(maxChars)}]`;
+};
+
+const serialize = (value: unknown, maxChars: number): string => {
+  const json = superjson.stringify(value);
+  return json.length > maxChars ? superjson.stringify(truncate(json, maxChars)) : json;
+};
+
 const countChars = (items: LlmItem[]): number => {
   return items.reduce((total, item) => {
     switch (item.type) {
@@ -554,17 +566,14 @@ export class AgentExecutor {
     };
 
     try {
-      let result = await agentTool.tool.execute(args, { user: this.config.user, signal, show });
+      const response = await agentTool.tool.execute(args, { user: this.config.user, signal, show });
+
+      const result = truncate(response, agent.maxToolResponseChars);
+      if (result !== response) {
+        logger.debug({ toolName, originalLength: response.length }, "Tool response truncated");
+      }
 
       await this.saveToolCall(functionCall, agentTool, result, null);
-
-      if (result.length > agent.maxToolResponseChars) {
-        const originalLength = result.length;
-        const truncatedLength = agent.maxToolResponseChars;
-        logger.debug({ toolName, originalLength, truncatedLength }, "Tool response truncated");
-        result = result.slice(0, agent.maxToolResponseChars).toWellFormed();
-        result += `\n\n[Response truncated: ${String(originalLength)} characters, showing first ${String(truncatedLength)}]`;
-      }
 
       items.push({ type: "function_call_output", call_id: functionCall.call_id, output: result });
 
@@ -643,6 +652,7 @@ export class AgentExecutor {
           await saveSessionWorkspace(vfs, this.config.sessionId, context.user);
 
           const codeExecutionId = await this.saveCodeExecution(
+            agent,
             args.code,
             typeof args.reasoning === "string" ? args.reasoning : null,
             executionResult.result,
@@ -654,6 +664,7 @@ export class AgentExecutor {
           for (const mcpCall of executionResult.mcpCallLogs) {
             const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
             await this.saveToolCallFromCodeExecution(
+              agent,
               codeExecutionId,
               server?.id ?? null,
               mcpCall.toolName,
@@ -665,6 +676,7 @@ export class AgentExecutor {
 
           for (const toolCallLog of executionResult.toolCallLogs) {
             await this.saveToolCallFromCodeExecution(
+              agent,
               codeExecutionId,
               null,
               toolCallLog.toolName,
@@ -773,6 +785,7 @@ export class AgentExecutor {
           for (const mcpCall of executionResult.mcpCallLogs) {
             const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
             await this.saveToolCallFromCodeExecution(
+              agent,
               null,
               server?.id ?? null,
               mcpCall.toolName,
@@ -797,6 +810,7 @@ export class AgentExecutor {
   }
 
   private async saveCodeExecution(
+    agent: AgentConfig,
     code: string,
     reasoning: string | null,
     result: unknown,
@@ -816,8 +830,8 @@ export class AgentExecutor {
           executionId,
           code,
           reasoning,
-          result: superjson.stringify(result),
-          logs: superjson.stringify(logs),
+          result: serialize(result, agent.maxToolResponseChars),
+          logs: serialize(logs, agent.maxToolResponseChars),
           errorMessage,
           executionMs,
         })
@@ -829,6 +843,7 @@ export class AgentExecutor {
   }
 
   private async saveToolCallFromCodeExecution(
+    agent: AgentConfig,
     codeExecutionId: string | null,
     mcpServerId: string | null,
     toolName: string,
@@ -850,7 +865,7 @@ export class AgentExecutor {
           toolProvider,
           toolName,
           arguments: args,
-          result,
+          result: result === null ? null : truncate(result, agent.maxToolResponseChars),
           errorMessage,
           completedAt: new Date(),
         })
