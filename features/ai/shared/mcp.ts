@@ -42,13 +42,17 @@ export const MCPListToolsResultSchema = z.object({
 
 export type MCPListToolsResult = z.infer<typeof MCPListToolsResultSchema>;
 
+export const MCPContentSchema = z.object({
+  type: z.string(),
+  text: z.string().nullish(),
+  mimeType: z.string().nullish(),
+  uri: z.string().nullish(),
+  resource: z.object({ uri: z.string().nullish(), text: z.string().nullish() }).nullish(),
+});
+
 export const MCPCallToolResultSchema = z.object({
-  content: z.array(
-    z.object({
-      type: z.literal("text"),
-      text: z.string(),
-    }),
-  ),
+  content: z.array(MCPContentSchema).default([]),
+  structuredContent: z.unknown().optional(),
   isError: z.boolean().optional(),
 });
 

@@ -1,6 +1,7 @@
 import cluster from "node:cluster";
 import { clearTimeout, setTimeout } from "node:timers";
 
+import type { MCPCallToolResult } from "#layers/ai/shared/mcp";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { AbortError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { MCPClient } from "#layers/ai/server/lib/mcp/client";
@@ -9,6 +10,24 @@ import { MCPServerParameters } from "#layers/ai/shared/mcp";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
+
+const mcpResultText = (result: MCPCallToolResult): string => {
+  const texts = result.content.map((content) => {
+    if (content.type === "text") {
+      return content.text ?? "";
+    }
+    if (content.type === "resource" && typeof content.resource?.text === "string") {
+      return content.resource.text;
+    }
+    const detail = content.mimeType ?? content.uri ?? content.resource?.uri;
+    return `[${content.type} content omitted${detail ? `: ${detail}` : ""}]`;
+  });
+
+  if (texts.length === 0 && result.structuredContent !== undefined) {
+    return JSON.stringify(result.structuredContent);
+  }
+  return texts.join("\n");
+};
 
 export class MCPManager {
   private static instance: MCPManager | null = null;
@@ -181,10 +200,9 @@ export class MCPManager {
         (callResult) => {
           settle(() => {
             if (callResult.isError) {
-              const errorText = callResult.content.map((c) => c.text).join("\n");
-              reject(new Error(`Tool error: ${errorText}`));
+              reject(new Error(`Tool error: ${mcpResultText(callResult)}`));
             } else {
-              resolve(callResult.content.map((c) => c.text).join("\n"));
+              resolve(mcpResultText(callResult));
             }
           });
         },
