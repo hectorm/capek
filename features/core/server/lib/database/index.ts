@@ -79,7 +79,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
 
     db = new Kysely<Database>({
       dialect: new PostgresDialect({ pool }),
-      plugins: [new CamelCasePlugin()],
+      plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })],
       log(event) {
         if (event.level === "error") {
           logger.error({ error: event.error }, "Database query error");
