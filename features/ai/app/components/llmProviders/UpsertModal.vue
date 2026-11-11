@@ -244,11 +244,11 @@ const onTestConnection = async () => {
         <UFormField required name="apiType" :label="$t('ai.pages.studio.llmProviders.form.apiType.label')">
           <URadioGroup
             v-model="state.apiType"
-            size="sm"
             variant="table"
             :disabled="!canModify"
             :items="apiTypeOptions"
             orientation="horizontal"
+            :ui="{ item: 'px-2.5 py-1.25' }"
           />
         </UFormField>
         <UFormField name="apiKey" :label="$t('ai.pages.studio.llmProviders.form.apiKey.label')">

@@ -493,11 +493,11 @@ const onTestModel = async () => {
         <UFormField v-if="!props.id" required name="type" :label="$t('ai.pages.studio.agents.form.type.label')">
           <URadioGroup
             v-model="state.type"
-            size="sm"
             variant="table"
             :items="typeOptions"
             :disabled="!canModify"
             orientation="horizontal"
+            :ui="{ item: 'px-2.5 py-1.25' }"
           />
         </UFormField>
         <UFormField
