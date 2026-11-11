@@ -20,6 +20,10 @@ const baseSources = (nonce: string): CspSources => ({
   "script-src": ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"],
   "style-src": ["'self'", "'unsafe-inline'"],
   "img-src": ["'self'", "blob:", "data:"],
+  "base-uri": ["'self'"],
+  "form-action": ["'self'"],
+  "frame-ancestors": ["'self'"],
+  "object-src": ["'none'"],
 });
 
 export default defineEventHandler(async (event) => {

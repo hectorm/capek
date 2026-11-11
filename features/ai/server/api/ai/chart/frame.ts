@@ -88,6 +88,7 @@ export default defineEventHandler((event) => {
         "script-src": [`'nonce-${nonce}'`, "'unsafe-eval'"],
         "style-src": ["'unsafe-inline'"],
         "img-src": ["blob:", "data:"],
+        "frame-ancestors": ["'self'"],
       },
       [],
     ),
