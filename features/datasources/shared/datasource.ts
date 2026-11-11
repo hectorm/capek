@@ -23,6 +23,13 @@ export interface DatasourceTypeDefinition<S extends z.ZodType = z.ZodType> {
   unredact: (incoming: DatasourceConfig, stored: DatasourceConfig) => DatasourceConfig;
 }
 
+export class DatasourceSecretsError extends Error {
+  public constructor() {
+    super("The hidden secrets have to be entered again to change the connection string");
+    this.name = "DatasourceSecretsError";
+  }
+}
+
 export const defineDatasourceType = <S extends z.ZodType>(def: {
   type: string;
   label: string;
@@ -44,7 +51,16 @@ export const defineDatasourceType = <S extends z.ZodType>(def: {
   unredact: (incoming, stored) => {
     const parsedIncoming = def.configSchema.parse(incoming);
     const parsedStored = def.configSchema.safeParse(stored);
-    return def.unredact(parsedIncoming, parsedStored.success ? parsedStored.data : undefined);
+    const config = def.unredact(parsedIncoming, parsedStored.success ? parsedStored.data : undefined);
+
+    // Stored secrets are only taken while the connection string stays the same, or editors could send them elsewhere
+    const taken = Object.entries(config).some(
+      ([key, value]) => Boolean(value) && value !== (parsedIncoming as DatasourceConfig)[key],
+    );
+    if (taken && config.connectionString !== stored.connectionString) {
+      throw new DatasourceSecretsError();
+    }
+    return config;
   },
 });
 

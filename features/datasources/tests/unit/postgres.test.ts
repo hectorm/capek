@@ -50,6 +50,18 @@ describe("postgres datasource", () => {
     ]);
   });
 
+  it("only takes the hidden password from the stored configuration while it connects to the same place", () => {
+    const redacted = PostgresDatasourceType.redact(config());
+    const moved = { ...redacted, connectionString: "postgres://attacker.example:5432/postgres" };
+    expect(() => PostgresDatasourceType.unredact(moved, config())).toThrow(/have to be entered again/);
+    expect(PostgresDatasourceType.unredact({ ...moved, password: "typed" }, config()).password).toBe("typed");
+    expect(PostgresDatasourceType.unredact({ ...redacted, username: "other" }, config())).toMatchObject({
+      username: "other",
+      password: "postgres",
+    });
+    expect(PostgresDatasourceType.unredact(moved, {}).password).toBe("");
+  });
+
   it("does not let queries change the data", async () => {
     const run = (sql: string): Promise<unknown[]> => driver.execute({ config: config() }, sql, settings);
 

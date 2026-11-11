@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import type { Endpoint } from "#layers/core/server/lib/http";
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
@@ -12,6 +13,7 @@ import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { paginate } from "#layers/core/server/lib/database/pagination";
+import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
@@ -160,29 +162,27 @@ export const llmProviderRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, apiUrl, apiKey, headers, ...updateData } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          if (updateData.headers !== undefined) {
-            const existing = await trx
-              .selectFrom("aiLlmProviders")
-              .select(["headers"])
-              .where("id", "=", id)
-              .executeTakeFirst();
-            updateData.headers = updateData.headers.map((h) => {
-              return h.value === HttpRedactedValue
-                ? { ...h, value: existing?.headers.find((e) => e.name === h.name)?.value ?? "" }
-                : h;
-            });
-          }
-
-          const apiKey = updateData.apiKey === HttpRedactedValue ? undefined : updateData.apiKey;
-          const headers = updateData.headers ? JSON.stringify(updateData.headers) : undefined;
+          const existing = await trx
+            .selectFrom("aiLlmProviders")
+            .select(["apiUrl as url", "apiKey", "headers"])
+            .where("id", "=", id)
+            .forUpdate()
+            .executeTakeFirst();
+          const endpoint = unredactEndpoint({ url: apiUrl, apiKey, headers }, existing);
 
           const llmProvider = await trx
             .updateTable("aiLlmProviders")
-            .set({ ...updateData, apiKey, headers, updatedAt: new Date() })
+            .set({
+              ...updateData,
+              apiUrl: endpoint.url,
+              apiKey: endpoint.apiKey,
+              headers: JSON.stringify(endpoint.headers),
+              updatedAt: new Date(),
+            })
             .where("id", "=", id)
             .returning(["id", "name", "description", "apiUrl", "apiType", "apiKey", "headers"])
             .executeTakeFirst();
@@ -281,28 +281,28 @@ export const llmProviderRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id } = input;
+      const { id, apiType } = input;
 
-      let { apiKey, headers = [] } = input;
+      let endpoint: Endpoint = { url: input.apiUrl, apiKey: input.apiKey, headers: input.headers ?? [] };
       if (id) {
         // The lock limits the secrets to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("aiLlmProviders")
-            .select(["apiKey", "headers"])
+            .select(["apiUrl as url", "apiKey", "headers"])
             .where("id", "=", id)
             .forUpdate()
             .executeTakeFirst();
         });
-        apiKey = apiKey === HttpRedactedValue ? (stored?.apiKey ?? "") : apiKey;
-        headers = headers.map((h) => {
-          return h.value === HttpRedactedValue
-            ? { ...h, value: stored?.headers.find((e) => e.name === h.name)?.value ?? "" }
-            : h;
-        });
+        endpoint = unredactEndpoint(endpoint, stored);
       }
 
-      const llmClient = new LlmClient({ apiUrl: input.apiUrl, apiType: input.apiType, apiKey, headers });
+      const llmClient = new LlmClient({
+        apiUrl: endpoint.url,
+        apiType,
+        apiKey: endpoint.apiKey,
+        headers: endpoint.headers,
+      });
 
       return llmClient.testConnection();
     }),

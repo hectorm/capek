@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import type { Endpoint } from "#layers/core/server/lib/http";
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { MCPClient } from "#layers/ai/server/lib/mcp/client";
 import { McpServerResource } from "#layers/ai/server/lib/resources";
@@ -12,6 +13,7 @@ import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { paginate } from "#layers/core/server/lib/database/pagination";
+import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
@@ -158,29 +160,30 @@ export const mcpServerRouter = createTRPCRouter({
         .extend(MCPServerParametersSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, url, headers, ...updateData } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          if (updateData.headers !== undefined) {
-            const existing = await trx
-              .selectFrom("aiMcpServers")
-              .select(["headers"])
-              .where("id", "=", id)
-              .executeTakeFirst();
-            updateData.headers = updateData.headers.map((h) => {
-              return h.value === HttpRedactedValue
-                ? { ...h, value: existing?.headers.find((e) => e.name === h.name)?.value ?? "" }
-                : h;
-            });
-          }
+          const existing = await trx
+            .selectFrom("aiMcpServers")
+            .select(["url", "headers"])
+            .where("id", "=", id)
+            .forUpdate()
+            .executeTakeFirst();
+          const endpoint = unredactEndpoint({ url, headers }, existing);
 
-          const headers = updateData.headers ? JSON.stringify(updateData.headers) : undefined;
-          const cachedTools = updateData.url || updateData.headers ? "[]" : undefined;
+          // The tools are discovered again when the server may be another one
+          const cachedTools = url !== undefined || headers !== undefined ? "[]" : undefined;
 
           const mcpServer = await trx
             .updateTable("aiMcpServers")
-            .set({ ...updateData, headers, cachedTools, updatedAt: new Date() })
+            .set({
+              ...updateData,
+              url: endpoint.url,
+              headers: JSON.stringify(endpoint.headers),
+              cachedTools,
+              updatedAt: new Date(),
+            })
             .where("id", "=", id)
             .returning(["id", "name", "description", "url", "headers", "stateful", "toolCallTimeoutSec"])
             .executeTakeFirst();
@@ -272,20 +275,27 @@ export const mcpServerRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { id } = input;
 
-      let { headers = [] } = input;
+      let endpoint: Endpoint = { url: input.url, headers: input.headers ?? [] };
       if (id) {
         // The lock limits the secrets to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
-          return trx.selectFrom("aiMcpServers").select(["headers"]).where("id", "=", id).forUpdate().executeTakeFirst();
+          return trx
+            .selectFrom("aiMcpServers")
+            .select(["url", "headers"])
+            .where("id", "=", id)
+            .forUpdate()
+            .executeTakeFirst();
         });
-        headers = headers.map((h) => {
-          return h.value === HttpRedactedValue
-            ? { ...h, value: stored?.headers.find((e) => e.name === h.name)?.value ?? "" }
-            : h;
-        });
+        endpoint = unredactEndpoint(endpoint, stored);
       }
 
-      const mcpClient = new MCPClient({ name: input.url, url: input.url, headers, stateful: false, timeoutMs: 10_000 });
+      const mcpClient = new MCPClient({
+        name: endpoint.url,
+        url: endpoint.url,
+        headers: endpoint.headers,
+        stateful: false,
+        timeoutMs: 10_000,
+      });
 
       return mcpClient.testConnection();
     }),

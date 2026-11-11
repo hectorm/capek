@@ -108,6 +108,14 @@ const schema = z
         ctx.addIssue({ code: "custom", path: ["config", ...issue.path], message: issue.message });
       }
     }
+
+    if (datasource && data.config.connectionString !== datasource.config.connectionString) {
+      for (const [key, value] of Object.entries(data.config)) {
+        if (value === HttpRedactedValue) {
+          ctx.addIssue({ code: "custom", path: ["config", key], message: i18n.t("errors.secretRequired") });
+        }
+      }
+    }
   });
 
 type Schema = z.infer<typeof schema>;

@@ -80,17 +80,30 @@ const canModify = computed(() => {
   return canAny([AiPermissions.LlmProviderUpdateAll, AiPermissions.LlmProviderUpdateOwn], principalIds);
 });
 
-const schema = z.object({
-  id: z.uuid().optional(),
-  name: z.string().min(1).max(100).trim(),
-  description: z.string().max(1000).trim().default(""),
-  apiUrl: z.url(),
-  apiType: LlmProviderApiTypeSchema,
-  apiKey: z.string().max(1000).trim().default(""),
-  headers: HttpHeadersSchema.default([]),
-  editors: z.array(z.string()).default([]),
-  users: z.array(z.string()).default([]),
-});
+const schema = z
+  .object({
+    id: z.uuid().optional(),
+    name: z.string().min(1).max(100).trim(),
+    description: z.string().max(1000).trim().default(""),
+    apiUrl: z.url(),
+    apiType: LlmProviderApiTypeSchema,
+    apiKey: z.string().max(1000).trim().default(""),
+    headers: HttpHeadersSchema.default([]),
+    editors: z.array(z.string()).default([]),
+    users: z.array(z.string()).default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (!llmProvider || data.apiUrl === llmProvider.apiUrl) {
+      return;
+    }
+    const message = i18n.t("errors.secretRequired");
+    if (data.apiKey === HttpRedactedValue) {
+      ctx.addIssue({ code: "custom", path: ["apiKey"], message });
+    }
+    if (data.headers.some((header) => header.value === HttpRedactedValue)) {
+      ctx.addIssue({ code: "custom", path: ["headers"], message });
+    }
+  });
 
 type Schema = z.infer<typeof schema>;
 

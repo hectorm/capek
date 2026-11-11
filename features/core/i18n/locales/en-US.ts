@@ -342,6 +342,7 @@ export default () => ({
     },
   },
   errors: {
+    secretRequired: "The connection has changed, enter this value again",
     unexpected: {
       title: "Unexpected error",
       description: "An unexpected error occurred. Please refresh the page.",

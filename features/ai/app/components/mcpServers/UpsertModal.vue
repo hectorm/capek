@@ -95,7 +95,12 @@ const schema = z
     editors: z.array(z.string()).default([]),
     users: z.array(z.string()).default([]),
   })
-  .extend(MCPServerParametersSchema.shape);
+  .extend(MCPServerParametersSchema.shape)
+  .superRefine((data, ctx) => {
+    if (mcpServer && data.url !== mcpServer.url && data.headers.some((h) => h.value === HttpRedactedValue)) {
+      ctx.addIssue({ code: "custom", path: ["headers"], message: i18n.t("errors.secretRequired") });
+    }
+  });
 
 type Schema = z.infer<typeof schema>;
 

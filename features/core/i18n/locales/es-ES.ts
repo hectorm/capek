@@ -344,6 +344,7 @@ export default (): ReturnType<typeof enUS> => ({
     },
   },
   errors: {
+    secretRequired: "La conexión ha cambiado, introduzca este valor de nuevo",
     unexpected: {
       title: "Error inesperado",
       description: "Ocurrió un error inesperado. Por favor, actualice la página.",

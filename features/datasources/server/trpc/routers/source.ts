@@ -14,7 +14,7 @@ import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { testConnection } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
-import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
+import { DatasourceConfigSchema, DatasourceSecretsError } from "#layers/datasources/shared/datasource";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 
 const typedConfigShape = {
@@ -44,6 +44,25 @@ const parseConfig = (datasourceType: ServerDatasourceType, config: DatasourceCon
     });
   }
   return parsed.data as DatasourceConfig;
+};
+
+// Takes the hidden secrets of a configuration from the stored one
+const unredactConfig = (
+  datasourceType: ServerDatasourceType,
+  incoming: DatasourceConfig,
+  stored: { type: string; config: DatasourceConfig } | undefined,
+): DatasourceConfig => {
+  try {
+    return datasourceType.definition.unredact(
+      incoming,
+      stored?.type === datasourceType.definition.type ? stored.config : {},
+    );
+  } catch (error) {
+    if (error instanceof DatasourceSecretsError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+    }
+    throw error;
+  }
 };
 
 // Hides the secrets of the configuration, which cannot be read back when its type is not supported
@@ -198,13 +217,9 @@ export const sourceRouter = createTRPCRouter({
             .selectFrom("datasourcesSources")
             .select(["type", "config"])
             .where("id", "=", id)
+            .forUpdate()
             .executeTakeFirst();
-          const config = JSON.stringify(
-            datasourceType.definition.unredact(
-              incomingConfig,
-              existing?.type === updateData.type ? existing.config : {},
-            ),
-          );
+          const config = JSON.stringify(unredactConfig(datasourceType, incomingConfig, existing));
 
           const source = await trx
             .updateTable("datasourcesSources")
@@ -304,7 +319,7 @@ export const sourceRouter = createTRPCRouter({
             .forUpdate()
             .executeTakeFirst();
         });
-        config = datasourceType.definition.unredact(config, stored?.type === type ? stored.config : {});
+        config = unredactConfig(datasourceType, config, stored);
       }
 
       return testConnection(datasourceType, { config });
