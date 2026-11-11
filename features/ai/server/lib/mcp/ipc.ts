@@ -11,7 +11,7 @@ import { useLogger } from "#layers/core/server/lib/logger";
 const logger = useLogger();
 
 export interface MCPIPCRequest {
-  type: "callTool" | "cancelToolCall" | "cleanupSession";
+  type: "callTool" | "cancelToolCall" | "cleanupSession" | "cleanupIdleSessions";
   requestId: string;
   serverName?: string;
   serverUrl?: string;
@@ -166,6 +166,10 @@ export function setupMCPIPCHandler(): void {
             }
             await manager.cleanupSession(request.chatSessionId);
             data = null;
+            break;
+          }
+          case "cleanupIdleSessions": {
+            data = await manager.cleanupIdleSessions();
             break;
           }
           case "cancelToolCall": {

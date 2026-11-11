@@ -11,6 +11,8 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const IDLE_SESSION_MS = 30 * 60 * 1000;
+
 const mcpResultText = (result: MCPCallToolResult): string => {
   const texts = result.content.map((content) => {
     if (content.type === "text") {
@@ -29,10 +31,16 @@ const mcpResultText = (result: MCPCallToolResult): string => {
   return texts.join("\n");
 };
 
+interface MCPSession {
+  clients: Map<string, MCPClient>;
+  calls: number;
+  lastUsedAt: number;
+}
+
 export class MCPManager {
   private static instance: MCPManager | null = null;
   private static ipcClient: MCPIPCClient | null = null;
-  private clients = new Map<string, Map<string, MCPClient>>();
+  private sessions = new Map<string, MCPSession>();
 
   private constructor() {}
 
@@ -49,7 +57,7 @@ export class MCPManager {
       throw new Error("Method not available in worker processes");
     }
 
-    return this.clients.get(chatSessionId)?.get(serverName);
+    return this.sessions.get(chatSessionId)?.clients.get(serverName);
   }
 
   public hasClient(serverName: string, chatSessionId: string): boolean {
@@ -57,7 +65,7 @@ export class MCPManager {
       throw new Error("Method not available in worker processes");
     }
 
-    return this.clients.get(chatSessionId)?.has(serverName) ?? false;
+    return this.sessions.get(chatSessionId)?.clients.has(serverName) ?? false;
   }
 
   public async getOrCreateClient(
@@ -71,20 +79,22 @@ export class MCPManager {
       throw new Error("Method not available in worker processes");
     }
 
-    let sessions = this.clients.get(chatSessionId);
-    if (!sessions) {
-      sessions = new Map<string, MCPClient>();
-      this.clients.set(chatSessionId, sessions);
-    }
+    const session = this.sessions.get(chatSessionId) ?? {
+      clients: new Map<string, MCPClient>(),
+      calls: 0,
+      lastUsedAt: 0,
+    };
+    session.lastUsedAt = Date.now();
+    this.sessions.set(chatSessionId, session);
 
-    let client = sessions.get(serverName);
+    let client = session.clients.get(serverName);
     if (client) {
       return client;
     }
 
     client = new MCPClient({ name: serverName, url: serverUrl, headers: serverHeaders, stateful });
     await client.initialize();
-    sessions.set(serverName, client);
+    session.clients.set(serverName, client);
 
     logger.debug({ serverName, chatSessionId, sessionId: client.sessionId }, "MCP client created for chat session");
     return client;
@@ -96,13 +106,15 @@ export class MCPManager {
       return;
     }
 
-    const sessions = this.clients.get(chatSessionId);
-    if (!sessions) {
+    const session = this.sessions.get(chatSessionId);
+    if (!session) {
       return;
     }
 
+    this.sessions.delete(chatSessionId);
+
     await Promise.allSettled(
-      Array.from(sessions.values()).map(async (client) => {
+      Array.from(session.clients.values()).map(async (client) => {
         try {
           await client.terminate();
         } catch (error) {
@@ -111,16 +123,21 @@ export class MCPManager {
       }),
     );
 
-    this.clients.delete(chatSessionId);
-    logger.debug({ chatSessionId, clientCount: sessions.size }, "MCP session cleaned up");
+    logger.debug({ chatSessionId, clientCount: session.clients.size }, "MCP session cleaned up");
   }
 
-  public getTrackedSessionIds(): string[] {
-    if (cluster.isWorker) {
-      throw new Error("Method not available in worker processes");
+  public async cleanupIdleSessions(now = Date.now()): Promise<number> {
+    if (cluster.isWorker && MCPManager.ipcClient) {
+      return (await MCPManager.ipcClient.send({ type: "cleanupIdleSessions" })) as number;
     }
 
-    return Array.from(this.clients.keys());
+    const idle = Array.from(this.sessions)
+      .filter(([, session]) => session.calls === 0 && now - session.lastUsedAt >= IDLE_SESSION_MS)
+      .map(([chatSessionId]) => chatSessionId);
+
+    await Promise.all(idle.map((chatSessionId) => this.cleanupSession(chatSessionId)));
+
+    return idle.length;
   }
 
   public async callTool(
@@ -156,6 +173,10 @@ export class MCPManager {
     }
 
     const client = await this.getOrCreateClient(serverName, serverUrl, serverHeaders, chatSessionId, stateful);
+    const session = this.sessions.get(chatSessionId);
+    if (session) {
+      session.calls++;
+    }
 
     return new Promise<string>((resolve, reject) => {
       let settled = false;
@@ -212,6 +233,11 @@ export class MCPManager {
           });
         },
       );
+    }).finally(() => {
+      if (session) {
+        session.calls--;
+        session.lastUsedAt = Date.now();
+      }
     });
   }
 }
