@@ -43,8 +43,9 @@ export function createVFS(
       const toolPath = `/servers/${serverName}/${toolName}.js`;
       vfs.writeFile(toolPath, generateToolModule(server.name, tool), { readonly: true });
 
-      const brief = tool.description?.split("\n")[0]?.slice(0, 100) ?? tool.name;
-      toolExports.push(`/** ${brief} */\nexport { default as $${toolName} } from "./${toolName}.js";`);
+      toolExports.push(
+        `${briefComment(tool.description, tool.name)}\nexport { default as $${toolName} } from "./${toolName}.js";`,
+      );
     }
 
     vfs.writeFile(`/servers/${serverName}/index.js`, toolExports.join("\n\n") + "\n", { readonly: true });
@@ -62,8 +63,9 @@ export function createVFS(
     if (skill.code) {
       vfs.writeFile(`/skills/${skillName}/scripts/main.js`, skill.code, { readonly: true });
 
-      const brief = skill.description.split("\n")[0]?.slice(0, 100) ?? skill.name;
-      skillExports.push(`/** ${brief} */\nexport { default as $${skillName} } from "./${skillName}/scripts/main.js";`);
+      skillExports.push(
+        `${briefComment(skill.description, skill.name)}\nexport { default as $${skillName} } from "./${skillName}/scripts/main.js";`,
+      );
     }
   }
   vfs.writeFile("/skills/index.js", skillExports.join("\n\n") + "\n", { readonly: true });
@@ -78,8 +80,9 @@ export function createVFS(
         const toolName = sanitizeId(tool.name);
         vfs.writeFile(`/tools/${provider}/${toolName}.js`, generateFeatureToolModule(tool), { readonly: true });
 
-        const brief = tool.description.split("\n")[0]?.slice(0, 100) ?? tool.name;
-        toolExports.push(`/** ${brief} */\nexport { default as $${toolName} } from "./${toolName}.js";`);
+        toolExports.push(
+          `${briefComment(tool.description, tool.name)}\nexport { default as $${toolName} } from "./${toolName}.js";`,
+        );
       }
       vfs.writeFile(`/tools/${provider}/index.js`, toolExports.join("\n\n") + "\n", { readonly: true });
 
@@ -167,47 +170,51 @@ function escapeJSDoc(text: string): string {
   return text.replace(/\/\*/g, "/ *").replace(/\*\//g, "* /");
 }
 
+function briefComment(description: string | undefined, name: string): string {
+  const firstLine = description?.split("\n")[0]?.slice(0, 100);
+  const brief = firstLine === undefined || firstLine === "" ? name : firstLine;
+  return `/** ${escapeJSDoc(brief)} */`;
+}
+
 function generateJSDoc(name: string, description: string, schema: ToolInputSchema): string {
-  const lines: string[] = ["/**"];
+  const lines: string[] = [];
 
   if (description) {
-    for (const line of wrapText(escapeJSDoc(description), 77)) {
-      lines.push(` * ${line}`);
-    }
+    lines.push(...wrapText(description, 77));
   } else {
-    lines.push(` * ${name}`);
+    lines.push(name);
   }
-  lines.push(" *");
+  lines.push("");
 
   const properties = schema.properties ?? {};
   const required = new Set(schema.required ?? []);
 
   if (Object.keys(properties).length > 0) {
-    lines.push(" * @param {Object} params");
+    lines.push("@param {Object} params");
     for (const [propName, propSchema] of Object.entries(properties)) {
       const info = extractPropInfo(propSchema);
       const opt = required.has(propName) ? "" : " (optional)";
-      lines.push(` * @param {${info.type}} params.${propName}${opt}`);
+      lines.push(`@param {${info.type}} params.${propName}${opt}`);
 
       if (info.description) {
-        for (const line of wrapText(escapeJSDoc(info.description), 70)) {
-          lines.push(` *   ${line}`);
+        for (const line of wrapText(info.description, 70)) {
+          lines.push(`  ${line}`);
         }
       }
       if (info.enumValues?.length) {
-        lines.push(` *   Allowed: ${info.enumValues.map((v) => `"${v}"`).join(", ")}`);
+        lines.push(`  Allowed: ${info.enumValues.map((v) => `"${v}"`).join(", ")}`);
       }
       if (info.defaultValue !== undefined) {
-        lines.push(` *   Default: ${JSON.stringify(info.defaultValue)}`);
+        lines.push(`  Default: ${JSON.stringify(info.defaultValue)}`);
       }
     }
   } else {
-    lines.push(" * @param {Object} params - No parameters required");
+    lines.push("@param {Object} params - No parameters required");
   }
 
-  lines.push(" * @returns {*} Tool result");
-  lines.push(" */");
-  return lines.join("\n");
+  lines.push("@returns {*} Tool result");
+
+  return ["/**", ...lines.map((line) => ` * ${escapeJSDoc(line)}`.trimEnd()), " */"].join("\n");
 }
 
 interface PropInfo {
