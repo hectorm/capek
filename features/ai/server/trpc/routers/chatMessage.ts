@@ -53,26 +53,10 @@ export const chatMessageRouter = createTRPCRouter({
         content: z.string().min(1).max(100000).trim(),
       }),
     )
-    .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const message = await trx
-          .insertInto("aiChatMessages")
-          .values({
-            sessionId: input.sessionId,
-            role: input.role,
-            content: input.content,
-          })
-          .returning(["id", "sessionId", "role", "content", "createdAt", "updatedAt"])
-          .executeTakeFirstOrThrow();
-
-        await trx
-          .updateTable("aiChatSessions")
-          .set({ updatedAt: new Date() })
-          .where("id", "=", input.sessionId)
-          .execute();
-
-        ctx.logger.info({ messageId: message.id, sessionId: input.sessionId }, "Chat message created");
-        return { ...message, parts: toParts(message.content, []) };
+    .mutation(() => {
+      throw new TRPCError({
+        code: "NOT_IMPLEMENTED",
+        message: "Message creation is not implemented",
       });
     }),
 
