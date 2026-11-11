@@ -53,6 +53,7 @@ Each feature owns its database changes:
 
 - Migrations are tracked per feature (`kysely_migration_<name>` table) and applied in dependency order.
 - Row level security of all features is composed into a single set of statements, reapplied whenever it changes or a migration is added. Resources shared with users and groups (`defineSharedResource()`) and resources owned by a user (`defineOwnedResource()`) are registered in `security.has_access()` and `security.is_owner()`, and `sharedResourcePolicies()` generates their policies.
+- Policies are evaluated for each row that a statement reads, so they look up the session in a subquery, like `(SELECT security.can_any(...))`, and check the access to other rows with `hasAccess()` and `isOwner()`. The server refuses to start when a policy looks up the session directly.
 - Every table must have forced row level security (e.g. with `protectTable()`), otherwise the server refuses to start.
 - When a feature is removed its tables are kept, with row level security enabled and no policies, so they become inaccessible.
 - Migrations, policies and functions qualify their tables with the `public` schema, queries do not.

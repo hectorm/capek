@@ -1,4 +1,5 @@
 import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
+import { defineOwnedResource } from "#layers/core/server/lib/database/security";
 
 export const AgentResource = defineSharedResource({ type: "ai_agent", table: "ai_agents", foreignKey: "agent_id" });
 
@@ -15,3 +16,7 @@ export const McpServerResource = defineSharedResource({
 });
 
 export const SkillResource = defineSharedResource({ type: "ai_skill", table: "ai_skills", foreignKey: "skill_id" });
+
+export const ChatResource = defineOwnedResource({ type: "ai_chat", table: "ai_chat_sessions" });
+
+export const AgentExecutionResource = defineOwnedResource({ type: "ai_agent_execution", table: "ai_agent_executions" });

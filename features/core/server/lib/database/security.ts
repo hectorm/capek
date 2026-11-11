@@ -2,35 +2,52 @@
 // Row Level Security
 // =============================================================================
 //
-// The row level security of all features is composed into one set of statements, recreated whenever it or the migrations change.
+// The row level security of all features is one set of statements, recreated when it or the migrations change.
 //
 // HOW IT WORKS:
 // -------------
-// 1. Application sets session variables via withUserTransaction():
+// 1. withUserTransaction() sets session variables, and switches superuser connections to a role bound by the policies:
 //    - app.user_id: Current user's UUID
 //    - app.user_groups: Array of group UUIDs the user belongs to
 //    - app.user_permissions: Array of permission strings (e.g., 'user:read:own')
+//    - app.trusted_write: 'on' when the server writes rows on behalf of the user that users cannot write themselves
 //
 // 2. Helper functions read these variables:
 //    - security.user_id(): Returns current user ID (NULL for system operations)
 //    - security.user_groups(): Returns user's group memberships
 //    - security.user_permissions(): Returns the current user's permissions
-//    - security.can()/security.can_any(): Check whether required permissions are present
+//    - security.is_trusted_write(): Checks whether the transaction is a trusted write
+//    - security.can()/security.can_any(): Check whether all, or any, of the required permissions are present
 //    - security.is_owner(): Checks ownership of the owned resources registered by features
 //    - security.has_access(): Checks access granted through the access tables of shared resources
+//    - security.has_other_access(): Checks whether anyone else was granted access to a shared resource
+//    - security.is_creating(): Checks whether the current transaction created a shared resource nobody else can access
 //
-// 3. Policies on public tables use those helpers to define who can
-//    SELECT/INSERT/UPDATE/DELETE each row.
+// 3. Policies on public tables use those helpers to define who can access each row. Features write them with:
+//    - protectTable(): Enables row level security on a table, allowing system operations
+//    - isOwner()/hasAccess(): Conditions on the ownership of, or the access to, the resource that a column refers to
+//    - sharesResourceWith(): Condition that lets editors see the users and groups they share resources with
+//    - sharedResourcePolicies(): Policies of a shared resource and its access table
+//
+// PERFORMANCE:
+// ------------
+// A policy is evaluated for each row that a statement reads, so what does not depend on the row is computed once:
+//   - Session lookups are wrapped in a subquery, like "(SELECT security.can_any(...))", which the planner runs once.
+//   - Access checks on other rows use hasAccess() and isOwner(), which the planner can hash, unlike the functions.
+//
+// The startup fails when a policy calls a session lookup directly.
 //
 // POLICY PATTERNS:
 // ----------------
 // *_system policies:
-//   Allow system operations (migrations, scheduled tasks) when security.user_id() IS NULL.
-//   These bypass all user-level restrictions.
+//   Allow system operations (migrations, scheduled tasks), which have no user, bypassing all user-level restrictions.
 //
 // Permission-based access:
 //   - ':all' permissions (e.g., 'user:read:all') grant access to ALL rows
 //   - ':own' permissions (e.g., 'user:read:own') require additional ownership checks
+//
+// Ownership via owner column:
+//   Owned resources (see defineOwnedResource) belong to the user in their owner column.
 //
 // Ownership via access tables:
 //   Shared resources (see defineSharedResource) use access tables to track who has access. Two roles exist:
@@ -41,6 +58,8 @@
 //   - Individual users (user_id column)
 //   - Groups (group_id column), all group members inherit access
 //
+// Within the transaction that creates a shared resource, its creator can see it and grant themselves access to it.
+//
 // Tables of removed features keep row level security enabled without policies, so they become inaccessible.
 //
 // =============================================================================
@@ -50,6 +69,7 @@ import { sql } from "kysely";
 
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
+import type { PrincipalRole } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
@@ -92,149 +112,12 @@ export interface SecurityDefinition {
   statements?: (ctx: SecurityContext) => string[];
 }
 
-// Enables row level security on a table, allowing system operations
-export const protectTable = (table: string): string[] => [
-  `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`,
-  `ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY`,
-  `
-    CREATE POLICY ${table}_system ON public.${table}
-      USING (security.user_id() IS NULL)
-      WITH CHECK (security.user_id() IS NULL);
-  `,
-];
-
-// Lets editors see the users and groups they share resources with
-export const sharesResourceWith = (
-  resources: readonly SharedResource[],
-  principal: { userId: string } | { groupId: string },
-): string => {
-  const [column, value] = "userId" in principal ? ["user_id", principal.userId] : ["group_id", principal.groupId];
-  if (resources.length === 0) {
+// Expression that evaluates the condition of the matching resource type
+const dispatch = (cases: [type: string, condition: string][]): string => {
+  if (cases.length === 0) {
     return "FALSE";
   }
-  const conditions = resources.map(
-    ({ accessTable, foreignKey }) => `
-      EXISTS (
-        SELECT 1 FROM public.${accessTable} a1
-        INNER JOIN public.${accessTable} a2 ON a1.${foreignKey} = a2.${foreignKey}
-        WHERE a2.${column} = ${value}
-        AND a1.role = 'editor'
-        AND (a1.user_id = security.user_id() OR a1.group_id = ANY(security.user_groups()))
-      )
-    `,
-  );
-  return `(${conditions.join(" OR ")})`;
-};
-
-// Policies of a shared resource and its access table
-export const sharedResourcePolicies = (
-  resource: SharedResource,
-  options: {
-    // Additional condition required to insert a resource
-    insertCheck?: string;
-    // Additional condition required to update a resource
-    updateCheck?: string;
-  } = {},
-): string[] => {
-  const { type, table, accessTable, foreignKey } = resource;
-
-  const canUpdate = `
-    security.can_any(ARRAY['${type}:update:all'])
-    OR (security.can_any(ARRAY['${type}:update:own']) AND security.has_access('${type}', id, ARRAY['editor']))
-  `;
-
-  return [
-    ...protectTable(table),
-    `
-      CREATE POLICY ${table}_select ON public.${table}
-        FOR SELECT
-        USING (
-          security.can_any(ARRAY['${type}:read:all', '${type}:list:all', '${type}:update:all', '${type}:delete:all', '${type}:use:all'])
-          OR (
-            security.can_any(ARRAY['${type}:read:own', '${type}:list:own', '${type}:update:own', '${type}:delete:own', '${type}:use:own'])
-            AND security.has_access('${type}', id)
-          )
-          -- Let creators see rows in the current transaction with no access grants
-          -- to other users or groups so they can insert their initial self-access rows
-          OR (
-            security.can_any(ARRAY['${type}:create'])
-            AND age(${table}.xmin) = 0
-            AND NOT EXISTS (
-              SELECT 1 FROM public.${accessTable} a
-              WHERE a.${foreignKey} = ${table}.id
-              AND (a.user_id IS DISTINCT FROM security.user_id() OR a.group_id IS NOT NULL)
-            )
-          )
-        );
-    `,
-    `
-      CREATE POLICY ${table}_insert ON public.${table}
-        FOR INSERT
-        WITH CHECK (
-          security.can_any(ARRAY['${type}:create'])
-          ${options.insertCheck ? `AND (${options.insertCheck})` : ""}
-        );
-    `,
-    `
-      CREATE POLICY ${table}_update ON public.${table}
-        FOR UPDATE
-        USING (${canUpdate})
-        WITH CHECK (
-          (${canUpdate})
-          ${options.updateCheck ? `AND (${options.updateCheck})` : ""}
-        );
-    `,
-    `
-      CREATE POLICY ${table}_delete ON public.${table}
-        FOR DELETE
-        USING (
-          security.can_any(ARRAY['${type}:delete:all'])
-          OR (security.can_any(ARRAY['${type}:delete:own']) AND security.has_access('${type}', id, ARRAY['editor']))
-        );
-    `,
-    ...protectTable(accessTable),
-    // Doesn't filter by resource access to avoid RLS recursion (has_access queries this table).
-    // Users with :own permissions can see access metadata for all resources, but not resource content.
-    `
-      CREATE POLICY ${accessTable}_select ON public.${accessTable}
-        FOR SELECT
-        USING (
-          security.can_any(ARRAY['${type}:read:all', '${type}:update:all', '${type}:read:own', '${type}:update:own'])
-        );
-    `,
-    `
-      CREATE POLICY ${accessTable}_insert ON public.${accessTable}
-        FOR INSERT
-        WITH CHECK (
-          security.can_any(ARRAY['${type}:update:all'])
-          OR (security.can_any(ARRAY['${type}:update:own']) AND security.has_access('${type}', ${foreignKey}, ARRAY['editor']))
-          -- Implicit creator self-grant: creator can grant access to themselves only for resources
-          -- created in the current transaction, and only when no other users or groups have access
-          OR (
-            security.can_any(ARRAY['${type}:create'])
-            AND user_id = security.user_id()
-            AND EXISTS (
-              SELECT 1 FROM public.${table} r
-              WHERE r.id = ${accessTable}.${foreignKey}
-              AND age(r.xmin) = 0
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM public.${accessTable} a
-              WHERE a.${foreignKey} = ${accessTable}.${foreignKey}
-              AND (a.user_id IS DISTINCT FROM security.user_id() OR a.group_id IS NOT NULL)
-            )
-          )
-        );
-    `,
-    `
-      CREATE POLICY ${accessTable}_delete ON public.${accessTable}
-        FOR DELETE
-        USING (
-          security.can_any(ARRAY['${type}:update:all'])
-          OR (security.can_any(ARRAY['${type}:update:own']) AND security.has_access('${type}', ${foreignKey}, ARRAY['editor']))
-        );
-    `,
-  ];
+  return `CASE resource_type ${cases.map(([type, condition]) => `WHEN '${type}' THEN ${condition}`).join(" ")} ELSE FALSE END`;
 };
 
 const helperFunctions = (ctx: SecurityContext): string[] => [
@@ -348,17 +231,211 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       )};
     $$
   `,
+  // Function to check if users other than the current one, or groups, were given access to a shared resource
+  `
+    CREATE FUNCTION security.has_other_access(resource_type TEXT, resource_id UUID)
+    RETURNS BOOLEAN
+    LANGUAGE SQL
+    STABLE
+    PARALLEL SAFE
+    AS $$
+      SELECT ${dispatch(
+        ctx.sharedResources.map(({ type, accessTable, foreignKey }) => [
+          type,
+          `
+            EXISTS (
+              SELECT 1 FROM public.${accessTable}
+              WHERE ${foreignKey} = resource_id
+                AND (user_id IS DISTINCT FROM security.user_id() OR group_id IS NOT NULL)
+            )
+          `,
+        ]),
+      )};
+    $$
+  `,
+  // Function to check if the current transaction created a shared resource that nobody else has access to yet
+  `
+    CREATE FUNCTION security.is_creating(resource_type TEXT, resource_id UUID)
+    RETURNS BOOLEAN
+    LANGUAGE SQL
+    STABLE
+    AS $$
+      SELECT ${dispatch(
+        ctx.sharedResources.map(({ type, table }) => [
+          type,
+          `
+            EXISTS (
+              SELECT 1 FROM public.${table}
+              WHERE id = resource_id AND xmin = pg_current_xact_id_if_assigned()::xid
+            )
+          `,
+        ]),
+      )} AND NOT security.has_other_access(resource_type, resource_id);
+    $$
+  `,
 ];
 
-// Expression that evaluates the condition of the matching resource type
-const dispatch = (cases: [type: string, condition: string][]): string => {
-  if (cases.length === 0) {
-    return "FALSE";
+// Enables row level security on a table, allowing system operations
+export const protectTable = (table: string): string[] => [
+  `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY`,
+  `
+    CREATE POLICY ${table}_system ON public.${table}
+      USING ((SELECT security.user_id()) IS NULL)
+      WITH CHECK ((SELECT security.user_id()) IS NULL);
+  `,
+];
+
+// The column is qualified with its table, otherwise it would be taken from the table of the subquery
+const assertQualified = (column: string): void => {
+  if (!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(column)) {
+    throw new Error(`Column "${column}" must be qualified with its table, like "ai_agents.id"`);
   }
-  return `CASE resource_type ${cases.map(([type, condition]) => `WHEN '${type}' THEN ${condition}`).join(" ")} ELSE FALSE END`;
 };
 
-// Provisions the role superuser connections de-escalate to, which accesses all objects as their owner, writing only what differs
+// Condition of a policy that is true when the current user owns the resource of a column
+export const isOwner = (resource: OwnedResource, column: string): string => {
+  assertQualified(column);
+  return `
+    EXISTS (
+      SELECT 1 FROM public.${resource.table} own
+      WHERE own.id = ${column} AND own.${resource.ownerColumn} = (SELECT security.user_id())
+    )
+  `;
+};
+
+// Condition of a policy that is true when the current user was given access to the shared resource of a column
+export const hasAccess = (resource: SharedResource, column: string, roles?: readonly PrincipalRole[]): string => {
+  assertQualified(column);
+  return `
+    EXISTS (
+      SELECT 1 FROM public.${resource.accessTable} acl
+      WHERE acl.${resource.foreignKey} = ${column}
+      ${roles ? `AND acl.role IN (${roles.map((role) => `'${role}'`).join(", ")})` : ""}
+      AND (acl.user_id = (SELECT security.user_id()) OR acl.group_id = ANY ((SELECT security.user_groups())::UUID[]))
+    )
+  `;
+};
+
+// Lets editors see the users and groups they share resources with
+export const sharesResourceWith = (
+  resources: readonly SharedResource[],
+  principal: { userId: string } | { groupId: string },
+): string => {
+  const [column, value] = "userId" in principal ? ["user_id", principal.userId] : ["group_id", principal.groupId];
+  if (resources.length === 0) {
+    return "FALSE";
+  }
+  const conditions = resources.map(
+    ({ accessTable, foreignKey }) => `
+      EXISTS (
+        SELECT 1 FROM public.${accessTable} a1
+        INNER JOIN public.${accessTable} a2 ON a1.${foreignKey} = a2.${foreignKey}
+        WHERE a2.${column} = ${value}
+        AND a1.role = 'editor'
+        AND (a1.user_id = (SELECT security.user_id()) OR a1.group_id = ANY ((SELECT security.user_groups())::UUID[]))
+      )
+    `,
+  );
+  return `(${conditions.join(" OR ")})`;
+};
+
+// Policies of a shared resource and its access table
+export const sharedResourcePolicies = (
+  resource: SharedResource,
+  options: {
+    // Additional condition required to insert a resource
+    insertCheck?: string;
+    // Additional condition required to update a resource
+    updateCheck?: string;
+  } = {},
+): string[] => {
+  const { type, table, accessTable, foreignKey } = resource;
+
+  const canAny = (...actions: string[]): string =>
+    `(SELECT security.can_any(ARRAY[${actions.map((action) => `'${type}:${action}'`).join(", ")}]))`;
+
+  const canEdit = (action: "update" | "delete"): string => `
+    ${canAny(`${action}:all`)}
+    OR (${canAny(`${action}:own`)} AND ${hasAccess(resource, `${table}.id`, ["editor"])})
+  `;
+
+  // Policies of the access table use the function, since a subquery on their own table is rejected as a recursion
+  const canShare = `
+    ${canAny("update:all")}
+    OR (${canAny("update:own")} AND security.has_access('${type}', ${foreignKey}, ARRAY['editor']))
+  `;
+
+  return [
+    ...protectTable(table),
+    `
+      CREATE POLICY ${table}_select ON public.${table}
+        FOR SELECT
+        USING (
+          ${canAny("read:all", "list:all", "update:all", "delete:all", "use:all")}
+          OR (
+            ${canAny("read:own", "list:own", "update:own", "delete:own", "use:own")}
+            AND ${hasAccess(resource, `${table}.id`)}
+          )
+          -- Let creators see the rows that they are creating, so they can insert their initial self-access rows
+          OR (
+            ${canAny("create")}
+            AND ${table}.xmin = pg_current_xact_id_if_assigned()::xid
+            AND NOT security.has_other_access('${type}', ${table}.id)
+          )
+        );
+    `,
+    `
+      CREATE POLICY ${table}_insert ON public.${table}
+        FOR INSERT
+        WITH CHECK (
+          ${canAny("create")}
+          ${options.insertCheck ? `AND (${options.insertCheck})` : ""}
+        );
+    `,
+    `
+      CREATE POLICY ${table}_update ON public.${table}
+        FOR UPDATE
+        USING (${canEdit("update")})
+        WITH CHECK (
+          (${canEdit("update")})
+          ${options.updateCheck ? `AND (${options.updateCheck})` : ""}
+        );
+    `,
+    `
+      CREATE POLICY ${table}_delete ON public.${table}
+        FOR DELETE
+        USING (${canEdit("delete")});
+    `,
+    ...protectTable(accessTable),
+    // Doesn't filter by resource access to avoid RLS recursion, so :own permissions show the access of all resources
+    `
+      CREATE POLICY ${accessTable}_select ON public.${accessTable}
+        FOR SELECT
+        USING (${canAny("read:all", "update:all", "read:own", "update:own")});
+    `,
+    `
+      CREATE POLICY ${accessTable}_insert ON public.${accessTable}
+        FOR INSERT
+        WITH CHECK (
+          ${canShare}
+          -- Implicit creator self-grant: only for the resources that they are creating, while nobody else has access
+          OR (
+            ${canAny("create")}
+            AND user_id = (SELECT security.user_id())
+            AND security.is_creating('${type}', ${foreignKey})
+          )
+        );
+    `,
+    `
+      CREATE POLICY ${accessTable}_delete ON public.${accessTable}
+        FOR DELETE
+        USING (${canShare});
+    `,
+  ];
+};
+
+// Provisions the role that superuser connections de-escalate to, which accesses all objects as their owner
 const roleStatements = (): string[] => [
   `
     DO $$
@@ -480,6 +557,18 @@ export const composeSecurity = (features: readonly ServerFeature[]): string[] =>
       return featureStatements;
     }),
   ];
+
+  for (const statement of statements) {
+    const policy = /^\s*CREATE POLICY (\w+)/.exec(statement)?.[1];
+    const direct =
+      policy &&
+      /(?<!\(SELECT )security\.(user_id|user_groups|user_permissions|is_trusted_write|can|can_any)\(/.exec(statement);
+    if (direct) {
+      throw new Error(
+        `Policy "${policy}" must call security.${String(direct[1])}() in a subquery, like "(SELECT security.${String(direct[1])}())", so that it runs once for each statement`,
+      );
+    }
+  }
 
   for (const [, fn, type] of statements.join("\n").matchAll(/security\.(has_access|is_owner)\('([^']+)'/g)) {
     const resources = fn === "is_owner" ? ctx.ownedResources : ctx.sharedResources;

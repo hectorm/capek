@@ -5,9 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
 import coreFeature from "#layers/core/server/feature";
+import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
-import { applySecurity, protectTable } from "#layers/core/server/lib/database/security";
+import { applySecurity, composeSecurity, hasAccess, protectTable } from "#layers/core/server/lib/database/security";
 import { asUser, closeDb, createTestDb, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
@@ -154,6 +155,26 @@ describe("rls core", () => {
     } finally {
       await sql`DROP TABLE public.unprotected_objects`.execute(db);
     }
+  });
+
+  it("rejects policies that look up the session for each row", () => {
+    const feature = (using: string): ServerFeature => ({
+      name: "extra",
+      security: { statements: () => [`CREATE POLICY extra_objects_select ON public.extra_objects USING (${using})`] },
+    });
+    expect(() => composeSecurity([coreFeature, feature("user_id = security.user_id()")])).toThrow(
+      /Policy "extra_objects_select" must call security\.user_id\(\) in a subquery/,
+    );
+    expect(() => composeSecurity([coreFeature, feature("security.can_any(ARRAY['user:read:all'])")])).toThrow(
+      /must call security\.can_any\(\) in a subquery/,
+    );
+    expect(() => composeSecurity([coreFeature, feature("user_id = (SELECT security.user_id())")])).not.toThrow();
+  });
+
+  it("requires the access checks of a policy to name the table of their column", () => {
+    const resource = defineSharedResource({ type: "extra_object", table: "extra_objects" });
+    expect(() => hasAccess(resource, "id")).toThrow(/must be qualified with its table/);
+    expect(hasAccess(resource, "extra_objects.id")).toContain("acl.extra_object_id = extra_objects.id");
   });
 
   it("rejects a fallback role that bypasses row level security", async () => {
