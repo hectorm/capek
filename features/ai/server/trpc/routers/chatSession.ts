@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { AiPermissions } from "#layers/ai/shared/rbac";
+import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
 import { paginate } from "#layers/core/server/lib/database/pagination";
@@ -55,6 +56,11 @@ export const chatSessionRouter = createTRPCRouter({
         let query = trx
           .selectFrom("aiChatSessions")
           .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"]);
+
+        // The policy alone reads the sessions of every user to find the ones of this one
+        if (!canAny(ctx.user, [AiPermissions.ChatReadAll, AiPermissions.ChatListAll])) {
+          query = query.where("aiChatSessions.userId", "=", ctx.user.id);
+        }
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
