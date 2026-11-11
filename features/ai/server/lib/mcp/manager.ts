@@ -196,7 +196,7 @@ export class MCPManager {
         });
       }, callTimeoutMs);
 
-      client.callTool(toolName, args, signal).then(
+      client.callTool(toolName, args, { signal, timeoutMs: callTimeoutMs }).then(
         (callResult) => {
           settle(() => {
             if (callResult.isError) {

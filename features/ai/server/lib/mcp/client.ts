@@ -20,13 +20,24 @@ export interface MCPClientOptions {
   timeoutMs?: number;
 }
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
+interface RequestParams {
+  signal: AbortSignal;
+}
+
+interface RequestOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
 export class MCPClient {
   public readonly name: string;
   private readonly url: string;
   private readonly headers: Record<string, string>;
   private readonly stateful: boolean;
   private readonly timeoutMs: number | null;
-  private readonly jsonRpcClient: JSONRPCClient;
+  private readonly jsonRpcClient: JSONRPCClient<RequestParams | undefined>;
   private readonly mcpProtocolVersion = "2025-06-18";
   private readonly mcpClientName = "mcp-client";
   private readonly mcpClientVersion = "1.0.0";
@@ -44,9 +55,11 @@ export class MCPClient {
     this.headers = Object.fromEntries(options.headers.map((h) => [h.name, h.value]));
     this.stateful = options.stateful;
     this.timeoutMs = options.timeoutMs ?? null;
-    this.jsonRpcClient = new JSONRPCClient(async (jsonRPCRequest) => {
-      const response = await this.request(jsonRPCRequest);
-      this.jsonRpcClient.receive(response as Parameters<typeof this.jsonRpcClient.receive>[0]);
+    this.jsonRpcClient = new JSONRPCClient<RequestParams | undefined>(async (jsonRPCRequest, params) => {
+      const response = await this.request(jsonRPCRequest, params?.signal);
+      if (response != null) {
+        this.jsonRpcClient.receive(response as Parameters<typeof this.jsonRpcClient.receive>[0]);
+      }
     });
   }
 
@@ -78,7 +91,14 @@ export class MCPClient {
     return headers;
   }
 
-  private async request(jsonRPCRequest: unknown, depth = 0): Promise<unknown> {
+  private async rpc(method: string, params: unknown, options: RequestOptions = {}): Promise<unknown> {
+    const timeoutMs = options.timeoutMs ?? this.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
+    return this.jsonRpcClient.timeout(timeoutMs).request(method, params, { signal });
+  }
+
+  private async request(jsonRPCRequest: unknown, signal?: AbortSignal, depth = 0): Promise<unknown> {
     const headers = this.buildHeaders({
       contentType: "application/json",
       accept: "application/json, text/event-stream",
@@ -88,7 +108,7 @@ export class MCPClient {
       method: "POST",
       headers,
       body: JSON.stringify(jsonRPCRequest),
-      signal: this.timeoutMs === null ? undefined : AbortSignal.timeout(this.timeoutMs),
+      signal: signal ?? AbortSignal.timeout(this.timeoutMs ?? REQUEST_TIMEOUT_MS),
     }).catch((error: unknown) => {
       throw new Error(describeError(error));
     });
@@ -104,7 +124,7 @@ export class MCPClient {
         this.resetSessionState();
         try {
           await this.initialize();
-          return await this.request(jsonRPCRequest, depth + 1);
+          return await this.request(jsonRPCRequest, signal, depth + 1);
         } catch (error) {
           logger.error({ serverName: this.name, sessionId: this._sessionId, error }, "MCP reinitialization failed");
           throw error;
@@ -347,18 +367,22 @@ export class MCPClient {
     this._isTerminated = false;
 
     try {
-      await this.jsonRpcClient.request("initialize", {
-        protocolVersion: this.mcpProtocolVersion,
-        capabilities: {
-          tools: {},
+      await this.rpc(
+        "initialize",
+        {
+          protocolVersion: this.mcpProtocolVersion,
+          capabilities: {
+            tools: {},
+          },
+          clientInfo: {
+            name: this.mcpClientName,
+            version: this.mcpClientVersion,
+          },
         },
-        clientInfo: {
-          name: this.mcpClientName,
-          version: this.mcpClientVersion,
-        },
-      });
+        { signal },
+      );
 
-      this.jsonRpcClient.notify("notifications/initialized", {});
+      this.jsonRpcClient.notify("notifications/initialized", {}, undefined);
 
       logger.debug({ serverName: this.name, url: this.url, sessionId: this._sessionId }, "MCP client initialized");
 
@@ -388,7 +412,7 @@ export class MCPClient {
           throw new AbortError();
         }
 
-        const rawResult: unknown = await this.jsonRpcClient.request("tools/list", cursor ? { cursor } : {});
+        const rawResult: unknown = await this.rpc("tools/list", cursor ? { cursor } : {}, { signal });
         const result = MCPListToolsResultSchema.safeParse(rawResult);
         if (!result.success) {
           throw new Error(`Failed to parse tools/list response: ${result.error.message}`);
@@ -411,14 +435,14 @@ export class MCPClient {
   public async callTool(
     toolName: string,
     args: Record<string, unknown>,
-    signal?: AbortSignal,
+    options: RequestOptions = {},
   ): Promise<MCPCallToolResult> {
-    if (signal?.aborted) {
+    if (options.signal?.aborted) {
       throw new AbortError();
     }
 
     try {
-      const rawResult: unknown = await this.jsonRpcClient.request("tools/call", { name: toolName, arguments: args });
+      const rawResult: unknown = await this.rpc("tools/call", { name: toolName, arguments: args }, options);
       const result = MCPCallToolResultSchema.parse(rawResult);
       logger.debug({ serverName: this.name, toolName, sessionId: this._sessionId }, "MCP tool called");
       return result;
