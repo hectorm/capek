@@ -39,6 +39,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const session = await withUserTransaction(user, async (trx) => {
+    const abandoned = await AgentExecutor.failAbandonedExecutions(trx, sessionId);
+    if (abandoned > 0) {
+      logger.warn({ sessionId, userId: user.id, abandoned }, "Abandoned executions of the session marked as failed");
+    }
+
     const activeExecution = await trx
       .selectFrom("aiAgentExecutions")
       .select(["id"])

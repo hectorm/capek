@@ -1,7 +1,6 @@
-import cluster from "node:cluster";
-
 import { defineTask } from "nitropack/runtime/task";
 
+import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { useDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
 
@@ -13,30 +12,11 @@ export default defineTask({
     description: "Mark abandoned agent executions as failed",
   },
   run: async () => {
-    if (cluster.isWorker) {
-      return { result: true };
-    }
-
     logger.info("Starting abandoned executions cleanup task");
 
     try {
       const db = await useDb();
-      const timeoutMinutes = 60;
-      const cutoffTime = new Date(Date.now() - timeoutMinutes * 60 * 1000);
-
-      const result = await db
-        .updateTable("aiAgentExecutions")
-        .set({
-          status: "failed",
-          errorMessage: `Execution abandoned (no activity for over ${String(timeoutMinutes)} minutes)`,
-          completedAt: new Date(),
-          lastActivityAt: new Date(),
-        })
-        .where("status", "=", "running")
-        .where("lastActivityAt", "<", cutoffTime)
-        .returning(["id", "sessionId", "agentId"])
-        .execute();
-      const count = result.length;
+      const count = await AgentExecutor.failAbandonedExecutions(db);
 
       logger.info({ count }, "Abandoned executions cleanup completed");
       return { result: true };

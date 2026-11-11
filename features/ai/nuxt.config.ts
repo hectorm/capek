@@ -70,8 +70,7 @@ export default defineNuxtConfig({
       "ai:agent-execution-cleanup": { description: "Mark abandoned agent executions as failed" },
     },
     scheduledTasks: {
-      "? */22 * * *": ["ai:mcp-session-cleanup"],
-      "? */20 * * *": ["ai:agent-execution-cleanup"],
+      "*/10 * * * *": ["ai:mcp-session-cleanup", "ai:agent-execution-cleanup"],
     },
   },
   runtimeConfig: {

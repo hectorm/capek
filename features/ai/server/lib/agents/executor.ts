@@ -1,3 +1,6 @@
+import { clearInterval, setInterval } from "node:timers";
+
+import type { Kysely } from "kysely";
 import superjson from "superjson";
 import { z } from "zod/v4";
 
@@ -10,6 +13,7 @@ import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
+import type { Database } from "#layers/core/shared/schema";
 import type { ToolPart } from "#layers/core/shared/tools";
 import {
   buildCodeInterpreterPrompt,
@@ -87,8 +91,16 @@ interface AgentTool {
 
 type LlmFunctionCall = Extract<LlmItem, { type: "function_call" }>;
 
+interface ExecutionOutcome {
+  status: "completed" | "failed" | "cancelled";
+  errorMessage?: string;
+}
+
 const CODE_MAX_MEMORY_BYTES = 25 * 1024 * 1024;
 const CODE_MAX_WORKSPACE_BYTES = 10 * 1024 * 1024;
+
+const EXECUTION_HEARTBEAT_MS = 30_000;
+const EXECUTION_STALE_MS = 4 * EXECUTION_HEARTBEAT_MS;
 
 const triageToolSchema = z.object({
   specialistId: z.string(),
@@ -164,6 +176,13 @@ export class AgentExecutor {
   }
 
   public async *executeStream(agentId: string, signal?: AbortSignal): AsyncGenerator<Uint8Array> {
+    const heartbeat = setInterval(() => {
+      this.updateLastActivity().catch((error: unknown) => {
+        logger.warn({ executionId: this.executionId, error }, "Failed to report the activity of the execution");
+      });
+    }, EXECUTION_HEARTBEAT_MS);
+
+    let outcome: ExecutionOutcome = { status: "cancelled", errorMessage: new AbortError().message };
     try {
       if (!this.executionId) {
         await this.createExecution(agentId);
@@ -171,22 +190,27 @@ export class AgentExecutor {
 
       const agent = await this.loadAgent(agentId);
 
-      await this.updateLastActivity();
-
       if (agent.type === "triage") {
         yield* this.executeTriageStream(agent, signal);
       } else {
         yield* this.executeSpecialistStream(agent, signal);
       }
 
-      await this.completeExecution("completed");
+      outcome = { status: "completed" };
     } catch (error) {
-      if (error instanceof AbortError || error instanceof TimeoutError || error instanceof MaxIterationsError) {
-        await this.completeExecution("cancelled", error.message);
-      } else {
-        await this.completeExecution("failed", error instanceof Error ? error.message : String(error));
-      }
+      const cancelled =
+        signal?.aborted === true ||
+        error instanceof AbortError ||
+        error instanceof TimeoutError ||
+        error instanceof MaxIterationsError;
+      outcome = {
+        status: cancelled ? "cancelled" : "failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
       throw error;
+    } finally {
+      clearInterval(heartbeat);
+      await this.completeExecution(outcome);
     }
   }
 
@@ -271,8 +295,6 @@ export class AgentExecutor {
     }
 
     yield encodeStreamEvent(ChatStreamEvents.Status, args.routingReason);
-
-    await this.updateLastActivity();
 
     yield* this.executeSpecialistStream(specialist, signal);
   }
@@ -361,8 +383,6 @@ export class AgentExecutor {
 
         this.iterationCount++;
 
-        await this.updateLastActivity();
-
         const completion = await llmClient.completion(
           {
             input: items,
@@ -444,15 +464,11 @@ export class AgentExecutor {
     agent: AgentConfig,
     signal?: AbortSignal,
   ): AsyncGenerator<Uint8Array> {
-    await this.updateLastActivity();
-
     for (const functionCall of functionCalls) {
       yield* this.handleToolCall(functionCall, tools, items, agent, signal);
     }
 
     yield encodeStreamEvent(ChatStreamEvents.Status, "");
-
-    await this.updateLastActivity();
   }
 
   private async *handleToolCall(
@@ -1095,7 +1111,7 @@ export class AgentExecutor {
     });
   }
 
-  private async completeExecution(status: "completed" | "failed" | "cancelled", errorMessage?: string): Promise<void> {
+  private async completeExecution({ status, errorMessage }: ExecutionOutcome): Promise<void> {
     if (!this.executionId) return;
 
     await withUserTransaction(this.config.user, async (trx) => {
@@ -1110,6 +1126,27 @@ export class AgentExecutor {
         .where("id", "=", this.executionId)
         .execute();
     });
+  }
+
+  public static async failAbandonedExecutions(db: Kysely<Database>, sessionId?: string): Promise<number> {
+    const now = new Date();
+    let query = db
+      .updateTable("aiAgentExecutions")
+      .set({
+        status: "failed",
+        errorMessage: `Execution abandoned (no activity for over ${String(EXECUTION_STALE_MS / 1000)} seconds)`,
+        completedAt: now,
+        lastActivityAt: now,
+      })
+      .where("status", "=", "running")
+      .where("lastActivityAt", "<", new Date(now.getTime() - EXECUTION_STALE_MS));
+
+    if (sessionId !== undefined) {
+      query = query.where("sessionId", "=", sessionId);
+    }
+
+    const abandoned = await query.returning(["id"]).execute();
+    return abandoned.length;
   }
 
   private createLlmClient(agent: AgentConfig): LlmClient {
