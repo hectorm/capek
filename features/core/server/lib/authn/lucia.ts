@@ -74,81 +74,80 @@ export class Lucia {
 
     const tokenHash = await this.hashToken(token);
 
-    return db
-      .transaction()
-      .setIsolationLevel("read committed")
-      .execute(async (trx) => {
-        const result = await trx
-          .selectFrom("sessions")
-          .innerJoin("users", "users.id", "sessions.userId")
-          .select([
-            "sessions.id",
-            "sessions.token",
-            "sessions.userId",
-            "sessions.sid",
-            "sessions.idToken",
-            "sessions.createdAt",
-            "sessions.expiresAt",
-            "users.id as user.id",
-            "users.username as user.username",
-            "users.fullname as user.fullname",
-            "users.email as user.email",
-            "users.picture as user.picture",
-            "users.lastLoginAt as user.lastLoginAt",
-            "users.createdAt as user.createdAt",
-            "users.updatedAt as user.updatedAt",
-          ])
-          .where("sessions.token", "=", tokenHash)
-          .forUpdate()
-          .executeTakeFirst();
+    const result = await db
+      .selectFrom("sessions")
+      .innerJoin("users", "users.id", "sessions.userId")
+      .select([
+        "sessions.id",
+        "sessions.token",
+        "sessions.userId",
+        "sessions.sid",
+        "sessions.idToken",
+        "sessions.createdAt",
+        "sessions.expiresAt",
+        "users.id as user.id",
+        "users.username as user.username",
+        "users.fullname as user.fullname",
+        "users.email as user.email",
+        "users.picture as user.picture",
+        "users.lastLoginAt as user.lastLoginAt",
+        "users.createdAt as user.createdAt",
+        "users.updatedAt as user.updatedAt",
+      ])
+      .where("sessions.token", "=", tokenHash)
+      .executeTakeFirst();
 
-        if (!result) {
-          logger.debug("Session validation failed: not found");
-          return { session: null, fresh: false };
-        }
+    if (!result) {
+      logger.debug("Session validation failed: not found");
+      return { session: null, fresh: false };
+    }
 
-        const session: Awaited<ReturnType<Lucia["createSession"]>> = {
-          id: result.id,
-          token: result.token,
-          userId: result.userId,
-          sid: result.sid,
-          idToken: result.idToken,
-          createdAt: result.createdAt,
-          expiresAt: result.expiresAt,
-          user: {
-            id: result["user.id"],
-            username: result["user.username"],
-            fullname: result["user.fullname"],
-            email: result["user.email"],
-            picture: result["user.picture"],
-            lastLoginAt: result["user.lastLoginAt"],
-            createdAt: result["user.createdAt"],
-            updatedAt: result["user.updatedAt"],
-          },
-        };
+    const session: Awaited<ReturnType<Lucia["createSession"]>> = {
+      id: result.id,
+      token: result.token,
+      userId: result.userId,
+      sid: result.sid,
+      idToken: result.idToken,
+      createdAt: result.createdAt,
+      expiresAt: result.expiresAt,
+      user: {
+        id: result["user.id"],
+        username: result["user.username"],
+        fullname: result["user.fullname"],
+        email: result["user.email"],
+        picture: result["user.picture"],
+        lastLoginAt: result["user.lastLoginAt"],
+        createdAt: result["user.createdAt"],
+        updatedAt: result["user.updatedAt"],
+      },
+    };
 
-        const now = Date.now();
-        if (now >= session.expiresAt.getTime()) {
-          logger.debug({ sessionId: session.id, userId: session.userId }, "Session expired and invalidated");
-          await trx.deleteFrom("sessions").where("id", "=", session.id).execute();
-          return { session: null, fresh: false };
-        }
+    const now = Date.now();
+    if (now >= session.expiresAt.getTime()) {
+      logger.debug({ sessionId: session.id, userId: session.userId }, "Session expired and invalidated");
+      await db.deleteFrom("sessions").where("id", "=", session.id).execute();
+      return { session: null, fresh: false };
+    }
 
-        let fresh = false;
-        if (now >= session.expiresAt.getTime() - (this.durationSec / 2) * 1000) {
-          session.expiresAt = new Date(now + this.durationSec * 1000);
-          await trx
-            .updateTable("sessions")
-            .set({ expiresAt: session.expiresAt })
-            .where("id", "=", session.id)
-            .execute();
-          fresh = true;
-          logger.debug({ sessionId: session.id, userId: session.userId }, "Session refreshed");
-        }
+    let fresh = false;
+    if (now >= session.expiresAt.getTime() - (this.durationSec / 2) * 1000) {
+      session.expiresAt = new Date(now + this.durationSec * 1000);
+      const refreshed = await db
+        .updateTable("sessions")
+        .set({ expiresAt: session.expiresAt })
+        .where("id", "=", session.id)
+        .returning(["id"])
+        .executeTakeFirst();
+      if (!refreshed) {
+        logger.debug({ sessionId: session.id, userId: session.userId }, "Session invalidated while being refreshed");
+        return { session: null, fresh: false };
+      }
+      fresh = true;
+      logger.debug({ sessionId: session.id, userId: session.userId }, "Session refreshed");
+    }
 
-        logger.trace({ sessionId: session.id, userId: session.userId }, "Session validated");
-        return { session, fresh };
-      });
+    logger.trace({ sessionId: session.id, userId: session.userId }, "Session validated");
+    return { session, fresh };
   }
 
   public async invalidateSession(token: string): Promise<void> {
