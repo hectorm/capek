@@ -61,30 +61,3 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
     );
   }
 }
-
-export function findServerForTool(
-  toolName: string,
-  servers: MCPServerInfo[],
-): {
-  id: string;
-  name: string;
-  url: string;
-  headers: HttpHeader[];
-  stateful: boolean;
-  toolCallTimeoutSec: number | null;
-} | null {
-  for (const server of servers) {
-    const tool = server.cachedTools.find((t) => t.name === toolName);
-    if (tool) {
-      return {
-        id: server.id,
-        name: server.name,
-        url: server.url,
-        headers: server.headers,
-        stateful: server.stateful,
-        toolCallTimeoutSec: server.toolCallTimeoutSec,
-      };
-    }
-  }
-  return null;
-}
