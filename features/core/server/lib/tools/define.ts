@@ -4,6 +4,7 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
+import type { ToolPart } from "#layers/core/shared/tools";
 
 // JSON schema of the arguments of a tool
 export interface ToolParameters {
@@ -16,6 +17,8 @@ export interface ToolContext {
   // User on whose behalf the tool is called
   user: AuthUser;
   signal?: AbortSignal;
+  // Shows something to the user, when the caller has a way to
+  show?: (part: ToolPart) => void;
 }
 
 // Operation that a feature exposes to automated callers, such as the agents of the AI feature
