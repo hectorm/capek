@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
+import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -302,4 +303,45 @@ export const llmProviderRouter = createTRPCRouter({
     readPermissions: [AiPermissions.LlmProviderReadAll, AiPermissions.LlmProviderReadOwn],
     updatePermissions: [AiPermissions.LlmProviderUpdateAll, AiPermissions.LlmProviderUpdateOwn],
   }),
+
+  testConnection: authorizedProcedure([
+    AiPermissions.LlmProviderCreate,
+    AiPermissions.LlmProviderUpdateAll,
+    AiPermissions.LlmProviderUpdateOwn,
+  ])
+    .input(
+      z.object({
+        id: z.uuid().optional(),
+        apiUrl: z.url(),
+        apiType: LlmProviderApiTypeSchema.default("chat-completions"),
+        apiKey: z.string().max(1000).trim().default(""),
+        headers: HttpHeadersSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id } = input;
+
+      let { apiKey, headers = [] } = input;
+      if (id) {
+        // The lock limits the secrets to those who can update it
+        const stored = await withUserTransaction(ctx.user, (trx) => {
+          return trx
+            .selectFrom("aiLlmProviders")
+            .select(["apiKey", "headers"])
+            .where("id", "=", id)
+            .forUpdate()
+            .executeTakeFirst();
+        });
+        apiKey = apiKey === HttpRedactedValue ? (stored?.apiKey ?? "") : apiKey;
+        headers = headers.map((h) => {
+          return h.value === HttpRedactedValue
+            ? { ...h, value: stored?.headers.find((e) => e.name === h.name)?.value ?? "" }
+            : h;
+        });
+      }
+
+      const llmClient = new LlmClient({ apiUrl: input.apiUrl, apiType: input.apiType, apiKey, headers });
+
+      return llmClient.testConnection();
+    }),
 });

@@ -20,6 +20,7 @@ import UTextarea from "@nuxt/ui/components/Textarea.vue";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
 import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
@@ -369,6 +370,29 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
 const onCancel = () => {
   emit("close", { agent: null, error: null });
 };
+
+const { testing, test } = useFormTest({
+  success: i18n.t("ai.pages.studio.agents.form.testModel.success"),
+  error: i18n.t("ai.pages.studio.agents.form.testModel.error"),
+});
+
+const onTestModel = async () => {
+  if (!state.llmProviderId || !state.model) return;
+
+  await test(
+    $trpc.ai.agent.testModel.mutate({
+      llmProviderId: state.llmProviderId,
+      model: state.model,
+      reasoningEffort: state.reasoningEffort,
+      streaming: state.streaming,
+      temperature: state.temperature,
+      maxTokens: state.maxTokens,
+      topP: state.topP,
+      frequencyPenalty: state.frequencyPenalty,
+      presencePenalty: state.presencePenalty,
+    }),
+  );
+};
 </script>
 
 <template>
@@ -632,6 +656,22 @@ const onCancel = () => {
           </template>
         </UAccordion>
         <div class="flex justify-end gap-2">
+          <UButton
+            type="button"
+            class="mr-auto"
+            color="neutral"
+            variant="outline"
+            :loading="testing"
+            icon="i-lucide-flask-conical"
+            :disabled="!state.llmProviderId || !state.model"
+            @click="onTestModel"
+          >
+            {{
+              testing
+                ? $t("ai.pages.studio.agents.form.testModel.testing")
+                : $t("ai.pages.studio.agents.form.testModel.label")
+            }}
+          </UButton>
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.agents.form.cancel") }}
           </UButton>

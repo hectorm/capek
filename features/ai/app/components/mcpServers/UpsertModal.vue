@@ -20,6 +20,7 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { HttpHeader } from "#layers/core/shared/http";
+import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
 import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
@@ -190,6 +191,23 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
 const onCancel = () => {
   emit("close", { mcpServer: null, error: null });
 };
+
+const { testing, test } = useFormTest({
+  success: i18n.t("ai.pages.studio.mcpServers.form.testConnection.success"),
+  error: i18n.t("ai.pages.studio.mcpServers.form.testConnection.error"),
+});
+
+const onTestConnection = async () => {
+  if (!state.url) return;
+
+  await test(
+    $trpc.ai.mcpServer.testConnection.mutate({
+      id: props.id ?? undefined,
+      url: state.url,
+      headers: state.headers,
+    }),
+  );
+};
 </script>
 
 <template>
@@ -353,6 +371,22 @@ const onCancel = () => {
           </template>
         </UAccordion>
         <div class="flex justify-end gap-2">
+          <UButton
+            type="button"
+            class="mr-auto"
+            color="neutral"
+            variant="outline"
+            :loading="testing"
+            icon="i-lucide-plug"
+            :disabled="!canModify || !state.url"
+            @click="onTestConnection"
+          >
+            {{
+              testing
+                ? $t("ai.pages.studio.mcpServers.form.testConnection.testing")
+                : $t("ai.pages.studio.mcpServers.form.testConnection.label")
+            }}
+          </UButton>
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.mcpServers.form.cancel") }}
           </UButton>

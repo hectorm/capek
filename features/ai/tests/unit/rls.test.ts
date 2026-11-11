@@ -217,3 +217,54 @@ describe("rls shared resource access sync", () => {
     expect(rows).toHaveLength(2);
   });
 });
+
+describe("rls shared resource secrets", () => {
+  it("locks an LLM provider only for those who can update it", async () => {
+    const grace = crypto.randomUUID();
+    const permissions = ["ai_llm_provider:create", "ai_llm_provider:update:own", "ai_llm_provider:use:own"];
+
+    await db
+      .insertInto("users")
+      .values({ id: grace, username: "grace", fullname: "Grace", email: "grace@example.com" })
+      .execute();
+
+    const llmProvider = await db
+      .insertInto("aiLlmProviders")
+      .values({
+        name: "locked-provider",
+        description: "",
+        apiUrl: "http://llm.localhost/v1",
+        apiType: "chat-completions",
+        apiKey: "hunter2",
+        headers: "[]",
+      })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("aiLlmProviderAccess")
+      .values({ llmProviderId: llmProvider.id, userId: grace, role: "user" })
+      .execute();
+
+    // The connection test takes the secrets hidden in the form with this lock
+    const lockedApiKey = (): Promise<string | undefined> => {
+      return asUser({ id: grace, permissions }, async (trx) => {
+        const row = await trx
+          .selectFrom("aiLlmProviders")
+          .select(["apiKey"])
+          .where("id", "=", llmProvider.id)
+          .forUpdate()
+          .executeTakeFirst();
+        return row?.apiKey;
+      });
+    };
+
+    expect(await lockedApiKey()).toBeUndefined();
+
+    await db
+      .insertInto("aiLlmProviderAccess")
+      .values({ llmProviderId: llmProvider.id, userId: grace, role: "editor" })
+      .execute();
+
+    expect(await lockedApiKey()).toBe("hunter2");
+  });
+});

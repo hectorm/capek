@@ -3,10 +3,12 @@ import crypto from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { AgentResource } from "#layers/ai/server/lib/resources";
 import { syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
+import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
@@ -1000,6 +1002,79 @@ export const agentRouter = createTRPCRouter({
           }
           throw error;
         }
+      });
+    }),
+
+  testModel: authorizedProcedure([AiPermissions.LlmProviderUseAll, AiPermissions.LlmProviderUseOwn])
+    .input(
+      z
+        .object({
+          llmProviderId: z.uuid(),
+          model: z.string().min(1).max(100).trim(),
+          reasoningEffort: z.string().max(20).trim().default(""),
+          streaming: z.boolean().default(true),
+        })
+        .extend(
+          AgentExecutorParametersSchema.pick({
+            temperature: true,
+            maxTokens: true,
+            topP: true,
+            frequencyPenalty: true,
+            presencePenalty: true,
+          }).shape,
+        ),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const llmProvider = await withUserTransaction(ctx.user, async (trx) => {
+        if (!canAny(ctx.user, [AiPermissions.LlmProviderUseAll])) {
+          const hasAccess = await trx
+            .selectFrom("aiLlmProviderAccess")
+            .select(["id"])
+            .where("llmProviderId", "=", input.llmProviderId)
+            .where((eb) =>
+              eb.or([
+                eb("userId", "=", ctx.user.id),
+                ...(ctx.user.groups.length > 0 ? [eb("groupId", "in", ctx.user.groups)] : []),
+              ]),
+            )
+            .executeTakeFirst();
+
+          if (!hasAccess) {
+            return undefined;
+          }
+        }
+
+        return trx
+          .selectFrom("aiLlmProviders")
+          .select(["apiUrl", "apiType", "apiKey", "headers"])
+          .where("id", "=", input.llmProviderId)
+          .executeTakeFirst();
+      });
+
+      if (!llmProvider) {
+        ctx.logger.warn({ llmProviderId: input.llmProviderId }, "LLM provider not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "LLM provider not found or you don't have permission to use it",
+        });
+      }
+
+      const llmClient = new LlmClient({
+        apiUrl: llmProvider.apiUrl,
+        apiType: llmProvider.apiType,
+        apiKey: llmProvider.apiKey,
+        headers: llmProvider.headers,
+        model: input.model,
+        streaming: input.streaming,
+      });
+
+      return llmClient.testModel({
+        reasoning: input.reasoningEffort ? { effort: input.reasoningEffort } : undefined,
+        temperature: input.temperature ?? undefined,
+        max_output_tokens: input.maxTokens ?? undefined,
+        top_p: input.topP ?? undefined,
+        frequency_penalty: input.frequencyPenalty ?? undefined,
+        presence_penalty: input.presencePenalty ?? undefined,
       });
     }),
 });

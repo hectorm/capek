@@ -1,7 +1,9 @@
 import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { HttpHeader } from "#layers/core/shared/http";
+import type { TestResult } from "#layers/core/shared/types";
 import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
+import { describeError } from "#layers/ai/server/lib/errors";
 import {
   fromChatCompletionsResponse,
   fromChatCompletionsStream,
@@ -228,9 +230,51 @@ export class LlmClient {
     return summary;
   }
 
-  private async fetchModels(): Promise<string[]> {
+  public async testConnection(): Promise<TestResult> {
+    try {
+      await this.fetchModels(AbortSignal.timeout(10_000));
+
+      logger.debug("LLM provider test succeeded");
+      return { success: true };
+    } catch (error) {
+      const message = describeError(error);
+      logger.warn({ error: message }, "LLM provider test failed");
+      return { success: false, error: message };
+    }
+  }
+
+  public async testModel(parameters: Omit<LlmRequest, "input" | "tools">): Promise<TestResult> {
+    try {
+      const request: LlmRequest = {
+        ...parameters,
+        input: [{ type: "message", role: "user", content: "Reply with OK." }],
+        tools: [
+          {
+            type: "function",
+            name: "get_time",
+            description: "Get the current time",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      };
+      const completion = await this.completion(request, AbortSignal.timeout(60_000));
+      if (completion instanceof ReadableStream) {
+        await completion.pipeTo(new WritableStream());
+      }
+
+      logger.debug("LLM model test succeeded");
+      return { success: true };
+    } catch (error) {
+      const message = describeError(error);
+      logger.warn({ error: message }, "LLM model test failed");
+      return { success: false, error: message };
+    }
+  }
+
+  private async fetchModels(signal?: AbortSignal): Promise<string[]> {
     const response = await this.request("/models", {
       method: "GET",
+      signal,
     });
 
     if (!response.ok) {

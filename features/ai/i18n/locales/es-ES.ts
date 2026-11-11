@@ -293,6 +293,12 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Caracteres máximos de respuesta de herramienta",
               hint: "Caracteres máximos para una respuesta de herramienta antes del truncamiento",
             },
+            testModel: {
+              label: "Probar modelo",
+              testing: "Probando...",
+              success: "Prueba del modelo exitosa",
+              error: "Prueba del modelo fallida",
+            },
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
@@ -397,6 +403,12 @@ export default (): ReturnType<typeof enUS> => ({
             users: {
               label: "Usuarios",
               placeholder: "Buscar usuarios y grupos",
+            },
+            testConnection: {
+              label: "Probar conexión",
+              testing: "Probando...",
+              success: "Conexión exitosa",
+              error: "Conexión fallida",
             },
             cancel: "Cancelar",
             create: "Crear",
@@ -505,6 +517,12 @@ export default (): ReturnType<typeof enUS> => ({
             users: {
               label: "Usuarios",
               placeholder: "Buscar usuarios y grupos",
+            },
+            testConnection: {
+              label: "Probar conexión",
+              testing: "Probando...",
+              success: "Conexión exitosa",
+              error: "Conexión fallida",
             },
             cancel: "Cancelar",
             create: "Crear",

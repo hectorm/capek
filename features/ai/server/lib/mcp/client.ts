@@ -4,7 +4,8 @@ import { JSONRPCClient } from "json-rpc-2.0";
 
 import type { MCPCallToolResult, MCPTool } from "#layers/ai/shared/mcp";
 import type { HttpHeader } from "#layers/core/shared/http";
-import { AbortError } from "#layers/ai/server/lib/errors";
+import type { TestResult } from "#layers/core/shared/types";
+import { AbortError, describeError } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { MCPCallToolResultSchema, MCPListToolsResultSchema, McpPingRequestSchema } from "#layers/ai/shared/mcp";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -16,6 +17,7 @@ export interface MCPClientOptions {
   url: string;
   headers: HttpHeader[];
   stateful: boolean;
+  timeoutMs?: number;
 }
 
 export class MCPClient {
@@ -23,6 +25,7 @@ export class MCPClient {
   private readonly url: string;
   private readonly headers: Record<string, string>;
   private readonly stateful: boolean;
+  private readonly timeoutMs: number | null;
   private readonly jsonRpcClient: JSONRPCClient;
   private readonly mcpProtocolVersion = "2025-06-18";
   private readonly mcpClientName = "mcp-client";
@@ -40,6 +43,7 @@ export class MCPClient {
     this.url = options.url;
     this.headers = Object.fromEntries(options.headers.map((h) => [h.name, h.value]));
     this.stateful = options.stateful;
+    this.timeoutMs = options.timeoutMs ?? null;
     this.jsonRpcClient = new JSONRPCClient(async (jsonRPCRequest) => {
       const response = await this.request(jsonRPCRequest);
       this.jsonRpcClient.receive(response as Parameters<typeof this.jsonRpcClient.receive>[0]);
@@ -84,6 +88,9 @@ export class MCPClient {
       method: "POST",
       headers,
       body: JSON.stringify(jsonRPCRequest),
+      signal: this.timeoutMs === null ? undefined : AbortSignal.timeout(this.timeoutMs),
+    }).catch((error: unknown) => {
+      throw new Error(describeError(error));
     });
 
     const newSessionId = response.headers.get("Mcp-Session-Id");
@@ -421,6 +428,22 @@ export class MCPClient {
     }
   }
 
+  public async testConnection(): Promise<TestResult> {
+    try {
+      await this.initialize();
+      await this.listTools();
+
+      logger.debug({ serverName: this.name }, "MCP server test succeeded");
+      return { success: true };
+    } catch (error) {
+      const message = describeError(error);
+      logger.warn({ serverName: this.name, error: message }, "MCP server test failed");
+      return { success: false, error: message };
+    } finally {
+      await this.terminate();
+    }
+  }
+
   public async terminate(): Promise<void> {
     this._isTerminated = true;
 
@@ -445,6 +468,7 @@ export class MCPClient {
       const response = await fetch(this.url, {
         method: "DELETE",
         headers,
+        signal: this.timeoutMs === null ? undefined : AbortSignal.timeout(this.timeoutMs),
       });
 
       if (response.status === 405) {

@@ -25,3 +25,13 @@ export class ConcurrentExecutionError extends Error {
     this.name = "ConcurrentExecutionError";
   }
 }
+
+export const describeError = (error: unknown): string => {
+  if (error instanceof AggregateError) {
+    return error.errors.map(describeError).join(", ");
+  }
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+  return error.cause === undefined ? error.message : `${error.message}: ${describeError(error.cause)}`;
+};

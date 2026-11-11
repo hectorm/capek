@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
+import { MCPClient } from "#layers/ai/server/lib/mcp/client";
 import { McpServerResource } from "#layers/ai/server/lib/resources";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -293,4 +294,37 @@ export const mcpServerRouter = createTRPCRouter({
     readPermissions: [AiPermissions.McpServerReadAll, AiPermissions.McpServerReadOwn],
     updatePermissions: [AiPermissions.McpServerUpdateAll, AiPermissions.McpServerUpdateOwn],
   }),
+
+  testConnection: authorizedProcedure([
+    AiPermissions.McpServerCreate,
+    AiPermissions.McpServerUpdateAll,
+    AiPermissions.McpServerUpdateOwn,
+  ])
+    .input(
+      z.object({
+        id: z.uuid().optional(),
+        url: z.url(),
+        headers: HttpHeadersSchema.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id } = input;
+
+      let { headers = [] } = input;
+      if (id) {
+        // The lock limits the secrets to those who can update it
+        const stored = await withUserTransaction(ctx.user, (trx) => {
+          return trx.selectFrom("aiMcpServers").select(["headers"]).where("id", "=", id).forUpdate().executeTakeFirst();
+        });
+        headers = headers.map((h) => {
+          return h.value === HttpRedactedValue
+            ? { ...h, value: stored?.headers.find((e) => e.name === h.name)?.value ?? "" }
+            : h;
+        });
+      }
+
+      const mcpClient = new MCPClient({ name: input.url, url: input.url, headers, stateful: false, timeoutMs: 10_000 });
+
+      return mcpClient.testConnection();
+    }),
 });

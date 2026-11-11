@@ -291,6 +291,12 @@ export default () => ({
               label: "Max tool response characters",
               hint: "Maximum characters for a single tool response before truncation",
             },
+            testModel: {
+              label: "Test model",
+              testing: "Testing...",
+              success: "Model test successful",
+              error: "Model test failed",
+            },
             cancel: "Cancel",
             create: "Create",
             save: "Save",
@@ -395,6 +401,12 @@ export default () => ({
             users: {
               label: "Users",
               placeholder: "Search users and groups",
+            },
+            testConnection: {
+              label: "Test connection",
+              testing: "Testing...",
+              success: "Connection successful",
+              error: "Connection failed",
             },
             cancel: "Cancel",
             create: "Create",
@@ -503,6 +515,12 @@ export default () => ({
             users: {
               label: "Users",
               placeholder: "Search users and groups",
+            },
+            testConnection: {
+              label: "Test connection",
+              testing: "Testing...",
+              success: "Connection successful",
+              error: "Connection failed",
             },
             cancel: "Cancel",
             create: "Create",
