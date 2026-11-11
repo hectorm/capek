@@ -137,6 +137,7 @@ export interface AgentsTable {
   summaryModel: string;
   reasoningEffort: string;
   codeInterpreter: boolean;
+  showToolCalls: boolean;
   toolProviders: ColumnType<string[], string[] | undefined, string[]>;
   streaming: boolean;
   temperature: number | null;

@@ -248,6 +248,10 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Intérprete de código",
               description: "Habilitar ejecución de código para este agente",
             },
+            showToolCalls: {
+              label: "Llamadas a herramientas",
+              description: "Mostrar las llamadas a herramientas de este agente",
+            },
             streaming: {
               label: "Streaming",
               description: "Habilitar respuestas en streaming para este agente",

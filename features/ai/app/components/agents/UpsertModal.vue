@@ -109,6 +109,7 @@ const schema = z
     mcpServers: z.array(z.string()).default([]),
     skills: z.array(z.string()).default([]),
     codeInterpreter: z.boolean().default(false),
+    showToolCalls: z.boolean().default(true),
     streaming: z.boolean().default(true),
   })
   .extend(AgentExecutorParametersSchema.shape);
@@ -129,6 +130,7 @@ const state = reactive<
     mcpServers: string[];
     skills: string[];
     codeInterpreter: boolean;
+    showToolCalls: boolean;
     streaming: boolean;
   }
 >({
@@ -148,6 +150,7 @@ const state = reactive<
   mcpServers: currentMcpServers.map((m) => m.id),
   skills: currentSkills.map((a) => a.id),
   codeInterpreter: agent?.codeInterpreter ?? false,
+  showToolCalls: agent?.showToolCalls ?? true,
   streaming: agent?.streaming ?? true,
   temperature: agent?.temperature,
   maxTokens: agent?.maxTokens,
@@ -298,6 +301,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         summaryModel: event.data.summaryModel,
         reasoningEffort: event.data.reasoningEffort,
         codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
+        showToolCalls: event.data.showToolCalls,
         toolProviders: event.data.type === "specialist" ? getEnabledToolProviders() : [],
         streaming: event.data.streaming,
         temperature: event.data.temperature,
@@ -324,6 +328,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         summaryModel: event.data.summaryModel,
         reasoningEffort: event.data.reasoningEffort,
         codeInterpreter: event.data.codeInterpreter,
+        showToolCalls: event.data.showToolCalls,
         toolProviders: getEnabledToolProviders(),
         streaming: event.data.streaming,
         temperature: event.data.temperature,
@@ -609,6 +614,17 @@ const onTestModel = async () => {
             v-model="state.codeInterpreter"
             :disabled="!canModify"
             :description="$t('ai.pages.studio.agents.form.codeInterpreter.description')"
+          />
+        </UFormField>
+        <UFormField
+          v-if="state.type === 'specialist'"
+          name="showToolCalls"
+          :label="$t('ai.pages.studio.agents.form.showToolCalls.label')"
+        >
+          <USwitch
+            v-model="state.showToolCalls"
+            :disabled="!canModify"
+            :description="$t('ai.pages.studio.agents.form.showToolCalls.description')"
           />
         </UFormField>
         <template v-if="state.type === 'specialist'">

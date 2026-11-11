@@ -153,6 +153,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("summaryModel", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("reasoningEffort", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("codeInterpreter", "boolean", (col) => col.notNull().defaultTo(false))
+    .addColumn("showToolCalls", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("toolProviders", sql`varchar(100)[]`, (col) => col.notNull().defaultTo(sql`'{}'`))
     .addColumn("streaming", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("temperature", "real")

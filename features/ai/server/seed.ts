@@ -61,6 +61,7 @@ const seedAgentSchema = z
       )
       .default({}),
     codeInterpreter: z.boolean().default(false),
+    showToolCalls: z.boolean().default(true),
     streaming: z.boolean().default(true),
     access: seedAccessSchema,
   })
@@ -211,6 +212,7 @@ export const aiSeed = defineSeed({
           summaryModel: agentConfig.summaryModel,
           reasoningEffort: agentConfig.reasoningEffort,
           codeInterpreter: agentConfig.type === "specialist" ? agentConfig.codeInterpreter : false,
+          showToolCalls: agentConfig.showToolCalls,
           streaming: agentConfig.streaming,
           temperature: agentConfig.temperature ?? null,
           maxTokens: agentConfig.maxTokens ?? null,

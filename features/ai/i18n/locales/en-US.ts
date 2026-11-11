@@ -246,6 +246,10 @@ export default () => ({
               label: "Code interpreter",
               description: "Enable code execution for this agent",
             },
+            showToolCalls: {
+              label: "Tool calls",
+              description: "Show the tool calls of this agent",
+            },
             streaming: {
               label: "Streaming",
               description: "Enable streaming responses for this agent",

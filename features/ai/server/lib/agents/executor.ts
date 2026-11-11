@@ -58,6 +58,7 @@ interface AgentConfig {
   summaryModel: string | null;
   reasoningEffort: string;
   codeInterpreter: boolean;
+  showToolCalls: boolean;
   streaming: boolean;
   temperature: number | null;
   maxTokens: number | null;
@@ -484,7 +485,7 @@ export class AgentExecutor {
 
     yield encodeStreamEvent(ChatStreamEvents.Status, toolName);
 
-    functionCall.description = agentTool.tool.describe?.(args);
+    functionCall.description = agent.showToolCalls ? agentTool.tool.describe?.(args) : undefined;
     if (functionCall.description) {
       yield encodeStreamEvent(ChatStreamEvents.Tool, {
         type: "tool",
@@ -832,6 +833,7 @@ export class AgentExecutor {
         "aiAgents.summaryModel",
         "aiAgents.reasoningEffort",
         "aiAgents.codeInterpreter",
+        "aiAgents.showToolCalls",
         "aiAgents.streaming",
         "aiAgents.temperature",
         "aiAgents.maxTokens",
@@ -880,6 +882,7 @@ export class AgentExecutor {
         "aiAgents.summaryModel",
         "aiAgents.reasoningEffort",
         "aiAgents.codeInterpreter",
+        "aiAgents.showToolCalls",
         "aiAgents.streaming",
         "aiAgents.temperature",
         "aiAgents.maxTokens",
