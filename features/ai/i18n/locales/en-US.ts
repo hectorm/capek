@@ -125,6 +125,7 @@ export default () => ({
             description: "Description",
             type: "Type",
             model: "Model",
+            priority: "Priority",
             actions: {
               title: "Actions",
               create: {
@@ -191,6 +192,10 @@ export default () => ({
             greetingMessage: {
               label: "Greeting message",
               placeholder: "Message shown to users at the start of a chat session with this agent",
+            },
+            priority: {
+              label: "Priority",
+              hint: "Agents with a higher priority are listed first",
             },
             editors: {
               label: "Editors",

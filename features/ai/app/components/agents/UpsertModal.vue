@@ -13,6 +13,7 @@ import UFormField from "@nuxt/ui/components/FormField.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UInputMenu from "@nuxt/ui/components/InputMenu.vue";
+import UInputNumber from "@nuxt/ui/components/InputNumber.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
@@ -98,6 +99,7 @@ const schema = z
     description: z.string().max(1000).trim().default(""),
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
+    priority: z.number().int().min(-1000).max(1000).default(0),
     editors: z.array(z.string()).default([]),
     users: z.array(z.string()).default([]),
     type: z.enum(["triage", "specialist"]),
@@ -139,6 +141,7 @@ const state = reactive<
   description: agent?.description,
   instructions: agent?.instructions,
   greetingMessage: agent?.greetingMessage,
+  priority: agent?.priority ?? 0,
   editors: editorIds,
   users: userIds,
   type: agent?.type ?? "specialist",
@@ -296,6 +299,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         description: event.data.description,
         instructions: event.data.instructions,
         greetingMessage: event.data.greetingMessage,
+        priority: event.data.priority,
         llmProviderId: event.data.llmProviderId,
         model: event.data.model,
         summaryModel: event.data.summaryModel,
@@ -322,6 +326,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         description: event.data.description,
         instructions: event.data.instructions,
         greetingMessage: event.data.greetingMessage,
+        priority: event.data.priority,
         type: event.data.type,
         llmProviderId: event.data.llmProviderId,
         model: event.data.model,
@@ -453,6 +458,13 @@ const onTestModel = async () => {
             :disabled="!canModify"
             :placeholder="$t('ai.pages.studio.agents.form.greetingMessage.placeholder')"
           />
+        </UFormField>
+        <UFormField
+          name="priority"
+          :label="$t('ai.pages.studio.agents.form.priority.label')"
+          :description="$t('ai.pages.studio.agents.form.priority.hint')"
+        >
+          <UInputNumber v-model="state.priority" :max="1000" :min="-1000" class="w-full" :disabled="!canModify" />
         </UFormField>
         <UFormField name="editors" :label="$t('ai.pages.studio.agents.form.editors.label')">
           <SearchMenu

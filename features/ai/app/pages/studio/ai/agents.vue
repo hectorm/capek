@@ -85,6 +85,14 @@ const columns = computed(() => [
     },
   },
   {
+    id: "priority",
+    accessorKey: "priority",
+    meta: {
+      sortable: true,
+      class: { th: "w-0 min-w-25", td: "w-0" },
+    },
+  },
+  {
     id: "action",
     meta: {
       class: { th: "w-0 min-w-15", td: "w-0 px-0 text-center bg-clip-content" },
@@ -364,6 +372,9 @@ definePageMeta({
           :label="String(cell.getValue())"
           :color="cell.getValue() === 'triage' ? 'primary' : 'neutral'"
         />
+      </template>
+      <template v-else-if="id === 'priority'">
+        {{ cell.getValue() }}
       </template>
       <template v-else>
         {{ cell.getValue() || "&nbsp;" }}

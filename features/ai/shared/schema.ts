@@ -131,6 +131,7 @@ export interface AgentsTable {
   description: string;
   instructions: string;
   greetingMessage: string;
+  priority: number;
   type: "triage" | "specialist";
   llmProviderId: string | null;
   model: string;

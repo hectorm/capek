@@ -127,6 +127,7 @@ export default (): ReturnType<typeof enUS> => ({
             description: "Descripción",
             type: "Tipo",
             model: "Modelo",
+            priority: "Prioridad",
             actions: {
               title: "Acciones",
               create: {
@@ -193,6 +194,10 @@ export default (): ReturnType<typeof enUS> => ({
             greetingMessage: {
               label: "Mensaje de bienvenida",
               placeholder: "Mensaje mostrado a los usuarios al inicio de una sesión de chat con este agente",
+            },
+            priority: {
+              label: "Prioridad",
+              hint: "Los agentes con mayor prioridad se listan primero",
             },
             editors: {
               label: "Editores",

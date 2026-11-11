@@ -56,6 +56,7 @@ export const agentRouter = createTRPCRouter({
             "description",
             "instructions",
             "greetingMessage",
+            "priority",
             "type",
             "llmProviderId",
             "model",
@@ -111,7 +112,7 @@ export const agentRouter = createTRPCRouter({
         search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
         searchBy: z.enum(["name", "description", "type", "model"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
-        orderBy: z.enum(["name", "description", "type", "model"]).default("name"),
+        orderBy: z.enum(["name", "description", "type", "model", "priority"]).default("name"),
         limit: z.number().min(1).max(100).default(50),
         cursor: z.uuid().nullish(),
       }),
@@ -122,7 +123,14 @@ export const agentRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx
           .selectFrom("aiAgents")
-          .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type", "aiAgents.model"]);
+          .select([
+            "aiAgents.id",
+            "aiAgents.name",
+            "aiAgents.description",
+            "aiAgents.type",
+            "aiAgents.model",
+            "aiAgents.priority",
+          ]);
 
         if (type) {
           query = query.where("aiAgents.type", "=", type);
@@ -194,6 +202,7 @@ export const agentRouter = createTRPCRouter({
           description: z.string().max(1000).trim().default(""),
           instructions: z.string().max(100000).trim().default(""),
           greetingMessage: z.string().max(10000).trim().default(""),
+          priority: z.number().int().min(-1000).max(1000).default(0),
           type: z.enum(["triage", "specialist"]),
           llmProviderId: z.uuid().nullish(),
           model: z.string().min(1).max(100).trim(),
@@ -221,6 +230,7 @@ export const agentRouter = createTRPCRouter({
               description: input.description,
               instructions: input.instructions,
               greetingMessage: input.greetingMessage,
+              priority: input.priority,
               type: input.type,
               llmProviderId: input.llmProviderId ?? null,
               model: input.model,
@@ -255,6 +265,7 @@ export const agentRouter = createTRPCRouter({
               "description",
               "instructions",
               "greetingMessage",
+              "priority",
               "type",
               "llmProviderId",
               "model",
@@ -322,6 +333,7 @@ export const agentRouter = createTRPCRouter({
           description: z.string().max(1000).trim().optional(),
           instructions: z.string().max(100000).trim().optional(),
           greetingMessage: z.string().max(10000).trim().optional(),
+          priority: z.number().int().min(-1000).max(1000).optional(),
           llmProviderId: z.uuid().nullish(),
           model: z.string().min(1).max(100).trim().optional(),
           summaryModel: z.string().max(100).trim().optional(),
@@ -349,6 +361,7 @@ export const agentRouter = createTRPCRouter({
               "description",
               "instructions",
               "greetingMessage",
+              "priority",
               "type",
               "llmProviderId",
               "model",
@@ -459,10 +472,11 @@ export const agentRouter = createTRPCRouter({
       const agents = await trx
         .selectFrom("aiAgents")
         .innerJoin("aiAgentAccess", "aiAgentAccess.agentId", "aiAgents.id")
-        .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type"])
+        .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type", "aiAgents.priority"])
         .where("aiAgentAccess.role", "=", "user")
         .where("aiAgents.llmProviderId", "is not", null)
         .distinct()
+        .orderBy("aiAgents.priority", "desc")
         .orderBy("aiAgents.name", "asc")
         .execute();
 

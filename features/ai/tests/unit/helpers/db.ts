@@ -16,6 +16,7 @@ export const insertAgent = async (db: Kysely<Database>, name: string): Promise<s
       description: "",
       instructions: "",
       greetingMessage: "",
+      priority: 0,
       type: "specialist",
       llmProviderId: null,
       model: "m",

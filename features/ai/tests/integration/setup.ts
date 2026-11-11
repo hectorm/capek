@@ -126,6 +126,7 @@ export default {
           description: "A triage agent for testing purposes",
           instructions: "You are a helpful triage agent used for testing.",
           type: "triage",
+          priority: 1,
           llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           specialists: ["Mock specialist tool agent", "Mock specialist code agent"],
