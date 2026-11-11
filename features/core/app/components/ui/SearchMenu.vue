@@ -9,6 +9,7 @@ interface Item {
   value: string;
   label: string;
   icon?: string;
+  description?: string;
 }
 
 const props = withDefaults(
@@ -17,6 +18,7 @@ const props = withDefaults(
     searchFn?: (search?: string) => Promise<string[]>;
     labelFn?: (value: string) => string;
     iconFn?: (value: string) => string | undefined;
+    descriptionFn?: (value: string) => string | undefined;
     multiple?: TMultiple;
   }>(),
   {
@@ -24,6 +26,7 @@ const props = withDefaults(
     searchFn: () => Promise.resolve([]),
     labelFn: (value: string) => value,
     iconFn: () => undefined,
+    descriptionFn: () => undefined,
     // @ts-expect-error ignore wrong type
     multiple: false,
   },
@@ -51,6 +54,7 @@ const doSearch = async (value?: string) => {
       value: v,
       label: props.labelFn(v),
       icon: props.iconFn(v),
+      description: props.descriptionFn(v),
     }));
     const searchValuesSet = new Set(searchResults);
     const preservedItems = selectedItems.filter((i) => !searchValuesSet.has(i.value));
@@ -71,6 +75,7 @@ const initializeItemsFromModel = () => {
     value: v,
     label: props.labelFn(v),
     icon: props.iconFn(v),
+    description: props.descriptionFn(v),
   }));
 
   items.value = [...items.value, ...newItems.filter((i) => !items.value.some((e) => e.value === i.value))];

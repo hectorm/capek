@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { useCookie } from "nuxt/app";
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-import type { SelectMenuItem } from "@nuxt/ui";
-import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
-
+import type { InvocableAgent } from "#layers/ai/app/stores/agent";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
+
+import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -26,19 +26,26 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const agentStore = useAgentStore();
 
-const icons: Record<(typeof agentStore.agents)[number]["type"], string> = {
+const icons: Record<InvocableAgent["type"], string> = {
   triage: "i-lucide-workflow",
   specialist: "i-lucide-bot",
 };
 
-const items = computed<SelectMenuItem[]>(() => {
-  return agentStore.agents.map((a) => ({
-    label: a.name,
-    value: a.id,
-    description: a.description,
-    icon: icons[a.type],
-  }));
-});
+const selectedAgent = ref<InvocableAgent>();
+
+const searchAgents = async (query?: string) => {
+  const agents = await agentStore.search(query);
+  return agents.map((agent) => agent.id);
+};
+const getAgentLabel = (id: string) => {
+  return agentStore.get(id)?.name ?? id;
+};
+const getAgentIcon = (id: string) => {
+  return icons[agentStore.get(id)?.type ?? "specialist"];
+};
+const getAgentDescription = (id: string) => {
+  return agentStore.get(id)?.description;
+};
 
 const selectedAgentCookie = useCookie<string | null>("selected_agent", {
   maxAge: 365 * 24 * 60 * 60,
@@ -46,19 +53,16 @@ const selectedAgentCookie = useCookie<string | null>("selected_agent", {
   watch: true,
 });
 
-const selectedAgentIcon = computed(() => {
-  const item = items.value.find((i) => (i as { value?: string }).value === props.modelValue);
-  return (item as { icon?: string } | undefined)?.icon ?? icons.specialist;
-});
+const selectedAgentIcon = computed(() => icons[selectedAgent.value?.type ?? "specialist"]);
 
 watch(
   () => agentStore.isLoaded,
-  (isLoaded) => {
+  async (isLoaded) => {
     if (isLoaded && props.autoSelect && !props.modelValue && agentStore.agents.length > 0) {
       const storedAgent = selectedAgentCookie.value;
-      const defaultAgent = agentStore.agents.find((a) => a.id === storedAgent) ? storedAgent : agentStore.agents[0]?.id;
-      if (defaultAgent) {
-        emit("update:modelValue", defaultAgent);
+      const defaultAgent = (storedAgent ? await agentStore.resolve(storedAgent) : undefined) ?? agentStore.agents[0];
+      if (defaultAgent && !props.modelValue) {
+        emit("update:modelValue", defaultAgent.id);
       }
     }
   },
@@ -66,23 +70,29 @@ watch(
 );
 
 watch(
-  () => props.modelValue,
-  (value) => {
+  [() => props.modelValue, () => agentStore.isLoaded],
+  async ([value, isLoaded]) => {
     if (value != null) {
       selectedAgentCookie.value = value;
     }
+    if (isLoaded) {
+      selectedAgent.value = value != null ? await agentStore.resolve(value) : undefined;
+    }
   },
+  { immediate: true },
 );
 </script>
 
 <template>
-  <USelectMenu
+  <SearchMenu
     v-if="agentStore.isLoaded && agentStore.hasAgents"
-    :items="items"
     variant="ghost"
-    value-key="value"
+    :icon-fn="getAgentIcon"
     :icon="selectedAgentIcon"
-    :model-value="props.modelValue"
+    :label-fn="getAgentLabel"
+    :search-fn="searchAgents"
+    :model-value="selectedAgent?.id"
+    :description-fn="getAgentDescription"
     :aria-label="t('ai.components.agentSelect.label')"
     class="hover:bg-default focus:bg-default data-[state=open]:bg-default"
     :ui="{

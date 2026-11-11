@@ -433,23 +433,46 @@ export const agentRouter = createTRPCRouter({
     updatePermissions: [AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn],
   }),
 
-  listInvocable: authorizedProcedure([AiPermissions.AgentUseAll, AiPermissions.AgentUseOwn]).query(async ({ ctx }) => {
-    return withUserTransaction(ctx.user, async (trx) => {
-      const agents = await trx
-        .selectFrom("aiAgents")
-        .innerJoin("aiAgentAccess", "aiAgentAccess.agentId", "aiAgents.id")
-        .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type", "aiAgents.priority"])
-        .where("aiAgentAccess.role", "=", "user")
-        .where("aiAgents.llmProviderId", "is not", null)
-        .distinct()
-        .orderBy("aiAgents.priority", "desc")
-        .orderBy("aiAgents.name", "asc")
-        .execute();
+  listInvocable: authorizedProcedure([AiPermissions.AgentUseAll, AiPermissions.AgentUseOwn])
+    .input(
+      z.object({
+        search: z.string().max(255).optional(),
+        limit: z.number().min(1).max(100).default(25),
+        id: z.uuid().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return withUserTransaction(ctx.user, async (trx) => {
+        let query = trx
+          .selectFrom("aiAgents")
+          .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type", "aiAgents.priority"])
+          .where("aiAgents.llmProviderId", "is not", null)
+          .where((eb) =>
+            eb.exists(
+              eb
+                .selectFrom("aiAgentAccess")
+                .select("aiAgentAccess.id")
+                .whereRef("aiAgentAccess.agentId", "=", "aiAgents.id")
+                .where("aiAgentAccess.role", "=", "user"),
+            ),
+          );
 
-      ctx.logger.debug("Invocable agent list retrieved");
-      return agents;
-    });
-  }),
+        if (input.id) {
+          query = query.where("aiAgents.id", "=", input.id);
+        } else if (input.search) {
+          query = query.where("aiAgents.name", "ilike", `%${input.search}%`);
+        }
+
+        const agents = await query
+          .orderBy("aiAgents.priority", "desc")
+          .orderBy("aiAgents.name", "asc")
+          .limit(input.limit)
+          .execute();
+
+        ctx.logger.debug("Invocable agent list retrieved");
+        return agents;
+      });
+    }),
 
   listSpecialists: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ triageAgentId: z.uuid() }))
