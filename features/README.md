@@ -24,6 +24,7 @@ A feature is a layer in `features/<name>/`, named `<name>` with the `$meta.name`
 | `server/trpc/routers/index.ts` | `routers` object merged into the application tRPC router                                                                         |
 | `app/feature.ts`               | `defineAppFeature()`: home page, main navigation, sidebar sections, user menu entries, and studio and settings tabs              |
 | `shared/*.d.ts`                | Declaration merging into the core registries (e.g. the tables of the `Database` interface)                                       |
+| `server/**/*.worker.ts`        | Worker thread, started with `new Worker(new URL("./<name>.worker.ts", import.meta.url))`                                         |
 
 Everything else is merged by Nuxt as usual: pages, layouts, components, plugins, middleware, server routes and tasks, runtime config and i18n messages (each layer declares its locales with the same `code` and `language` as `core`). A feature that does not need the database just omits the migrations and security definitions.
 
