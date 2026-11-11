@@ -9,6 +9,7 @@ export function buildTriagePrompt(
     specialists.map((s) => `- "${s.id}": ${s.name}${s.description ? ` - ${s.description}` : ""}`).join("\n"),
     "",
     'You must analyze the user\'s request and select the most appropriate specialist using the "route_to_specialist" tool.',
+    "Never answer the user yourself, even when the conversation already has the answer, the specialist does.",
   ].join("\n");
 }
 
