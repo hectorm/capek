@@ -50,6 +50,30 @@ describe("postgres datasource", () => {
     ]);
   });
 
+  it("limits the rows of the queries that set their own limit or offset", async () => {
+    const run = (sql: string): Promise<unknown[]> => driver.execute({ config: config() }, sql, settings);
+
+    expect(await run("SELECT id FROM orders ORDER BY id LIMIT 3")).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(await run("SELECT id FROM orders ORDER BY id LIMIT 1 OFFSET 1")).toEqual([{ id: 2 }]);
+    expect(await run("SELECT id FROM orders ORDER BY id OFFSET 1")).toEqual([{ id: 2 }, { id: 3 }]);
+    expect(await run("SELECT id FROM orders ORDER BY id FETCH FIRST 3 ROWS ONLY")).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(await run("-- every order\nSELECT id FROM orders ORDER BY id -- by ID")).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(await run("SELECT g AS id FROM generate_series(1, 1000000) AS g LIMIT 1000000")).toEqual([
+      { id: 1 },
+      { id: 2 },
+    ]);
+    expect(await run("SELECT id FROM orders ORDER BY id;;")).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(await run("SELECT id FROM orders ORDER BY id; -- every order")).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it("runs the statements that are not queries and reports the errors of the wrong ones", async () => {
+    const run = (sql: string): Promise<unknown[]> => driver.execute({ config: config() }, sql, settings);
+
+    expect(await run("SHOW transaction_read_only")).toEqual([{ transaction_read_only: "on" }]);
+    await expect(run("SELECT id FROM orders WHERE")).rejects.toThrow(/syntax error at end of input/);
+    await expect(run("SELECT id FROM missing")).rejects.toThrow(/relation "missing" does not exist/);
+  });
+
   it("only takes the hidden password from the stored configuration while it connects to the same place", () => {
     const redacted = PostgresDatasourceType.redact(config());
     const moved = { ...redacted, connectionString: "postgres://attacker.example:5432/postgres" };

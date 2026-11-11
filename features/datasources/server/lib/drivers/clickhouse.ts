@@ -16,6 +16,7 @@ export class ClickhouseDriver implements DatasourceDriver {
     settings: DatasourceQuerySettings,
   ): Promise<unknown[]> {
     const config = ClickhouseDatasourceType.configSchema.parse(params.config);
+
     const basic = config.authType === "basic" ? config : null;
 
     // The request outlasts the query, and errors are returned instead of logged

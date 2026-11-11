@@ -7,6 +7,8 @@ import type {
 } from "#layers/datasources/server/lib/drivers";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
 
+const SYNTAX_ERROR = "42601";
+
 export class PostgresDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
 
@@ -35,21 +37,40 @@ export class PostgresDriver implements DatasourceDriver {
         await client.query(`SET LOCAL statement_timeout = ${String(settings.statementTimeoutMs)}`);
       }
 
-      const query: pg.QueryConfig & { queryMode: "extended" } = {
-        text: this.prepareSql(sql, settings.maxRows),
-        queryMode: "extended",
+      const run = (text: string): Promise<Record<string, unknown>[]> => {
+        return new Promise((resolve, reject) => {
+          const rows: Record<string, unknown>[] = [];
+          const queryConfig: pg.QueryConfig & { queryMode: "extended" } = { text, queryMode: "extended" };
+          const query = client.query(new pg.Query<Record<string, unknown>>(queryConfig));
+          query.on("row", (row) => {
+            if (settings.maxRows && rows.length >= settings.maxRows) {
+              resolve(rows);
+              return;
+            }
+            rows.push(row);
+          });
+          query.on("end", () => {
+            resolve(rows);
+          });
+          query.on("error", reject);
+        });
       };
-      return (await client.query<Record<string, unknown>>(query)).rows;
+      const statement = sql.trimEnd().replace(/;$/, "");
+      if (!settings.maxRows) {
+        return await run(statement);
+      }
+      await client.query("SAVEPOINT datasource_limit");
+      try {
+        return await run(`SELECT * FROM (\n${statement}\n) AS datasource_rows LIMIT ${String(settings.maxRows)}`);
+      } catch (error) {
+        if ((error as { code?: string }).code !== SYNTAX_ERROR) {
+          throw error;
+        }
+        await client.query("ROLLBACK TO SAVEPOINT datasource_limit");
+        return await run(statement);
+      }
     } finally {
       await client.end().catch(() => undefined);
     }
-  }
-
-  private prepareSql(sql: string, maxRows: number | undefined): string {
-    const trimmed = sql.trimEnd().replace(/;$/, "");
-    if (!maxRows) return trimmed;
-    if (!/^\s*(select|with)\b/i.test(trimmed)) return trimmed;
-    if (/\blimit\s+\d+\s*$/i.test(trimmed)) return trimmed;
-    return `${trimmed}\nLIMIT ${String(maxRows)}`;
   }
 }

@@ -43,9 +43,27 @@ export class MariaDBDriver implements DatasourceDriver {
           : `SET SESSION max_execution_time = ${String(settings.statementTimeoutMs)}`;
         await connection.query(timeoutSql).catch(() => undefined);
       }
-      const result: unknown = await connection.query(this.prepareSql(sql, settings.maxRows));
-      // Statements without a result set return the status of their execution instead of rows
-      return Array.isArray(result) ? result.map((row: Record<string, unknown>) => this.toSerializable(row)) : [];
+      if (settings.maxRows) {
+        await connection.query(`SET sql_select_limit = ${String(settings.maxRows)}`);
+      }
+
+      const rows: Record<string, unknown>[] = [];
+      const stream = connection.queryStream(sql);
+      let columns: unknown;
+      stream.once("fields", (fields: unknown) => {
+        columns = fields;
+      });
+      for await (const row of stream) {
+        if (!columns) {
+          continue;
+        }
+        if (settings.maxRows && rows.length >= settings.maxRows) {
+          connection.destroy();
+          break;
+        }
+        rows.push(this.toSerializable(row as Record<string, unknown>));
+      }
+      return rows;
     } catch (error) {
       if (error instanceof Error && url.password) {
         error.message = error.message
@@ -66,13 +84,5 @@ export class MariaDBDriver implements DatasourceDriver {
         typeof value === "bigint" ? (Number.isSafeInteger(Number(value)) ? Number(value) : value.toString()) : value,
       ]),
     );
-  }
-
-  private prepareSql(sql: string, maxRows: number | undefined): string {
-    const trimmed = sql.trimEnd().replace(/;$/, "");
-    if (!maxRows) return trimmed;
-    if (!/^\s*(select|with)\b/i.test(trimmed)) return trimmed;
-    if (/\blimit\s+\d+\s*$/i.test(trimmed)) return trimmed;
-    return `${trimmed}\nLIMIT ${String(maxRows)}`;
   }
 }

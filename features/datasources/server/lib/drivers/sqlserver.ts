@@ -31,6 +31,7 @@ export class SqlServerDriver implements DatasourceDriver {
     settings: DatasourceQuerySettings,
   ): Promise<unknown[]> {
     const config = SqlServerDatasourceType.configSchema.parse(params.config);
+
     const { server, options } = this.parseConnectionString(config.connectionString);
     const authentication = this.buildAuthentication(config);
 
@@ -55,8 +56,9 @@ export class SqlServerDriver implements DatasourceDriver {
       return await new Promise<unknown[]>((resolve, reject) => {
         const rows: Record<string, unknown>[] = [];
         let hasResultSet = false;
+        let cancelled = false;
         const request = new Request(sql, (err) => {
-          if (err) reject(err);
+          if (err && !cancelled) reject(err);
           else if (!hasResultSet)
             reject(new Error("The statement returned no result, and changes to data are not kept"));
           else resolve(rows);
@@ -65,7 +67,12 @@ export class SqlServerDriver implements DatasourceDriver {
           hasResultSet = true;
         });
         request.on("row", (columns: TediousColumn[]) => {
-          if (settings.maxRows !== undefined && rows.length >= settings.maxRows) return;
+          if (cancelled) return;
+          if (settings.maxRows && rows.length >= settings.maxRows) {
+            cancelled = true;
+            connection.cancel();
+            return;
+          }
           rows.push(this.toRow(columns));
         });
         connection.execSqlBatch(request);
