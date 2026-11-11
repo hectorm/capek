@@ -1,4 +1,5 @@
-import { deflateSync, inflateSync } from "node:zlib";
+import { promisify } from "node:util";
+import { deflate, inflate } from "node:zlib";
 
 import type { VFSSnapshot, VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
@@ -6,6 +7,9 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
+
+const deflateAsync = promisify(deflate);
+const inflateAsync = promisify(inflate);
 
 export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
   try {
@@ -20,7 +24,7 @@ export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
         return;
       }
 
-      const decompressed = inflateSync(row.data).toString("utf8");
+      const decompressed = (await inflateAsync(row.data)).toString("utf8");
       const snapshot = JSON.parse(decompressed) as VFSSnapshot;
 
       for (const [path, file] of Object.entries(snapshot.files)) {
@@ -43,7 +47,7 @@ export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
     }
 
     const json = JSON.stringify(snapshot);
-    const compressed = deflateSync(json);
+    const compressed = await deflateAsync(json);
 
     await withUserTransaction(user, async (trx) => {
       await trx

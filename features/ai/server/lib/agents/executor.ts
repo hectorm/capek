@@ -87,6 +87,9 @@ interface AgentTool {
 
 type LlmFunctionCall = Extract<LlmItem, { type: "function_call" }>;
 
+const CODE_MAX_MEMORY_BYTES = 25 * 1024 * 1024;
+const CODE_MAX_WORKSPACE_BYTES = 10 * 1024 * 1024;
+
 const triageToolSchema = z.object({
   specialistId: z.string(),
   routingReason: z.string(),
@@ -593,7 +596,8 @@ export class AgentExecutor {
             mcpServers: mcpServerBindings,
             tools: { toolsets, context },
             maxExecutionMs: agent.timeoutSec * 1000,
-            maxMemoryBytes: 25 * 1024 * 1024,
+            maxMemoryBytes: CODE_MAX_MEMORY_BYTES,
+            maxWorkspaceBytes: CODE_MAX_WORKSPACE_BYTES,
             signal: context.signal,
           });
 
@@ -723,7 +727,7 @@ export class AgentExecutor {
             vfs,
             mcpServers: mcpServerBindings,
             maxExecutionMs: agent.timeoutSec * 1000,
-            maxMemoryBytes: 25 * 1024 * 1024,
+            maxMemoryBytes: CODE_MAX_MEMORY_BYTES,
             signal: context.signal,
           });
 

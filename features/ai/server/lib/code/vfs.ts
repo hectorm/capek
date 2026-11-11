@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 interface VFSFileNode {
   type: "file";
   content: string;
@@ -16,8 +18,21 @@ export interface VFSSnapshot {
   files: Record<string, { content: string; readonly: boolean }>;
 }
 
+export const WORKSPACE_DIR = "/workspace";
+
+export interface VFSOptions {
+  maxWorkspaceBytes?: number;
+}
+
 export class VirtualFileSystem {
   private root: VFSDirNode = VirtualFileSystem.createDir();
+  private workspaceBytes = 0;
+  private maxWorkspaceBytes: number | undefined;
+
+  public constructor(options: VFSOptions = {}) {
+    this.maxWorkspaceBytes = options.maxWorkspaceBytes;
+    this.mkdir(WORKSPACE_DIR);
+  }
 
   private static isFile(node: VFSNode): node is VFSFileNode {
     return node.type === "file";
@@ -29,6 +44,10 @@ export class VirtualFileSystem {
 
   private static createDir(): VFSDirNode {
     return { type: "dir", entries: new Map() };
+  }
+
+  private static inWorkspace(normalized: string): boolean {
+    return normalized.startsWith(`${WORKSPACE_DIR}/`);
   }
 
   public exists(path: string): boolean {
@@ -61,7 +80,7 @@ export class VirtualFileSystem {
     return {
       isFile: () => fileNode,
       isDirectory: () => !fileNode,
-      size: fileNode ? node.content.length : 0,
+      size: fileNode ? Buffer.byteLength(node.content) : 0,
       mode: fileNode ? 0o644 : 0o755,
     };
   }
@@ -106,12 +125,24 @@ export class VirtualFileSystem {
       return false;
     }
 
+    const inWorkspace = VirtualFileSystem.inWorkspace(normalized);
+    const existing = existingNode && VirtualFileSystem.isFile(existingNode) ? existingNode.content : "";
+    const growth = Buffer.byteLength(content) - Buffer.byteLength(existing);
+    if (inWorkspace && growth > 0 && this.workspaceBytes + growth > (this.maxWorkspaceBytes ?? Infinity)) {
+      throw new Error(
+        `ENOSPC: no space left, the files in '${WORKSPACE_DIR}' cannot hold more than ${String(this.maxWorkspaceBytes)} bytes`,
+      );
+    }
+
     const dir = this.ensureDirectoryExists(dirPath);
     dir.entries.set(fileName, {
       type: "file",
       content,
       readonly: options?.readonly ?? false,
     });
+    if (inWorkspace) {
+      this.workspaceBytes += growth;
+    }
 
     return true;
   }
@@ -136,6 +167,9 @@ export class VirtualFileSystem {
     if (!node || !VirtualFileSystem.isFile(node) || node.readonly) return false;
 
     info.parent.entries.delete(info.name);
+    if (VirtualFileSystem.inWorkspace(normalized)) {
+      this.workspaceBytes -= Buffer.byteLength(node.content);
+    }
     return true;
   }
 
@@ -209,12 +243,24 @@ export class VirtualFileSystem {
     return this.getAllPaths().filter((path) => regex.test(path));
   }
 
-  static fromJSON(snapshot: VFSSnapshot): VirtualFileSystem {
+  static fromJSON(snapshot: VFSSnapshot, options: VFSOptions = {}): VirtualFileSystem {
     const vfs = new VirtualFileSystem();
     for (const [path, file] of Object.entries(snapshot.files)) {
       vfs.writeFile(path, file.content, { readonly: file.readonly });
     }
+    vfs.maxWorkspaceBytes = options.maxWorkspaceBytes;
     return vfs;
+  }
+
+  public setWorkspaceFiles(snapshot: VFSSnapshot): void {
+    this.root.entries.delete(WORKSPACE_DIR.slice(1));
+    this.workspaceBytes = 0;
+    this.mkdir(WORKSPACE_DIR);
+    for (const [path, file] of Object.entries(snapshot.files)) {
+      if (VirtualFileSystem.inWorkspace(this.normalizePath(path))) {
+        this.writeFile(path, file.content, { readonly: file.readonly });
+      }
+    }
   }
 
   public toJSON(): VFSSnapshot {
@@ -236,7 +282,7 @@ export class VirtualFileSystem {
     const files: Record<string, { content: string; readonly: boolean }> = {};
     const traverse = (node: VFSNode, path: string): void => {
       if (VirtualFileSystem.isFile(node)) {
-        if (path.startsWith("/workspace/")) {
+        if (VirtualFileSystem.inWorkspace(path)) {
           files[path] = { content: node.content, readonly: node.readonly };
         }
       } else {

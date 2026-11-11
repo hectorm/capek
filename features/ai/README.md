@@ -16,9 +16,9 @@ Agents, LLM providers, MCP servers and skills are shared with users and groups, 
 
 ## Code interpreter
 
-The code interpreter runs JavaScript code in a [QuickJS](https://bellard.org/quickjs/) WASM build with memory and execution time constraints.
+The code interpreter runs JavaScript code in a [QuickJS](https://bellard.org/quickjs/) WASM build with memory and execution time constraints, in a worker thread that is terminated when the code ends or exceeds them.
 
-Each chat session has its own in-memory Virtual File System (VFS). The `/workspace` directory is writable; other paths are read-only. A Node.js-like `fs` API is available for file operations.
+Each chat session has its own in-memory Virtual File System (VFS). The `/workspace` directory is writable (up to 10 MB) and is kept between executions, other paths are read-only. A Node.js-like `fs` API is available for file operations.
 
 Skills, MCP tools and the tools of other features are exposed as ES modules under `/skills/index.js`, `/servers/index.js` and `/tools/index.js`:
 

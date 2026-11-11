@@ -81,7 +81,7 @@ export async function validateSkillSyntax(code: string): Promise<ValidationResul
       // Remove import statements to avoid module resolution during syntax validation
       code = code.replace(/\bimport\s(?:[\s\S]+?from\s*)?['"][^'"]*['"]\s*;?/g, "");
 
-      const result = context.evalCode(code, "skill.js", { type: "module" });
+      const result = context.evalCode(code, "skill.js", { type: "module", compileOnly: true });
       if (result.error) {
         const error: unknown = context.dump(result.error);
         result.error.dispose();

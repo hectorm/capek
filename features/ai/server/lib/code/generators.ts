@@ -31,8 +31,6 @@ export function createVFS(
 ): VirtualFileSystem {
   const vfs = new VirtualFileSystem();
 
-  vfs.mkdir("/workspace");
-
   const serverExports: string[] = [];
   for (const server of servers) {
     const serverName = sanitizeId(server.name);

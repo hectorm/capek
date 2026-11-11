@@ -1,21 +1,25 @@
-import { setTimeout } from "node:timers/promises";
+import { clearTimeout, setTimeout } from "node:timers";
+import { Worker } from "node:worker_threads";
 
-import type { QuickJSAsyncContext, QuickJSAsyncRuntime, QuickJSContext, QuickJSHandle } from "quickjs-emscripten-core";
-import { newQuickJSAsyncWASMModuleFromVariant, Scope } from "quickjs-emscripten-core";
+import { newQuickJSAsyncWASMModuleFromVariant } from "quickjs-emscripten-core";
 
 import type { MCPServerBinding } from "#layers/ai/server/lib/code/generators";
+import type {
+  ConsoleLog,
+  SandboxHostFunction,
+  SandboxInput,
+  SandboxMessage,
+  SandboxReply,
+} from "#layers/ai/server/lib/code/protocol";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { ToolContext } from "#layers/core/server/lib/tools/define";
+import { AbortError } from "#layers/ai/server/lib/errors";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { findAgentTool } from "#layers/ai/server/lib/tools";
 import { useLogger } from "#layers/core/server/lib/logger";
 
-export interface ConsoleLog {
-  level: "log" | "warn" | "error" | "debug" | "info";
-  args: unknown[];
-  timestamp: number;
-}
+export type { ConsoleLog } from "#layers/ai/server/lib/code/protocol";
 
 export interface MCPCallLog {
   serverName: string;
@@ -51,10 +55,14 @@ export interface ExecuteCodeOptions {
   tools?: { toolsets: AgentToolset[]; context: ToolContext };
   maxExecutionMs: number;
   maxMemoryBytes: number;
+  maxWorkspaceBytes?: number;
   signal?: AbortSignal;
 }
 
 const logger = useLogger();
+
+const WORKER_GRACE_MS = 2_000;
+const WORKER_MAX_HEAP_MB = 256;
 
 type AsyncWASMModule = Awaited<ReturnType<typeof newQuickJSAsyncWASMModuleFromVariant>>;
 let cachedModulePromise: Promise<AsyncWASMModule> | null = null;
@@ -67,315 +75,105 @@ export async function getQuickJSModule(): Promise<AsyncWASMModule> {
   return cachedModulePromise;
 }
 
+type SandboxDone = Extract<SandboxMessage, { type: "done" }>;
+
+const runSandbox = (
+  input: SandboxInput,
+  callHost: (name: SandboxHostFunction, args: string[], signal: AbortSignal) => Promise<string>,
+  signal?: AbortSignal,
+): Promise<SandboxDone> => {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new AbortError());
+      return;
+    }
+
+    const worker = new Worker(new URL("./sandbox.worker.ts", import.meta.url), {
+      name: "ai-sandbox",
+      workerData: input,
+      resourceLimits: { maxOldGenerationSizeMb: WORKER_MAX_HEAP_MB },
+    });
+
+    const calls = new AbortController();
+    let settled = false;
+
+    const settle = (complete: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      calls.abort();
+      void worker.terminate();
+      complete();
+    };
+
+    const onAbort = (): void => {
+      settle(() => {
+        reject(new AbortError());
+      });
+    };
+    signal?.addEventListener("abort", onAbort);
+
+    const timeout = setTimeout(() => {
+      settle(() => {
+        reject(new Error("Execution timeout"));
+      });
+    }, input.maxExecutionMs + WORKER_GRACE_MS);
+
+    worker.on("message", (message: SandboxMessage) => {
+      if (message.type === "done") {
+        settle(() => {
+          resolve(message);
+        });
+        return;
+      }
+
+      const { id } = message;
+      const reply = (answer: SandboxReply): void => {
+        if (!settled) {
+          worker.postMessage(answer);
+        }
+      };
+      callHost(message.name, message.args, calls.signal).then(
+        (value) => {
+          reply({ id, value });
+        },
+        (err: unknown) => {
+          reply({ id, error: err instanceof Error ? err.message : String(err) });
+        },
+      );
+    });
+
+    worker.on("error", (err: unknown) => {
+      settle(() => {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+
+    worker.on("exit", () => {
+      settle(() => {
+        reject(new Error("The code stopped unexpectedly"));
+      });
+    });
+  });
+};
+
+const parseArgs = (name: string, argsJson: string | undefined): Record<string, unknown> => {
+  try {
+    return JSON.parse(argsJson ?? "{}") as Record<string, unknown>;
+  } catch (error) {
+    logger.warn({ name, argsJson, error }, "Failed to parse the arguments of a call from the code interpreter");
+    return {};
+  }
+};
+
 export async function executeCode(code: string, options: ExecuteCodeOptions): Promise<ExecutionResult> {
   const startTime = Date.now();
-  const deadline = startTime + options.maxExecutionMs;
-  const consoleLogs: ConsoleLog[] = [];
   const mcpCallLogs: MCPCallLog[] = [];
   const toolCallLogs: ToolCallLog[] = [];
-  let result: unknown = null;
-  let error: string | null = null;
 
-  try {
-    result = await Scope.withScopeAsync(async (scope) => {
-      const quickJS = await getQuickJSModule();
-      const runtime = scope.manage(quickJS.newRuntime());
-
-      runtime.setMemoryLimit(options.maxMemoryBytes);
-      runtime.setInterruptHandler(() => Date.now() > deadline || options.signal?.aborted === true);
-
-      setupModuleLoader(runtime, options.vfs);
-
-      const context = scope.manage(runtime.newContext());
-      const pendingCalls: Promise<void>[] = [];
-
-      setupConsoleAPI(context, scope, consoleLogs);
-      setupFsAPI(context, scope, options.vfs, pendingCalls);
-      setupMCPCall(context, scope, options, mcpCallLogs, pendingCalls);
-      setupToolCall(context, scope, options, toolCallLogs, pendingCalls);
-
-      const wrappedCode = `(async () => { ${code} })()`;
-      const evalResult = await context.evalCodeAsync(wrappedCode);
-      if (evalResult.error) {
-        throw new Error(extractError(context, scope.manage(evalResult.error)));
-      }
-
-      const promiseHandle = scope.manage(evalResult.value);
-
-      // Poll until the promise resolves
-      while (Date.now() <= deadline) {
-        runtime.executePendingJobs();
-
-        const promiseState = context.getPromiseState(promiseHandle);
-        if (promiseState.type === "fulfilled") {
-          await Promise.all(pendingCalls);
-          return marshallFromQuickJS(context, scope.manage(promiseState.value));
-        }
-        if (promiseState.type === "rejected") {
-          await Promise.all(pendingCalls);
-          throw new Error(extractError(context, scope.manage(promiseState.error)));
-        }
-
-        await setTimeout(10);
-      }
-      throw new Error("Execution timeout");
-    });
-  } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
-    logger.warn({ error, codeLength: code.length }, "Code execution failed");
-  }
-
-  return { result, consoleLogs, mcpCallLogs, toolCallLogs, error, executionMs: Date.now() - startTime };
-}
-
-function extractError(context: QuickJSContext, handle: QuickJSHandle): string {
-  const errorObj = context.dump(handle) as Record<string, unknown> | string | null;
-  if (typeof errorObj === "object" && errorObj && "message" in errorObj) {
-    return String(errorObj.message);
-  }
-  return typeof errorObj === "string" ? errorObj : "Unknown error";
-}
-
-function setupModuleLoader(runtime: QuickJSAsyncRuntime, vfs: VirtualFileSystem): void {
-  runtime.setModuleLoader(
-    (modulePath: string) => {
-      const content = vfs.readFile(modulePath);
-      if (content === null) {
-        throw new Error(`Module not found: ${modulePath}`);
-      }
-      return content;
-    },
-    (baseModulePath: string, requestedName: string) => {
-      return vfs.normalizePath(requestedName.startsWith("/") ? requestedName : baseModulePath + "/../" + requestedName);
-    },
-  );
-}
-
-function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope, consoleLogs: ConsoleLog[]): void {
-  const consoleObj = scope.manage(context.newObject());
-  const levels = ["log", "warn", "error", "debug", "info"] as const;
-
-  for (const level of levels) {
-    const fn = scope.manage(
-      context.newFunction(level, (...args: QuickJSHandle[]) => {
-        if (consoleLogs.length < 10_000) {
-          consoleLogs.push({
-            level,
-            args: args.map((arg) => marshallFromQuickJS(context, arg)),
-            timestamp: Date.now(),
-          });
-        }
-      }),
-    );
-    context.setProp(consoleObj, level, fn);
-  }
-  context.setProp(context.global, "console", consoleObj);
-}
-
-function setupFsAPI(
-  context: QuickJSAsyncContext,
-  scope: Scope,
-  vfs: VirtualFileSystem,
-  pendingCalls: Promise<void>[],
-): void {
-  const fsObj = scope.manage(context.newObject());
-  const promisesObj = scope.manage(context.newObject());
-
-  const checkWritePermission = (path: string): string | null => {
-    const normalized = vfs.normalizePath(path);
-    if (!normalized.startsWith("/workspace/") && normalized !== "/workspace") {
-      return `EACCES: permission denied (only /workspace/ is writable)`;
-    }
-    return null;
-  };
-
-  const register = (name: string, fn: (...args: QuickJSHandle[]) => QuickJSHandle) => {
-    const syncFn = scope.manage(context.newFunction(name + "Sync", fn));
-    context.setProp(fsObj, name + "Sync", syncFn);
-
-    const asyncFn = scope.manage(
-      context.newFunction(name, (...args: QuickJSHandle[]) => {
-        const promise = context.newPromise();
-        try {
-          const result = fn(...args);
-          promise.resolve(result);
-          if (result !== context.undefined && result !== context.true && result !== context.false) {
-            result.dispose();
-          }
-        } catch (err) {
-          const error = context.newError(err instanceof Error ? err.message : String(err));
-          promise.reject(error);
-          error.dispose();
-        }
-        if (pendingCalls.length < 1_000) {
-          pendingCalls.push(promise.settled.then(() => void context.runtime.executePendingJobs()));
-        }
-        return promise.handle;
-      }),
-    );
-    context.setProp(promisesObj, name, asyncFn);
-  };
-
-  register("exists", (pathH) => {
-    const path = context.getString(pathH);
-    return marshallToQuickJS(context, vfs.exists(path));
-  });
-
-  register("stat", (pathH) => {
-    const path = context.getString(pathH);
-    const stats = vfs.stat(path);
-    if (!stats) throw new Error(`ENOENT: no such file, stat '${path}'`);
-    return marshallToQuickJS(context, stats);
-  });
-
-  register("readFile", (pathH) => {
-    const path = context.getString(pathH);
-    const content = vfs.readFile(path);
-    if (content === null) throw new Error(`ENOENT: no such file, open '${path}'`);
-    return marshallToQuickJS(context, content);
-  });
-
-  register("readdir", (pathH) => {
-    const path = context.getString(pathH);
-    const entries = vfs.readdir(path);
-    if (entries === null) throw new Error(`ENOENT: no such directory, scandir '${path}'`);
-    return marshallToQuickJS(context, entries);
-  });
-
-  register("glob", (patternH) => {
-    const pattern = context.getString(patternH);
-    return marshallToQuickJS(context, vfs.glob(pattern));
-  });
-
-  register("mkdir", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.mkdir(path)) throw new Error(`EEXIST: already exists, mkdir '${path}'`);
-    return context.undefined;
-  });
-
-  register("writeFile", (pathH, dataH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    vfs.writeFile(path, context.getString(dataH));
-    return context.undefined;
-  });
-
-  register("appendFile", (pathH, dataH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    vfs.appendFile(path, context.getString(dataH));
-    return context.undefined;
-  });
-
-  register("copyFile", (srcH, destH) => {
-    const src = context.getString(srcH);
-    const dest = context.getString(destH);
-    const permErr = checkWritePermission(dest);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.copyFile(src, dest)) throw new Error(`ENOENT: copyFile failed '${src}'`);
-    return context.undefined;
-  });
-
-  register("unlink", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.unlink(path)) throw new Error(`ENOENT: no such file, unlink '${path}'`);
-    return context.undefined;
-  });
-
-  register("rmdir", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.rmdir(path)) throw new Error(`ENOTEMPTY: directory not empty, rmdir '${path}'`);
-    return context.undefined;
-  });
-
-  register("rename", (oldH, newH) => {
-    const oldPath = context.getString(oldH);
-    const newPath = context.getString(newH);
-    const oldPermErr = checkWritePermission(oldPath);
-    if (oldPermErr) throw new Error(oldPermErr);
-    const newPermErr = checkWritePermission(newPath);
-    if (newPermErr) throw new Error(newPermErr);
-    if (!vfs.rename(oldPath, newPath)) throw new Error(`ENOENT: rename failed '${oldPath}' -> '${newPath}'`);
-    return context.undefined;
-  });
-
-  register("rm", (pathH, optionsH?) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    let options: { recursive?: boolean; force?: boolean } | undefined;
-    if (optionsH && context.typeof(optionsH) === "object") {
-      options = context.dump(optionsH) as { recursive?: boolean; force?: boolean };
-    }
-    const success = vfs.rm(path, options);
-    if (!success && !options?.force) throw new Error(`ENOENT: rm failed '${path}'`);
-    return context.undefined;
-  });
-
-  context.setProp(fsObj, "promises", promisesObj);
-  context.setProp(context.global, "fs", fsObj);
-  context.setProp(context.global, "globalThis", context.global);
-  context.setProp(context.global, "global", context.global);
-}
-
-// Exposes an asynchronous host function to the sandbox, with text arguments and result
-function setupHostCall(
-  context: QuickJSAsyncContext,
-  scope: Scope,
-  name: string,
-  pendingCalls: Promise<void>[],
-  call: (...args: string[]) => Promise<string>,
-): void {
-  const hostFn = scope.manage(
-    context.newFunction(name, (...handles) => {
-      const args = handles.map((handle) => context.getString(handle));
-
-      const deferred = context.newPromise();
-      const promiseHandle = deferred.handle;
-
-      const callPromise = (async () => {
-        try {
-          const resultHandle = context.newString(await call(...args));
-          deferred.resolve(resultHandle);
-          resultHandle.dispose();
-        } catch (err) {
-          const errorHandle = context.newError(err instanceof Error ? err.message : String(err));
-          deferred.reject(errorHandle);
-          errorHandle.dispose();
-        } finally {
-          deferred.dispose();
-        }
-      })();
-      pendingCalls.push(callPromise);
-
-      return promiseHandle;
-    }),
-  );
-  context.setProp(context.global, name, hostFn);
-}
-
-function setupMCPCall(
-  context: QuickJSAsyncContext,
-  scope: Scope,
-  options: ExecuteCodeOptions,
-  mcpCallLogs: MCPCallLog[],
-  pendingCalls: Promise<void>[],
-): void {
-  setupHostCall(context, scope, "__mcpCall", pendingCalls, async (serverName, toolName, argsJson) => {
-    let args: Record<string, unknown> = {};
-    try {
-      args = JSON.parse(argsJson) as Record<string, unknown>;
-    } catch (error) {
-      logger.warn({ serverName, toolName, argsJson, error }, "__mcpCall: failed to parse args JSON");
-    }
+  const callMcp = async (signal: AbortSignal, serverName = "", toolName = "", argsJson?: string): Promise<string> => {
+    const args = parseArgs(toolName, argsJson);
 
     const server = options.mcpServers.find((s) => s.name === serverName);
     if (!server) {
@@ -384,8 +182,7 @@ function setupMCPCall(
 
     const callStart = Date.now();
     try {
-      const mcpManager = MCPManager.getInstance();
-      const result = await mcpManager.callTool(
+      const output = await MCPManager.getInstance().callTool(
         server.name,
         server.url,
         server.headers,
@@ -394,39 +191,26 @@ function setupMCPCall(
         options.chatSessionId,
         server.stateful,
         server.toolCallTimeoutSec,
-        options.signal,
+        signal,
       );
-      mcpCallLogs.push({ serverName, toolName, args, result, error: null, durationMs: Date.now() - callStart });
-      return result;
+      mcpCallLogs.push({ serverName, toolName, args, result: output, error: null, durationMs: Date.now() - callStart });
+      return output;
     } catch (err) {
-      const callError = err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message : String(err);
       mcpCallLogs.push({
         serverName,
         toolName,
         args,
         result: null,
-        error: callError,
+        error: message,
         durationMs: Date.now() - callStart,
       });
-      throw new Error(callError);
+      throw new Error(message);
     }
-  });
-}
+  };
 
-function setupToolCall(
-  context: QuickJSAsyncContext,
-  scope: Scope,
-  options: ExecuteCodeOptions,
-  toolCallLogs: ToolCallLog[],
-  pendingCalls: Promise<void>[],
-): void {
-  setupHostCall(context, scope, "__toolCall", pendingCalls, async (toolName, argsJson) => {
-    let args: Record<string, unknown> = {};
-    try {
-      args = JSON.parse(argsJson) as Record<string, unknown>;
-    } catch (error) {
-      logger.warn({ toolName, argsJson, error }, "__toolCall: failed to parse args JSON");
-    }
+  const callTool = async (signal: AbortSignal, toolName = "", argsJson?: string): Promise<string> => {
+    const args = parseArgs(toolName, argsJson);
 
     const found = options.tools && findAgentTool(options.tools.toolsets, toolName);
     if (!options.tools || !found) {
@@ -436,76 +220,46 @@ function setupToolCall(
 
     const callStart = Date.now();
     try {
-      const result = await tool.execute(args, options.tools.context);
-      toolCallLogs.push({ provider, toolName, args, result, error: null, durationMs: Date.now() - callStart });
-      return result;
+      const output = await tool.execute(args, { ...options.tools.context, signal });
+      toolCallLogs.push({ provider, toolName, args, result: output, error: null, durationMs: Date.now() - callStart });
+      return output;
     } catch (err) {
-      const callError = err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message : String(err);
       toolCallLogs.push({
         provider,
         toolName,
         args,
         result: null,
-        error: callError,
+        error: message,
         durationMs: Date.now() - callStart,
       });
-      throw new Error(callError);
+      throw new Error(message);
     }
-  });
-}
+  };
 
-function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHandle {
-  if (value === null) return context.null;
-  if (value === undefined) return context.undefined;
-  if (typeof value === "boolean") return value ? context.true : context.false;
-  if (typeof value === "number") return context.newNumber(value);
-  if (typeof value === "string") return context.newString(value);
+  let outcome: Pick<ExecutionResult, "result" | "consoleLogs" | "error">;
+  try {
+    const done = await runSandbox(
+      {
+        code,
+        files: options.vfs.toJSON(),
+        maxExecutionMs: options.maxExecutionMs,
+        maxMemoryBytes: options.maxMemoryBytes,
+        maxWorkspaceBytes: options.maxWorkspaceBytes,
+      },
+      (name, args, signal) => (name === "mcp" ? callMcp(signal, ...args) : callTool(signal, ...args)),
+      options.signal,
+    );
 
-  if (Array.isArray(value)) {
-    const arr = context.newArray();
-    value.forEach((item, i) => {
-      Scope.withScope((s) => {
-        context.setProp(arr, i, s.manage(marshallToQuickJS(context, item)));
-      });
-    });
-    return arr;
+    options.vfs.setWorkspaceFiles(done.workspace);
+    outcome = { result: done.result, consoleLogs: done.consoleLogs, error: done.error };
+  } catch (err) {
+    outcome = { result: null, consoleLogs: [], error: err instanceof Error ? err.message : String(err) };
   }
 
-  if (typeof value === "object" && "isFile" in value && typeof value.isFile === "function") {
-    const stats = value as { size: number; mode: number; isFile: () => boolean; isDirectory: () => boolean };
-    const obj = context.newObject();
-    context.setProp(obj, "size", context.newNumber(stats.size));
-    context.setProp(obj, "mode", context.newNumber(stats.mode));
-    const isFileVal = stats.isFile();
-    const isDirVal = stats.isDirectory();
-    const isFileFn = context.newFunction("isFile", () => (isFileVal ? context.true : context.false));
-    const isDirFn = context.newFunction("isDirectory", () => (isDirVal ? context.true : context.false));
-    context.setProp(obj, "isFile", isFileFn);
-    context.setProp(obj, "isDirectory", isDirFn);
-    isFileFn.dispose();
-    isDirFn.dispose();
-    return obj;
+  if (outcome.error !== null) {
+    logger.warn({ error: outcome.error, codeLength: code.length }, "Code execution failed");
   }
 
-  if (typeof value === "object") {
-    const obj = context.newObject();
-    for (const [key, val] of Object.entries(value)) {
-      Scope.withScope((s) => {
-        context.setProp(obj, key, s.manage(marshallToQuickJS(context, val)));
-      });
-    }
-    return obj;
-  }
-
-  return context.undefined;
-}
-
-function marshallFromQuickJS(context: QuickJSContext, handle: QuickJSHandle): unknown {
-  const type = context.typeof(handle);
-
-  if (type === "undefined") return undefined;
-  if (type === "string") return context.getString(handle);
-  if (type === "number") return context.getNumber(handle);
-
-  return context.dump(handle);
+  return { ...outcome, mcpCallLogs, toolCallLogs, executionMs: Date.now() - startTime };
 }
