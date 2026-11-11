@@ -11,6 +11,7 @@ import { useLucia } from "#layers/core/server/lib/authn/lucia";
 import { getOrCreateUserFromProxy, syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { useDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
+import { Roles } from "#layers/core/shared/rbac";
 
 const config = useRuntimeConfig();
 const logger = useLogger();
@@ -145,7 +146,8 @@ export class ProxyStrategy implements AuthStrategy {
     }
 
     const picture = getHeader(event, config.proxy.headerPicture) ?? null;
-    const roles = config.proxy.syncRoles ? parseHeaderList(getHeader(event, config.proxy.headerRoles)) : null;
+    const headerRoles = parseHeaderList(getHeader(event, config.proxy.headerRoles));
+    const roles = config.proxy.syncRoles ? (headerRoles.length > 0 ? headerRoles : [Roles.Member]) : null;
     const groups = config.proxy.syncGroups ? parseHeaderList(getHeader(event, config.proxy.headerGroups)) : null;
 
     const ttlMs = config.proxy.cacheTtlSec * 1000;
