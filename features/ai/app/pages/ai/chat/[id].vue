@@ -15,6 +15,7 @@ import UProgress from "@nuxt/ui/components/Progress.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
+import { useAnswerError } from "#layers/ai/app/composables/answer-error";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
 import { copyToClipboard } from "#layers/core/app/utils/clipboard";
@@ -32,6 +33,7 @@ const i18n = useI18n();
 const route = useRoute("ai-chat-id");
 const agentStore = useAgentStore();
 const chatStore = useChatStore();
+const { describeAnswerError } = useAnswerError();
 const toast = useToast();
 const overlay = useOverlay();
 
@@ -188,7 +190,7 @@ const handleSubmit = async (e: Event) => {
     toast.add({
       color: "error",
       title: i18n.t("ai.pages.chat.actions.sendMessage.error.title"),
-      description: i18n.t("ai.pages.chat.actions.sendMessage.error.description"),
+      description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.sendMessage.error.description")),
     });
   }
 };
@@ -261,7 +263,7 @@ const handleEditMessage = async (_e: MouseEvent, message: { id: string; parts: M
     toast.add({
       color: "error",
       title: i18n.t("ai.pages.chat.actions.editMessage.error.title"),
-      description: i18n.t("ai.pages.chat.actions.editMessage.error.description"),
+      description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.editMessage.error.description")),
     });
   }
 };
@@ -274,7 +276,7 @@ const handleRetryMessage = async (_e: MouseEvent, message: { id: string; parts: 
     toast.add({
       color: "error",
       title: i18n.t("ai.pages.chat.actions.retryMessage.error.title"),
-      description: i18n.t("ai.pages.chat.actions.retryMessage.error.description"),
+      description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.retryMessage.error.description")),
     });
   }
 };
@@ -287,7 +289,7 @@ const handleRegenerateMessage = async (_e: MouseEvent, message: { id: string; pa
     toast.add({
       color: "error",
       title: i18n.t("ai.pages.chat.actions.regenerateMessage.error.title"),
-      description: i18n.t("ai.pages.chat.actions.regenerateMessage.error.description"),
+      description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.regenerateMessage.error.description")),
     });
   }
 };

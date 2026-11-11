@@ -19,6 +19,20 @@ export class MaxIterationsError extends Error {
   }
 }
 
+export class RefusalError extends Error {
+  public constructor(message = "The model declined to answer") {
+    super(message);
+    this.name = "RefusalError";
+  }
+}
+
+export class MaxOutputTokensError extends Error {
+  public constructor(message = "The answer reached the maximum number of tokens") {
+    super(message);
+    this.name = "MaxOutputTokensError";
+  }
+}
+
 export class ConcurrentExecutionError extends Error {
   public constructor(message = "An execution is already in progress for this session") {
     super(message);

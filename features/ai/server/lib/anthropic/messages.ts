@@ -4,7 +4,7 @@ import type {
   AnthropicMessagesOutputBlock,
   AnthropicMessagesRequest,
 } from "#layers/ai/shared/anthropic";
-import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
+import type { LlmIncompleteDetails, LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { AnthropicMessagesResponseSchema, AnthropicMessagesStreamEventSchema } from "#layers/ai/shared/anthropic";
@@ -50,6 +50,18 @@ const fromBlock = (block: AnthropicMessagesOutputBlock): LlmItem | undefined => 
       return block.id && block.name
         ? { type: "function_call", call_id: block.id, name: block.name, arguments: JSON.stringify(block.input ?? {}) }
         : undefined;
+    default:
+      return undefined;
+  }
+};
+
+const fromStop = (stopReason?: string | null, explanation?: string | null): LlmIncompleteDetails | undefined => {
+  switch (stopReason) {
+    case "refusal":
+      return { reason: "content_filter", message: explanation ?? undefined };
+    case "max_tokens":
+    case "model_context_window_exceeded":
+      return { reason: "max_output_tokens" };
     default:
       return undefined;
   }
@@ -109,7 +121,10 @@ export const fromMessagesResponse = (rawResponse: unknown): LlmResponse => {
     throw new Error(`Invalid AI service completion response format: ${parsed.error.message}`);
   }
 
-  return { output: fromBlocks(parsed.data.content) };
+  return {
+    output: fromBlocks(parsed.data.content),
+    incomplete_details: fromStop(parsed.data.stop_reason, parsed.data.stop_details?.explanation),
+  };
 };
 
 // Translates the events of a streamed response of the Messages API
@@ -118,6 +133,7 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
   const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
 
   const items = new Map<number, LlmItem>();
+  let incompleteDetails: LlmIncompleteDetails | undefined;
 
   const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
     for (const data of pendingEvents.splice(0)) {
@@ -161,10 +177,16 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
             item.arguments = "{}";
           }
           break;
+        case "message_delta":
+          incompleteDetails ??= fromStop(event.delta?.stop_reason, event.delta?.stop_details?.explanation);
+          break;
         case "message_stop":
           controller.enqueue({
             type: "response.completed",
-            response: { output: Array.from(items.values()).filter((i) => i.type !== "message" || i.content) },
+            response: {
+              output: Array.from(items.values()).filter((i) => i.type !== "message" || i.content),
+              incomplete_details: incompleteDetails,
+            },
           });
           break;
         case "error":

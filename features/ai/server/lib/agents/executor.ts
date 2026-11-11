@@ -8,7 +8,7 @@ import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
-import type { LlmItem, LlmTool } from "#layers/ai/shared/llm";
+import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Tool } from "#layers/core/server/lib/tools/define";
@@ -24,7 +24,14 @@ import {
 import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
-import { AbortError, ConcurrentExecutionError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
+import {
+  AbortError,
+  ConcurrentExecutionError,
+  MaxIterationsError,
+  MaxOutputTokensError,
+  RefusalError,
+  TimeoutError,
+} from "#layers/ai/server/lib/errors";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
@@ -106,6 +113,15 @@ const triageToolSchema = z.object({
   specialistId: z.string(),
   routingReason: z.string(),
 });
+
+const assertComplete = (incomplete: LlmIncompleteDetails | undefined): void => {
+  if (incomplete?.reason === "content_filter") {
+    throw new RefusalError(incomplete.message);
+  }
+  if (incomplete?.reason === "max_output_tokens") {
+    throw new MaxOutputTokensError();
+  }
+};
 
 const countChars = (items: LlmItem[]): number => {
   return items.reduce((total, item) => {
@@ -276,6 +292,8 @@ export class AgentExecutor {
       throw new Error("Streaming not supported for triage agent");
     }
 
+    assertComplete(completion.incomplete_details);
+
     const functionCall = completion.output.find((item) => item.type === "function_call");
     if (!functionCall) {
       throw new Error("Triage agent failed to select a specialist");
@@ -399,6 +417,7 @@ export class AgentExecutor {
         );
 
         let output: LlmItem[] = [];
+        let incomplete: LlmIncompleteDetails | undefined;
 
         if (completion instanceof ReadableStream) {
           const reader = completion.getReader();
@@ -414,6 +433,7 @@ export class AgentExecutor {
                 yield encodeStreamEvent(ChatStreamEvents.Token, value.delta);
               } else {
                 output = value.response.output;
+                incomplete = value.response.incomplete_details;
               }
             }
           } finally {
@@ -426,6 +446,7 @@ export class AgentExecutor {
           }
         } else {
           output = completion.output;
+          incomplete = completion.incomplete_details;
           items.push(...output);
 
           for (const item of output) {
@@ -434,6 +455,8 @@ export class AgentExecutor {
             }
           }
         }
+
+        assertComplete(incomplete);
 
         const functionCalls = output.filter((item) => item.type === "function_call");
         if (functionCalls.length === 0) {

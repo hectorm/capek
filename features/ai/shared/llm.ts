@@ -63,8 +63,16 @@ export const LlmRequestSchema = z.object({
 
 export type LlmRequest = z.infer<typeof LlmRequestSchema>;
 
+export const LlmIncompleteDetailsSchema = z.object({
+  reason: z.enum(["max_output_tokens", "content_filter"]),
+  message: z.string().optional(),
+});
+
+export type LlmIncompleteDetails = z.infer<typeof LlmIncompleteDetailsSchema>;
+
 export const LlmResponseSchema = z.object({
   output: z.array(LlmItemSchema),
+  incomplete_details: LlmIncompleteDetailsSchema.optional(),
 });
 
 export type LlmResponse = z.infer<typeof LlmResponseSchema>;

@@ -2,10 +2,10 @@ import { useNuxtApp } from "nuxt/app";
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef, triggerRef } from "vue";
 
-import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import type { ChatMessagePart, ChatStreamError } from "#layers/ai/shared/chat";
 import type { ChatSession } from "#layers/ai/shared/schema";
 import type { RouterOutputs } from "#layers/core/app/types/trpc";
-import { ChatStreamEvents } from "#layers/ai/shared/chat";
+import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
 
 type ChatMessage = RouterOutputs["ai"]["chatMessage"]["list"][number];
 
@@ -22,6 +22,16 @@ interface SearchQuery {
   order?: "asc" | "desc";
   orderBy?: "title" | "updatedAt" | "createdAt";
   limit?: number;
+}
+
+export class ChatAnswerError extends Error {
+  public readonly reason: ChatStreamError;
+
+  public constructor(reason: ChatStreamError) {
+    super(`The answer failed: ${reason}`);
+    this.name = "ChatAnswerError";
+    this.reason = reason;
+  }
 }
 
 export const useChatStore = defineStore("ai.chat", () => {
@@ -286,8 +296,8 @@ export const useChatStore = defineStore("ai.chat", () => {
               triggerRef(messages);
             }
           },
-          onError: (message) => {
-            throw new Error(message);
+          onError: (reason) => {
+            throw new ChatAnswerError(reason);
           },
         });
       } else {
@@ -461,7 +471,7 @@ export const useChatStore = defineStore("ai.chat", () => {
       onChunk?: (chunk: string) => void;
       onPart?: (part: ChatMessagePart) => void;
       onStatus?: (status: string) => void;
-      onError?: (message: string) => void;
+      onError?: (reason: ChatStreamError) => void;
       signal?: AbortSignal;
     } = {},
   ): Promise<void> => {
@@ -494,7 +504,10 @@ export const useChatStore = defineStore("ai.chat", () => {
         }
 
         if (currentEventType === ChatStreamEvents.Error) {
-          options.onError?.((value as string) || "Agent execution failed");
+          const reasons: string[] = Object.values(ChatStreamErrors);
+          options.onError?.(
+            typeof value === "string" && reasons.includes(value) ? (value as ChatStreamError) : ChatStreamErrors.Failed,
+          );
         } else if (currentEventType === ChatStreamEvents.Status) {
           options.onStatus?.(value as string);
         } else if (currentEventType === ChatStreamEvents.Token) {

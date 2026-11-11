@@ -157,6 +157,49 @@ describe("openai chat completions", () => {
     expect(translated).toEqual({ output: [{ type: "message", role: "assistant", content: "Sunny" }] });
   });
 
+  it("tells when the model declines to answer or runs out of tokens", async () => {
+    const completion = (message: Record<string, unknown>, finishReason: string) => ({
+      id: "chatcmpl-test",
+      object: "chat.completion",
+      created: 0,
+      model: "reasoner",
+      choices: [{ index: 0, message: { role: "assistant", ...message }, finish_reason: finishReason }],
+    });
+
+    expect(fromChatCompletionsResponse(completion({ content: "Once upon" }, "length"))).toEqual({
+      output: [{ type: "message", role: "assistant", content: "Once upon" }],
+      incomplete_details: { reason: "max_output_tokens" },
+    });
+    expect(fromChatCompletionsResponse(completion({ content: null }, "content_filter")).incomplete_details).toEqual({
+      reason: "content_filter",
+    });
+    expect(
+      fromChatCompletionsResponse(completion({ content: null, refusal: "I cannot help with that" }, "stop"))
+        .incomplete_details,
+    ).toEqual({ reason: "content_filter", message: "I cannot help with that" });
+    expect(fromChatCompletionsResponse(completion({ content: "Done" }, "stop")).incomplete_details).toBeUndefined();
+
+    const reader = fromChatCompletionsStream(
+      streamOf([
+        { ...chunk, choices: [{ index: 0, delta: { role: "assistant", content: "Once upon" } }] },
+        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "length" }] },
+      ]),
+    ).getReader();
+    await reader.read();
+    expect((await reader.read()).value).toMatchObject({
+      type: "response.completed",
+      response: { incomplete_details: { reason: "max_output_tokens" } },
+    });
+
+    const filtered = fromChatCompletionsStream(
+      streamOf([{ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "content_filter" }] }]),
+    ).getReader();
+    expect((await filtered.read()).value).toEqual({
+      type: "response.completed",
+      response: { output: [], incomplete_details: { reason: "content_filter", message: undefined } },
+    });
+  });
+
   it("rejects a malformed response", () => {
     expect(() => fromChatCompletionsResponse({ id: "chatcmpl-1" })).toThrow(
       "Invalid AI service completion response format",
@@ -357,6 +400,23 @@ describe("openai responses", () => {
         { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
       ],
     });
+  });
+
+  it("tells when the model declines to answer or runs out of tokens", () => {
+    const response = { id: "resp-1", model: "reasoner", output: [] };
+
+    expect(
+      fromResponsesResponse({ ...response, status: "incomplete", incomplete_details: { reason: "max_output_tokens" } })
+        .incomplete_details,
+    ).toEqual({ reason: "max_output_tokens" });
+    expect(
+      fromResponsesResponse({
+        ...response,
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "refusal", refusal: "I cannot help with that" }] }],
+      }).incomplete_details,
+    ).toEqual({ reason: "content_filter", message: "I cannot help with that" });
+    expect(fromResponsesResponse({ ...response, status: "completed" }).incomplete_details).toBeUndefined();
   });
 
   it("rejects a failed or malformed response", () => {

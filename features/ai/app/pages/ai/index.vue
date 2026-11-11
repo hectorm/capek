@@ -8,6 +8,7 @@ import UChatPrompt from "@nuxt/ui/components/ChatPrompt.vue";
 import UChatPromptSubmit from "@nuxt/ui/components/ChatPromptSubmit.vue";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
+import { useAnswerError } from "#layers/ai/app/composables/answer-error";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
 import { useSettingsStore } from "#layers/core/app/stores/settings";
@@ -21,6 +22,7 @@ const toast = useToast();
 
 const agentStore = useAgentStore();
 const chatStore = useChatStore();
+const { describeAnswerError } = useAnswerError();
 const settingsStore = useSettingsStore();
 
 const sidebar = inject(sidebarKey);
@@ -41,7 +43,7 @@ const handleCreateChat = async (prompt: string) => {
       toast.add({
         color: "error",
         title: i18n.t("ai.pages.chat.actions.sendMessage.error.title"),
-        description: i18n.t("ai.pages.chat.actions.sendMessage.error.description"),
+        description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.sendMessage.error.description")),
       });
     });
     await navigateTo(`/ai/chat/${session.id}`);

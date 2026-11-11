@@ -1,9 +1,17 @@
 import { createError, defineEventHandler, readBody, setResponseHeaders } from "h3";
 import { z } from "zod/v4";
 
+import type { ChatStreamError } from "#layers/ai/shared/chat";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
-import { AbortError, ConcurrentExecutionError, MaxIterationsError, TimeoutError } from "#layers/ai/server/lib/errors";
-import { ChatStreamEvents } from "#layers/ai/shared/chat";
+import {
+  AbortError,
+  ConcurrentExecutionError,
+  MaxIterationsError,
+  MaxOutputTokensError,
+  RefusalError,
+  TimeoutError,
+} from "#layers/ai/server/lib/errors";
+import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny, requirePermissions } from "#layers/core/server/lib/authz/permissions";
 import { withUserTransaction } from "#layers/core/server/lib/database";
@@ -13,8 +21,8 @@ const bodySchema = z.object({
   message: z.string().min(1).max(100000).trim(),
 });
 
-const errorEvent = (message: string): string => {
-  return `event: ${ChatStreamEvents.Error}\ndata: ${JSON.stringify(message)}\n\n`;
+const errorEvent = (reason: ChatStreamError): string => {
+  return `event: ${ChatStreamEvents.Error}\ndata: ${JSON.stringify(reason)}\n\n`;
 };
 
 export default defineEventHandler(async (event) => {
@@ -151,23 +159,27 @@ export default defineEventHandler(async (event) => {
 
       logger.debug({ sessionId, userId: user.id }, "Agent execution stream completed");
     } catch (error) {
-      if (error instanceof AbortError) {
+      let reason: ChatStreamError | null = null;
+      if (abortController.signal.aborted || error instanceof AbortError) {
         logger.debug({ sessionId, userId: user.id }, "Agent execution aborted");
       } else if (error instanceof TimeoutError) {
         logger.warn({ sessionId, userId: user.id }, "Agent execution timed out");
-        if (!event.node.res.writableEnded) {
-          event.node.res.write(errorEvent("Agent execution timed out"));
-        }
+        reason = ChatStreamErrors.Timeout;
       } else if (error instanceof MaxIterationsError) {
         logger.warn({ sessionId, userId: user.id }, "Agent execution reached max iterations");
-        if (!event.node.res.writableEnded) {
-          event.node.res.write(errorEvent("Agent execution reached maximum iterations"));
-        }
+        reason = ChatStreamErrors.MaxIterations;
+      } else if (error instanceof RefusalError) {
+        logger.warn({ sessionId, userId: user.id, error }, "Agent execution declined by the model");
+        reason = ChatStreamErrors.Refusal;
+      } else if (error instanceof MaxOutputTokensError) {
+        logger.warn({ sessionId, userId: user.id }, "Agent execution reached the maximum number of tokens");
+        reason = ChatStreamErrors.MaxOutputTokens;
       } else {
         logger.error({ sessionId, userId: user.id, error }, "Agent execution failed");
-        if (!event.node.res.writableEnded) {
-          event.node.res.write(errorEvent("Agent execution failed"));
-        }
+        reason = ChatStreamErrors.Failed;
+      }
+      if (reason && !event.node.res.writableEnded) {
+        event.node.res.write(errorEvent(reason));
       }
     } finally {
       if (!event.node.res.writableEnded) {

@@ -46,6 +46,12 @@ export default (): ReturnType<typeof enUS> => ({
         title: "Chat",
         description: "Sesión de chat",
         untitled: "Sin título",
+        errors: {
+          timeout: "La respuesta ha tardado más de lo que se le permite al agente",
+          maxIterations: "El agente ha alcanzado su número máximo de pasos sin terminar la respuesta",
+          refusal: "El modelo ha rechazado responder a esta petición",
+          maxOutputTokens: "La respuesta se ha cortado porque ha alcanzado el número máximo de tokens",
+        },
         dateGroups: {
           today: "Hoy",
           yesterday: "Ayer",

@@ -1,4 +1,4 @@
-import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
+import type { LlmIncompleteDetails, LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { OpenAICompletionRequest, OpenAIMessage, OpenAIToolCall } from "#layers/ai/shared/openai";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { OpenAICompletionResponseSchema, OpenAIStreamChunkSchema } from "#layers/ai/shared/openai";
@@ -88,6 +88,13 @@ export const toChatCompletionsRequest = (request: LlmRequest): OpenAICompletionR
   };
 };
 
+const fromFinish = (finishReason?: string | null, refusal?: string | null): LlmIncompleteDetails | undefined => {
+  if (finishReason === "content_filter" || refusal) {
+    return { reason: "content_filter", message: refusal ?? undefined };
+  }
+  return finishReason === "length" ? { reason: "max_output_tokens" } : undefined;
+};
+
 // Translates a response of the Chat Completions API
 export const fromChatCompletionsResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = OpenAICompletionResponseSchema.safeParse(rawResponse);
@@ -95,9 +102,13 @@ export const fromChatCompletionsResponse = (rawResponse: unknown): LlmResponse =
     throw new Error(`Invalid AI service completion response format: ${parsed.error.message}`);
   }
 
-  const message = parsed.data.choices[0]?.message;
+  const choice = parsed.data.choices[0];
+  const message = choice?.message;
 
-  return { output: fromMessage(message?.content ?? "", message?.tool_calls ?? []) };
+  return {
+    output: fromMessage(message?.content ?? "", message?.tool_calls ?? []),
+    incomplete_details: fromFinish(choice?.finish_reason, message?.refusal),
+  };
 };
 
 // Translates the chunks of a streamed response of the Chat Completions API
@@ -106,6 +117,8 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
   const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
 
   let content = "";
+  let refusal = "";
+  let finishReason: string | null | undefined;
   const toolCalls = new Map<number, OpenAIToolCall>();
 
   const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
@@ -121,7 +134,10 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
         continue;
       }
 
-      const delta = parsed.data.choices.at(0)?.delta;
+      const choice = parsed.data.choices.at(0);
+      const delta = choice?.delta;
+      finishReason = choice?.finish_reason ?? finishReason;
+      refusal += delta?.refusal ?? "";
       if (delta?.content) {
         content += delta.content;
         controller.enqueue({ type: "response.output_text.delta", delta: delta.content });
@@ -156,7 +172,10 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
         translateEvents(controller);
         controller.enqueue({
           type: "response.completed",
-          response: { output: fromMessage(content, Array.from(toolCalls.values())) },
+          response: {
+            output: fromMessage(content, Array.from(toolCalls.values())),
+            incomplete_details: fromFinish(finishReason, refusal || null),
+          },
         });
       },
     }),

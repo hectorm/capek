@@ -73,6 +73,10 @@ export const AnthropicMessagesOutputBlockSchema = z.object({
 
 export type AnthropicMessagesOutputBlock = z.infer<typeof AnthropicMessagesOutputBlockSchema>;
 
+export const AnthropicMessagesStopDetailsSchema = z.object({
+  explanation: z.string().nullish(),
+});
+
 export const AnthropicMessagesUsageSchema = z.object({
   input_tokens: z.number().nullish(),
   output_tokens: z.number().nullish(),
@@ -85,6 +89,7 @@ export const AnthropicMessagesResponseSchema = z.object({
   model: z.string(),
   content: z.array(AnthropicMessagesOutputBlockSchema),
   stop_reason: z.string().nullish(),
+  stop_details: AnthropicMessagesStopDetailsSchema.nullish(),
   usage: AnthropicMessagesUsageSchema.nullish(),
 });
 
@@ -103,6 +108,7 @@ export const AnthropicMessagesStreamEventSchema = z.object({
       signature: z.string().nullish(),
       partial_json: z.string().nullish(),
       stop_reason: z.string().nullish(),
+      stop_details: AnthropicMessagesStopDetailsSchema.nullish(),
     })
     .nullish(),
   usage: AnthropicMessagesUsageSchema.nullish(),

@@ -136,6 +136,37 @@ describe("anthropic messages", () => {
     });
   });
 
+  it("tells when the model declines to answer or runs out of tokens", async () => {
+    const response = { id: "msg-1", model: "reasoner", content: [] };
+
+    expect(
+      fromMessagesResponse({
+        ...response,
+        stop_reason: "refusal",
+        stop_details: { type: "refusal", category: "cyber", explanation: "Flagged by the safeguards" },
+      }),
+    ).toEqual({ output: [], incomplete_details: { reason: "content_filter", message: "Flagged by the safeguards" } });
+
+    expect(
+      fromMessagesResponse({ ...response, content: [{ type: "text", text: "Once upon" }], stop_reason: "max_tokens" }),
+    ).toEqual({
+      output: [{ type: "message", role: "assistant", content: "Once upon" }],
+      incomplete_details: { reason: "max_output_tokens" },
+    });
+
+    const reader = fromMessagesStream(
+      streamOf([
+        { type: "message_start", message: { id: "msg-1", model: "reasoner", content: [] } },
+        { type: "message_delta", delta: { stop_reason: "refusal", stop_details: { explanation: "Flagged" } } },
+        { type: "message_stop" },
+      ]),
+    ).getReader();
+    expect((await reader.read()).value).toEqual({
+      type: "response.completed",
+      response: { output: [], incomplete_details: { reason: "content_filter", message: "Flagged" } },
+    });
+  });
+
   it("rejects a malformed response", () => {
     expect(() => fromMessagesResponse({ id: "msg-1" })).toThrow("Invalid AI service completion response format");
   });

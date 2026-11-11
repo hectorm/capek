@@ -84,8 +84,10 @@ test.describe("Agent max iterations", () => {
     // Wait for navigation to the chat page
     await page.waitForURL(/\/chat\/.+/, { timeout: 5000 });
 
-    // Exhausting the iteration budget surfaces the send error toast
-    await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible({ timeout: 15000 });
+    // Exhausting the iteration budget surfaces an error toast that tells the reason
+    await expect(
+      page.getByText("The agent reached its maximum number of steps without finishing the answer", { exact: true }),
+    ).toBeVisible({ timeout: 15000 });
 
     // Reload the page and verify the answer streamed before the cutoff was persisted
     await page.reload();

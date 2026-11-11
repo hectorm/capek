@@ -1,4 +1,4 @@
-import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
+import type { LlmIncompleteDetails, LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type {
   OpenAIResponsesInputItem,
   OpenAIResponsesOutputItem,
@@ -87,6 +87,20 @@ export const toResponsesRequest = (request: LlmRequest): OpenAIResponsesRequest 
   };
 };
 
+const fromIncomplete = (response?: {
+  incomplete_details?: { reason?: string | null } | null;
+  output?: OpenAIResponsesOutputItem[] | null;
+}): LlmIncompleteDetails | undefined => {
+  const refusal = (response?.output ?? [])
+    .flatMap((item) => item.content ?? [])
+    .map((part) => part.refusal ?? "")
+    .join("");
+  if (response?.incomplete_details?.reason === "content_filter" || refusal) {
+    return { reason: "content_filter", message: refusal || undefined };
+  }
+  return response?.incomplete_details?.reason === "max_output_tokens" ? { reason: "max_output_tokens" } : undefined;
+};
+
 // Translates a response of the Responses API
 export const fromResponsesResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = OpenAIResponsesResponseSchema.safeParse(rawResponse);
@@ -99,7 +113,7 @@ export const fromResponsesResponse = (rawResponse: unknown): LlmResponse => {
     throw failure(response.error?.message);
   }
 
-  return { output: fromOutput(response.output) };
+  return { output: fromOutput(response.output), incomplete_details: fromIncomplete(response) };
 };
 
 // Translates the events of a streamed response of the Responses API
@@ -132,7 +146,10 @@ export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): Readabl
         case "response.incomplete":
           controller.enqueue({
             type: "response.completed",
-            response: { output: fromOutput(event.response?.output ?? []) },
+            response: {
+              output: fromOutput(event.response?.output ?? []),
+              incomplete_details: fromIncomplete(event.response ?? undefined),
+            },
           });
           break;
         case "response.failed":

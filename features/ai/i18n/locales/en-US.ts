@@ -44,6 +44,12 @@ export default () => ({
         title: "Chat",
         description: "Chat session",
         untitled: "Untitled",
+        errors: {
+          timeout: "The answer took longer than the agent is allowed to",
+          maxIterations: "The agent reached its maximum number of steps without finishing the answer",
+          refusal: "The model declined to answer this request",
+          maxOutputTokens: "The answer was cut off because it reached the maximum number of tokens",
+        },
         dateGroups: {
           today: "Today",
           yesterday: "Yesterday",
