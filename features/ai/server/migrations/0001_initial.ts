@@ -78,8 +78,6 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
 
-  await db.schema.createIndex("aiLlmProvidersNameIdx").on("public.aiLlmProviders").column("name").execute();
-
   ////////////////////////////////
 
   await createAccessTable(db, LlmProviderResource);
@@ -110,8 +108,6 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
 
-  await db.schema.createIndex("aiMcpServersNameIdx").on("public.aiMcpServers").column("name").execute();
-
   ////////////////////////////////
 
   await createAccessTable(db, McpServerResource);
@@ -131,8 +127,6 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
-
-  await db.schema.createIndex("aiSkillsNameIdx").on("public.aiSkills").column("name").execute();
 
   ////////////////////////////////
 
@@ -170,8 +164,6 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
-
-  await db.schema.createIndex("aiAgentsNameIdx").on("public.aiAgents").column("name").execute();
 
   await db.schema.createIndex("aiAgentsTypeIdx").on("public.aiAgents").column("type").execute();
 
