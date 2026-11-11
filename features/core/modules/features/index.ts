@@ -140,7 +140,7 @@ const checkFeatureIdentity = (features: readonly Feature[]): void => {
   }
 };
 
-// Outside core, the files, runtime config and messages that Nuxt merges between layers start with the name of the feature
+// Outside core, the files, runtime config and messages merged between layers start with the name of the feature
 const checkFeatureNames = async (rootDir: string, features: readonly Feature[]): Promise<void> => {
   const errors: string[] = [];
   for (const { name, dirs, runtimeConfig, localeFiles } of features) {

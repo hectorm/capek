@@ -18,8 +18,7 @@ import { Roles } from "#layers/core/shared/rbac";
 const config = useRuntimeConfig();
 const logger = useLogger();
 
-// Substitutes ${VAR}, ${VAR:-default} and ${VAR-default} placeholders with environment variable values.
-// Use $$ to produce a literal $ (e.g. $${VAR} becomes ${VAR} without substitution).
+// Substitutes ${VAR}, ${VAR:-default} and ${VAR-default} with environment variables, and $$ with a literal $
 function expandEnvVars(content: string): string {
   return content
     .replace(/\$\$/g, "\x00")
