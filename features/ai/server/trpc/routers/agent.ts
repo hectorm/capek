@@ -12,6 +12,7 @@ import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { syncLinks } from "#layers/core/server/lib/database/links";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
@@ -560,7 +561,9 @@ export const agentRouter = createTRPCRouter({
             .where("triageAgentId", "=", input.triageAgentId)
             .execute();
 
-          const newIds = input.specialistIds.filter((id) => !current.some((c) => c.specialistAgentId === id));
+          const newIds = [...new Set(input.specialistIds)].filter(
+            (id) => !current.some((c) => c.specialistAgentId === id),
+          );
           if (newIds.length > 0) {
             const validCount = await trx
               .selectFrom("aiAgents")
@@ -577,65 +580,13 @@ export const agentRouter = createTRPCRouter({
             }
           }
 
-          let added = 0;
-          let removed = 0;
-
-          if (input.specialistIds.length === 0) {
-            if (current.length > 0) {
-              await trx.deleteFrom("aiTriageSpecialists").where("triageAgentId", "=", input.triageAgentId).execute();
-              removed = current.length;
-            }
-          } else if (current.length === 0) {
-            await trx
-              .insertInto("aiTriageSpecialists")
-              .values(
-                input.specialistIds.map((specialistAgentId) => ({
-                  triageAgentId: input.triageAgentId,
-                  specialistAgentId,
-                })),
-              )
-              .execute();
-            added = input.specialistIds.length;
-          } else {
-            const currentSet = new Set(current.map((c) => c.specialistAgentId));
-            const targetSet = new Set(input.specialistIds);
-
-            const toAdd = input.specialistIds.filter((id) => !currentSet.has(id));
-            const toRemove = current.filter((c) => !targetSet.has(c.specialistAgentId));
-
-            if (toAdd.length > 0 || toRemove.length > 0) {
-              const ops = [];
-              if (toRemove.length > 0) {
-                ops.push(
-                  trx
-                    .deleteFrom("aiTriageSpecialists")
-                    .where("triageAgentId", "=", input.triageAgentId)
-                    .where(
-                      "specialistAgentId",
-                      "in",
-                      toRemove.map((r) => r.specialistAgentId),
-                    )
-                    .execute(),
-                );
-              }
-              if (toAdd.length > 0) {
-                ops.push(
-                  trx
-                    .insertInto("aiTriageSpecialists")
-                    .values(
-                      toAdd.map((specialistAgentId) => ({
-                        triageAgentId: input.triageAgentId,
-                        specialistAgentId,
-                      })),
-                    )
-                    .execute(),
-                );
-              }
-              await Promise.all(ops);
-              added = toAdd.length;
-              removed = toRemove.length;
-            }
-          }
+          const { added, removed } = await syncLinks(
+            trx,
+            "ai_triage_specialists",
+            { triage_agent_id: input.triageAgentId },
+            "specialist_agent_id",
+            input.specialistIds,
+          );
 
           ctx.logger.info({ triageAgentId: input.triageAgentId, added, removed }, "Triage specialists synchronized");
         } catch (error) {
@@ -702,71 +653,13 @@ export const agentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          const current = await trx
-            .selectFrom("aiAgentMcpServers")
-            .select(["mcpServerId"])
-            .where("agentId", "=", input.agentId)
-            .execute();
-
-          let added = 0;
-          let removed = 0;
-
-          if (input.mcpServerIds.length === 0) {
-            if (current.length > 0) {
-              await trx.deleteFrom("aiAgentMcpServers").where("agentId", "=", input.agentId).execute();
-              removed = current.length;
-            }
-          } else if (current.length === 0) {
-            await trx
-              .insertInto("aiAgentMcpServers")
-              .values(
-                input.mcpServerIds.map((mcpServerId) => ({
-                  agentId: input.agentId,
-                  mcpServerId,
-                })),
-              )
-              .execute();
-            added = input.mcpServerIds.length;
-          } else {
-            const currentSet = new Set(current.map((c) => c.mcpServerId));
-            const targetSet = new Set(input.mcpServerIds);
-
-            const toAdd = input.mcpServerIds.filter((id) => !currentSet.has(id));
-            const toRemove = current.filter((c) => !targetSet.has(c.mcpServerId));
-
-            if (toAdd.length > 0 || toRemove.length > 0) {
-              const ops = [];
-              if (toRemove.length > 0) {
-                ops.push(
-                  trx
-                    .deleteFrom("aiAgentMcpServers")
-                    .where("agentId", "=", input.agentId)
-                    .where(
-                      "mcpServerId",
-                      "in",
-                      toRemove.map((r) => r.mcpServerId),
-                    )
-                    .execute(),
-                );
-              }
-              if (toAdd.length > 0) {
-                ops.push(
-                  trx
-                    .insertInto("aiAgentMcpServers")
-                    .values(
-                      toAdd.map((mcpServerId) => ({
-                        agentId: input.agentId,
-                        mcpServerId,
-                      })),
-                    )
-                    .execute(),
-                );
-              }
-              await Promise.all(ops);
-              added = toAdd.length;
-              removed = toRemove.length;
-            }
-          }
+          const { added, removed } = await syncLinks(
+            trx,
+            "ai_agent_mcp_servers",
+            { agent_id: input.agentId },
+            "mcp_server_id",
+            input.mcpServerIds,
+          );
 
           ctx.logger.info({ agentId: input.agentId, added, removed }, "Agent MCP servers synchronized");
         } catch (error) {
@@ -833,71 +726,13 @@ export const agentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
         try {
-          const current = await trx
-            .selectFrom("aiAgentSkills")
-            .select(["skillId"])
-            .where("agentId", "=", input.agentId)
-            .execute();
-
-          let added = 0;
-          let removed = 0;
-
-          if (input.skillIds.length === 0) {
-            if (current.length > 0) {
-              await trx.deleteFrom("aiAgentSkills").where("agentId", "=", input.agentId).execute();
-              removed = current.length;
-            }
-          } else if (current.length === 0) {
-            await trx
-              .insertInto("aiAgentSkills")
-              .values(
-                input.skillIds.map((skillId) => ({
-                  agentId: input.agentId,
-                  skillId,
-                })),
-              )
-              .execute();
-            added = input.skillIds.length;
-          } else {
-            const currentSet = new Set(current.map((c) => c.skillId));
-            const targetSet = new Set(input.skillIds);
-
-            const toAdd = input.skillIds.filter((id) => !currentSet.has(id));
-            const toRemove = current.filter((c) => !targetSet.has(c.skillId));
-
-            if (toAdd.length > 0 || toRemove.length > 0) {
-              const ops = [];
-              if (toRemove.length > 0) {
-                ops.push(
-                  trx
-                    .deleteFrom("aiAgentSkills")
-                    .where("agentId", "=", input.agentId)
-                    .where(
-                      "skillId",
-                      "in",
-                      toRemove.map((r) => r.skillId),
-                    )
-                    .execute(),
-                );
-              }
-              if (toAdd.length > 0) {
-                ops.push(
-                  trx
-                    .insertInto("aiAgentSkills")
-                    .values(
-                      toAdd.map((skillId) => ({
-                        agentId: input.agentId,
-                        skillId,
-                      })),
-                    )
-                    .execute(),
-                );
-              }
-              await Promise.all(ops);
-              added = toAdd.length;
-              removed = toRemove.length;
-            }
-          }
+          const { added, removed } = await syncLinks(
+            trx,
+            "ai_agent_skills",
+            { agent_id: input.agentId },
+            "skill_id",
+            input.skillIds,
+          );
 
           ctx.logger.info({ agentId: input.agentId, added, removed }, "Agent skills synchronized");
         } catch (error) {

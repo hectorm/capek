@@ -5,6 +5,7 @@ import type { FeatureToolProvider, ResourceToolProvider, Tool, Toolset } from "#
 import type { Database } from "#layers/core/shared/schema";
 import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
+import { syncLinks } from "#layers/core/server/lib/database/links";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
 
@@ -82,39 +83,17 @@ export const findAgentTool = (
 };
 
 // Replaces the resources of a tool provider assigned to an agent with the given ones
-export const syncAgentToolResources = async (
+export const syncAgentToolResources = (
   db: Kysely<Database>,
   agentId: string,
   provider: ResourceToolProvider,
   resourceIds: readonly string[],
 ): Promise<{ added: number; removed: number }> => {
-  const resourceType = provider.resource.type;
-  const current = await db
-    .selectFrom("aiAgentToolResources")
-    .select(["resourceId"])
-    .where("agentId", "=", agentId)
-    .where("resourceType", "=", resourceType)
-    .execute();
-
-  const currentIds = new Set(current.map((resource) => resource.resourceId));
-  const targetIds = new Set(resourceIds);
-  const toAdd = [...targetIds].filter((id) => !currentIds.has(id));
-  const toRemove = [...currentIds].filter((id) => !targetIds.has(id));
-
-  if (toRemove.length > 0) {
-    await db
-      .deleteFrom("aiAgentToolResources")
-      .where("agentId", "=", agentId)
-      .where("resourceType", "=", resourceType)
-      .where("resourceId", "in", toRemove)
-      .execute();
-  }
-  if (toAdd.length > 0) {
-    await db
-      .insertInto("aiAgentToolResources")
-      .values(toAdd.map((resourceId) => ({ agentId, resourceType, resourceId })))
-      .execute();
-  }
-
-  return { added: toAdd.length, removed: toRemove.length };
+  return syncLinks(
+    db,
+    "ai_agent_tool_resources",
+    { agent_id: agentId, resource_type: provider.resource.type },
+    "resource_id",
+    resourceIds,
+  );
 };

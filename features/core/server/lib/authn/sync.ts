@@ -1,7 +1,8 @@
-import type { Kysely, Transaction } from "kysely";
+import type { Kysely } from "kysely";
 
 import type { Database, User } from "#layers/core/shared/schema";
 import { useDb } from "#layers/core/server/lib/database";
+import { syncLinks } from "#layers/core/server/lib/database/links";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -183,290 +184,93 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
   return user;
 };
 
-export const syncUserGroups = async (
-  userId: string,
-  groupnames: string[],
-  dbOrTrx?: Kysely<Database> | Transaction<Database>,
+// Runs in the given transaction, or in a new one
+const inTransaction = async (
+  db: Kysely<Database> | undefined,
+  sync: (trx: Kysely<Database>) => Promise<void>,
 ): Promise<void> => {
-  const sync = async (trx: Kysely<Database> | Transaction<Database>) => {
-    const currentGroups = await trx
-      .selectFrom("userGroups")
-      .innerJoin("groups", "groups.id", "userGroups.groupId")
-      .select(["groups.id", "groups.name"])
-      .where("userGroups.userId", "=", userId)
-      .execute();
-
-    if (groupnames.length === 0) {
-      if (currentGroups.length > 0) {
-        await trx.deleteFrom("userGroups").where("userId", "=", userId).execute();
-      }
-      return;
-    }
-
-    await trx
-      .insertInto("groups")
-      .values(groupnames.map((name) => ({ name, description: "" })))
-      .onConflict((oc) => oc.column("name").doNothing())
-      .execute();
-
-    const targetGroups = await trx
-      .selectFrom("groups")
-      .select(["id", "name"])
-      .where("name", "in", groupnames)
-      .execute();
-
-    const currentGroupIds = new Set(currentGroups.map((g) => g.id));
-    const targetGroupIds = new Set(targetGroups.map((g) => g.id));
-
-    const groupsToRemove = currentGroups.filter((g) => !targetGroupIds.has(g.id));
-    const groupsToAdd = targetGroups.filter((g) => !currentGroupIds.has(g.id));
-
-    if (logger.isLevelEnabled("debug")) {
-      if (groupsToRemove.length > 0) {
-        const removedGroupNames = groupsToRemove.map((g) => g.name);
-        logger.debug({ userId, groups: removedGroupNames }, "User removed from groups");
-      }
-      if (groupsToAdd.length > 0) {
-        const addedGroupNames = groupsToAdd.map((g) => g.name);
-        logger.debug({ userId, groups: addedGroupNames }, "User added to groups");
-      }
-    }
-
-    if (groupsToRemove.length > 0 || groupsToAdd.length > 0) {
-      const ops = [];
-      if (groupsToRemove.length > 0) {
-        const groupIds = groupsToRemove.map((g) => g.id);
-        ops.push(trx.deleteFrom("userGroups").where("userId", "=", userId).where("groupId", "in", groupIds).execute());
-      }
-      if (groupsToAdd.length > 0) {
-        const userGroups = groupsToAdd.map((g) => ({ userId, groupId: g.id }));
-        ops.push(
-          trx
-            .insertInto("userGroups")
-            .values(userGroups)
-            .onConflict((oc) => oc.doNothing())
-            .execute(),
-        );
-      }
-      await Promise.all(ops);
-    }
-  };
-
-  if (dbOrTrx) {
-    await sync(dbOrTrx);
+  if (db) {
+    await sync(db);
   } else {
-    const db = await useDb();
-    await db.transaction().setIsolationLevel("read committed").execute(sync);
+    await (await useDb()).transaction().setIsolationLevel("read committed").execute(sync);
   }
 };
 
-export const syncUserRoles = async (
-  userId: string,
-  roleNames: string[],
-  dbOrTrx?: Kysely<Database> | Transaction<Database>,
-): Promise<void> => {
-  const sync = async (trx: Kysely<Database> | Transaction<Database>) => {
-    const currentRoles = await trx
-      .selectFrom("userRoles")
-      .innerJoin("roles", "roles.id", "userRoles.roleId")
-      .select(["roles.id", "roles.name"])
-      .where("userRoles.userId", "=", userId)
-      .execute();
-
-    if (roleNames.length === 0) {
-      if (currentRoles.length > 0) {
-        await trx.deleteFrom("userRoles").where("userId", "=", userId).execute();
-      }
-      return;
-    }
-
-    const targetRoles = await trx.selectFrom("roles").select(["id", "name"]).where("name", "in", roleNames).execute();
-
-    const currentRoleIds = new Set(currentRoles.map((r) => r.id));
-    const targetRoleIds = new Set(targetRoles.map((r) => r.id));
-
-    const rolesToRemove = currentRoles.filter((r) => !targetRoleIds.has(r.id));
-    const rolesToAdd = targetRoles.filter((r) => !currentRoleIds.has(r.id));
-
-    if (logger.isLevelEnabled("debug")) {
-      if (rolesToRemove.length > 0) {
-        const removedRoleNames = rolesToRemove.map((r) => r.name);
-        logger.debug({ userId, roles: removedRoleNames }, "User roles removed");
-      }
-      if (rolesToAdd.length > 0) {
-        const addedRoleNames = rolesToAdd.map((r) => r.name);
-        logger.debug({ userId, roles: addedRoleNames }, "User roles added");
-      }
-    }
-
-    if (rolesToRemove.length > 0 || rolesToAdd.length > 0) {
-      const ops = [];
-      if (rolesToRemove.length > 0) {
-        const roleIds = rolesToRemove.map((r) => r.id);
-        ops.push(trx.deleteFrom("userRoles").where("userId", "=", userId).where("roleId", "in", roleIds).execute());
-      }
-      if (rolesToAdd.length > 0) {
-        const userRoles = rolesToAdd.map((r) => ({ userId, roleId: r.id }));
-        ops.push(
-          trx
-            .insertInto("userRoles")
-            .values(userRoles)
-            .onConflict((oc) => oc.doNothing())
-            .execute(),
-        );
-      }
-      await Promise.all(ops);
-    }
-  };
-
-  if (dbOrTrx) {
-    await sync(dbOrTrx);
-  } else {
-    const db = await useDb();
-    await db.transaction().setIsolationLevel("read committed").execute(sync);
+const logChanges = (context: Record<string, string>, changes: { added: number; removed: number }, message: string) => {
+  if (changes.added > 0 || changes.removed > 0) {
+    logger.debug({ ...context, ...changes }, message);
   }
 };
 
-export const syncGroupRoles = async (
-  groupId: string,
-  roleNames: string[],
-  dbOrTrx?: Kysely<Database> | Transaction<Database>,
-): Promise<void> => {
-  const sync = async (trx: Kysely<Database> | Transaction<Database>) => {
-    const currentRoles = await trx
-      .selectFrom("groupRoles")
-      .innerJoin("roles", "roles.id", "groupRoles.roleId")
-      .select(["roles.id", "roles.name"])
-      .where("groupRoles.groupId", "=", groupId)
-      .execute();
-
-    if (roleNames.length === 0) {
-      if (currentRoles.length > 0) {
-        await trx.deleteFrom("groupRoles").where("groupId", "=", groupId).execute();
-      }
-      return;
+// Groups that do not exist are created
+export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely<Database>): Promise<void> =>
+  inTransaction(db, async (trx) => {
+    let groups: { id: string }[] = [];
+    if (groupnames.length > 0) {
+      await trx
+        .insertInto("groups")
+        .values(groupnames.map((name) => ({ name, description: "" })))
+        .onConflict((oc) => oc.column("name").doNothing())
+        .execute();
+      groups = await trx.selectFrom("groups").select(["id"]).where("name", "in", groupnames).execute();
     }
 
-    const targetRoles = await trx.selectFrom("roles").select(["id", "name"]).where("name", "in", roleNames).execute();
+    const changes = await syncLinks(
+      trx,
+      "user_groups",
+      { user_id: userId },
+      "group_id",
+      groups.map((g) => g.id),
+    );
+    logChanges({ userId }, changes, "User groups synchronized");
+  });
 
-    const currentRoleIds = new Set(currentRoles.map((r) => r.id));
-    const targetRoleIds = new Set(targetRoles.map((r) => r.id));
+// Roles that do not exist are ignored
+export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> =>
+  inTransaction(db, async (trx) => {
+    const roles =
+      roleNames.length > 0 ? await trx.selectFrom("roles").select(["id"]).where("name", "in", roleNames).execute() : [];
 
-    const rolesToRemove = currentRoles.filter((r) => !targetRoleIds.has(r.id));
-    const rolesToAdd = targetRoles.filter((r) => !currentRoleIds.has(r.id));
+    const changes = await syncLinks(
+      trx,
+      "user_roles",
+      { user_id: userId },
+      "role_id",
+      roles.map((r) => r.id),
+    );
+    logChanges({ userId }, changes, "User roles synchronized");
+  });
 
-    if (logger.isLevelEnabled("debug")) {
-      if (rolesToRemove.length > 0) {
-        const removedRoleNames = rolesToRemove.map((r) => r.name);
-        logger.debug({ groupId, roles: removedRoleNames }, "Group roles removed");
-      }
-      if (rolesToAdd.length > 0) {
-        const addedRoleNames = rolesToAdd.map((r) => r.name);
-        logger.debug({ groupId, roles: addedRoleNames }, "Group roles added");
-      }
-    }
+// Roles that do not exist are ignored
+export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> =>
+  inTransaction(db, async (trx) => {
+    const roles =
+      roleNames.length > 0 ? await trx.selectFrom("roles").select(["id"]).where("name", "in", roleNames).execute() : [];
 
-    if (rolesToRemove.length > 0 || rolesToAdd.length > 0) {
-      const ops = [];
-      if (rolesToRemove.length > 0) {
-        const roleIds = rolesToRemove.map((r) => r.id);
-        ops.push(trx.deleteFrom("groupRoles").where("groupId", "=", groupId).where("roleId", "in", roleIds).execute());
-      }
-      if (rolesToAdd.length > 0) {
-        const groupRoles = rolesToAdd.map((r) => ({ groupId, roleId: r.id }));
-        ops.push(
-          trx
-            .insertInto("groupRoles")
-            .values(groupRoles)
-            .onConflict((oc) => oc.doNothing())
-            .execute(),
-        );
-      }
-      await Promise.all(ops);
-    }
-  };
+    const changes = await syncLinks(
+      trx,
+      "group_roles",
+      { group_id: groupId },
+      "role_id",
+      roles.map((r) => r.id),
+    );
+    logChanges({ groupId }, changes, "Group roles synchronized");
+  });
 
-  if (dbOrTrx) {
-    await sync(dbOrTrx);
-  } else {
-    const db = await useDb();
-    await db.transaction().setIsolationLevel("read committed").execute(sync);
-  }
-};
+// Permissions that do not exist are ignored
+export const syncRolePermissions = (roleId: string, permissionNames: string[], db?: Kysely<Database>): Promise<void> =>
+  inTransaction(db, async (trx) => {
+    const permissions =
+      permissionNames.length > 0
+        ? await trx.selectFrom("permissions").select(["id"]).where("name", "in", permissionNames).execute()
+        : [];
 
-export const syncRolePermissions = async (
-  roleId: string,
-  permissionNames: string[],
-  dbOrTrx?: Kysely<Database> | Transaction<Database>,
-): Promise<void> => {
-  const sync = async (trx: Kysely<Database> | Transaction<Database>) => {
-    const currentPermissions = await trx
-      .selectFrom("rolePermissions")
-      .innerJoin("permissions", "permissions.id", "rolePermissions.permissionId")
-      .select(["permissions.id", "permissions.name"])
-      .where("rolePermissions.roleId", "=", roleId)
-      .execute();
-
-    if (permissionNames.length === 0) {
-      if (currentPermissions.length > 0) {
-        await trx.deleteFrom("rolePermissions").where("roleId", "=", roleId).execute();
-      }
-      return;
-    }
-
-    const targetPermissions = await trx
-      .selectFrom("permissions")
-      .select(["id", "name"])
-      .where("name", "in", permissionNames)
-      .execute();
-
-    const currentPermissionIds = new Set(currentPermissions.map((p) => p.id));
-    const targetPermissionIds = new Set(targetPermissions.map((p) => p.id));
-
-    const permissionsToRemove = currentPermissions.filter((p) => !targetPermissionIds.has(p.id));
-    const permissionsToAdd = targetPermissions.filter((p) => !currentPermissionIds.has(p.id));
-
-    if (logger.isLevelEnabled("debug")) {
-      if (permissionsToRemove.length > 0) {
-        const removedPermissionNames = permissionsToRemove.map((p) => p.name);
-        logger.debug({ roleId, permissions: removedPermissionNames }, "Role permissions removed");
-      }
-      if (permissionsToAdd.length > 0) {
-        const addedPermissionNames = permissionsToAdd.map((p) => p.name);
-        logger.debug({ roleId, permissions: addedPermissionNames }, "Role permissions added");
-      }
-    }
-
-    if (permissionsToRemove.length > 0 || permissionsToAdd.length > 0) {
-      const ops = [];
-      if (permissionsToRemove.length > 0) {
-        const permissionIds = permissionsToRemove.map((p) => p.id);
-        ops.push(
-          trx
-            .deleteFrom("rolePermissions")
-            .where("roleId", "=", roleId)
-            .where("permissionId", "in", permissionIds)
-            .execute(),
-        );
-      }
-      if (permissionsToAdd.length > 0) {
-        const rolePermissions = permissionsToAdd.map((p) => ({ roleId, permissionId: p.id }));
-        ops.push(
-          trx
-            .insertInto("rolePermissions")
-            .values(rolePermissions)
-            .onConflict((oc) => oc.doNothing())
-            .execute(),
-        );
-      }
-      await Promise.all(ops);
-    }
-  };
-
-  if (dbOrTrx) {
-    await sync(dbOrTrx);
-  } else {
-    const db = await useDb();
-    await db.transaction().setIsolationLevel("read committed").execute(sync);
-  }
-};
+    const changes = await syncLinks(
+      trx,
+      "role_permissions",
+      { role_id: roleId },
+      "permission_id",
+      permissions.map((p) => p.id),
+    );
+    logChanges({ roleId }, changes, "Role permissions synchronized");
+  });
