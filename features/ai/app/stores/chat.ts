@@ -6,6 +6,7 @@ import type { ChatMessagePart, ChatStreamError } from "#layers/ai/shared/chat";
 import type { ChatSession } from "#layers/ai/shared/schema";
 import type { RouterOutputs } from "#layers/core/app/types/trpc";
 import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
+import { randomUUID } from "#layers/core/app/utils/uuid";
 
 type ChatMessage = RouterOutputs["ai"]["chatMessage"]["list"]["messages"][number];
 type MessagesCursor = RouterOutputs["ai"]["chatMessage"]["list"]["nextCursor"];
@@ -250,8 +251,8 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const sendMessage = async (sessionId: string, content: string): Promise<void> => {
     const controller = new AbortController();
-    const tempUserMessageId = crypto.randomUUID();
-    const tempAssistantMessageId = crypto.randomUUID();
+    const tempUserMessageId = randomUUID();
+    const tempAssistantMessageId = randomUUID();
 
     const streamState: StreamState = {
       controller,
