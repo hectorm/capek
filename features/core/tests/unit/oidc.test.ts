@@ -28,17 +28,17 @@ const oidc = new OIDC({
 });
 
 const answerUserInfo = (userInfo: Record<string, unknown>): void => {
-  vi.stubGlobal("fetch", () =>
-    Promise.resolve(new Response(JSON.stringify(userInfo), { headers: { "Content-Type": "application/json" } })),
-  );
+  vi.stubGlobal("fetch", () => {
+    return Promise.resolve(new Response(JSON.stringify(userInfo), { headers: { "Content-Type": "application/json" } }));
+  });
 };
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const claims = (extra: Record<string, unknown>): IDToken =>
-  ({
+const claims = (extra: Record<string, unknown>): IDToken => {
+  return {
     sub: "alice",
     preferred_username: "alice",
     name: "Alice",
@@ -46,7 +46,8 @@ const claims = (extra: Record<string, unknown>): IDToken =>
     email_verified: true,
     picture: "https://idp.localhost/alice.png",
     ...extra,
-  }) as unknown as IDToken;
+  } as unknown as IDToken;
+};
 
 describe("oidc user profile", () => {
   it("takes the roles and groups of the claims", async () => {

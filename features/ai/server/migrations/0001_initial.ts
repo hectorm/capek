@@ -63,9 +63,9 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
 
   await db.schema
     .createTable("public.aiChatSessionVfs")
-    .addColumn("sessionId", "uuid", (col) =>
-      col.primaryKey().references("public.aiChatSessions.id").onDelete("cascade"),
-    )
+    .addColumn("sessionId", "uuid", (col) => {
+      return col.primaryKey().references("public.aiChatSessions.id").onDelete("cascade");
+    })
     .addColumn("data", sql`bytea`, (col) => col.notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
@@ -127,9 +127,9 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("name", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().unique())
     .addColumn("description", sql`text COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("documentation", sql`text COLLATE ${naturalCs}`)
-    .addColumn("parameters", "jsonb", (col) =>
-      col.notNull().defaultTo(sql`'{"type": "object", "properties": {}, "required": []}'::jsonb`),
-    )
+    .addColumn("parameters", "jsonb", (col) => {
+      return col.notNull().defaultTo(sql`'{"type": "object", "properties": {}, "required": []}'::jsonb`);
+    })
     .addColumn("code", sql`text COLLATE ${naturalCs}`)
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
@@ -345,9 +345,9 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("mcpServerId", "uuid", (col) => col.references("public.aiMcpServers.id").onDelete("set null"))
     .addColumn("skillId", "uuid", (col) => col.references("public.aiSkills.id").onDelete("set null"))
     .addColumn("toolProvider", sql`varchar(100) COLLATE "C"`)
-    .addColumn("codeExecutionId", "uuid", (col) =>
-      col.references("public.aiAgentCodeExecutions.id").onDelete("set null"),
-    )
+    .addColumn("codeExecutionId", "uuid", (col) => {
+      return col.references("public.aiAgentCodeExecutions.id").onDelete("set null");
+    })
     .addColumn("toolName", sql`varchar(255) COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("arguments", sql`text COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("result", sql`text COLLATE ${naturalCs}`)
@@ -387,8 +387,8 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
 
   await db.schema
     .alterTable("public.aiChatSessions")
-    .addForeignKeyConstraint("ai_chat_sessions_agent_id_fk", ["agentId"], "public.aiAgents", ["id"], (cb) =>
-      cb.onDelete("set null"),
-    )
+    .addForeignKeyConstraint("ai_chat_sessions_agent_id_fk", ["agentId"], "public.aiAgents", ["id"], (cb) => {
+      return cb.onDelete("set null");
+    })
     .execute();
 };

@@ -31,12 +31,13 @@ export class ClickhouseDriver implements DatasourceDriver {
       log: { level: ClickHouseLogLevel.OFF },
     });
 
-    const exec = (clickhouseSettings: ClickHouseSettings) =>
-      client.exec({
+    const exec = (clickhouseSettings: ClickHouseSettings) => {
+      return client.exec({
         query: `${sql.trim().replace(/;+$/, "")} \nFORMAT JSONEachRow`,
         abort_signal: settings.signal,
         clickhouse_settings: clickhouseSettings,
       });
+    };
 
     try {
       const { stream } = await exec({

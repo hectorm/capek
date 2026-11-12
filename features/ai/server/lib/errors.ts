@@ -40,8 +40,9 @@ export class ConcurrentExecutionError extends Error {
   }
 }
 
-export const failure = (message?: string | null): Error =>
-  new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
+export const failure = (message?: string | null): Error => {
+  return new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
+};
 
 export const describeError = (error: unknown): string => {
   if (error instanceof AggregateError) {

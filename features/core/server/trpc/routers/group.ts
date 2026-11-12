@@ -12,21 +12,23 @@ import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 // Groups with the names of their roles
-const selectGroups = (db: Kysely<Database>) =>
-  db.selectFrom("groups").select([
+const selectGroups = (db: Kysely<Database>) => {
+  return db.selectFrom("groups").select([
     "groups.id",
     "groups.name",
     "groups.description",
-    (eb) =>
-      eb
+    (eb) => {
+      return eb
         .selectFrom("groupRoles")
         .innerJoin("roles", "roles.id", "groupRoles.roleId")
         .select(
           sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
         )
         .whereRef("groupRoles.groupId", "=", "groups.id")
-        .as("roles"),
+        .as("roles");
+    },
   ]);
+};
 
 // The names are typed as nullable, although their aggregation always gives a list
 const withNames = <G extends { roles: string[] | null }>(group: G) => ({ ...group, roles: group.roles ?? [] });
@@ -77,15 +79,15 @@ export const groupRouter = createTRPCRouter({
           const searchList = Array.isArray(search) ? search : [search];
 
           if (searchBy === "roles") {
-            query = query.where((eb) =>
-              eb.exists(
+            query = query.where((eb) => {
+              return eb.exists(
                 eb
                   .selectFrom("groupRoles")
                   .innerJoin("roles", "roles.id", "groupRoles.roleId")
                   .whereRef("groupRoles.groupId", "=", "groups.id")
                   .where((eb2) => eb2.or(searchList.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
-              ),
-            );
+              );
+            });
           } else {
             query = query.where((eb) => eb.or(searchList.map((v) => eb(`groups.${searchBy}`, "ilike", `%${v}%`))));
           }
@@ -129,12 +131,12 @@ export const groupRouter = createTRPCRouter({
             await trx
               .insertInto("groupRoles")
               .columns(["groupId", "roleId"])
-              .expression((eb) =>
-                eb
+              .expression((eb) => {
+                return eb
                   .selectFrom("roles")
                   .select([eb.val(insertedGroup.id).as("groupId"), "roles.id as roleId"])
-                  .where("roles.name", "in", roles),
-              )
+                  .where("roles.name", "in", roles);
+              })
               .execute();
           }
 

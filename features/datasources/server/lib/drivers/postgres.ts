@@ -21,8 +21,9 @@ const DATE_TYPES: ReadonlySet<unknown> = new Set([
   pg.types.builtins.TIMESTAMPTZ,
 ]);
 const types: pg.CustomTypesConfig = {
-  getTypeParser: (oid, format) =>
-    DATE_TYPES.has(oid) ? (value: string) => value : (pg.types.getTypeParser(oid, format) as unknown),
+  getTypeParser: (oid, format) => {
+    return DATE_TYPES.has(oid) ? (value: string) => value : (pg.types.getTypeParser(oid, format) as unknown);
+  },
 };
 
 export class PostgresDriver implements DatasourceDriver {

@@ -139,12 +139,12 @@ export const settingsRouter = createTRPCRouter({
                 updatedAt: new Date(),
               })),
             )
-            .onConflict((oc) =>
-              oc.column("key").doUpdateSet((eb) => ({
+            .onConflict((oc) => {
+              return oc.column("key").doUpdateSet((eb) => ({
                 value: eb.ref("excluded.value"),
                 updatedAt: eb.ref("excluded.updatedAt"),
-              })),
-            )
+              }));
+            })
             .execute();
         }
 

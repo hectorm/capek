@@ -448,31 +448,31 @@ export const agentRouter = createTRPCRouter({
           .selectFrom("aiAgents")
           .select(["aiAgents.id", "aiAgents.name", "aiAgents.description", "aiAgents.type", "aiAgents.priority"])
           .where("aiAgents.llmProviderId", "is not", null)
-          .where((eb) =>
-            eb.exists(
+          .where((eb) => {
+            return eb.exists(
               eb
                 .selectFrom("aiAgentAccess")
                 .select("aiAgentAccess.id")
                 .whereRef("aiAgentAccess.agentId", "=", "aiAgents.id")
                 .where("aiAgentAccess.role", "=", "user"),
-            ),
-          );
+            );
+          });
 
         if (!canAny(ctx.user, [AiPermissions.AgentUseAll])) {
-          query = query.where((eb) =>
-            eb.exists(
+          query = query.where((eb) => {
+            return eb.exists(
               eb
                 .selectFrom("aiAgentAccess")
                 .select("aiAgentAccess.id")
                 .whereRef("aiAgentAccess.agentId", "=", "aiAgents.id")
-                .where((eb2) =>
-                  eb2.or([
+                .where((eb2) => {
+                  return eb2.or([
                     eb2("aiAgentAccess.userId", "=", ctx.user.id),
                     ...(ctx.user.groups.length > 0 ? [eb2("aiAgentAccess.groupId", "in", ctx.user.groups)] : []),
-                  ]),
-                ),
-            ),
-          );
+                  ]);
+                }),
+            );
+          });
         }
 
         if (input.id) {
@@ -893,12 +893,12 @@ export const agentRouter = createTRPCRouter({
             .selectFrom("aiLlmProviderAccess")
             .select(["id"])
             .where("llmProviderId", "=", input.llmProviderId)
-            .where((eb) =>
-              eb.or([
+            .where((eb) => {
+              return eb.or([
                 eb("userId", "=", ctx.user.id),
                 ...(ctx.user.groups.length > 0 ? [eb("groupId", "in", ctx.user.groups)] : []),
-              ]),
-            )
+              ]);
+            })
             .executeTakeFirst();
 
           if (!hasAccess) {

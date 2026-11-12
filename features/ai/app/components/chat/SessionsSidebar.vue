@@ -33,8 +33,8 @@ const chatStore = useChatStore();
 
 const { groupedSessions } = useChatUI(computed(() => chatStore.sessions));
 
-const items = computed(() =>
-  groupedSessions.value.flatMap((g) => {
+const items = computed(() => {
+  return groupedSessions.value.flatMap((g) => {
     return [
       {
         label: g.label,
@@ -45,8 +45,8 @@ const items = computed(() =>
         slot: "chat" as const,
       })),
     ];
-  }),
-);
+  });
+});
 
 const handleNewChat = async (): Promise<void> => {
   try {

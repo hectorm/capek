@@ -58,14 +58,18 @@ describe("pagination", () => {
   });
 
   it("continues after the row of the cursor when it changes or is gone", async () => {
-    const pageAfter = (cursor?: PageCursor) =>
-      paginate(db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"), {
-        table: "users",
-        orderBy: "username",
-        order: "asc",
-        limit: 3,
-        cursor,
-      });
+    const pageAfter = (cursor?: PageCursor) => {
+      return paginate(
+        db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"),
+        {
+          table: "users",
+          orderBy: "username",
+          order: "asc",
+          limit: 3,
+          cursor,
+        },
+      );
+    };
     const first = await pageAfter();
     const lastId = first.rows.at(-1)?.id ?? "";
 

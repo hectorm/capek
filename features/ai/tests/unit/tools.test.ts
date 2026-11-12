@@ -59,8 +59,8 @@ const notesProvider = defineToolProvider({
 const profileProvider = defineToolProvider({
   name: "notes_profile",
   label: "notes.tools.profile.label",
-  load: (_db, resourceIds) =>
-    Promise.resolve({
+  load: (_db, resourceIds) => {
+    return Promise.resolve({
       tools: [
         {
           name: "notes_whoami",
@@ -69,7 +69,8 @@ const profileProvider = defineToolProvider({
           execute: (_args, { user }) => Promise.resolve(JSON.stringify({ userId: user.id, resources: resourceIds })),
         },
       ],
-    }),
+    });
+  },
 });
 const notesFeature: ServerFeature = { name: "notes", tools: [notesProvider, profileProvider] };
 const providers = collectToolProviders([coreFeature, aiFeature, notesFeature]);
@@ -108,14 +109,14 @@ describe("agent tool resources", () => {
 
     // Editing the agent is not enough without the permission to use the resources
     await expect(
-      asUser({ id: alice, permissions: agentEditor }, (trx) =>
-        syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]),
-      ),
+      asUser({ id: alice, permissions: agentEditor }, (trx) => {
+        return syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]);
+      }),
     ).rejects.toThrow(/row-level security/);
 
-    const result = await asUser({ id: alice, permissions }, (trx) =>
-      syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]),
-    );
+    const result = await asUser({ id: alice, permissions }, (trx) => {
+      return syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]);
+    });
     expect(result).toEqual({ added: 1, removed: 0 });
   });
 
@@ -190,8 +191,8 @@ describe("agent tool resources", () => {
   it("rejects tools that do not start with the name of their feature", async () => {
     const provider = defineToolProvider({
       ...notesProvider,
-      load: () =>
-        Promise.resolve({
+      load: () => {
+        return Promise.resolve({
           tools: [
             {
               name: "read",
@@ -200,7 +201,8 @@ describe("agent tool resources", () => {
               execute: () => Promise.resolve(""),
             },
           ],
-        }),
+        });
+      },
     });
     await expect(loadAgentToolsets(db, [{ ...provider, feature: "notes" }], agentId, caller)).rejects.toThrow(
       /Tool "read" of feature "notes" must start with "notes_"/,

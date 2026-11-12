@@ -352,8 +352,9 @@ export const sharedResourcePolicies = (
 ): string[] => {
   const { type, table, accessTable, foreignKey } = resource;
 
-  const canAny = (...actions: string[]): string =>
-    `(SELECT security.can_any(ARRAY[${actions.map((action) => `'${type}:${action}'`).join(", ")}]))`;
+  const canAny = (...actions: string[]): string => {
+    return `(SELECT security.can_any(ARRAY[${actions.map((action) => `'${type}:${action}'`).join(", ")}]))`;
+  };
 
   const canEdit = (action: "update" | "delete"): string => `
     ${canAny(`${action}:all`)}
@@ -527,16 +528,16 @@ const collectResources = <R extends { type: string }>(
   pick: (security: SecurityDefinition) => readonly R[] | undefined,
 ): R[] => {
   const types = new Set<string>();
-  return features.flatMap((feature) =>
-    (feature.security ? (pick(feature.security) ?? []) : []).map((resource) => {
+  return features.flatMap((feature) => {
+    return (feature.security ? (pick(feature.security) ?? []) : []).map((resource) => {
       if (types.has(resource.type)) {
         throw new Error(`Duplicate resource type "${resource.type}" in feature "${feature.name}"`);
       }
       assertFeaturePrefix(feature.name, resource.type, "Resource type");
       types.add(resource.type);
       return resource;
-    }),
-  );
+    });
+  });
 };
 
 export const composeSecurity = (features: readonly ServerFeature[]): string[] => {
@@ -586,9 +587,9 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
   const statements = composeSecurity(features);
 
   // Migrations are part of the checksum, since a recreated table loses its policies
-  const migrations = features.flatMap((feature) =>
-    Object.keys(feature.migrations ?? {}).map((name) => `${feature.name}/${name}`),
-  );
+  const migrations = features.flatMap((feature) => {
+    return Object.keys(feature.migrations ?? {}).map((name) => `${feature.name}/${name}`);
+  });
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode([...migrations, ...statements].join("\n;\n")),

@@ -21,14 +21,14 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
   const i18n = useI18n();
   const searchQuery = ref<string>("");
 
-  const formattedSessions = computed(() =>
-    sessions.value.map((s: ChatSession) => ({
+  const formattedSessions = computed(() => {
+    return sessions.value.map((s: ChatSession) => ({
       id: s.id,
       label: s.title || i18n.t("ai.pages.chat.untitled"),
       to: `/ai/chat/${s.id}`,
       updatedAt: s.updatedAt,
-    })),
-  );
+    }));
+  });
 
   const filteredSessions = computed(() => {
     if (!searchQuery.value) return formattedSessions.value;

@@ -20,9 +20,9 @@ const i18n = useI18n();
 
 const sidebar = inject(sidebarKey);
 
-const menu = computed<NavigationMenuItem[]>(() =>
-  props.tabs.map((tab) => ({ label: i18n.t(tab.label), icon: tab.icon, to: tab.to, exact: tab.exact })),
-);
+const menu = computed<NavigationMenuItem[]>(() => {
+  return props.tabs.map((tab) => ({ label: i18n.t(tab.label), icon: tab.icon, to: tab.to, exact: tab.exact }));
+});
 </script>
 
 <template>

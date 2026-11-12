@@ -64,12 +64,12 @@ export type OpenAICompletionRequest = z.infer<typeof OpenAICompletionRequestSche
 
 const OpenAIContentSchema = z.union([
   z.string(),
-  z.array(z.object({ type: z.string(), text: z.string().nullish() })).transform((parts) =>
-    parts
+  z.array(z.object({ type: z.string(), text: z.string().nullish() })).transform((parts) => {
+    return parts
       .filter((part) => part.type === "text")
       .map((part) => part.text ?? "")
-      .join(""),
-  ),
+      .join("");
+  }),
 ]);
 
 export const OpenAICompletionResponseSchema = z.object({

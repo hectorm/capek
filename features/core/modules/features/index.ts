@@ -46,11 +46,11 @@ export default defineNuxtModule({
           metaName: meta.name,
           dependsOn: Array.isArray(meta.dependsOn) ? meta.dependsOn.map(String) : [],
           runtimeConfig: config?.runtimeConfig ?? {},
-          localeFiles: (i18n?.locales ?? []).flatMap((locale) =>
-            typeof locale === "object" && locale.file !== undefined
+          localeFiles: (i18n?.locales ?? []).flatMap((locale) => {
+            return typeof locale === "object" && locale.file !== undefined
               ? [join(dirs.root, "i18n", i18n?.langDir ?? "locales", locale.file)]
-              : [],
-          ),
+              : [];
+          }),
         };
       })
       .filter((feature) => dirname(feature.dirs.root) === featuresDir);
@@ -79,11 +79,12 @@ export default defineNuxtModule({
       nuxt.options.alias[`#features/${name}`] = join(nuxt.options.buildDir, `features/${name}`);
     };
     const importPath = (path: string): string => JSON.stringify(path.replaceAll("\\", "/").replace(/\.ts$/, ""));
-    const modules = (dir: "app" | "server", file: string): Module[] =>
-      ordered
+    const modules = (dir: "app" | "server", file: string): Module[] => {
+      return ordered
         .map((feature) => ({ feature: feature.name, path: join(feature.dirs[dir], file) }))
         .filter(({ path }) => existsSync(path))
         .map(({ feature, path }, i) => ({ feature, binding: `module${String(i)}`, from: importPath(path) }));
+    };
 
     // Also brings in the declarations that features merge into the core registries
     const registerFeatures = (name: string, list: Module[]): void => {
@@ -105,8 +106,9 @@ export default defineNuxtModule({
 
     // Routers of core are at the root of the API, and the ones of every other feature under its name
     const routers = modules("server", "trpc/routers/index.ts");
-    const record = ({ feature }: Module, value: string): string =>
-      feature === "core" ? value : `{ ${feature}: ${value} }`;
+    const record = ({ feature }: Module, value: string): string => {
+      return feature === "core" ? value : `{ ${feature}: ${value} }`;
+    };
     const init = importPath(join(import.meta.dirname, "../../server/trpc/init.ts"));
     register(
       "router",
@@ -157,10 +159,11 @@ const checkFeatureNames = async (rootDir: string, features: readonly Feature[]):
       }
     };
     const inFeatureDir = (path: string): boolean => path.startsWith(`${name}/`);
-    const hasFeaturePrefix = (path: string): boolean =>
-      basename(path)
+    const hasFeaturePrefix = (path: string): boolean => {
+      return basename(path)
         .replace(/^\d+\./, "")
         .startsWith(`${name}-`);
+    };
 
     check(join(dirs.server, "api"), inFeatureDir);
     check(join(dirs.server, "routes"), inFeatureDir);
@@ -169,9 +172,9 @@ const checkFeatureNames = async (rootDir: string, features: readonly Feature[]):
     check(dirs.appLayouts, hasFeaturePrefix);
     check(dirs.appMiddleware, hasFeaturePrefix);
     check(dirs.appPlugins, hasFeaturePrefix);
-    check(dirs.appPages, (path) =>
-      [name, `studio/${name}`, `settings/${name}`].some((dir) => path.startsWith(`${dir}/`)),
-    );
+    check(dirs.appPages, (path) => {
+      return [name, `studio/${name}`, `settings/${name}`].some((dir) => path.startsWith(`${dir}/`));
+    });
 
     const publicConfig = (runtimeConfig.public ?? {}) as Record<string, unknown>;
     for (const key of [...Object.keys(runtimeConfig), ...Object.keys(publicConfig)]) {

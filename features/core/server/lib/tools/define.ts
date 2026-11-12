@@ -55,8 +55,9 @@ export interface ToolProvider {
 
 export type ResourceToolProvider = ToolProvider & { resource: SharedResource };
 
-export const hasToolResources = <P extends ToolProvider>(provider: P): provider is P & ResourceToolProvider =>
-  provider.resource !== undefined;
+export const hasToolResources = <P extends ToolProvider>(provider: P): provider is P & ResourceToolProvider => {
+  return provider.resource !== undefined;
+};
 
 export function defineToolProvider(provider: ResourceToolProvider): ResourceToolProvider;
 export function defineToolProvider(provider: ToolProvider): ToolProvider;

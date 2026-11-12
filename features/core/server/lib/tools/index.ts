@@ -4,5 +4,6 @@ import { collectToolProviders } from "#layers/core/server/lib/tools/define";
 
 let toolProviders: readonly FeatureToolProvider[] | null = null;
 
-export const getToolProviders = (): readonly FeatureToolProvider[] =>
-  (toolProviders ??= collectToolProviders(getServerFeatures()));
+export const getToolProviders = (): readonly FeatureToolProvider[] => {
+  return (toolProviders ??= collectToolProviders(getServerFeatures()));
+};

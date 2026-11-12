@@ -203,8 +203,8 @@ const logChanges = (context: Record<string, string>, changes: { added: number; r
 };
 
 // Groups that do not exist are created
-export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely<Database>): Promise<void> =>
-  inTransaction(db, async (trx) => {
+export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely<Database>): Promise<void> => {
+  return inTransaction(db, async (trx) => {
     let groups: { id: string }[] = [];
     if (groupnames.length > 0) {
       await trx
@@ -224,10 +224,11 @@ export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely
     );
     logChanges({ userId }, changes, "User groups synchronized");
   });
+};
 
 // Roles that do not exist are ignored
-export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> =>
-  inTransaction(db, async (trx) => {
+export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> => {
+  return inTransaction(db, async (trx) => {
     const roles =
       roleNames.length > 0 ? await trx.selectFrom("roles").select(["id"]).where("name", "in", roleNames).execute() : [];
 
@@ -240,10 +241,11 @@ export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<D
     );
     logChanges({ userId }, changes, "User roles synchronized");
   });
+};
 
 // Roles that do not exist are ignored
-export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> =>
-  inTransaction(db, async (trx) => {
+export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> => {
+  return inTransaction(db, async (trx) => {
     const roles =
       roleNames.length > 0 ? await trx.selectFrom("roles").select(["id"]).where("name", "in", roleNames).execute() : [];
 
@@ -256,10 +258,15 @@ export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely
     );
     logChanges({ groupId }, changes, "Group roles synchronized");
   });
+};
 
 // Permissions that do not exist are ignored
-export const syncRolePermissions = (roleId: string, permissionNames: string[], db?: Kysely<Database>): Promise<void> =>
-  inTransaction(db, async (trx) => {
+export const syncRolePermissions = (
+  roleId: string,
+  permissionNames: string[],
+  db?: Kysely<Database>,
+): Promise<void> => {
+  return inTransaction(db, async (trx) => {
     const permissions =
       permissionNames.length > 0
         ? await trx.selectFrom("permissions").select(["id"]).where("name", "in", permissionNames).execute()
@@ -274,3 +281,4 @@ export const syncRolePermissions = (roleId: string, permissionNames: string[], d
     );
     logChanges({ roleId }, changes, "Role permissions synchronized");
   });
+};

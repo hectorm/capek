@@ -16,16 +16,14 @@ afterEach(() => {
 
 describe("anthropic messages", () => {
   it("uses the Messages API of the providers set up with it", async () => {
-    const { client, sent, paths, headers } = createClient(
-      () =>
-        Response.json({
-          id: "msg-test",
-          model: "reasoner",
-          content: [{ type: "tool_use", id: "call-1", name: "get_weather", input: { city: "Madrid" } }],
-          stop_reason: "tool_use",
-        }),
-      "messages",
-    );
+    const { client, sent, paths, headers } = createClient(() => {
+      return Response.json({
+        id: "msg-test",
+        model: "reasoner",
+        content: [{ type: "tool_use", id: "call-1", name: "get_weather", input: { city: "Madrid" } }],
+        stop_reason: "tool_use",
+      });
+    }, "messages");
 
     await expect(client.completion(request)).resolves.toEqual({
       output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],

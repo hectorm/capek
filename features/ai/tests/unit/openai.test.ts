@@ -23,8 +23,8 @@ afterEach(() => {
 
 describe("openai chat completions", () => {
   it("uses the Chat Completions API of the providers set up with it", async () => {
-    const { client, sent, paths, headers } = createClient(() =>
-      Response.json({
+    const { client, sent, paths, headers } = createClient(() => {
+      return Response.json({
         id: "chatcmpl-test",
         object: "chat.completion",
         created: 0,
@@ -41,8 +41,8 @@ describe("openai chat completions", () => {
             finish_reason: "tool_calls",
           },
         ],
-      }),
-    );
+      });
+    });
 
     await expect(client.completion(request)).resolves.toEqual({
       output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
@@ -332,17 +332,15 @@ describe("openai chat completions", () => {
 
 describe("openai responses", () => {
   it("uses the Responses API of the providers set up with it", async () => {
-    const { client, sent, paths, headers } = createClient(
-      () =>
-        Response.json({
-          id: "resp-test",
-          created_at: 0,
-          model: "reasoner",
-          status: "completed",
-          output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
-        }),
-      "responses",
-    );
+    const { client, sent, paths, headers } = createClient(() => {
+      return Response.json({
+        id: "resp-test",
+        created_at: 0,
+        model: "reasoner",
+        status: "completed",
+        output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
+      });
+    }, "responses");
 
     await expect(client.completion(request)).resolves.toEqual({
       output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],

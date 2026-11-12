@@ -93,9 +93,9 @@ describe("rls core", () => {
 
   it("denies writes without the matching permission", async () => {
     await expect(
-      asUser({ id: alice, permissions: ["user:read:own"] }, (trx) =>
-        trx.insertInto("groups").values({ name: "forbidden-group", description: "" }).execute(),
-      ),
+      asUser({ id: alice, permissions: ["user:read:own"] }, (trx) => {
+        return trx.insertInto("groups").values({ name: "forbidden-group", description: "" }).execute();
+      }),
     ).rejects.toThrow(/row-level security/);
   });
 

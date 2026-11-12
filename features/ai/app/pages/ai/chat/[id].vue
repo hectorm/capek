@@ -337,8 +337,9 @@ useInfiniteScroll(
   {
     direction: "top",
     distance: 200,
-    canLoadMore: () =>
-      showsLastMessages.value && chatStore.hasOlderMessages(sessionId.value) && !chatStore.isLoadingMessages,
+    canLoadMore: () => {
+      return showsLastMessages.value && chatStore.hasOlderMessages(sessionId.value) && !chatStore.isLoadingMessages;
+    },
   },
 );
 

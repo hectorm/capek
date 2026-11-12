@@ -73,9 +73,9 @@ export const llmProviderRouter = createTRPCRouter({
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
           const searchList = Array.isArray(search) ? search : [search];
-          query = query.where((eb) =>
-            eb.or(searchList.map((v) => eb(`aiLlmProviders.${searchBy}`, "ilike", `%${v}%`))),
-          );
+          query = query.where((eb) => {
+            return eb.or(searchList.map((v) => eb(`aiLlmProviders.${searchBy}`, "ilike", `%${v}%`)));
+          });
         }
 
         const { rows: llmProviders, nextCursor } = await paginate(query, {

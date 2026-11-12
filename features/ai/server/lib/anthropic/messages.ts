@@ -65,8 +65,9 @@ const fromStop = (stopReason?: string | null, explanation?: string | null): LlmI
   }
 };
 
-const fromBlocks = (blocks: AnthropicMessagesOutputBlock[]): LlmItem[] =>
-  blocks.flatMap((block) => fromBlock(block) ?? []).filter((item) => item.type !== "message" || item.content);
+const fromBlocks = (blocks: AnthropicMessagesOutputBlock[]): LlmItem[] => {
+  return blocks.flatMap((block) => fromBlock(block) ?? []).filter((item) => item.type !== "message" || item.content);
+};
 
 // Translates a request to the Messages API of Anthropic
 export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest => {

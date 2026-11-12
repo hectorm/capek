@@ -7,6 +7,7 @@ import tseslint from "typescript-eslint";
 
 import withNuxt from "./.nuxt/eslint.config.mjs";
 import selection from "./.nuxt/features/selection.json" with { type: "json" };
+import wrappedArrowBodyRule from "./tools/eslint-rules/wrapped-arrow-body.js";
 
 const virtualModulePatterns = [
   {
@@ -28,6 +29,9 @@ const layerImportPatterns = [
 
 export default withNuxt(
   {
+    plugins: {
+      capek: { rules: { "wrapped-arrow-body": wrappedArrowBodyRule } },
+    },
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -45,6 +49,7 @@ export default withNuxt(
       features: selection.enabled,
     },
     rules: {
+      "capek/wrapped-arrow-body": "error",
       "no-console": [
         "error",
         {

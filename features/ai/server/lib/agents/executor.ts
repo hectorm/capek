@@ -379,9 +379,9 @@ export class AgentExecutor {
       const executableSkills = skillBindings.filter((s) => s.code !== null);
       const skillTools = executableSkills.map((skill) => this.createSkillTool(agent, skill, mcpServerBindings));
 
-      const featureTools = toolsets.flatMap((toolset) =>
-        toolset.tools.map((tool) => ({ tool, toolProvider: toolset.provider })),
-      );
+      const featureTools = toolsets.flatMap((toolset) => {
+        return toolset.tools.map((tool) => ({ tool, toolProvider: toolset.provider }));
+      });
 
       const toolName = uniqueIds(TOOL_NAME_MAX_LENGTH);
       tools = [...featureTools, ...skillTools, ...mcpTools].map((agentTool) => ({

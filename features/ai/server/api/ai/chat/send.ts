@@ -85,9 +85,12 @@ export default defineEventHandler(async (event) => {
           .selectFrom("aiAgentAccess")
           .select(["id"])
           .where("agentId", "=", result.agentId)
-          .where((eb) =>
-            eb.or([eb("userId", "=", user.id), ...(user.groups.length > 0 ? [eb("groupId", "in", user.groups)] : [])]),
-          )
+          .where((eb) => {
+            return eb.or([
+              eb("userId", "=", user.id),
+              ...(user.groups.length > 0 ? [eb("groupId", "in", user.groups)] : []),
+            ]);
+          })
           .executeTakeFirst();
 
         if (!hasAccess) {

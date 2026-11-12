@@ -49,14 +49,14 @@ for (const setup of layoutSetups) {
   setup();
 }
 
-const navigationItems = computed<NavigationMenuItem[]>(() =>
-  navigation.value.map((item) => ({
+const navigationItems = computed<NavigationMenuItem[]>(() => {
+  return navigation.value.map((item) => ({
     label: i18n.t(item.label),
     icon: item.icon,
     to: item.to,
     exact: item.exact,
-  })),
-);
+  }));
+});
 
 watch(
   () => route.path,

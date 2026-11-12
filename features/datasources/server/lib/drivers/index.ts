@@ -39,5 +39,6 @@ export const datasourceTypes: readonly ServerDatasourceType[] = [
 ];
 
 // Undefined for the datasources stored with a type that is no longer supported
-export const findDatasourceType = (type: string): ServerDatasourceType | undefined =>
-  datasourceTypes.find((candidate) => candidate.definition.type === type);
+export const findDatasourceType = (type: string): ServerDatasourceType | undefined => {
+  return datasourceTypes.find((candidate) => candidate.definition.type === type);
+};

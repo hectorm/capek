@@ -45,5 +45,6 @@ export interface AppFeature {
 export const defineAppFeature = (feature: AppFeature): AppFeature => feature;
 
 // Key of a message of a feature, whose messages are under its name unless it is core
-export const featureMessageKey = (feature: string, key: string): string =>
-  feature === "core" ? key : `${feature}.${key}`;
+export const featureMessageKey = (feature: string, key: string): string => {
+  return feature === "core" ? key : `${feature}.${key}`;
+};

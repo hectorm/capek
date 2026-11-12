@@ -27,14 +27,14 @@ const formats = ref<ExportFormat[]>([]);
 
 let exportFormat: ExportFormat | undefined;
 
-const exportItems = computed(() =>
-  formats.value.map((format) => ({
+const exportItems = computed(() => {
+  return formats.value.map((format) => ({
     label: i18n.t(`ai.components.chat.chartFrame.export.${format}`),
     onSelect: () => {
       exportImage(format);
     },
-  })),
-);
+  }));
+});
 
 const send = (message: Record<string, unknown>) => {
   frame.value?.contentWindow?.postMessage(message, "*");

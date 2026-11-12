@@ -88,8 +88,8 @@ export const defineUrlDatasourceType = (def: {
   type: string;
   label: string;
   placeholder: string;
-}): DatasourceTypeDefinition<typeof UrlDatasourceConfigSchema> =>
-  defineDatasourceType({
+}): DatasourceTypeDefinition<typeof UrlDatasourceConfigSchema> => {
+  return defineDatasourceType({
     ...def,
     authTypes: ["basic", "none"],
     configSchema: UrlDatasourceConfigSchema,
@@ -101,3 +101,4 @@ export const defineUrlDatasourceType = (def: {
       return { ...incoming, password: stored?.authType === "basic" ? stored.password : "" };
     },
   });
+};

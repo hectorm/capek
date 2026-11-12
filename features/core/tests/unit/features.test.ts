@@ -18,12 +18,12 @@ describe("features", () => {
     expect(() => orderFeatures([{ name: "reports", dependsOn: ["files"] }])).toThrow(
       /Feature "reports" depends on feature "files", which is not part of the build/,
     );
-    expect(() =>
-      orderFeatures([
+    expect(() => {
+      return orderFeatures([
         { name: "a", dependsOn: ["b"] },
         { name: "b", dependsOn: ["a"] },
-      ]),
-    ).toThrow(/Circular feature dependency: a -> b -> a/);
+      ]);
+    }).toThrow(/Circular feature dependency: a -> b -> a/);
   });
 
   it("rejects duplicated feature names before migrating", async () => {

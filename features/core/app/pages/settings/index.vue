@@ -40,8 +40,9 @@ const settingList = computed<SettingDefinition[]>(() => {
 });
 
 // Translations of a setting are part of the messages of the feature that defines it
-const fieldKey = (setting: SettingDefinition, name: string): string =>
-  featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
+const fieldKey = (setting: SettingDefinition, name: string): string => {
+  return featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
+};
 
 // Categories are scoped to the feature that defines them
 const categoryList = computed(() => {

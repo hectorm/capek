@@ -56,12 +56,12 @@ export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
           data: compressed,
           updatedAt: new Date(),
         })
-        .onConflict((oc) =>
-          oc.column("sessionId").doUpdateSet({
+        .onConflict((oc) => {
+          return oc.column("sessionId").doUpdateSet({
             data: compressed,
             updatedAt: new Date(),
-          }),
-        )
+          });
+        })
         .execute();
     });
 

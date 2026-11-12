@@ -22,8 +22,9 @@ export const WORKSPACE_DIR = "/workspace";
 
 const FILE_OVERHEAD_BYTES = 512;
 
-const fileBytes = (path: string, content: string): number =>
-  Buffer.byteLength(path) + Buffer.byteLength(content) + FILE_OVERHEAD_BYTES;
+const fileBytes = (path: string, content: string): number => {
+  return Buffer.byteLength(path) + Buffer.byteLength(content) + FILE_OVERHEAD_BYTES;
+};
 
 export interface VFSOptions {
   maxWorkspaceBytes?: number;

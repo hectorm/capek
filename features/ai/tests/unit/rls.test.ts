@@ -177,12 +177,12 @@ describe("rls shared resource access sync", () => {
     await db.insertInto("aiSkillAccess").values({ skillId, userId: alice, role: "editor" }).execute();
 
     const principal = { id: alice, groups: [carolGroup], permissions: memberPermissions };
-    await asUser(principal, (trx) =>
-      syncResourceAccess(trx, SkillResource, skillId, [
+    await asUser(principal, (trx) => {
+      return syncResourceAccess(trx, SkillResource, skillId, [
         { id: carolGroup, type: "group", role: "editor" },
         { id: alice, type: "user", role: "user" },
-      ]),
-    );
+      ]);
+    });
 
     const rows = await db
       .selectFrom("aiSkillAccess")
@@ -294,9 +294,9 @@ describe("rls shared resource creation", () => {
   it("does not let creators grant themselves access to the resources of others", async () => {
     const skillId = await insertSkill(db, "existing-skill");
     await expect(
-      asUser({ id: alice, permissions: creatorPermissions }, (trx) =>
-        grantResourceAccess(trx, SkillResource, skillId, ownAccess),
-      ),
+      asUser({ id: alice, permissions: creatorPermissions }, (trx) => {
+        return grantResourceAccess(trx, SkillResource, skillId, ownAccess);
+      }),
     ).rejects.toThrow(/row-level security/);
   });
 
@@ -342,10 +342,11 @@ describe("rls chat ownership", () => {
   });
 
   it("only lets the owner of a chat write messages in it", async () => {
-    const write = (userId: string) =>
-      asUser({ id: userId, permissions }, (trx) =>
-        trx.insertInto("aiChatMessages").values({ sessionId, role: "user", content: "more" }).execute(),
-      );
+    const write = (userId: string) => {
+      return asUser({ id: userId, permissions }, (trx) => {
+        return trx.insertInto("aiChatMessages").values({ sessionId, role: "user", content: "more" }).execute();
+      });
+    };
     await expect(write(bob)).rejects.toThrow(/row-level security/);
     await expect(write(alice)).resolves.toBeDefined();
   });
@@ -356,10 +357,11 @@ describe("rls chat ownership", () => {
       .values({ userId: alice, agentId: orphanAgentId, title: "unshared" })
       .returning(["id"])
       .executeTakeFirstOrThrow();
-    const update = (values: { title?: string; agentId?: string }) =>
-      asUser({ id: alice, permissions }, (trx) =>
-        trx.updateTable("aiChatSessions").set(values).where("id", "=", chat.id).returning(["id"]).execute(),
-      );
+    const update = (values: { title?: string; agentId?: string }) => {
+      return asUser({ id: alice, permissions }, (trx) => {
+        return trx.updateTable("aiChatSessions").set(values).where("id", "=", chat.id).returning(["id"]).execute();
+      });
+    };
 
     await expect(update({ title: "renamed" })).resolves.toHaveLength(1);
     await expect(update({ agentId: groupAgentId })).rejects.toThrow(/row-level security/);
@@ -367,9 +369,9 @@ describe("rls chat ownership", () => {
 
   it("keeps the roles of the server out of the reach of users", async () => {
     await expect(
-      asUser({ id: alice, permissions }, (trx) =>
-        trx.insertInto("aiChatMessages").values({ sessionId, role: "assistant", content: "forged" }).execute(),
-      ),
+      asUser({ id: alice, permissions }, (trx) => {
+        return trx.insertInto("aiChatMessages").values({ sessionId, role: "assistant", content: "forged" }).execute();
+      }),
     ).rejects.toThrow(/row-level security/);
   });
 });

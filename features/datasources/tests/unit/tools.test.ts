@@ -78,11 +78,12 @@ afterAll(async () => {
 
 describe("datasources", () => {
   it("only shows the datasources shared with the user", async () => {
-    const visible = (granted: string[]): Promise<string[]> =>
-      asUser({ id: alice, permissions: granted }, async (trx) => {
+    const visible = (granted: string[]): Promise<string[]> => {
+      return asUser({ id: alice, permissions: granted }, async (trx) => {
         const rows = await trx.selectFrom("datasourcesSources").select(["name"]).orderBy("name").execute();
         return rows.map((row) => row.name);
       });
+    };
 
     expect(await visible(["datasources_source:read:own", "datasources_source:list:own"])).toEqual(["sales"]);
     expect(await visible(["datasources_source:list:all"])).toEqual(["legacy", "sales"]);
@@ -90,9 +91,9 @@ describe("datasources", () => {
 
     // Same filter for the resources that can be assigned to the callers of the tools
     const permissions = ["datasources_source:read:own", "datasources_source:use:own"];
-    const assignable = await asUser({ id: alice, permissions }, (trx) =>
-      listResources(trx, datasourcesToolProvider.resource, { limit: 10 }),
-    );
+    const assignable = await asUser({ id: alice, permissions }, (trx) => {
+      return listResources(trx, datasourcesToolProvider.resource, { limit: 10 });
+    });
     expect(assignable).toEqual([{ id: salesId, name: "sales" }]);
   });
 

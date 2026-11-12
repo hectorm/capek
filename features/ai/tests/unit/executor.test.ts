@@ -18,8 +18,8 @@ vi.mock("#layers/core/server/lib/tools", () => {
     name: "notes",
     feature: "notes",
     label: "notes.tools.label",
-    load: () =>
-      Promise.resolve({
+    load: () => {
+      return Promise.resolve({
         tools: [
           {
             name: "notes_read",
@@ -51,7 +51,8 @@ vi.mock("#layers/core/server/lib/tools", () => {
             },
           },
         ],
-      }),
+      });
+    },
   };
   return { getToolProviders: () => [provider] };
 });
@@ -434,12 +435,13 @@ describe("agent executor", () => {
 
   it("frees the sessions of the executions that stopped reporting activity", async () => {
     const sessionId = await createSession(agentId);
-    const execution = (lastActivityAt: Date) =>
-      db
+    const execution = (lastActivityAt: Date) => {
+      return db
         .insertInto("aiAgentExecutions")
         .values({ sessionId, agentId, userId: alice, status: "running", startedAt: lastActivityAt, lastActivityAt })
         .returning(["id"])
         .executeTakeFirstOrThrow();
+    };
 
     const alive = await execution(new Date());
     expect(await AgentExecutor.failAbandonedExecutions(db, sessionId)).toBe(0);

@@ -171,8 +171,9 @@ export default defineTask({
 
         logger.info("Starting resource seeding from configuration");
 
-        const sectionOf = (name: string): Record<string, unknown> =>
-          (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
+        const sectionOf = (name: string): Record<string, unknown> => {
+          return (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
+        };
 
         await db.transaction().execute(async (trx) => {
           const deferred: (() => Promise<void>)[] = [];

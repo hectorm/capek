@@ -17,14 +17,14 @@ import { CorePermissions } from "#layers/core/shared/rbac";
 const config = useRuntimeConfig();
 
 // Users with the names of their groups and roles
-const selectUsers = (db: Kysely<Database>) =>
-  db.selectFrom("users").select([
+const selectUsers = (db: Kysely<Database>) => {
+  return db.selectFrom("users").select([
     "users.id",
     "users.username",
     "users.fullname",
     "users.email",
-    (eb) =>
-      eb
+    (eb) => {
+      return eb
         .selectFrom("userGroups")
         .innerJoin("groups", "groups.id", "userGroups.groupId")
         .select(
@@ -33,17 +33,20 @@ const selectUsers = (db: Kysely<Database>) =>
           ),
         )
         .whereRef("userGroups.userId", "=", "users.id")
-        .as("groups"),
-    (eb) =>
-      eb
+        .as("groups");
+    },
+    (eb) => {
+      return eb
         .selectFrom("userRoles")
         .innerJoin("roles", "roles.id", "userRoles.roleId")
         .select(
           sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
         )
         .whereRef("userRoles.userId", "=", "users.id")
-        .as("roles"),
+        .as("roles");
+    },
   ]);
+};
 
 // The names are typed as nullable, although their aggregation always gives a list
 const withNames = <U extends { groups: string[] | null; roles: string[] | null }>(user: U) => ({
@@ -117,25 +120,25 @@ export const userRouter = createTRPCRouter({
           const searchList = Array.isArray(search) ? search : [search];
 
           if (searchBy === "roles") {
-            query = query.where((eb) =>
-              eb.exists(
+            query = query.where((eb) => {
+              return eb.exists(
                 eb
                   .selectFrom("userRoles")
                   .innerJoin("roles", "roles.id", "userRoles.roleId")
                   .whereRef("userRoles.userId", "=", "users.id")
                   .where((eb2) => eb2.or(searchList.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
-              ),
-            );
+              );
+            });
           } else if (searchBy === "groups") {
-            query = query.where((eb) =>
-              eb.exists(
+            query = query.where((eb) => {
+              return eb.exists(
                 eb
                   .selectFrom("userGroups")
                   .innerJoin("groups", "groups.id", "userGroups.groupId")
                   .whereRef("userGroups.userId", "=", "users.id")
                   .where((eb2) => eb2.or(searchList.map((v) => eb2("groups.name", "ilike", `%${v}%`)))),
-              ),
-            );
+              );
+            });
           } else {
             query = query.where((eb) => eb.or(searchList.map((v) => eb(`users.${searchBy}`, "ilike", `%${v}%`))));
           }
@@ -185,12 +188,12 @@ export const userRouter = createTRPCRouter({
                 trx
                   .insertInto("userRoles")
                   .columns(["userId", "roleId"])
-                  .expression((eb) =>
-                    eb
+                  .expression((eb) => {
+                    return eb
                       .selectFrom("roles")
                       .select([eb.val(insertedUser.id).as("userId"), "roles.id as roleId"])
-                      .where("roles.name", "in", roles),
-                  )
+                      .where("roles.name", "in", roles);
+                  })
                   .execute(),
               );
             }
@@ -200,12 +203,12 @@ export const userRouter = createTRPCRouter({
                 trx
                   .insertInto("userGroups")
                   .columns(["userId", "groupId"])
-                  .expression((eb) =>
-                    eb
+                  .expression((eb) => {
+                    return eb
                       .selectFrom("groups")
                       .select([eb.val(insertedUser.id).as("userId"), "groups.id as groupId"])
-                      .where("groups.name", "in", groups),
-                  )
+                      .where("groups.name", "in", groups);
+                  })
                   .execute(),
               );
             }

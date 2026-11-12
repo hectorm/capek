@@ -358,13 +358,13 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     await Promise.all([
       $trpc.ai.agent.syncMcpServers.mutate({ agentId, mcpServerIds: event.data.mcpServers }),
       $trpc.ai.agent.syncSkills.mutate({ agentId, skillIds: event.data.skills }),
-      ...assignableToolProviders.map((provider) =>
-        $trpc.ai.agent.syncToolResources.mutate({
+      ...assignableToolProviders.map((provider) => {
+        return $trpc.ai.agent.syncToolResources.mutate({
           agentId,
           provider: provider.name,
           resourceIds: toolResources[provider.name] ?? [],
-        }),
-      ),
+        });
+      }),
       $trpc.ai.agent.syncSpecialists.mutate({ triageAgentId: agentId, specialistIds: event.data.specialists }),
       $trpc.ai.agent.syncAccess.mutate({ agentId, access }),
     ]);

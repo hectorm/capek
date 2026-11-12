@@ -30,8 +30,9 @@ const enabledFeatures =
     ? availableFeatures.filter((name) => name === "core" || requestedFeatures.includes(name))
     : availableFeatures;
 
-const featurePaths = (...paths: string[]): string[] =>
-  enabledFeatures.flatMap((name) => paths.map((path) => `../features/${name}/${path}`));
+const featurePaths = (...paths: string[]): string[] => {
+  return enabledFeatures.flatMap((name) => paths.map((path) => `../features/${name}/${path}`));
+};
 
 export default defineNuxtConfig({
   extends: enabledFeatures.map((name) => `./features/${name}`),

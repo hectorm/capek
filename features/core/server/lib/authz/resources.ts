@@ -157,11 +157,11 @@ export const revokeResourceAccess = async (
     DELETE FROM ${sql.table(resource.accessTable)}
     WHERE ${sql.ref(resource.foreignKey)} = ${resourceId}
     AND (${sql.join(
-      access.map((a) =>
-        a.type === "user"
+      access.map((a) => {
+        return a.type === "user"
           ? sql`(user_id = ${a.id} AND role = ${a.role})`
-          : sql`(group_id = ${a.id} AND role = ${a.role})`,
-      ),
+          : sql`(group_id = ${a.id} AND role = ${a.role})`;
+      }),
       sql` OR `,
     )})
   `.execute(db);
@@ -184,11 +184,11 @@ export const syncResourceAccess = async (
     WHERE ${sql.ref(resource.foreignKey)} = ${resourceId}
   `.execute(db);
 
-  const current = result.rows.map((c): PrincipalAccess =>
-    c.userId !== null
+  const current = result.rows.map((c): PrincipalAccess => {
+    return c.userId !== null
       ? { id: c.userId, type: "user", role: c.role }
-      : { id: c.groupId ?? "", type: "group", role: c.role },
-  );
+      : { id: c.groupId ?? "", type: "group", role: c.role };
+  });
 
   const currentKeys = new Set(current.map(accessKey));
   const targetKeys = new Set(access.map(accessKey));

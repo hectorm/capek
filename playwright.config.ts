@@ -25,10 +25,9 @@ const integrationDirs = selection.enabled
 const setups = await Promise.all(
   integrationDirs
     .filter((dir) => existsSync(join(dir, "setup.ts")))
-    .map(
-      async (dir) =>
-        ((await import(pathToFileURL(join(dir, "setup.ts")).href)) as { default: IntegrationSetup }).default,
-    ),
+    .map(async (dir) => {
+      return ((await import(pathToFileURL(join(dir, "setup.ts")).href)) as { default: IntegrationSetup }).default;
+    }),
 );
 
 // Seed data of different layers is merged, concatenating the lists under the same key
@@ -44,8 +43,9 @@ const mergeSeed = (target: Record<string, unknown>, source: Record<string, unkno
   }
   return target;
 };
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
 const seed = setups.reduce<Record<string, unknown>>((merged, setup) => mergeSeed(merged, setup.seed ?? {}), {});
 
 export default defineConfig({
