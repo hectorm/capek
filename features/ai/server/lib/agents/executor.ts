@@ -23,7 +23,7 @@ import {
   buildToolsetsPrompt,
   buildTriagePrompt,
 } from "#layers/ai/server/lib/agents/prompts";
-import { createVFS } from "#layers/ai/server/lib/code/generators";
+import { createVFS, uniqueIds } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
 import {
@@ -107,6 +107,8 @@ interface ExecutionOutcome {
   status: "completed" | "failed" | "cancelled";
   errorMessage?: string;
 }
+
+const TOOL_NAME_MAX_LENGTH = 64;
 
 const CODE_MAX_MEMORY_BYTES = 25 * 1024 * 1024;
 const CODE_MAX_WORKSPACE_BYTES = 10 * 1024 * 1024;
@@ -380,7 +382,11 @@ export class AgentExecutor {
         toolset.tools.map((tool) => ({ tool, toolProvider: toolset.provider })),
       );
 
-      tools = [...mcpTools, ...skillTools, ...featureTools];
+      const toolName = uniqueIds(TOOL_NAME_MAX_LENGTH);
+      tools = [...featureTools, ...skillTools, ...mcpTools].map((agentTool) => ({
+        ...agentTool,
+        tool: { ...agentTool.tool, name: toolName(agentTool.tool.name) },
+      }));
 
       if (executableSkills.length > 0) {
         systemInstructions = [systemInstructions, "", buildSkillToolsPrompt()].join("\n");
@@ -516,8 +522,7 @@ export class AgentExecutor {
     signal?: AbortSignal,
   ): AsyncGenerator<Uint8Array> {
     const toolName = functionCall.name;
-    // A skill or a tool of the application comes before the tool of an MCP server with its name
-    const agentTool = tools.findLast((candidate) => candidate.tool.name === toolName);
+    const agentTool = tools.find((candidate) => candidate.tool.name === toolName);
 
     if (!agentTool) {
       const errorMessage = `Tool "${toolName}" not found`;

@@ -161,13 +161,14 @@ function sanitizeId(name: string): string {
   return id;
 }
 
-function uniqueIds(): (name: string) => string {
+export function uniqueIds(maxLength = Infinity): (name: string) => string {
   const used = new Set<string>();
   return (name) => {
     const base = sanitizeId(name);
-    let id = base;
+    let id = base.slice(0, maxLength);
     for (let i = 2; used.has(id); i++) {
-      id = `${base}_${String(i)}`;
+      const suffix = `_${String(i)}`;
+      id = `${base.slice(0, maxLength - suffix.length)}${suffix}`;
     }
     used.add(id);
     return id;
