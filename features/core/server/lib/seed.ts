@@ -26,6 +26,8 @@ export interface SeedContext {
   features: readonly ServerFeature[];
   // Grants the access described in the seed configuration to a shared resource
   grantAccess: (resource: SharedResource, resourceId: string, access: SeedAccess) => Promise<void>;
+  // Runs a function once all features have seeded their resources
+  defer: (fn: () => Promise<void>) => void;
 }
 
 export interface SeedDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
@@ -33,8 +35,6 @@ export interface SeedDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
   schema: S;
   // Seeds the feature resources, it must be idempotent
   run(config: z.output<z.ZodObject<S>>, ctx: SeedContext): Promise<void>;
-  // Runs once all features have seeded their resources, to reference the ones of other features. It must be idempotent
-  link?(config: z.output<z.ZodObject<S>>, ctx: SeedContext): Promise<void>;
 }
 
 export const defineSeed = <S extends z.ZodRawShape>(seed: SeedDefinition<S>): SeedDefinition<S> => seed;
@@ -43,6 +43,7 @@ export const createSeedContext = (
   db: Kysely<Database>,
   logger: Logger,
   features: readonly ServerFeature[],
+  defer: SeedContext["defer"],
 ): SeedContext => {
   // Resolves the principals with a single query, the returned lookup throws for missing ones
   const resolveMany = async (
@@ -91,5 +92,5 @@ export const createSeedContext = (
     }
   };
 
-  return { db, logger, features, grantAccess };
+  return { db, logger, features, grantAccess, defer };
 };

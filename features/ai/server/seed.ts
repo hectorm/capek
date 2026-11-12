@@ -75,7 +75,7 @@ export const aiSeed = defineSeed({
     skills: z.array(seedSkillSchema).max(1000).default([]),
     agents: z.array(seedAgentSchema).max(1000).default([]),
   },
-  async run(config, { db, logger, grantAccess }) {
+  async run(config, { db, logger, features, grantAccess, defer }) {
     // Seed LLM providers (idempotent by name)
     const llmProviderIds = new Map<string, string>();
     for (const llmProviderConfig of config.llmProviders) {
@@ -180,6 +180,7 @@ export const aiSeed = defineSeed({
 
     // Seed agents (idempotent by name)
     const agentIds = new Map<string, string>();
+    const providers = collectToolProviders(features);
     for (const agentConfig of config.agents) {
       const existing = await db
         .selectFrom("aiAgents")
@@ -237,8 +238,7 @@ export const aiSeed = defineSeed({
       for (const mcpName of agentConfig.mcpServers) {
         const mcpServerId = mcpServerIds.get(mcpName);
         if (!mcpServerId) {
-          logger.warn(`MCP server "${mcpName}" not found for agent "${agentConfig.name}"`);
-          continue;
+          throw new Error(`MCP server "${mcpName}" not found for agent "${agentConfig.name}"`);
         }
         await db
           .insertInto("aiAgentMcpServers")
@@ -252,8 +252,7 @@ export const aiSeed = defineSeed({
       for (const skillName of agentConfig.skills) {
         const skillId = skillIds.get(skillName);
         if (!skillId) {
-          logger.warn(`Skill "${skillName}" not found for agent "${agentConfig.name}"`);
-          continue;
+          throw new Error(`Skill "${skillName}" not found for agent "${agentConfig.name}"`);
         }
         await db
           .insertInto("aiAgentSkills")
@@ -264,99 +263,71 @@ export const aiSeed = defineSeed({
       }
 
       await grantAccess(AgentResource, agent.id, agentConfig.access);
-    }
 
-    // Assign specialists to triage agents
-    for (const agentConfig of config.agents) {
-      if (agentConfig.type !== "triage" || agentConfig.specialists.length === 0) {
-        continue;
+      // Assign specialists to triage agents
+      if (agentConfig.type === "triage") {
+        defer(async () => {
+          for (const specialistName of agentConfig.specialists) {
+            const specialistId = agentIds.get(specialistName);
+            if (!specialistId) {
+              throw new Error(`Specialist agent "${specialistName}" not found for triage "${agentConfig.name}"`);
+            }
+            await db
+              .insertInto("aiTriageSpecialists")
+              .values({ triageAgentId: agent.id, specialistAgentId: specialistId })
+              .onConflict((oc) => oc.doNothing())
+              .execute();
+            logger.info(`Assigned specialist "${specialistName}" to triage "${agentConfig.name}"`);
+          }
+        });
       }
 
-      const triageId = agentIds.get(agentConfig.name);
-      if (!triageId) {
-        continue; // Already existed, skip
-      }
+      // Give the tools of other features to the agents
+      defer(async () => {
+        for (const [providerName, resourceNames] of Object.entries(agentConfig.tools)) {
+          const provider = providers.find((candidate) => candidate.name === providerName);
+          if (!provider) {
+            throw new Error(`Tool provider "${providerName}" not found for agent "${agentConfig.name}"`);
+          }
 
-      for (const specialistName of agentConfig.specialists) {
-        const specialistId = agentIds.get(specialistName);
-        if (!specialistId) {
-          logger.warn(
-            `Specialist agent "${specialistName}" not found, skipping assignment to triage "${agentConfig.name}"`,
-          );
-          continue;
-        }
-
-        await db
-          .insertInto("aiTriageSpecialists")
-          .values({ triageAgentId: triageId, specialistAgentId: specialistId })
-          .onConflict((oc) => oc.doNothing())
-          .execute();
-        logger.info(`Assigned specialist "${specialistName}" to triage "${agentConfig.name}"`);
-      }
-    }
-  },
-  async link(config, { db, logger, features }) {
-    const providers = collectToolProviders(features);
-
-    // Give the tools of other features to the agents
-    for (const agentConfig of config.agents) {
-      const entries = Object.entries(agentConfig.tools);
-      if (entries.length === 0) {
-        continue;
-      }
-
-      const agent = await db
-        .selectFrom("aiAgents")
-        .where("name", "=", agentConfig.name)
-        .select("id")
-        .executeTakeFirst();
-      if (!agent) {
-        continue;
-      }
-
-      for (const [providerName, resourceNames] of entries) {
-        const provider = providers.find((candidate) => candidate.name === providerName);
-        if (!provider) {
-          logger.warn(`Tool provider "${providerName}" not found for agent "${agentConfig.name}"`);
-          continue;
-        }
-
-        if (resourceNames === true) {
-          if (hasToolResources(provider)) {
-            logger.warn(
-              `Tool provider "${providerName}" of agent "${agentConfig.name}" needs the names of its resources`,
+          if (resourceNames === true) {
+            if (hasToolResources(provider)) {
+              throw new Error(
+                `Tool provider "${providerName}" of agent "${agentConfig.name}" needs the names of its resources`,
+              );
+            }
+            await db
+              .updateTable("aiAgents")
+              .set({ toolProviders: sql<string[]>`array_append(tool_providers, ${providerName}::VARCHAR)` })
+              .where("id", "=", agent.id)
+              .where(sql<boolean>`NOT (${providerName} = ANY(tool_providers))`)
+              .execute();
+            logger.info(`Switched on "${providerName}" for agent "${agentConfig.name}"`);
+            continue;
+          }
+          if (!hasToolResources(provider)) {
+            throw new Error(
+              `Tool provider "${providerName}" of agent "${agentConfig.name}" has no resources to assign`,
             );
-            continue;
           }
-          await db
-            .updateTable("aiAgents")
-            .set({ toolProviders: sql<string[]>`array_append(tool_providers, ${providerName}::VARCHAR)` })
-            .where("id", "=", agent.id)
-            .where(sql<boolean>`NOT (${providerName} = ANY(tool_providers))`)
-            .execute();
-          logger.info(`Switched on "${providerName}" for agent "${agentConfig.name}"`);
-          continue;
-        }
-        if (!hasToolResources(provider)) {
-          logger.warn(`Tool provider "${providerName}" of agent "${agentConfig.name}" has no resources to assign`);
-          continue;
-        }
 
-        const resources = await listResources(db, provider.resource, { names: resourceNames });
-        for (const resourceName of resourceNames) {
-          const resource = resources.find((candidate) => candidate.name === resourceName);
-          if (!resource) {
-            logger.warn(`Resource "${resourceName}" of "${providerName}" not found for agent "${agentConfig.name}"`);
-            continue;
+          const resources = await listResources(db, provider.resource, { names: resourceNames });
+          for (const resourceName of resourceNames) {
+            const resource = resources.find((candidate) => candidate.name === resourceName);
+            if (!resource) {
+              throw new Error(
+                `Resource "${resourceName}" of "${providerName}" not found for agent "${agentConfig.name}"`,
+              );
+            }
+            await db
+              .insertInto("aiAgentToolResources")
+              .values({ agentId: agent.id, resourceType: provider.resource.type, resourceId: resource.id })
+              .onConflict((oc) => oc.doNothing())
+              .execute();
+            logger.info(`Assigned "${resourceName}" of "${providerName}" to agent "${agentConfig.name}"`);
           }
-          await db
-            .insertInto("aiAgentToolResources")
-            .values({ agentId: agent.id, resourceType: provider.resource.type, resourceId: resource.id })
-            .onConflict((oc) => oc.doNothing())
-            .execute();
-          logger.info(`Assigned "${resourceName}" of "${providerName}" to agent "${agentConfig.name}"`);
         }
-      }
+      });
     }
   },
 });

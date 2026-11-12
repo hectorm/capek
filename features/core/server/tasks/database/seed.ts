@@ -174,22 +174,16 @@ export default defineTask({
         const sectionOf = (name: string): Record<string, unknown> =>
           (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
 
-        for (const { name, seed } of features) {
-          if (seed) {
-            await db
-              .transaction()
-              .execute((trx) => seed.run(sectionOf(name), createSeedContext(trx, logger, features)));
+        await db.transaction().execute(async (trx) => {
+          const deferred: (() => Promise<void>)[] = [];
+          const ctx = createSeedContext(trx, logger, features, (fn) => deferred.push(fn));
+          for (const { name, seed } of features) {
+            await seed?.run(sectionOf(name), ctx);
           }
-        }
-
-        // References between features are seeded once the resources of all of them exist
-        for (const { name, seed } of features) {
-          if (seed?.link) {
-            await db.transaction().execute(async (trx) => {
-              await seed.link?.(sectionOf(name), createSeedContext(trx, logger, features));
-            });
+          for (const fn of deferred) {
+            await fn();
           }
-        }
+        });
 
         logger.info("Resource seeding completed successfully");
       }

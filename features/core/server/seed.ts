@@ -33,7 +33,6 @@ export const coreSeed = defineSeed({
 
       if (existing) {
         logger.info(`User "${userConfig.username}" already exists, skipping`);
-        userIds.set(userConfig.username, existing.id);
       } else {
         const user = await db
           .insertInto("users")
@@ -52,8 +51,7 @@ export const coreSeed = defineSeed({
         for (const roleName of userConfig.roles) {
           const role = await db.selectFrom("roles").where("name", "=", roleName).select("id").executeTakeFirst();
           if (!role) {
-            logger.warn(`Role "${roleName}" not found, skipping assignment`);
-            continue;
+            throw new Error(`Role "${roleName}" not found for user "${userConfig.username}"`);
           }
 
           await db
@@ -95,8 +93,7 @@ export const coreSeed = defineSeed({
         for (const roleName of groupConfig.roles) {
           const role = await db.selectFrom("roles").where("name", "=", roleName).select("id").executeTakeFirst();
           if (!role) {
-            logger.warn(`Role "${roleName}" not found, skipping assignment`);
-            continue;
+            throw new Error(`Role "${roleName}" not found for group "${groupConfig.name}"`);
           }
 
           await db
@@ -122,8 +119,7 @@ export const coreSeed = defineSeed({
           // Try to find group in database (might have been created in previous run)
           const group = await db.selectFrom("groups").where("name", "=", groupname).select("id").executeTakeFirst();
           if (!group) {
-            logger.warn(`Group "${groupname}" not found, skipping membership for user "${userConfig.username}"`);
-            continue;
+            throw new Error(`Group "${groupname}" not found for user "${userConfig.username}"`);
           }
           groupIds.set(groupname, group.id);
         }
