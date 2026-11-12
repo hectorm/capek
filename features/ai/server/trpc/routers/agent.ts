@@ -537,27 +537,28 @@ export const agentRouter = createTRPCRouter({
             return;
           }
 
-          if (input.specialistIds.length > 0) {
+          const current = await trx
+            .selectFrom("aiTriageSpecialists")
+            .select(["specialistAgentId"])
+            .where("triageAgentId", "=", input.triageAgentId)
+            .execute();
+
+          const newIds = input.specialistIds.filter((id) => !current.some((c) => c.specialistAgentId === id));
+          if (newIds.length > 0) {
             const validCount = await trx
               .selectFrom("aiAgents")
               .select((eb) => eb.fn.countAll().as("count"))
-              .where("id", "in", input.specialistIds)
+              .where("id", "in", newIds)
               .where("type", "=", "specialist")
               .executeTakeFirstOrThrow();
 
-            if (Number(validCount.count) !== input.specialistIds.length) {
+            if (Number(validCount.count) !== newIds.length) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
                 message: "Some agents are not specialist type or do not exist",
               });
             }
           }
-
-          const current = await trx
-            .selectFrom("aiTriageSpecialists")
-            .select(["specialistAgentId"])
-            .where("triageAgentId", "=", input.triageAgentId)
-            .execute();
 
           let added = 0;
           let removed = 0;
