@@ -8,6 +8,8 @@ import type {
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/mariadb";
 
+const URL_OPTIONS = new Set(["ssl", "allowPublicKeyRetrieval", "compress", "charset", "collation", "timezone"]);
+
 export class MariaDBDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
 
@@ -19,6 +21,10 @@ export class MariaDBDriver implements DatasourceDriver {
     const config = MariaDBDatasourceType.configSchema.parse(params.config);
 
     const url = new URL(config.connectionString);
+    const unsupported = [...url.searchParams.keys()].find((name) => !URL_OPTIONS.has(name));
+    if (unsupported) {
+      throw new Error(`The option "${unsupported}" of the connection string is not supported`);
+    }
     if (url.protocol === "mysql:") {
       url.protocol = "mariadb:";
     }
