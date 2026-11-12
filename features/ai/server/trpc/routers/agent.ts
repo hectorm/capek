@@ -457,6 +457,23 @@ export const agentRouter = createTRPCRouter({
             ),
           );
 
+        if (!canAny(ctx.user, [AiPermissions.AgentUseAll])) {
+          query = query.where((eb) =>
+            eb.exists(
+              eb
+                .selectFrom("aiAgentAccess")
+                .select("aiAgentAccess.id")
+                .whereRef("aiAgentAccess.agentId", "=", "aiAgents.id")
+                .where((eb2) =>
+                  eb2.or([
+                    eb2("aiAgentAccess.userId", "=", ctx.user.id),
+                    ...(ctx.user.groups.length > 0 ? [eb2("aiAgentAccess.groupId", "in", ctx.user.groups)] : []),
+                  ]),
+                ),
+            ),
+          );
+        }
+
         if (input.id) {
           query = query.where("aiAgents.id", "=", input.id);
         } else if (input.search) {
