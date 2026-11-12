@@ -380,6 +380,7 @@ export const sharedResourcePolicies = (
           -- Let creators see the rows that they are creating, so they can insert their initial self-access rows
           OR (
             ${canAny("create")}
+            AND pg_current_xact_id_if_assigned() IS NOT NULL
             AND ${table}.xmin = pg_current_xact_id_if_assigned()::xid
             AND NOT security.has_other_access('${type}', ${table}.id)
           )
