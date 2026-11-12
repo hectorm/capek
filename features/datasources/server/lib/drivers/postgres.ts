@@ -15,6 +15,16 @@ const URL_OPTIONS = new Set(["ssl", "sslmode", "application_name", "options"]);
 
 const SYNTAX_ERROR = "42601";
 
+const DATE_TYPES: ReadonlySet<unknown> = new Set([
+  pg.types.builtins.DATE,
+  pg.types.builtins.TIMESTAMP,
+  pg.types.builtins.TIMESTAMPTZ,
+]);
+const types: pg.CustomTypesConfig = {
+  getTypeParser: (oid, format) =>
+    DATE_TYPES.has(oid) ? (value: string) => value : (pg.types.getTypeParser(oid, format) as unknown),
+};
+
 export class PostgresDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
 
@@ -26,7 +36,11 @@ export class PostgresDriver implements DatasourceDriver {
     const config = PostgresDatasourceType.configSchema.parse(params.config);
 
     const url = connectionUrl(config, URL_OPTIONS);
-    const clientConfig = { connectionString: url.toString(), connectionTimeoutMillis: settings.requestTimeoutMs };
+    const clientConfig = {
+      connectionString: url.toString(),
+      connectionTimeoutMillis: settings.requestTimeoutMs,
+      types,
+    };
     const client = new pg.Client(clientConfig);
 
     let pid: number | undefined;

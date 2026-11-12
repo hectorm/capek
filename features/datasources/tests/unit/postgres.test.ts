@@ -66,6 +66,15 @@ describe("postgres datasource", () => {
     expect(await run("SELECT id FROM orders ORDER BY id; -- every order")).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
+  it("keeps the columns with a repeated name or without one, and the dates as they are", async () => {
+    const rows = await driver.execute(
+      { config: config() },
+      "SELECT 1 AS id, 2 AS id, 3, DATE '2024-01-01' AS day, TIMESTAMP '2024-01-01 10:00' AS at",
+      settings,
+    );
+    expect(rows).toEqual([{ id: 1, column2: 2, "?column?": 3, day: "2024-01-01", at: "2024-01-01 10:00:00" }]);
+  });
+
   it("runs the statements that are not queries and reports the errors of the wrong ones", async () => {
     const run = (sql: string): Promise<unknown[]> => driver.execute({ config: config() }, sql, settings);
 
