@@ -66,6 +66,12 @@ describe("oidc user profile", () => {
     expect(profile).toMatchObject({ roles: ["admin"], groups: [] });
   });
 
+  it("takes the claims missing from the ID token from the UserInfo endpoint", async () => {
+    answerUserInfo(claims({}));
+    const profile = await oidc.getUserProfile(claims({ email: undefined }), "token");
+    expect(profile?.email).toBe("alice@example.com");
+  });
+
   it("rejects the users whose email is not verified", async () => {
     const unverified = claims({ email_verified: false });
     answerUserInfo(unverified);
