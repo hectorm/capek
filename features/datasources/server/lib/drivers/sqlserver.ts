@@ -1,3 +1,4 @@
+import type { TokenCredential } from "@azure/identity";
 import type { ConnectionAuthentication, ConnectionOptions } from "tedious";
 import { DefaultAzureCredential } from "@azure/identity";
 import { parse } from "@tediousjs/connection-string";
@@ -21,6 +22,28 @@ interface ParseTarget {
 }
 
 type SqlServerConfig = ReturnType<typeof SqlServerDatasourceType.configSchema.parse>;
+
+const DATABASE_TOKEN_SCOPES = new Set([
+  "https://database.windows.net/.default",
+  "https://database.usgovcloudapi.net/.default",
+  "https://database.chinacloudapi.cn/.default",
+  "https://database.cloudapi.de/.default",
+]);
+
+const databaseCredential = (clientId: string): TokenCredential => {
+  const credential = new DefaultAzureCredential(clientId ? { managedIdentityClientId: clientId } : undefined);
+  return {
+    getToken: (scopes, options) => {
+      const requested = [scopes].flat();
+      if (!requested.every((scope) => DATABASE_TOKEN_SCOPES.has(scope))) {
+        return Promise.reject(
+          new Error(`The server asked for a token for "${requested.join(", ")}", which is not a database`),
+        );
+      }
+      return credential.getToken(scopes, options);
+    },
+  };
+};
 
 export class SqlServerDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
@@ -119,9 +142,7 @@ export class SqlServerDriver implements DatasourceDriver {
         return {
           type: "token-credential",
           options: {
-            credential: new DefaultAzureCredential(
-              config.azureClientId ? { managedIdentityClientId: config.azureClientId } : undefined,
-            ),
+            credential: databaseCredential(config.azureClientId),
           },
         };
       case "none":
