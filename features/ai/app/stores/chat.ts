@@ -215,9 +215,14 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const fetchMessages = async (sessionId: string): Promise<void> => {
     isLoadingMessages.value = true;
+    const stream = activeStreams.value.get(sessionId);
 
     try {
       const result = await $trpc.ai.chatMessage.list.query({ sessionId });
+      const currentStream = activeStreams.value.get(sessionId);
+      if (currentStream && currentStream !== stream) {
+        return;
+      }
       messages.value.set(sessionId, result.messages);
       messagesNextCursors.value.set(sessionId, result.nextCursor);
       triggerRef(messages);
