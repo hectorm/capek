@@ -74,7 +74,7 @@ services:
       - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
     environment:
       NUXT_DATABASE_URL: "postgresql://capek:password@postgres:5432/capek"
-      NUXT_DATABASE_MAX_CONNECTIONS: "150"
+      NUXT_DATABASE_MAX_CONNECTIONS: "20"
       NUXT_AI_QUICK_CHATS: >-
         Give me a fun fact;
         What tools are available to you?;
