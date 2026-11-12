@@ -841,7 +841,7 @@ export class AgentExecutor {
           reasoning,
           result: serialize(result, agent.maxToolResponseChars),
           logs: serialize(logs, agent.maxToolResponseChars),
-          errorMessage,
+          errorMessage: errorMessage === null ? null : truncate(errorMessage, agent.maxToolResponseChars),
           executionMs,
         })
         .returning(["id"])

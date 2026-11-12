@@ -255,7 +255,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
         toolName,
         args: keepInLog(argsJson ?? "{}"),
         result: null,
-        error: message,
+        error: keepInLog(message),
         durationMs: Date.now() - callStart,
       });
       throw new Error(message);
@@ -290,7 +290,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
         toolName,
         args: keepInLog(argsJson ?? "{}"),
         result: null,
-        error: message,
+        error: keepInLog(message),
         durationMs: Date.now() - callStart,
       });
       throw new Error(message);
