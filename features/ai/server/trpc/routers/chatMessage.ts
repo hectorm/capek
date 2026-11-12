@@ -1,10 +1,12 @@
 import { TRPCError } from "@trpc/server";
+import { sql } from "kysely";
 import { z } from "zod/v4";
 
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmItem } from "#layers/ai/shared/llm";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { withUserTransaction } from "#layers/core/server/lib/database";
+import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 // Of the items of a message, only its text and what its tool calls say about themselves and show are for the user
@@ -29,19 +31,42 @@ export const chatMessageRouter = createTRPCRouter({
     .input(
       z.object({
         sessionId: z.uuid(),
+        limit: z.number().min(1).max(100).default(50),
+        cursor: PageCursorSchema.nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        const messages = await trx
-          .selectFrom("aiChatMessages")
-          .select(["id", "sessionId", "role", "content", "items", "createdAt", "updatedAt"])
-          .where("sessionId", "=", input.sessionId)
-          .orderBy("createdAt", "asc")
-          .execute();
+      const { sessionId, limit, cursor } = input;
 
-        ctx.logger.debug({ sessionId: input.sessionId }, "Chat messages retrieved");
-        return messages.map(({ items, ...message }) => ({ ...message, parts: toParts(message.content, items) }));
+      return withUserTransaction(ctx.user, async (trx) => {
+        const query = trx
+          .selectFrom("aiChatMessages")
+          .select([
+            "id",
+            "sessionId",
+            "role",
+            "content",
+            sql<LlmItem[]>`jsonb_path_query_array(items, '$[*] ? (@.type != "function_call_output")')`.as("items"),
+            "createdAt",
+            "updatedAt",
+          ])
+          .where("sessionId", "=", sessionId);
+
+        const { rows, nextCursor } = await paginate(query, {
+          table: "aiChatMessages",
+          orderBy: "createdAt",
+          order: "desc",
+          limit,
+          cursor,
+        });
+
+        ctx.logger.debug({ sessionId }, "Chat messages retrieved");
+        return {
+          messages: rows
+            .toReversed()
+            .map(({ items, ...message }) => ({ ...message, parts: toParts(message.content, items) })),
+          nextCursor,
+        };
       });
     }),
 

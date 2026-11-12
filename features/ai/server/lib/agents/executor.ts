@@ -11,6 +11,7 @@ import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { Database } from "#layers/core/shared/schema";
@@ -43,6 +44,7 @@ import { MCPToolSchema } from "#layers/ai/shared/mcp";
 import { OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { paginate } from "#layers/core/server/lib/database/pagination";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 
@@ -105,6 +107,9 @@ interface ExecutionOutcome {
 
 const CODE_MAX_MEMORY_BYTES = 25 * 1024 * 1024;
 const CODE_MAX_WORKSPACE_BYTES = 10 * 1024 * 1024;
+
+const CONTEXT_PAGE_SIZE = 50;
+const CONTEXT_MAX_MESSAGES = 2000;
 
 const EXECUTION_HEARTBEAT_MS = 30_000;
 const EXECUTION_STALE_MS = 4 * EXECUTION_HEARTBEAT_MS;
@@ -1050,33 +1055,47 @@ export class AgentExecutor {
 
   private async buildContext(agent: AgentConfig, options: { toolCalls: boolean }): Promise<LlmItem[]> {
     const db = await useDb();
-    const messages = await db
+    const query = db
       .selectFrom("aiChatMessages")
-      .select(["role", "content", "items"])
+      .select(["id", "role", "content", "items"])
       .where("sessionId", "=", this.config.sessionId)
-      .where("role", "in", ["user", "assistant", "system"])
-      .orderBy("createdAt", "desc")
-      .orderBy("id", "desc")
-      // Caps the context scan so a long session doesn't read its whole history each turn
-      .limit(2000)
-      .execute();
+      .where("role", "in", ["user", "assistant", "system"]);
 
     const result: LlmItem[][] = [];
 
     let totalChars = 0;
-    for (const m of messages) {
-      const parsed = z.array(LlmItemSchema).safeParse(m.items);
-      const message: LlmItem = { type: "message", role: m.role as "user" | "assistant" | "system", content: m.content };
-      let items = options.toolCalls && parsed.success && parsed.data.length > 0 ? parsed.data : [message];
-      // An answer whose tool calls do not fit is kept as what it said
-      if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
-        items = [message];
+    let cursor: PageCursor | undefined;
+    do {
+      const page = await paginate(query, {
+        table: "aiChatMessages",
+        orderBy: "createdAt",
+        order: "desc",
+        limit: CONTEXT_PAGE_SIZE,
+        cursor,
+      });
+
+      for (const m of page.rows) {
+        const parsed = z.array(LlmItemSchema).safeParse(m.items);
+        const message: LlmItem = {
+          type: "message",
+          role: m.role as "user" | "assistant" | "system",
+          content: m.content,
+        };
+        let items = options.toolCalls && parsed.success && parsed.data.length > 0 ? parsed.data : [message];
+        // An answer whose tool calls do not fit is kept as what it said
+        if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
+          items = [message];
+        }
+        // Always keep the newest message, even if it alone exceeds the budget
+        if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
+          return result.reverse().flat();
+        }
+        result.push(items);
+        totalChars += countChars(items);
       }
-      // Always keep the newest message, even if it alone exceeds the budget
-      if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) break;
-      result.push(items);
-      totalChars += countChars(items);
-    }
+
+      cursor = page.nextCursor;
+    } while (cursor && result.length < CONTEXT_MAX_MESSAGES);
 
     return result.reverse().flat();
   }

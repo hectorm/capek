@@ -7,7 +7,8 @@ import type { ChatSession } from "#layers/ai/shared/schema";
 import type { RouterOutputs } from "#layers/core/app/types/trpc";
 import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
 
-type ChatMessage = RouterOutputs["ai"]["chatMessage"]["list"][number];
+type ChatMessage = RouterOutputs["ai"]["chatMessage"]["list"]["messages"][number];
+type MessagesCursor = RouterOutputs["ai"]["chatMessage"]["list"]["nextCursor"];
 
 interface StreamState {
   controller: AbortController;
@@ -41,6 +42,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   const openedSession = ref<ChatSession | null>(null);
   const currentSessionId = ref<string | null>(null);
   const messages = shallowRef<Map<string, ChatMessage[]>>(new Map());
+  const messagesNextCursors = ref<Map<string, MessagesCursor>>(new Map());
   const activeStreams = ref<Map<string, StreamState>>(new Map());
   const isLoadingSessions = ref<boolean>(false);
   const isLoadingMessages = ref<boolean>(false);
@@ -186,6 +188,7 @@ export const useChatStore = defineStore("ai.chat", () => {
         openedSession.value = null;
       }
       messages.value.delete(sessionId);
+      messagesNextCursors.value.delete(sessionId);
       triggerRef(messages);
       if (currentSessionId.value === sessionId) {
         currentSessionId.value = null;
@@ -209,7 +212,9 @@ export const useChatStore = defineStore("ai.chat", () => {
     isLoadingMessages.value = true;
 
     try {
-      messages.value.set(sessionId, await $trpc.ai.chatMessage.list.query({ sessionId }));
+      const result = await $trpc.ai.chatMessage.list.query({ sessionId });
+      messages.value.set(sessionId, result.messages);
+      messagesNextCursors.value.set(sessionId, result.nextCursor);
       triggerRef(messages);
     } catch (error) {
       throw new Error("Failed to fetch messages", { cause: error });
@@ -217,6 +222,31 @@ export const useChatStore = defineStore("ai.chat", () => {
       isLoadingMessages.value = false;
     }
   };
+
+  const loadOlderMessages = async (sessionId: string): Promise<void> => {
+    const cursor = messagesNextCursors.value.get(sessionId);
+    if (!cursor || isLoadingMessages.value) {
+      return;
+    }
+
+    isLoadingMessages.value = true;
+
+    try {
+      const result = await $trpc.ai.chatMessage.list.query({ sessionId, cursor });
+      if (messagesNextCursors.value.get(sessionId) !== cursor) {
+        return;
+      }
+      messages.value.set(sessionId, [...result.messages, ...(messages.value.get(sessionId) ?? [])]);
+      messagesNextCursors.value.set(sessionId, result.nextCursor);
+      triggerRef(messages);
+    } catch (error) {
+      throw new Error("Failed to load older messages", { cause: error });
+    } finally {
+      isLoadingMessages.value = false;
+    }
+  };
+
+  const hasOlderMessages = (sessionId: string): boolean => messagesNextCursors.value.get(sessionId) != null;
 
   const sendMessage = async (sessionId: string, content: string): Promise<void> => {
     const controller = new AbortController();
@@ -479,6 +509,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     openedSession.value = null;
     currentSessionId.value = null;
     messages.value = new Map();
+    messagesNextCursors.value = new Map();
     activeStreams.value = new Map();
     isLoadingSessions.value = false;
     isLoadingMessages.value = false;
@@ -582,6 +613,8 @@ export const useChatStore = defineStore("ai.chat", () => {
     deleteSession,
     selectSession,
     fetchMessages,
+    loadOlderMessages,
+    hasOlderMessages,
     sendMessage,
     retryMessage,
     regenerateMessage,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { useInfiniteScroll } from "@vueuse/core";
 import { navigateTo, useSeoMeta } from "nuxt/app";
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
@@ -44,6 +45,8 @@ const chatRenameModal = overlay.create(LazyRenameModal);
 
 const input = ref<string>("");
 const promptRef = ref<InstanceType<typeof UChatPrompt>>();
+const messagesContainer = useTemplateRef<HTMLElement>("messagesContainer");
+const showsLastMessages = ref<boolean>(false);
 
 const copied = ref<boolean>(false);
 const copyTimeoutId = ref<ReturnType<typeof setTimeout>>();
@@ -159,8 +162,12 @@ const actionItems = computed(() => [
 ]);
 
 const loadSession = async () => {
+  showsLastMessages.value = false;
   try {
     await chatStore.selectSession(sessionId.value);
+    await nextTick();
+    messagesContainer.value?.scrollTo({ top: messagesContainer.value.scrollHeight });
+    showsLastMessages.value = true;
   } catch (error) {
     console.error("Failed to load chat session", error);
     toast.add({
@@ -311,6 +318,30 @@ const handleBeforeUnload = () => {
   chatStore.abortStream(sessionId.value);
 };
 
+useInfiniteScroll(
+  messagesContainer,
+  async () => {
+    const container = messagesContainer.value;
+    if (!container) return;
+
+    const offsetFromBottom = container.scrollHeight - container.scrollTop;
+    try {
+      await chatStore.loadOlderMessages(sessionId.value);
+    } catch (error) {
+      console.error("Failed to load older messages", error);
+      return;
+    }
+    await nextTick();
+    container.scrollTop = container.scrollHeight - offsetFromBottom;
+  },
+  {
+    direction: "top",
+    distance: 200,
+    canLoadMore: () =>
+      showsLastMessages.value && chatStore.hasOlderMessages(sessionId.value) && !chatStore.isLoadingMessages,
+  },
+);
+
 onMounted(async () => {
   await loadSession();
   window.addEventListener("beforeunload", handleBeforeUnload);
@@ -362,7 +393,7 @@ definePageMeta({
         />
       </UDropdownMenu>
     </header>
-    <main class="flex flex-1 flex-col overflow-auto px-4 pt-4">
+    <main ref="messagesContainer" class="flex flex-1 flex-col overflow-auto px-4 pt-4">
       <UChatMessages
         :user="userProps"
         class="pb-4 sm:pb-6"
