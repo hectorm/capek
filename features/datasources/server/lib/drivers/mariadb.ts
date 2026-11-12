@@ -12,6 +12,8 @@ import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/ma
 
 const URL_OPTIONS = new Set(["ssl", "allowPublicKeyRetrieval", "compress", "charset", "collation", "timezone"]);
 
+const STATEMENT_GRACE_MS = 1_000;
+
 export class MariaDBDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
 
@@ -46,11 +48,16 @@ export class MariaDBDriver implements DatasourceDriver {
     }
 
     let connection: mariadb.Connection | undefined;
+    let timeout: AbortSignal | undefined;
     const onAbort = (): void => connection?.destroy();
     try {
       settings.signal?.throwIfAborted();
       connection = await mariadb.createConnection(url.toString());
       settings.signal?.addEventListener("abort", onAbort, { once: true });
+      if (settings.statementTimeoutMs) {
+        timeout = AbortSignal.timeout(settings.statementTimeoutMs + STATEMENT_GRACE_MS);
+        timeout.addEventListener("abort", onAbort, { once: true });
+      }
       await connection.query("SET SESSION TRANSACTION READ ONLY");
       if (settings.statementTimeoutMs) {
         const isMariaDB = connection.serverVersion().includes("MariaDB");
@@ -88,6 +95,9 @@ export class MariaDBDriver implements DatasourceDriver {
       }
       return rows;
     } catch (error) {
+      if (timeout?.aborted) {
+        throw new Error("The query took longer than the time it is allowed to run");
+      }
       if ((error as { code?: string }).code === "ER_UNEXPECTED_PACKET" && settings.maxBytes) {
         throw new ResultTooLargeError(settings.maxBytes);
       }
@@ -98,6 +108,7 @@ export class MariaDBDriver implements DatasourceDriver {
       }
       throw error;
     } finally {
+      timeout?.removeEventListener("abort", onAbort);
       settings.signal?.removeEventListener("abort", onAbort);
       await connection?.end().catch(() => undefined);
     }
