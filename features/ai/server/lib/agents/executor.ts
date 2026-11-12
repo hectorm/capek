@@ -39,7 +39,7 @@ import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
-import { loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
+import { loadAgentToolsets, sanitize, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
@@ -134,8 +134,12 @@ const assertComplete = (incomplete: LlmIncompleteDetails | undefined): void => {
   }
 };
 
+const toJson = (value: unknown): string => {
+  return JSON.stringify(value, (_key, item: unknown) => (typeof item === "string" ? sanitize(item) : item));
+};
+
 const serialize = (value: unknown, maxChars: number): string => {
-  const json = superjson.stringify(value);
+  const json = toJson(superjson.serialize(value));
   return json.length > maxChars ? superjson.stringify(truncate(json, maxChars)) : json;
 };
 
@@ -1151,7 +1155,7 @@ export class AgentExecutor {
             sessionId: this.config.sessionId,
             role: "assistant",
             content,
-            items: JSON.stringify(items),
+            items: toJson(items),
           })
           .returning(["id"])
           .executeTakeFirstOrThrow();

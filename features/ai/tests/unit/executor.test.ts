@@ -41,6 +41,12 @@ vi.mock("#layers/core/server/lib/tools", () => {
             execute: () => Promise.resolve("3"),
           },
           {
+            name: "notes_scan",
+            description: "Scan a note",
+            parameters: { type: "object", properties: {} },
+            execute: () => Promise.resolve("Scanned \ud83d\0"),
+          },
+          {
             name: "notes_chart",
             description: "Chart the notes",
             parameters: { type: "object", properties: { points: { type: "number" } } },
@@ -475,5 +481,16 @@ describe("agent executor", () => {
       .where("toolName", "=", "notes_export")
       .executeTakeFirstOrThrow();
     expect(stored.result).toBe(sent);
+  });
+
+  it("keeps the answer whose tools return characters that cannot be stored", async () => {
+    const sessionId = await createSession(agentId);
+    const scanNotes = { id: "call-5", type: "function", function: { name: "notes_scan", arguments: "{}" } };
+
+    const requests = fakeModel([answer(null, [scanNotes]), answer("Scanned.")]);
+    await chat(sessionId, agentId, "Scan the note");
+
+    expect(requests[1]?.messages.at(-1)?.content).toBe("Scanned \uFFFD\uFFFD");
+    expect((await answers(sessionId)).map((message) => message.content)).toEqual(["Scanned."]);
   });
 });

@@ -61,12 +61,16 @@ export const loadAgentToolsets = async (
   });
 };
 
+// Text without the characters that the database rejects
+export const sanitize = (text: string): string => text.toWellFormed().replaceAll("\0", "\uFFFD");
+
 // Cuts the output of a tool that is too long for the model
 export const truncate = (text: string, maxChars: number): string => {
-  if (text.length <= maxChars) {
-    return text;
+  const output = sanitize(text);
+  if (output.length <= maxChars) {
+    return output;
   }
-  return `${text.slice(0, maxChars).toWellFormed()}\n\n[Response truncated: ${String(text.length)} characters, showing first ${String(maxChars)}]`;
+  return `${output.slice(0, maxChars).toWellFormed()}\n\n[Response truncated: ${String(output.length)} characters, showing first ${String(maxChars)}]`;
 };
 
 export const findAgentTool = (
