@@ -100,7 +100,7 @@ describe("code interpreter", () => {
 
   it("limits the size of the workspace", async () => {
     const vfs = createVFS([], []);
-    const limited = options({ vfs, maxWorkspaceBytes: 1_000 });
+    const limited = options({ vfs, maxWorkspaceBytes: 2_000 });
 
     const fits = await executeCode(`fs.writeFileSync("/workspace/a.txt", "x".repeat(600));`, limited);
     expect(fits.error).toBeNull();
@@ -116,6 +116,10 @@ describe("code interpreter", () => {
     );
     expect(replaced.error).toBeNull();
     expect(vfs.readFile("/workspace/b.txt")).toHaveLength(900);
+
+    // Files also take space for their names, even when they are empty
+    const empty = await executeCode(`for (let i = 0; i < 10; i++) fs.writeFileSync("/workspace/" + i, "");`, limited);
+    expect(empty.error).toContain("ENOSPC");
   });
 
   it("counts the size of the files in bytes", async () => {

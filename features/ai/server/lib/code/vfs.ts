@@ -20,6 +20,11 @@ export interface VFSSnapshot {
 
 export const WORKSPACE_DIR = "/workspace";
 
+const FILE_OVERHEAD_BYTES = 512;
+
+const fileBytes = (path: string, content: string): number =>
+  Buffer.byteLength(path) + Buffer.byteLength(content) + FILE_OVERHEAD_BYTES;
+
 export interface VFSOptions {
   maxWorkspaceBytes?: number;
 }
@@ -48,6 +53,25 @@ export class VirtualFileSystem {
 
   private static inWorkspace(normalized: string): boolean {
     return normalized.startsWith(`${WORKSPACE_DIR}/`);
+  }
+
+  private static workspaceBytesOf(node: VFSNode, path: string): number {
+    if (VirtualFileSystem.isFile(node)) {
+      return VirtualFileSystem.inWorkspace(path) ? fileBytes(path, node.content) : 0;
+    }
+    let bytes = 0;
+    for (const [name, child] of node.entries) {
+      bytes += VirtualFileSystem.workspaceBytesOf(child, `${path}/${name}`);
+    }
+    return bytes;
+  }
+
+  private assertWorkspaceSpace(growth: number): void {
+    if (growth > 0 && this.workspaceBytes + growth > (this.maxWorkspaceBytes ?? Infinity)) {
+      throw new Error(
+        `ENOSPC: no space left, the files in '${WORKSPACE_DIR}' cannot hold more than ${String(this.maxWorkspaceBytes)} bytes`,
+      );
+    }
   }
 
   public exists(path: string): boolean {
@@ -121,17 +145,14 @@ export class VirtualFileSystem {
     const dirPath = "/" + parts.join("/");
 
     const existingNode = this.getNode(normalized);
-    if (existingNode && VirtualFileSystem.isFile(existingNode) && existingNode.readonly) {
+    if (existingNode && (VirtualFileSystem.isDir(existingNode) || existingNode.readonly)) {
       return false;
     }
 
     const inWorkspace = VirtualFileSystem.inWorkspace(normalized);
-    const existing = existingNode && VirtualFileSystem.isFile(existingNode) ? existingNode.content : "";
-    const growth = Buffer.byteLength(content) - Buffer.byteLength(existing);
-    if (inWorkspace && growth > 0 && this.workspaceBytes + growth > (this.maxWorkspaceBytes ?? Infinity)) {
-      throw new Error(
-        `ENOSPC: no space left, the files in '${WORKSPACE_DIR}' cannot hold more than ${String(this.maxWorkspaceBytes)} bytes`,
-      );
+    const growth = fileBytes(normalized, content) - (existingNode ? fileBytes(normalized, existingNode.content) : 0);
+    if (inWorkspace) {
+      this.assertWorkspaceSpace(growth);
     }
 
     const dir = this.ensureDirectoryExists(dirPath);
@@ -168,7 +189,7 @@ export class VirtualFileSystem {
 
     info.parent.entries.delete(info.name);
     if (VirtualFileSystem.inWorkspace(normalized)) {
-      this.workspaceBytes -= Buffer.byteLength(node.content);
+      this.workspaceBytes -= fileBytes(normalized, node.content);
     }
     return true;
   }
@@ -217,6 +238,7 @@ export class VirtualFileSystem {
   public rename(oldPath: string, newPath: string): boolean {
     const oldNorm = this.normalizePath(oldPath);
     const newNorm = this.normalizePath(newPath);
+    if (newNorm.startsWith(`${oldNorm}/`)) return false;
 
     const oldInfo = this.getParent(oldNorm);
     if (!oldInfo) return false;
@@ -232,8 +254,13 @@ export class VirtualFileSystem {
     const newParent = this.ensureDirectoryExists("/" + newParts.join("/"));
     if (newParent.entries.has(newName)) return false;
 
+    const growth =
+      VirtualFileSystem.workspaceBytesOf(node, newNorm) - VirtualFileSystem.workspaceBytesOf(node, oldNorm);
+    this.assertWorkspaceSpace(growth);
+
     oldInfo.parent.entries.delete(oldInfo.name);
     newParent.entries.set(newName, node);
+    this.workspaceBytes += growth;
     return true;
   }
 

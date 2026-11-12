@@ -239,7 +239,7 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
     if (permErr) throw new Error(permErr);
-    vfs.writeFile(path, context.getString(dataH));
+    if (!vfs.writeFile(path, context.getString(dataH))) throw new Error(`EISDIR: is a directory, open '${path}'`);
     return context.undefined;
   });
 
@@ -247,7 +247,7 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
     if (permErr) throw new Error(permErr);
-    vfs.appendFile(path, context.getString(dataH));
+    if (!vfs.appendFile(path, context.getString(dataH))) throw new Error(`EISDIR: is a directory, open '${path}'`);
     return context.undefined;
   });
 
