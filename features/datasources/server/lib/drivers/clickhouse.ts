@@ -113,7 +113,9 @@ export class ClickhouseDriver implements DatasourceDriver {
 
   private parseRow(line: string): Record<string, unknown> {
     try {
-      return JSON.parse(line) as Record<string, unknown>;
+      return JSON.parse(line, (_key, value: unknown, context?: { source: string }) => {
+        return typeof value === "number" && context && String(value) !== context.source ? context.source : value;
+      }) as Record<string, unknown>;
     } catch {
       throw new Error(line.trim().slice(0, 1000));
     }
