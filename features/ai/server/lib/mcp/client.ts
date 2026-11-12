@@ -267,18 +267,7 @@ export class MCPClient {
 
       if (response.status === 404) {
         await response.body?.cancel();
-        logger.debug(
-          { serverName: this.name, sessionId: this._sessionId },
-          "MCP SSE session not found, reinitializing",
-        );
-        if (!this._isTerminated) {
-          this.resetSessionState();
-          try {
-            await this.initialize();
-          } catch (error) {
-            logger.error({ serverName: this.name, error }, "Failed to reinitialize after session termination");
-          }
-        }
+        logger.debug({ serverName: this.name, sessionId: this._sessionId }, "MCP SSE session not found");
         return;
       }
 
