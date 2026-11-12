@@ -14,7 +14,7 @@ import { useLogger } from "#layers/core/server/lib/logger";
 const config = useRuntimeConfig();
 const logger = useLogger();
 
-let db: Kysely<Database> | null = null;
+let db: Promise<Kysely<Database>> | null = null;
 
 const databaseUrl = new URL(config.databaseUrl);
 const usingPGlite = databaseUrl.protocol === "file:" || databaseUrl.protocol === "memory:";
@@ -25,7 +25,8 @@ let connIsSuperuser = false;
 pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val) as unknown);
 
 export const useDb = async (): Promise<Kysely<Database>> => {
-  if (!db) {
+  // Calls that arrive while the database is being set up share it, and a failed setup is tried again
+  db ??= (async () => {
     let pool: pg.Pool | undefined;
 
     if (usingPGlite) {
@@ -77,7 +78,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
       logger.error({ error }, "Database pool error");
     });
 
-    db = new Kysely<Database>({
+    const database = new Kysely<Database>({
       dialect: new PostgresDialect({ pool }),
       plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })],
       log(event) {
@@ -89,7 +90,12 @@ export const useDb = async (): Promise<Kysely<Database>> => {
       },
     });
 
-    connIsSuperuser = await isSuperuser(db);
+    try {
+      connIsSuperuser = await isSuperuser(database);
+    } catch (error) {
+      await database.destroy();
+      throw error;
+    }
 
     if (connIsSuperuser && !usingPGlite) {
       logger.warn(
@@ -98,7 +104,12 @@ export const useDb = async (): Promise<Kysely<Database>> => {
           "but connecting as a non-superuser role is recommended instead.",
       );
     }
-  }
+
+    return database;
+  })().catch((error: unknown) => {
+    db = null;
+    throw error;
+  });
 
   return db;
 };
@@ -107,7 +118,7 @@ export const closeDb = async (): Promise<void> => {
   if (db) {
     logger.info("Closing database connection");
 
-    await db.destroy();
+    await (await db).destroy();
     db = null;
 
     logger.info("Database connection closed");
