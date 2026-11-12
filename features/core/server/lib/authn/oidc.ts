@@ -398,7 +398,9 @@ export class OIDC {
       throw new Error("Logout token must not contain nonce claim");
     }
 
-    const event = (payload.events as Record<string, unknown>)["http://schemas.openid.net/event/backchannel-logout"];
+    const event = (payload.events as Record<string, unknown> | undefined)?.[
+      "http://schemas.openid.net/event/backchannel-logout"
+    ];
     if (event === undefined) {
       throw new Error("Logout token must contain events claim with correct schema");
     }
