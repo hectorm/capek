@@ -31,36 +31,46 @@ export class ClickhouseDriver implements DatasourceDriver {
       log: { level: ClickHouseLogLevel.OFF },
     });
 
+    const queryId = crypto.randomUUID();
     const exec = (clickhouseSettings: ClickHouseSettings) => {
       return client.exec({
         query: `${sql.trim().replace(/;+$/, "")} \nFORMAT JSONEachRow`,
+        query_id: queryId,
         abort_signal: settings.signal,
         clickhouse_settings: clickhouseSettings,
       });
     };
 
+    const limits: ClickHouseSettings = {
+      cancel_http_readonly_queries_on_client_close: 1,
+      output_format_json_quote_64bit_integers: 1,
+      output_format_json_quote_decimals: 1,
+      http_write_exception_in_output_format: 0,
+      ...(settings.statementTimeoutMs
+        ? {
+            max_execution_time: Math.ceil(settings.statementTimeoutMs / 1000),
+          }
+        : {}),
+      ...(settings.maxRows
+        ? {
+            limit: String(settings.maxRows),
+          }
+        : {}),
+    };
+    let limited = true as boolean;
+
     try {
-      const { stream } = await exec({
-        readonly: "1",
-        cancel_http_readonly_queries_on_client_close: 1,
-        output_format_json_quote_64bit_integers: 1,
-        output_format_json_quote_decimals: 1,
-        http_write_exception_in_output_format: 0,
-        ...(settings.statementTimeoutMs
-          ? {
-              max_execution_time: Math.ceil(settings.statementTimeoutMs / 1000),
-            }
-          : {}),
-        ...(settings.maxRows
-          ? {
-              limit: String(settings.maxRows),
-            }
-          : {}),
-      }).catch(async (error: unknown) => {
-        if ((error as { code?: string }).code !== READONLY_ERROR || !(await this.isReadonly(client))) {
+      const { stream } = await exec({ ...limits, readonly: "1" }).catch(async (error: unknown) => {
+        if ((error as { code?: string }).code !== READONLY_ERROR) {
           throw error;
         }
-        return exec({});
+        // Read-only users cannot set their mode again
+        const mode = await this.readonlyMode(client);
+        if (mode === 0) {
+          throw error;
+        }
+        limited = mode !== 1;
+        return exec(limited ? limits : {});
       });
 
       const rows: Record<string, unknown>[] = [];
@@ -88,14 +98,17 @@ export class ClickhouseDriver implements DatasourceDriver {
       }
       return rows.slice(0, settings.maxRows);
     } finally {
+      if (!limited) {
+        await client.command({ query: `KILL QUERY WHERE query_id = '${queryId}'` }).catch(() => undefined);
+      }
       await client.close().catch(() => undefined);
     }
   }
 
-  private async isReadonly(client: ClickHouseClient): Promise<boolean> {
+  private async readonlyMode(client: ClickHouseClient): Promise<number> {
     const result = await client.query({ query: "SELECT getSetting('readonly') AS readonly", format: "JSONEachRow" });
     const [row] = await result.json<{ readonly: string }>();
-    return Number(row?.readonly) > 0;
+    return Number(row?.readonly);
   }
 
   private parseRow(line: string): Record<string, unknown> {
