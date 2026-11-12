@@ -115,7 +115,7 @@ onBeforeUnmount(() => {
         ref="frame"
         class="size-full"
         sandbox="allow-scripts"
-        src="/api/ai/chart/frame"
+        :src="`/api/ai/chart/frame#${colorMode.value}`"
         :title="$t('ai.components.chat.chartFrame.title')"
       />
       <UDropdownMenu v-if="formats.length > 0" :items="exportItems">

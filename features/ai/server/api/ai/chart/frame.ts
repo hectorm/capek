@@ -16,6 +16,9 @@ const page = (nonce: string): string => `<!doctype html>
         margin: 0;
       }
     </style>
+    <script nonce="${nonce}">
+      document.documentElement.style.colorScheme = location.hash === "#dark" ? "dark" : "light";
+    </script>
   </head>
   <body>
     <div id="chart"></div>
