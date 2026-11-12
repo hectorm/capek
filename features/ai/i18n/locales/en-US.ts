@@ -246,9 +246,6 @@ export default () => ({
               placeholder: "Select skills",
               hint: "Skills available to the agent during execution",
             },
-            toolProviders: {
-              description: "Let the agent use these tools on behalf of the user it answers",
-            },
             toolResources: {
               placeholder: "Select resources",
               hint: "Resources whose tools are available to the agent during execution",
@@ -715,6 +712,7 @@ export default () => ({
     tools: {
       charts: {
         label: "Charts",
+        description: "Enable charts for this agent",
       },
     },
   },

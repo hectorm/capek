@@ -767,6 +767,7 @@ export const agentRouter = createTRPCRouter({
     return getToolProviders().map((provider) => ({
       name: provider.name,
       label: provider.label,
+      description: provider.description,
       assignable: hasToolResources(provider),
     }));
   }),

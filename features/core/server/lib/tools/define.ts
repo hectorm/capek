@@ -47,6 +47,8 @@ export interface ToolProvider {
   name: string;
   // i18n key of the label shown where the provider is given to a caller
   label: string;
+  // i18n key of the description shown where a provider without resources is switched on
+  description?: string;
   // Resources assigned to each caller with `<type>:use` access, or none for tools that are switched on for each caller
   resource?: SharedResource;
   // Tools of the assigned resources that still exist and the user that calls them can use, read as that user

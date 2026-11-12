@@ -649,7 +649,7 @@ const onTestModel = async () => {
             <USwitch
               v-model="enabledToolProviders[provider.name]"
               :disabled="!canModify"
-              :description="$t('ai.pages.studio.agents.form.toolProviders.description')"
+              :description="provider.description && $t(provider.description)"
             />
           </UFormField>
         </template>

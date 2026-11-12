@@ -9,6 +9,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => {
 export const aiChartsToolProvider = defineToolProvider({
   name: "ai_charts",
   label: "ai.tools.charts.label",
+  description: "ai.tools.charts.description",
   load() {
     return Promise.resolve({
       tools: [
