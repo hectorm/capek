@@ -270,7 +270,7 @@ watch(i18n.locale, () => {
 definePageMeta({
   title: "ai.pages.studio.agents.title",
   description: "ai.pages.studio.agents.description",
-  permissions: [AiPermissions.AgentCreate],
+  permissions: [AiPermissions.AgentCreate, AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn],
 });
 </script>
 

@@ -8,7 +8,11 @@ export default defineAppFeature({
       label: "datasources.pages.studio.datasources.tab",
       icon: "i-lucide-database",
       to: "/studio/datasources",
-      permissions: [DatasourcesPermissions.SourceCreate],
+      permissions: [
+        DatasourcesPermissions.SourceCreate,
+        DatasourcesPermissions.SourceUpdateAll,
+        DatasourcesPermissions.SourceUpdateOwn,
+      ],
       order: 40,
     },
   ],

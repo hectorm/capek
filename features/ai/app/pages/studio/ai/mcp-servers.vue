@@ -248,7 +248,7 @@ watch(i18n.locale, () => {
 definePageMeta({
   title: "ai.pages.studio.mcpServers.title",
   description: "ai.pages.studio.mcpServers.description",
-  permissions: [AiPermissions.McpServerCreate],
+  permissions: [AiPermissions.McpServerCreate, AiPermissions.McpServerUpdateAll, AiPermissions.McpServerUpdateOwn],
 });
 </script>
 

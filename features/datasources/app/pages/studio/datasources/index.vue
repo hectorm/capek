@@ -258,7 +258,11 @@ watch(i18n.locale, () => {
 definePageMeta({
   title: "datasources.pages.studio.datasources.title",
   description: "datasources.pages.studio.datasources.description",
-  permissions: [DatasourcesPermissions.SourceCreate],
+  permissions: [
+    DatasourcesPermissions.SourceCreate,
+    DatasourcesPermissions.SourceUpdateAll,
+    DatasourcesPermissions.SourceUpdateOwn,
+  ],
 });
 </script>
 

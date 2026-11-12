@@ -248,7 +248,11 @@ watch(i18n.locale, () => {
 definePageMeta({
   title: "ai.pages.studio.llmProviders.title",
   description: "ai.pages.studio.llmProviders.description",
-  permissions: [AiPermissions.LlmProviderCreate],
+  permissions: [
+    AiPermissions.LlmProviderCreate,
+    AiPermissions.LlmProviderUpdateAll,
+    AiPermissions.LlmProviderUpdateOwn,
+  ],
 });
 </script>
 

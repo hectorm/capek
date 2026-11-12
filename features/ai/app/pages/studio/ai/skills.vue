@@ -239,7 +239,7 @@ watch(i18n.locale, () => {
 definePageMeta({
   title: "ai.pages.studio.skills.title",
   description: "ai.pages.studio.skills.description",
-  permissions: [AiPermissions.SkillCreate],
+  permissions: [AiPermissions.SkillCreate, AiPermissions.SkillUpdateAll, AiPermissions.SkillUpdateOwn],
 });
 </script>
 
