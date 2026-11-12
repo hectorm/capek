@@ -38,6 +38,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   const { $trpc } = useNuxtApp();
 
   const sessions = ref<ChatSession[]>([]);
+  const openedSession = ref<ChatSession | null>(null);
   const currentSessionId = ref<string | null>(null);
   const messages = shallowRef<Map<string, ChatMessage[]>>(new Map());
   const activeStreams = ref<Map<string, StreamState>>(new Map());
@@ -47,9 +48,23 @@ export const useChatStore = defineStore("ai.chat", () => {
   const sessionsNextCursor = ref<RouterOutputs["ai"]["chatSession"]["search"]["nextCursor"]>(undefined);
   const sessionsQuery = ref<SearchQuery>({});
 
+  const findSession = (sessionId: string): ChatSession | undefined => {
+    return (
+      sessions.value.find((s) => s.id === sessionId) ??
+      (openedSession.value?.id === sessionId ? openedSession.value : undefined)
+    );
+  };
+
+  const replaceSession = (session: ChatSession): void => {
+    sessions.value = sessions.value.map((s) => (s.id === session.id ? session : s));
+    if (openedSession.value?.id === session.id) {
+      openedSession.value = session;
+    }
+  };
+
   const currentSession = computed(() => {
     if (!currentSessionId.value) return null;
-    return sessions.value.find((s) => s.id === currentSessionId.value) ?? null;
+    return findSession(currentSessionId.value) ?? null;
   });
 
   const currentMessages = computed(() => {
@@ -132,7 +147,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   };
 
   const updateSession = async (sessionId: string, data: { title?: string; agentId?: string | null }): Promise<void> => {
-    if (!sessions.value.find((s) => s.id === sessionId)) {
+    if (!findSession(sessionId)) {
       throw new Error("Session not found");
     }
 
@@ -142,20 +157,20 @@ export const useChatStore = defineStore("ai.chat", () => {
         title: data.title,
         agentId: data.agentId ?? undefined,
       });
-      sessions.value = sessions.value.map((s) => (s.id === sessionId ? session : s));
+      replaceSession(session);
     } catch (error) {
       throw new Error("Failed to update chat session", { cause: error });
     }
   };
 
   const autoRenameSession = async (sessionId: string): Promise<void> => {
-    if (!sessions.value.find((s) => s.id === sessionId)) {
+    if (!findSession(sessionId)) {
       throw new Error("Session not found");
     }
 
     try {
       const session = await $trpc.ai.chatSession.autoRename.mutate({ id: sessionId });
-      sessions.value = sessions.value.map((s) => (s.id === sessionId ? session : s));
+      replaceSession(session);
     } catch (error) {
       throw new Error("Failed to auto-rename chat session", { cause: error });
     }
@@ -167,6 +182,9 @@ export const useChatStore = defineStore("ai.chat", () => {
     try {
       await $trpc.ai.chatSession.delete.mutate({ id: sessionId });
       sessions.value = sessions.value.filter((s) => s.id !== sessionId);
+      if (openedSession.value?.id === sessionId) {
+        openedSession.value = null;
+      }
       messages.value.delete(sessionId);
       triggerRef(messages);
       if (currentSessionId.value === sessionId) {
@@ -179,6 +197,9 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const selectSession = async (sessionId: string): Promise<void> => {
     currentSessionId.value = sessionId;
+    if (!sessions.value.some((s) => s.id === sessionId)) {
+      openedSession.value = await $trpc.ai.chatSession.read.query({ id: sessionId });
+    }
     if (!activeStreams.value.has(sessionId)) {
       await fetchMessages(sessionId);
     }
@@ -455,6 +476,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   function $reset(): void {
     abortAllStreams();
     sessions.value = [];
+    openedSession.value = null;
     currentSessionId.value = null;
     messages.value = new Map();
     activeStreams.value = new Map();
