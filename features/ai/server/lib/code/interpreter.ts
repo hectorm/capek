@@ -65,6 +65,41 @@ const logger = useLogger();
 const WORKER_GRACE_MS = 2_000;
 const WORKER_MAX_HEAP_MB = 256;
 const MAX_HOST_CALLS = 1_000;
+const MAX_CONCURRENT_SANDBOXES = 8;
+
+let activeSandboxes = 0;
+const queuedSandboxes: (() => void)[] = [];
+
+const acquireSandbox = async (signal?: AbortSignal): Promise<void> => {
+  if (signal?.aborted) {
+    throw new AbortError();
+  }
+  if (activeSandboxes < MAX_CONCURRENT_SANDBOXES) {
+    activeSandboxes++;
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const start = (): void => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    };
+    const onAbort = (): void => {
+      queuedSandboxes.splice(queuedSandboxes.indexOf(start), 1);
+      reject(new AbortError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    queuedSandboxes.push(start);
+  });
+};
+
+const releaseSandbox = (): void => {
+  const next = queuedSandboxes.shift();
+  if (next) {
+    next();
+  } else {
+    activeSandboxes--;
+  }
+};
 
 type AsyncWASMModule = Awaited<ReturnType<typeof newQuickJSAsyncWASMModuleFromVariant>>;
 let cachedModulePromise: Promise<AsyncWASMModule> | null = null;
@@ -257,6 +292,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
 
   let outcome: Pick<ExecutionResult, "result" | "consoleLogs" | "error">;
   try {
+    await acquireSandbox(options.signal);
     const done = await runSandbox(
       {
         code,
@@ -272,7 +308,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
         return name === "mcp" ? callMcp(signal, ...args) : callTool(signal, ...args);
       },
       options.signal,
-    );
+    ).finally(releaseSandbox);
 
     options.vfs.setWorkspaceFiles(done.workspace);
     outcome = { result: done.result, consoleLogs: done.consoleLogs, error: done.error };
