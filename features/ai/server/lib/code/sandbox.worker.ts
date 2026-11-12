@@ -395,6 +395,7 @@ function marshallFromQuickJS(context: QuickJSContext, handle: QuickJSHandle): un
   if (type === "undefined") return undefined;
   if (type === "string") return context.getString(handle);
   if (type === "number") return context.getNumber(handle);
+  if (type === "bigint") return context.getBigInt(handle).toString();
 
   return context.dump(handle);
 }
