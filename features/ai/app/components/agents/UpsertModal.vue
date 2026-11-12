@@ -96,7 +96,7 @@ const schema = z
   .object({
     id: z.uuid().optional(),
     name: z.string().trim().min(1).max(100),
-    description: z.string().max(1000).trim().default(""),
+    description: z.string().max(500).trim().default(""),
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
     priority: z.number().int().min(-1000).max(1000).default(0),

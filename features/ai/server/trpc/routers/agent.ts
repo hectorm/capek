@@ -162,7 +162,7 @@ export const agentRouter = createTRPCRouter({
       z
         .object({
           name: z.string().trim().min(1).max(100),
-          description: z.string().max(1000).trim().default(""),
+          description: z.string().max(500).trim().default(""),
           instructions: z.string().max(100000).trim().default(""),
           greetingMessage: z.string().max(10000).trim().default(""),
           priority: z.number().int().min(-1000).max(1000).default(0),
@@ -295,7 +295,7 @@ export const agentRouter = createTRPCRouter({
         .object({
           id: z.uuid(),
           name: z.string().trim().min(1).max(100).optional(),
-          description: z.string().max(1000).trim().optional(),
+          description: z.string().max(500).trim().optional(),
           instructions: z.string().max(100000).trim().optional(),
           greetingMessage: z.string().max(10000).trim().optional(),
           priority: z.number().int().min(-1000).max(1000).optional(),
