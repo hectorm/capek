@@ -64,16 +64,20 @@ export const defineDatasourceType = <S extends z.ZodType>(def: {
   },
 });
 
+const ConnectionUrlSchema = z.url().refine((value) => !URL.parse(value)?.password, {
+  message: "The password of the connection string has to be entered in its own field",
+});
+
 // Configuration of the datasources that connect to a URL, with or without a user and password
 export const UrlDatasourceConfigSchema = z.discriminatedUnion("authType", [
   z.object({
-    connectionString: z.url(),
+    connectionString: ConnectionUrlSchema,
     authType: z.literal("basic"),
     username: z.string().max(1000).trim().default(""),
     password: z.string().max(1000).default(""),
   }),
   z.object({
-    connectionString: z.url(),
+    connectionString: ConnectionUrlSchema,
     authType: z.literal("none"),
   }),
 ]);
