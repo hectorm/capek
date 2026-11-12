@@ -1,15 +1,20 @@
 import { useNuxtApp } from "nuxt/app";
 
 import type { Principal } from "#layers/core/shared/rbac";
+import { usePermissions } from "#layers/core/app/composables/permissions";
+import { CorePermissions } from "#layers/core/shared/rbac";
 
 export const usePrincipalSearch = () => {
   const { $trpc } = useNuxtApp();
+  const { canAny } = usePermissions();
   const cache = new Map<string, { label: string; icon: string }>();
 
   const search = async (query?: string): Promise<string[]> => {
     const [groups, users] = await Promise.all([
-      $trpc.group.search.query({ search: query, limit: 25 }),
-      $trpc.user.search.query({ search: query, limit: 25 }),
+      canAny([CorePermissions.GroupListAll, CorePermissions.GroupListOwn])
+        ? $trpc.group.search.query({ search: query, limit: 25 })
+        : { groups: [] },
+      canAny([CorePermissions.UserListAll]) ? $trpc.user.search.query({ search: query, limit: 25 }) : { users: [] },
     ]);
 
     groups.groups.forEach((g) => {
