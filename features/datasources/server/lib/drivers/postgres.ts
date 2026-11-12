@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 import pg from "pg";
 
 import type {
@@ -43,9 +45,23 @@ export class PostgresDriver implements DatasourceDriver {
     };
     const onAbort = (): void => void cancel();
 
+    client.on("error", () => undefined);
+
     try {
       settings.signal?.throwIfAborted();
       await client.connect();
+
+      const { maxBytes } = settings;
+      if (maxBytes) {
+        let bytes = 0;
+        client.connection.stream.on("data", (chunk: Uint8Array) => {
+          bytes += chunk.byteLength;
+          if (bytes > maxBytes) {
+            client.connection.stream.destroy(new ResultTooLargeError(maxBytes));
+          }
+        });
+      }
+
       if (settings.signal) {
         const backend = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
         pid = backend.rows[0]?.pid;
@@ -59,7 +75,7 @@ export class PostgresDriver implements DatasourceDriver {
       const run = (text: string): Promise<Record<string, unknown>[]> => {
         return new Promise((resolve, reject) => {
           const rows: Record<string, unknown>[] = [];
-          let chars = 0;
+          let bytes = 0;
           const queryConfig: pg.QueryConfig & { queryMode: "extended" } = { text, queryMode: "extended" };
           const query = client.query(new pg.Query<Record<string, unknown>>(queryConfig));
           query.on("row", (row) => {
@@ -68,9 +84,9 @@ export class PostgresDriver implements DatasourceDriver {
               return;
             }
             rows.push(row);
-            chars += JSON.stringify(row).length;
-            if (settings.maxChars && chars > settings.maxChars) {
-              reject(new ResultTooLargeError(settings.maxChars));
+            bytes += Buffer.byteLength(JSON.stringify(row));
+            if (settings.maxBytes && bytes > settings.maxBytes) {
+              reject(new ResultTooLargeError(settings.maxBytes));
             }
           });
           query.on("end", () => {

@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 import type { TokenCredential } from "@azure/identity";
 import type { ConnectionAuthentication, ConnectionOptions } from "tedious";
 import { DefaultAzureCredential } from "@azure/identity";
@@ -64,6 +66,7 @@ export class SqlServerDriver implements DatasourceDriver {
     options.enableImplicitTransactions = true;
     if (settings.requestTimeoutMs) options.connectTimeout = settings.requestTimeoutMs;
     if (settings.statementTimeoutMs) options.requestTimeout = settings.statementTimeoutMs;
+    if (settings.maxBytes) options.textsize = 2 * settings.maxBytes;
 
     const connection = new Connection({ server, authentication, options });
     const onAbort = (): void => {
@@ -84,7 +87,7 @@ export class SqlServerDriver implements DatasourceDriver {
       settings.signal?.addEventListener("abort", onAbort, { once: true });
       return await new Promise<unknown[]>((resolve, reject) => {
         const rows: Record<string, unknown>[] = [];
-        let chars = 0;
+        let bytes = 0;
         let hasResultSet = false;
         let cancelled = false;
         const request = new Request(sql, (err) => {
@@ -105,11 +108,11 @@ export class SqlServerDriver implements DatasourceDriver {
           }
           const row = this.toRow(columns);
           rows.push(row);
-          chars += JSON.stringify(row).length;
-          if (settings.maxChars && chars > settings.maxChars) {
+          bytes += Buffer.byteLength(JSON.stringify(row));
+          if (settings.maxBytes && bytes > settings.maxBytes) {
             cancelled = true;
             connection.cancel();
-            reject(new ResultTooLargeError(settings.maxChars));
+            reject(new ResultTooLargeError(settings.maxBytes));
           }
         });
         connection.execSqlBatch(request);

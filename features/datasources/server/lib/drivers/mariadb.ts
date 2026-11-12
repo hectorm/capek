@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 import * as mariadb from "mariadb";
 
 import type {
@@ -38,6 +40,10 @@ export class MariaDBDriver implements DatasourceDriver {
     }
     // Dates are returned as text, since as objects they would shift with the time zone of the application
     url.searchParams.set("dateStrings", "true");
+    // Each row is a packet, which is refused before it is buffered when it is larger
+    if (settings.maxBytes) {
+      url.searchParams.set("maxAllowedPacket", String(settings.maxBytes));
+    }
 
     let connection: mariadb.Connection | undefined;
     const onAbort = (): void => connection?.destroy();
@@ -58,7 +64,7 @@ export class MariaDBDriver implements DatasourceDriver {
       }
 
       const rows: Record<string, unknown>[] = [];
-      let chars = 0;
+      let bytes = 0;
       const stream = connection.queryStream(sql);
       let columns: unknown;
       stream.once("fields", (fields: unknown) => {
@@ -74,14 +80,17 @@ export class MariaDBDriver implements DatasourceDriver {
         }
         const serializable = this.toSerializable(row as Record<string, unknown>);
         rows.push(serializable);
-        chars += JSON.stringify(serializable).length;
-        if (settings.maxChars && chars > settings.maxChars) {
+        bytes += Buffer.byteLength(JSON.stringify(serializable));
+        if (settings.maxBytes && bytes > settings.maxBytes) {
           connection.destroy();
-          throw new ResultTooLargeError(settings.maxChars);
+          throw new ResultTooLargeError(settings.maxBytes);
         }
       }
       return rows;
     } catch (error) {
+      if ((error as { code?: string }).code === "ER_UNEXPECTED_PACKET" && settings.maxBytes) {
+        throw new ResultTooLargeError(settings.maxBytes);
+      }
       if (error instanceof Error && url.password) {
         error.message = error.message
           .replaceAll(url.password, "***")

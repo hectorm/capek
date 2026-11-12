@@ -20,7 +20,7 @@ export async function executeQuery(source: QuerySource, sql: string, signal?: Ab
   try {
     const rows = await type.driver.execute(source, sql, {
       maxRows: 100,
-      maxChars: 1_000_000,
+      maxBytes: 1_000_000,
       statementTimeoutMs: 30_000,
       requestTimeoutMs: 10_000,
       signal,

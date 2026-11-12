@@ -16,7 +16,7 @@ export interface DatasourceQuerySettings {
   statementTimeoutMs?: number;
   requestTimeoutMs?: number;
   maxRows?: number;
-  maxChars?: number;
+  maxBytes?: number;
   signal?: AbortSignal;
 }
 
