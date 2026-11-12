@@ -350,6 +350,21 @@ describe("rls chat ownership", () => {
     await expect(write(alice)).resolves.toBeDefined();
   });
 
+  it("lets the owner of a chat keep, but not choose, an agent that they cannot use", async () => {
+    const chat = await db
+      .insertInto("aiChatSessions")
+      .values({ userId: alice, agentId: orphanAgentId, title: "unshared" })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    const update = (values: { title?: string; agentId?: string }) =>
+      asUser({ id: alice, permissions }, (trx) =>
+        trx.updateTable("aiChatSessions").set(values).where("id", "=", chat.id).returning(["id"]).execute(),
+      );
+
+    await expect(update({ title: "renamed" })).resolves.toHaveLength(1);
+    await expect(update({ agentId: groupAgentId })).rejects.toThrow(/row-level security/);
+  });
+
   it("keeps the roles of the server out of the reach of users", async () => {
     await expect(
       asUser({ id: alice, permissions }, (trx) =>

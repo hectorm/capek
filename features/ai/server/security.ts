@@ -33,6 +33,23 @@ export const aiSecurity: SecurityDefinition = {
       $$;
     `,
 
+    // Function to check whether a chat session already has an agent, which its user may no longer have access to
+    `
+      CREATE FUNCTION security.ai_chat_session_has_agent(session_id UUID, session_agent_id UUID)
+      RETURNS BOOLEAN
+      LANGUAGE SQL
+      STABLE
+      SECURITY DEFINER
+      SET search_path = pg_catalog, public
+      AS $$
+        SELECT EXISTS (
+          SELECT 1 FROM public.ai_chat_sessions
+          WHERE ai_chat_sessions.id = session_id
+            AND ai_chat_sessions.agent_id = session_agent_id
+        );
+      $$;
+    `,
+
     // Chat Sessions
     ...protectTable("ai_chat_sessions"),
     `
@@ -80,6 +97,7 @@ export const aiSecurity: SecurityDefinition = {
               (SELECT security.can_any(ARRAY['ai_agent:use:own']))
               AND ${hasAccess(AgentResource, "ai_chat_sessions.agent_id")}
             )
+            OR security.ai_chat_session_has_agent(id, agent_id)
           )
         );
     `,
