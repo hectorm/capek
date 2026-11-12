@@ -57,6 +57,7 @@ export class OIDC {
   public rootUrl: URL;
 
   public as: AuthorizationServer;
+  public configuredAs: AuthorizationServer;
   public discoveryCacheDurationSec: number;
   public discoveryCache = new Map<string, { as: AuthorizationServer; expiresAt: number }>();
 
@@ -83,7 +84,7 @@ export class OIDC {
   constructor(options: OIDCOptions) {
     this.rootUrl = new URL(options.rootUrl);
 
-    this.as = {
+    this.configuredAs = {
       issuer: options.issuer,
       authorization_endpoint: options.authorizationEndpoint,
       token_endpoint: options.tokenEndpoint,
@@ -91,6 +92,7 @@ export class OIDC {
       end_session_endpoint: options.endSessionEndpoint,
       jwks_uri: options.jwksUri,
     };
+    this.as = this.configuredAs;
     this.discoveryCacheDurationSec = options.discoveryCacheDurationSec;
 
     this.client = {
@@ -124,12 +126,13 @@ export class OIDC {
   }
 
   public async discover(): Promise<void> {
-    if (this.as.authorization_endpoint && this.as.token_endpoint && this.as.jwks_uri) {
+    const configured = this.configuredAs;
+    if (configured.authorization_endpoint && configured.token_endpoint && configured.jwks_uri) {
       return;
     }
 
     let as: AuthorizationServer | null = null;
-    const issuer = this.as.issuer;
+    const issuer = configured.issuer;
 
     const now = Date.now();
     const cached = this.discoveryCache.get(issuer);
@@ -147,12 +150,12 @@ export class OIDC {
     const pick = (c: string | undefined, d: string | undefined) => (c !== "" ? c : d);
 
     this.as = {
-      ...this.as,
-      authorization_endpoint: pick(this.as.authorization_endpoint, as.authorization_endpoint),
-      token_endpoint: pick(this.as.token_endpoint, as.token_endpoint),
-      userinfo_endpoint: pick(this.as.userinfo_endpoint, as.userinfo_endpoint),
-      end_session_endpoint: pick(this.as.end_session_endpoint, as.end_session_endpoint),
-      jwks_uri: pick(this.as.jwks_uri, as.jwks_uri),
+      ...configured,
+      authorization_endpoint: pick(configured.authorization_endpoint, as.authorization_endpoint),
+      token_endpoint: pick(configured.token_endpoint, as.token_endpoint),
+      userinfo_endpoint: pick(configured.userinfo_endpoint, as.userinfo_endpoint),
+      end_session_endpoint: pick(configured.end_session_endpoint, as.end_session_endpoint),
+      jwks_uri: pick(configured.jwks_uri, as.jwks_uri),
     };
   }
 
