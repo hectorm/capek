@@ -396,10 +396,13 @@ export const aiSecurity: SecurityDefinition = {
         USING (
           (SELECT security.can_any(ARRAY['ai_agent_execution:cancel:all']))
           OR (user_id = (SELECT security.user_id()) AND (SELECT security.can_any(ARRAY['ai_agent_execution:cancel:own'])))
+          -- The server keeps the executions of the user up to date
+          OR (user_id = (SELECT security.user_id()) AND (SELECT security.is_trusted_write()))
         )
         WITH CHECK (
           (SELECT security.can_any(ARRAY['ai_agent_execution:cancel:all']))
           OR (user_id = (SELECT security.user_id()) AND (SELECT security.can_any(ARRAY['ai_agent_execution:cancel:own'])))
+          OR (user_id = (SELECT security.user_id()) AND (SELECT security.is_trusted_write()))
         );
     `,
 

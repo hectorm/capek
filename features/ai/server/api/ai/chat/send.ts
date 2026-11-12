@@ -46,51 +46,55 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const session = await withUserTransaction(user, async (trx) => {
-    const abandoned = await AgentExecutor.failAbandonedExecutions(trx, sessionId);
-    if (abandoned > 0) {
-      logger.warn({ sessionId, userId: user.id, abandoned }, "Abandoned executions of the session marked as failed");
-    }
+  const session = await withUserTransaction(
+    user,
+    async (trx) => {
+      const abandoned = await AgentExecutor.failAbandonedExecutions(trx, sessionId);
+      if (abandoned > 0) {
+        logger.warn({ sessionId, userId: user.id, abandoned }, "Abandoned executions of the session marked as failed");
+      }
 
-    const activeExecution = await trx
-      .selectFrom("aiAgentExecutions")
-      .select(["id"])
-      .where("sessionId", "=", sessionId)
-      .where("status", "=", "running")
-      .executeTakeFirst();
-
-    if (activeExecution) {
-      return { error: "concurrent" as const };
-    }
-
-    const result = await trx
-      .selectFrom("aiChatSessions")
-      .innerJoin("aiAgents", "aiAgents.id", "aiChatSessions.agentId")
-      .select(["aiChatSessions.id", "aiAgents.id as agentId"])
-      .where("aiChatSessions.id", "=", sessionId)
-      .executeTakeFirst();
-
-    if (!result) {
-      return { error: "not_found" as const };
-    }
-
-    if (!canAny(user, [AiPermissions.AgentUseAll])) {
-      const hasAccess = await trx
-        .selectFrom("aiAgentAccess")
+      const activeExecution = await trx
+        .selectFrom("aiAgentExecutions")
         .select(["id"])
-        .where("agentId", "=", result.agentId)
-        .where((eb) =>
-          eb.or([eb("userId", "=", user.id), ...(user.groups.length > 0 ? [eb("groupId", "in", user.groups)] : [])]),
-        )
+        .where("sessionId", "=", sessionId)
+        .where("status", "=", "running")
         .executeTakeFirst();
 
-      if (!hasAccess) {
+      if (activeExecution) {
+        return { error: "concurrent" as const };
+      }
+
+      const result = await trx
+        .selectFrom("aiChatSessions")
+        .innerJoin("aiAgents", "aiAgents.id", "aiChatSessions.agentId")
+        .select(["aiChatSessions.id", "aiAgents.id as agentId"])
+        .where("aiChatSessions.id", "=", sessionId)
+        .executeTakeFirst();
+
+      if (!result) {
         return { error: "not_found" as const };
       }
-    }
 
-    return result;
-  });
+      if (!canAny(user, [AiPermissions.AgentUseAll])) {
+        const hasAccess = await trx
+          .selectFrom("aiAgentAccess")
+          .select(["id"])
+          .where("agentId", "=", result.agentId)
+          .where((eb) =>
+            eb.or([eb("userId", "=", user.id), ...(user.groups.length > 0 ? [eb("groupId", "in", user.groups)] : [])]),
+          )
+          .executeTakeFirst();
+
+        if (!hasAccess) {
+          return { error: "not_found" as const };
+        }
+      }
+
+      return result;
+    },
+    { trustedWrites: true },
+  );
 
   if ("error" in session) {
     switch (session.error) {

@@ -1136,30 +1136,38 @@ export class AgentExecutor {
   private async updateLastActivity(): Promise<void> {
     if (!this.executionId) return;
 
-    await withUserTransaction(this.config.user, async (trx) => {
-      await trx
-        .updateTable("aiAgentExecutions")
-        .set({ lastActivityAt: new Date() })
-        .where("id", "=", this.executionId)
-        .execute();
-    });
+    await withUserTransaction(
+      this.config.user,
+      async (trx) => {
+        await trx
+          .updateTable("aiAgentExecutions")
+          .set({ lastActivityAt: new Date() })
+          .where("id", "=", this.executionId)
+          .execute();
+      },
+      { trustedWrites: true },
+    );
   }
 
   private async completeExecution({ status, errorMessage }: ExecutionOutcome): Promise<void> {
     if (!this.executionId) return;
 
-    await withUserTransaction(this.config.user, async (trx) => {
-      await trx
-        .updateTable("aiAgentExecutions")
-        .set({
-          status,
-          errorMessage: errorMessage ?? null,
-          completedAt: new Date(),
-          lastActivityAt: new Date(),
-        })
-        .where("id", "=", this.executionId)
-        .execute();
-    });
+    await withUserTransaction(
+      this.config.user,
+      async (trx) => {
+        await trx
+          .updateTable("aiAgentExecutions")
+          .set({
+            status,
+            errorMessage: errorMessage ?? null,
+            completedAt: new Date(),
+            lastActivityAt: new Date(),
+          })
+          .where("id", "=", this.executionId)
+          .execute();
+      },
+      { trustedWrites: true },
+    );
   }
 
   public static async failAbandonedExecutions(db: Kysely<Database>, sessionId?: string): Promise<number> {
