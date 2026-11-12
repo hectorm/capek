@@ -35,6 +35,10 @@ const respond = (target: string, init: RequestInit): Promise<Response> => {
     });
   }
 
+  if (pathname === "/expired") {
+    return Promise.resolve(new Response(null, { status: 404, headers: { "Mcp-Session-Id": "expired" } }));
+  }
+
   const message = JSON.parse((init.body as string | undefined) ?? "{}") as {
     id?: number;
     method?: string;
@@ -55,7 +59,7 @@ const respond = (target: string, init: RequestInit): Promise<Response> => {
     });
   }
   if (message.method === "tools/list") {
-    return reply({ tools });
+    return reply({ tools, nextCursor: pathname === "/endless" ? "more" : undefined });
   }
   if (message.params?.name === "screenshot") {
     return reply({
@@ -155,6 +159,14 @@ describe("mcp", () => {
     expect(await silent.testConnection()).toMatchObject({ success: false });
 
     expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
+  it("gives up on a server that never ends its list of tools or expires every session", async () => {
+    const endless = new MCPClient({ name: "endless", url: `${url}/endless`, headers: [], stateful: false });
+    expect(await endless.testConnection()).toEqual({ success: false, error: "The MCP server lists too many tools" });
+
+    const expired = new MCPClient({ name: "expired", url: `${url}/expired`, headers: [], stateful: false });
+    expect(await expired.testConnection()).toMatchObject({ success: false });
   });
 
   it("builds modules that can be imported whatever the descriptions of their tools say", async () => {

@@ -23,6 +23,8 @@ export interface MCPClientOptions {
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
+const TOOLS_MAX = 1_000;
+const TOOLS_MAX_PAGES = 20;
 
 async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   let bytes = 0;
@@ -112,6 +114,7 @@ export class MCPClient {
   }
 
   private async request(jsonRPCRequest: unknown, signal?: AbortSignal, depth = 0): Promise<unknown> {
+    const sentSessionId = this._sessionId;
     const headers = this.buildHeaders({
       contentType: "application/json",
       accept: "application/json, text/event-stream",
@@ -132,7 +135,7 @@ export class MCPClient {
     }
 
     if (!response.ok) {
-      if (response.status === 404 && this._sessionId && depth < 2) {
+      if (response.status === 404 && sentSessionId && depth < 2) {
         logger.debug({ serverName: this.name, sessionId: this._sessionId }, "MCP session expired, reinitializing");
         this.resetSessionState();
         try {
@@ -410,6 +413,7 @@ export class MCPClient {
     try {
       const allTools: MCPTool[] = [];
       let cursor: string | undefined;
+      let pages = 0;
 
       do {
         if (signal?.aborted) {
@@ -420,6 +424,9 @@ export class MCPClient {
         const result = MCPListToolsResultSchema.safeParse(rawResult);
         if (!result.success) {
           throw new Error(`Failed to parse tools/list response: ${result.error.message}`);
+        }
+        if (allTools.length + result.data.tools.length > TOOLS_MAX || ++pages > TOOLS_MAX_PAGES) {
+          throw new Error("The MCP server lists too many tools");
         }
         allTools.push(...result.data.tools);
         cursor = result.data.nextCursor ?? undefined;
