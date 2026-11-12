@@ -78,6 +78,8 @@ export const UrlDatasourceConfigSchema = z.discriminatedUnion("authType", [
   }),
 ]);
 
+export type UrlDatasourceConfig = z.infer<typeof UrlDatasourceConfigSchema>;
+
 export const defineUrlDatasourceType = (def: {
   type: string;
   label: string;

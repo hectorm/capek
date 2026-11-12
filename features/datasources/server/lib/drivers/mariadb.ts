@@ -7,6 +7,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/mariadb";
 
@@ -24,17 +25,9 @@ export class MariaDBDriver implements DatasourceDriver {
   ): Promise<unknown[]> {
     const config = MariaDBDatasourceType.configSchema.parse(params.config);
 
-    const url = new URL(config.connectionString);
-    const unsupported = [...url.searchParams.keys()].find((name) => !URL_OPTIONS.has(name));
-    if (unsupported) {
-      throw new Error(`The option "${unsupported}" of the connection string is not supported`);
-    }
+    const url = connectionUrl(config, URL_OPTIONS);
     if (url.protocol === "mysql:") {
       url.protocol = "mariadb:";
-    }
-    if (config.authType === "basic") {
-      url.username = config.username;
-      url.password = config.password;
     }
 
     if (settings.requestTimeoutMs) {

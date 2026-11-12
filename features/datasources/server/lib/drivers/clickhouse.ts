@@ -5,8 +5,11 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { ClickhouseDatasourceType } from "#layers/datasources/shared/definitions/clickhouse";
+
+const URL_OPTIONS = new Set(["application", "compression_request", "compression_response"]);
 
 export class ClickhouseDriver implements DatasourceDriver {
   readonly validationQuery = "SELECT 1";
@@ -18,13 +21,9 @@ export class ClickhouseDriver implements DatasourceDriver {
   ): Promise<unknown[]> {
     const config = ClickhouseDatasourceType.configSchema.parse(params.config);
 
-    const basic = config.authType === "basic" ? config : null;
-
     // The request outlasts the query, and errors are returned instead of logged
     const client = createClickhouseClient({
-      url: config.connectionString,
-      username: basic?.username,
-      password: basic?.password,
+      url: connectionUrl(config, URL_OPTIONS),
       request_timeout: settings.requestTimeoutMs && settings.requestTimeoutMs + (settings.statementTimeoutMs ?? 0),
       log: { level: ClickHouseLogLevel.OFF },
     });

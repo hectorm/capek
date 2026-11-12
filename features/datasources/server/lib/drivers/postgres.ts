@@ -7,8 +7,11 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
+
+const URL_OPTIONS = new Set(["ssl", "sslmode", "application_name", "options"]);
 
 const SYNTAX_ERROR = "42601";
 
@@ -22,12 +25,7 @@ export class PostgresDriver implements DatasourceDriver {
   ): Promise<unknown[]> {
     const config = PostgresDatasourceType.configSchema.parse(params.config);
 
-    const url = new URL(config.connectionString);
-    if (config.authType === "basic") {
-      url.username = config.username;
-      url.password = config.password;
-    }
-
+    const url = connectionUrl(config, URL_OPTIONS);
     const clientConfig = { connectionString: url.toString(), connectionTimeoutMillis: settings.requestTimeoutMs };
     const client = new pg.Client(clientConfig);
 
