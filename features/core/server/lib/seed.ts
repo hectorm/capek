@@ -14,8 +14,8 @@ const seedPrincipalsSchema = z.object({
 });
 
 export const seedAccessSchema = z
-  .object({ editors: seedPrincipalsSchema, users: seedPrincipalsSchema })
-  .default({ editors: { users: [], groups: [] }, users: { users: [], groups: [] } });
+  .object({ editors: seedPrincipalsSchema.prefault({}), users: seedPrincipalsSchema.prefault({}) })
+  .prefault({});
 
 export type SeedAccess = z.output<typeof seedAccessSchema>;
 
