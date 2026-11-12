@@ -162,6 +162,7 @@ export class AgentExecutor {
   private readonly config: AgentExecutorConfig;
   private executionId: string | null = null;
   private iterationCount = 0;
+  private outputChars = 0;
   private partsChars = 0;
   private readonly startedAt: Date;
 
@@ -579,6 +580,8 @@ export class AgentExecutor {
       parts.push(part);
     };
 
+    const maxChars = Math.max(Math.min(agent.maxToolResponseChars, agent.maxContextChars - this.outputChars), 0);
+
     try {
       const response = await agentTool.tool.execute(args, {
         user: this.config.user,
@@ -586,10 +589,11 @@ export class AgentExecutor {
         show,
       });
 
-      const result = truncate(response, agent.maxToolResponseChars);
+      const result = truncate(response, maxChars);
       if (result !== response) {
         logger.debug({ toolName, originalLength: response.length }, "Tool response truncated");
       }
+      this.outputChars += result.length;
 
       await this.saveToolCall(functionCall, agentTool, result, null);
 
@@ -603,8 +607,9 @@ export class AgentExecutor {
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = truncate(error instanceof Error ? error.message : String(error), maxChars);
       logger.error({ toolName, executionId: this.executionId, error: errorMessage }, "Tool execution failed");
+      this.outputChars += errorMessage.length;
 
       await this.saveToolCall(functionCall, agentTool, null, errorMessage);
 

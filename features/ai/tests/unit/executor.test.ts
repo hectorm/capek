@@ -483,6 +483,19 @@ describe("agent executor", () => {
     expect(stored.result).toBe(sent);
   });
 
+  it("limits what the tools of an answer return to the size of its context", async () => {
+    const sessionId = await createSession(smallContextAgentId);
+
+    const requests = fakeModel([answer(null, [readNote]), answer(null, [readNote]), answer("The note says hello.")]);
+    await chat(sessionId, smallContextAgentId, "What does the note a say?");
+
+    const sent = requests[2]?.messages.filter((message) => message.role === "tool").map((message) => message.content);
+    expect(sent).toEqual([
+      expect.stringContaining("showing first 300]") as string,
+      "\n\n[Response truncated: 614 characters, showing first 0]",
+    ]);
+  });
+
   it("keeps the answer whose tools return characters that cannot be stored", async () => {
     const sessionId = await createSession(agentId);
     const scanNotes = { id: "call-5", type: "function", function: { name: "notes_scan", arguments: "{}" } };
