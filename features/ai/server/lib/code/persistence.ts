@@ -43,6 +43,9 @@ export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
     const snapshot = vfs.getWorkspaceFiles();
 
     if (Object.keys(snapshot.files).length === 0) {
+      await withUserTransaction(user, async (trx) => {
+        await trx.deleteFrom("aiChatSessionVfs").where("sessionId", "=", sessionId).execute();
+      });
       return;
     }
 
