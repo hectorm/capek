@@ -288,6 +288,7 @@ const onTestConnection = async () => {
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
                 :placeholder="$t('ai.pages.studio.llmProviders.form.headers.namePlaceholder')"
+                @input="header.value === HttpRedactedValue && (header.value = '')"
               />
               <UInput
                 v-model="header.value"
