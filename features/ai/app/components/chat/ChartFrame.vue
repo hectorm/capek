@@ -76,7 +76,15 @@ useEventListener("message", (event: FrameMessage) => {
   }
 });
 
-watch([() => props.option, () => colorMode.value], draw);
+const optionContent = computed(() => {
+  return JSON.stringify(props.option, (_key, value: unknown) => {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : value;
+  });
+});
+
+watch([optionContent, () => colorMode.value], draw);
 
 let observer: IntersectionObserver | undefined;
 

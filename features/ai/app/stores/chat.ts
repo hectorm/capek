@@ -313,7 +313,12 @@ export const useChatStore = defineStore("ai.chat", () => {
       const response = await fetch("/api/ai/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, message: content }),
+        body: JSON.stringify({
+          sessionId,
+          message: content,
+          userMessageId: tempUserMessageId,
+          assistantMessageId: tempAssistantMessageId,
+        }),
         signal: controller.signal,
       });
 

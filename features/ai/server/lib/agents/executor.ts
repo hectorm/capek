@@ -64,6 +64,8 @@ interface AgentExecutorConfig {
   sessionId: string;
   user: AuthUser;
   message: string;
+  userMessageId?: string;
+  assistantMessageId?: string;
 }
 
 interface AgentConfig {
@@ -177,6 +179,7 @@ export class AgentExecutor {
         const userMessage = await trx
           .insertInto("aiChatMessages")
           .values({
+            id: this.config.userMessageId,
             sessionId: this.config.sessionId,
             role: "user",
             content: this.config.message,
@@ -1157,6 +1160,7 @@ export class AgentExecutor {
         const assistantMessage = await trx
           .insertInto("aiChatMessages")
           .values({
+            id: this.config.assistantMessageId,
             sessionId: this.config.sessionId,
             role: "assistant",
             content,

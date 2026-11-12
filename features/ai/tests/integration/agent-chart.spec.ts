@@ -26,7 +26,7 @@ test.describe("Agent Chart", () => {
     // Find the chat input textarea and type a message
     const chatPrompt = page.getByRole("textbox", { name: /message/i });
     await expect(chatPrompt).toBeVisible();
-    await chatPrompt.fill("Show me a chart.");
+    await chatPrompt.fill("Show me a chart and end slowly.");
 
     // Submit the message using the send button
     const submitButton = page.getByRole("button", { name: /send prompt/i });
@@ -42,8 +42,19 @@ test.describe("Agent Chart", () => {
 
     // Validate that the chart is drawn in a frame without access to the application
     const chartFrame = assistantMessage.locator("iframe");
+    const chart = chartFrame.contentFrame().locator("canvas");
     await expect(chartFrame).toHaveAttribute("sandbox", "allow-scripts");
-    await expect(chartFrame.contentFrame().locator("canvas")).toBeVisible({ timeout: 15000 });
+    await expect(chart).toBeVisible({ timeout: 15000 });
+
+    // Validate that the chart drawn while the answer is streamed is not drawn again when it ends
+    const stopButton = page.getByRole("button", { name: /stop generating/i });
+    await expect(stopButton).toBeVisible();
+    await chart.evaluate((canvas) => {
+      canvas.setAttribute("data-drawn", "once");
+    });
+    await expect(stopButton).not.toBeVisible({ timeout: 15000 });
+    await page.waitForLoadState("networkidle");
+    await expect(chart).toHaveAttribute("data-drawn", "once");
 
     // Validate that the chart is kept with the answer
     await page.reload();

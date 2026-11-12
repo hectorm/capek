@@ -23,6 +23,8 @@ const KEEPALIVE_MS = 15_000;
 const bodySchema = z.object({
   sessionId: z.uuid(),
   message: z.string().trim().min(1).max(100000),
+  userMessageId: z.uuid().optional(),
+  assistantMessageId: z.uuid().optional(),
 });
 
 const errorEvent = (reason: ChatStreamError): string => {
@@ -36,12 +38,16 @@ export default defineEventHandler(async (event) => {
 
   let sessionId: string;
   let message: string;
+  let userMessageId: string | undefined;
+  let assistantMessageId: string | undefined;
 
   try {
     const rawBody: unknown = await readBody(event);
     const body = bodySchema.parse(rawBody);
     sessionId = body.sessionId;
     message = body.message;
+    userMessageId = body.userMessageId;
+    assistantMessageId = body.assistantMessageId;
   } catch (error) {
     logger.warn({ userId: user.id, error }, "Invalid chat request body");
     throw createError({
@@ -132,7 +138,7 @@ export default defineEventHandler(async (event) => {
     abortController.abort();
   });
 
-  const executor = new AgentExecutor({ sessionId, user, message });
+  const executor = new AgentExecutor({ sessionId, user, message, userMessageId, assistantMessageId });
 
   try {
     await executor.createExecution(session.agentId);
