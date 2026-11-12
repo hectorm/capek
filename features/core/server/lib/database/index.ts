@@ -82,7 +82,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
       plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })],
       log(event) {
         if (event.level === "error") {
-          logger.error({ error: event.error }, "Database query error");
+          logger.debug({ error: event.error }, "Database query error");
         } else {
           logger.trace({ query: event.query }, "Database query");
         }
