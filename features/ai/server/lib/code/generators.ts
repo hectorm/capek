@@ -115,8 +115,8 @@ function generateToolModule(serverName: string, tool: MCPTool): string {
   const jsdoc = generateJSDoc(tool.name, tool.description ?? "", tool.inputSchema);
   return [
     jsdoc,
-    "export default function (params) {",
-    `  const result = __mcpCall(${JSON.stringify(serverName)}, ${JSON.stringify(tool.name)}, JSON.stringify(params || {}));`,
+    "export default async function (params) {",
+    `  const result = await __mcpCall(${JSON.stringify(serverName)}, ${JSON.stringify(tool.name)}, JSON.stringify(params || {}));`,
     "  try { return JSON.parse(result); } catch { return result; }",
     "}",
   ].join("\n");
