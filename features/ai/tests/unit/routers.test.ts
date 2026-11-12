@@ -150,3 +150,12 @@ describe("connection tests", () => {
     expect(requests).toEqual(["GET /moved/models Bearer key", "POST /moved -"]);
   });
 });
+
+describe("access lists", () => {
+  it("are only given for the resources that can be read", async () => {
+    const member = as(mallory, Roles.Member);
+
+    expect(await member.llmProvider.listAccess({ llmProviderId })).toHaveLength(1);
+    await expect(member.mcpServer.listAccess({ mcpServerId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

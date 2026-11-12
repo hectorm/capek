@@ -3,9 +3,9 @@ import { z } from "zod/v4";
 
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PermissionName, PrincipalAccess } from "#layers/core/shared/rbac";
-import { listResourceAccess, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
+import { listResourceAccess, listResources, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
-import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { authorizedProcedure } from "#layers/core/server/trpc/init";
 import { principalAccessSchema } from "#layers/core/shared/rbac";
 
@@ -42,6 +42,15 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
       .input(listAccessInput)
       .query(async ({ ctx, input: { resourceId } }) => {
         return withUserTransaction(ctx.user, async (trx) => {
+          const [found] = await listResources(trx, resource, { ids: [resourceId] });
+          if (!found) {
+            ctx.logger.warn({ [idKey]: resourceId }, `${capitalizedLabel} not found`);
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: `${capitalizedLabel} not found`,
+            });
+          }
+
           const principals = await listResourceAccess(trx, resource, resourceId);
           ctx.logger.debug({ [idKey]: resourceId }, `${capitalizedLabel} access list retrieved`);
           return principals;
@@ -60,6 +69,12 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
               throw new TRPCError({
                 code: "FORBIDDEN",
                 message: `You don't have permission to manage access for this ${label}`,
+              });
+            }
+            if (isForeignKeyViolation(error)) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "One or more users or groups do not exist",
               });
             }
             if (isUniqueViolation(error)) {
