@@ -11,7 +11,7 @@ export interface QuerySource extends DatasourceConnectionParams {
 }
 
 // Runs a query on a datasource and returns its rows as JSON
-export async function executeQuery(source: QuerySource, sql: string): Promise<string> {
+export async function executeQuery(source: QuerySource, sql: string, signal?: AbortSignal): Promise<string> {
   const type = findDatasourceType(source.type);
   if (!type) {
     throw new Error(`Datasource type "${source.type}" is not supported`);
@@ -20,8 +20,10 @@ export async function executeQuery(source: QuerySource, sql: string): Promise<st
   try {
     const rows = await type.driver.execute(source, sql, {
       maxRows: 100,
+      maxChars: 1_000_000,
       statementTimeoutMs: 30_000,
       requestTimeoutMs: 10_000,
+      signal,
     });
     return JSON.stringify(rows);
   } catch (error) {

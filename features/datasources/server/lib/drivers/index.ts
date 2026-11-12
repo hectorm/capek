@@ -16,6 +16,8 @@ export interface DatasourceQuerySettings {
   statementTimeoutMs?: number;
   requestTimeoutMs?: number;
   maxRows?: number;
+  maxChars?: number;
+  signal?: AbortSignal;
 }
 
 // Runs the queries of a type of datasource in read-only mode

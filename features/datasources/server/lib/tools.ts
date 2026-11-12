@@ -45,7 +45,7 @@ export const datasourcesToolProvider = defineToolProvider({
             },
             required: ["datasource", "sql"],
           },
-          async execute(args) {
+          async execute(args, context) {
             if (typeof args.datasource !== "string") {
               throw new Error("Missing required 'datasource' field");
             }
@@ -58,7 +58,7 @@ export const datasourcesToolProvider = defineToolProvider({
               throw new Error(`Datasource "${args.datasource}" not found`);
             }
 
-            return executeQuery(source, args.sql);
+            return executeQuery(source, args.sql, context.signal);
           },
           describe(args) {
             return typeof args.sql === "string" ? `\`\`\`sql\n${args.sql}\n\`\`\`` : undefined;

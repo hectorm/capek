@@ -5,6 +5,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/mariadb";
 
 export class MariaDBDriver implements DatasourceDriver {
@@ -33,8 +34,11 @@ export class MariaDBDriver implements DatasourceDriver {
     url.searchParams.set("dateStrings", "true");
 
     let connection: mariadb.Connection | undefined;
+    const onAbort = (): void => connection?.destroy();
     try {
+      settings.signal?.throwIfAborted();
       connection = await mariadb.createConnection(url.toString());
+      settings.signal?.addEventListener("abort", onAbort, { once: true });
       await connection.query("SET SESSION TRANSACTION READ ONLY");
       if (settings.statementTimeoutMs) {
         const isMariaDB = connection.serverVersion().includes("MariaDB");
@@ -48,6 +52,7 @@ export class MariaDBDriver implements DatasourceDriver {
       }
 
       const rows: Record<string, unknown>[] = [];
+      let chars = 0;
       const stream = connection.queryStream(sql);
       let columns: unknown;
       stream.once("fields", (fields: unknown) => {
@@ -61,7 +66,13 @@ export class MariaDBDriver implements DatasourceDriver {
           connection.destroy();
           break;
         }
-        rows.push(this.toSerializable(row as Record<string, unknown>));
+        const serializable = this.toSerializable(row as Record<string, unknown>);
+        rows.push(serializable);
+        chars += JSON.stringify(serializable).length;
+        if (settings.maxChars && chars > settings.maxChars) {
+          connection.destroy();
+          throw new ResultTooLargeError(settings.maxChars);
+        }
       }
       return rows;
     } catch (error) {
@@ -72,6 +83,7 @@ export class MariaDBDriver implements DatasourceDriver {
       }
       throw error;
     } finally {
+      settings.signal?.removeEventListener("abort", onAbort);
       await connection?.end().catch(() => undefined);
     }
   }

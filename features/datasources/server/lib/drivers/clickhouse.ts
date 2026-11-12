@@ -5,6 +5,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { ClickhouseDatasourceType } from "#layers/datasources/shared/definitions/clickhouse";
 
 export class ClickhouseDriver implements DatasourceDriver {
@@ -32,8 +33,10 @@ export class ClickhouseDriver implements DatasourceDriver {
       const result = await client.query({
         query: sql,
         format: "JSONEachRow",
+        abort_signal: settings.signal,
         clickhouse_settings: {
           readonly: "1",
+          cancel_http_readonly_queries_on_client_close: 1,
           output_format_json_quote_64bit_integers: 1,
           output_format_json_quote_decimals: 1,
           ...(settings.statementTimeoutMs
@@ -48,7 +51,19 @@ export class ClickhouseDriver implements DatasourceDriver {
             : {}),
         },
       });
-      return await result.json<Record<string, unknown>>();
+
+      const rows: Record<string, unknown>[] = [];
+      let chars = 0;
+      for await (const batch of result.stream()) {
+        for (const row of batch) {
+          chars += row.text.length;
+          if (settings.maxChars && chars > settings.maxChars) {
+            throw new ResultTooLargeError(settings.maxChars);
+          }
+          rows.push(row.json());
+        }
+      }
+      return rows;
     } finally {
       await client.close().catch(() => undefined);
     }

@@ -9,6 +9,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { SqlServerDatasourceType } from "#layers/datasources/shared/definitions/sqlserver";
 
 interface TediousColumn {
@@ -65,8 +66,12 @@ export class SqlServerDriver implements DatasourceDriver {
     if (settings.statementTimeoutMs) options.requestTimeout = settings.statementTimeoutMs;
 
     const connection = new Connection({ server, authentication, options });
+    const onAbort = (): void => {
+      connection.cancel();
+    };
 
     try {
+      settings.signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {
         connection.once("connect", (err?: Error) => {
           if (err) reject(err);
@@ -76,8 +81,10 @@ export class SqlServerDriver implements DatasourceDriver {
         connection.connect();
       });
 
+      settings.signal?.addEventListener("abort", onAbort, { once: true });
       return await new Promise<unknown[]>((resolve, reject) => {
         const rows: Record<string, unknown>[] = [];
+        let chars = 0;
         let hasResultSet = false;
         let cancelled = false;
         const request = new Request(sql, (err) => {
@@ -96,11 +103,19 @@ export class SqlServerDriver implements DatasourceDriver {
             connection.cancel();
             return;
           }
-          rows.push(this.toRow(columns));
+          const row = this.toRow(columns);
+          rows.push(row);
+          chars += JSON.stringify(row).length;
+          if (settings.maxChars && chars > settings.maxChars) {
+            cancelled = true;
+            connection.cancel();
+            reject(new ResultTooLargeError(settings.maxChars));
+          }
         });
         connection.execSqlBatch(request);
       });
     } finally {
+      settings.signal?.removeEventListener("abort", onAbort);
       try {
         connection.close();
       } catch {
