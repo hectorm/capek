@@ -208,7 +208,12 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
   const startTime = Date.now();
   const mcpCallLogs: MCPCallLog[] = [];
   const toolCallLogs: ToolCallLog[] = [];
-  const maxCallLogChars = options.maxCallLogChars ?? Infinity;
+  let callLogChars = options.maxCallLogChars ?? Infinity;
+  const keepInLog = (text: string): string => {
+    const kept = truncate(text, callLogChars);
+    callLogChars = Math.max(callLogChars - text.length, 0);
+    return kept;
+  };
   let hostCalls = 0;
 
   const callMcp = async (signal: AbortSignal, serverName = "", toolName = "", argsJson?: string): Promise<string> => {
@@ -235,8 +240,8 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
       mcpCallLogs.push({
         serverName,
         toolName,
-        args: truncate(argsJson ?? "{}", maxCallLogChars),
-        result: truncate(output, maxCallLogChars),
+        args: keepInLog(argsJson ?? "{}"),
+        result: keepInLog(output),
         error: null,
         durationMs: Date.now() - callStart,
       });
@@ -246,7 +251,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
       mcpCallLogs.push({
         serverName,
         toolName,
-        args: truncate(argsJson ?? "{}", maxCallLogChars),
+        args: keepInLog(argsJson ?? "{}"),
         result: null,
         error: message,
         durationMs: Date.now() - callStart,
@@ -270,8 +275,8 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
       toolCallLogs.push({
         provider,
         toolName,
-        args: truncate(argsJson ?? "{}", maxCallLogChars),
-        result: truncate(output, maxCallLogChars),
+        args: keepInLog(argsJson ?? "{}"),
+        result: keepInLog(output),
         error: null,
         durationMs: Date.now() - callStart,
       });
@@ -281,7 +286,7 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
       toolCallLogs.push({
         provider,
         toolName,
-        args: truncate(argsJson ?? "{}", maxCallLogChars),
+        args: keepInLog(argsJson ?? "{}"),
         result: null,
         error: message,
         durationMs: Date.now() - callStart,
