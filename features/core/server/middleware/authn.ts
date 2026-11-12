@@ -24,10 +24,11 @@ export default defineEventHandler(async (event) => {
   if (event.path.startsWith("/api/")) {
     // CSRF protection
     if (event.method !== "GET" && event.method !== "HEAD" && event.method !== "OPTIONS") {
-      if (getHeader(event, "Sec-Fetch-Site") === "cross-site") {
+      const site = getHeader(event, "Sec-Fetch-Site");
+      if (site !== undefined && site !== "same-origin" && site !== "none") {
         throw createError({
           statusCode: 403,
-          message: "Cross-site requests are not allowed",
+          message: "Cross-origin requests are not allowed",
         });
       }
     }
