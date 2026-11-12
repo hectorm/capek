@@ -225,7 +225,8 @@ export class AgentExecutor {
       }
 
       outcome = { status: "completed" };
-    } catch (error) {
+    } catch (caught) {
+      const error = caught instanceof DOMException && caught.name === "TimeoutError" ? new TimeoutError() : caught;
       const cancelled =
         signal?.aborted === true ||
         error instanceof AbortError ||
@@ -297,7 +298,7 @@ export class AgentExecutor {
         tools,
         stream: false,
       },
-      signal,
+      this.withTimeout(agent, signal),
     );
 
     if (completion instanceof ReadableStream) {
@@ -425,7 +426,7 @@ export class AgentExecutor {
             presence_penalty: agent.presencePenalty ?? undefined,
             tools: functionTools.length > 0 ? functionTools : undefined,
           },
-          signal,
+          this.withTimeout(agent, signal),
         );
 
         let output: LlmItem[] = [];
@@ -1202,5 +1203,11 @@ export class AgentExecutor {
   private checkTimeout(agent: AgentConfig): boolean {
     const elapsed = (Date.now() - this.startedAt.getTime()) / 1000;
     return elapsed < agent.timeoutSec;
+  }
+
+  private withTimeout(agent: AgentConfig, signal?: AbortSignal): AbortSignal {
+    const remainingMs = Math.max(agent.timeoutSec * 1000 - (Date.now() - this.startedAt.getTime()), 0);
+    const timeout = AbortSignal.timeout(remainingMs);
+    return signal ? AbortSignal.any([timeout, signal]) : timeout;
   }
 }

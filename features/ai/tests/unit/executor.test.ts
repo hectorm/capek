@@ -6,7 +6,7 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { FeatureToolProvider } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
-import { MaxIterationsError, MaxOutputTokensError, RefusalError } from "#layers/ai/server/lib/errors";
+import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import { closeDb, createAiTestDb, insertAgent } from "#layers/ai/tests/unit/helpers/db";
 import { streamOf } from "#layers/ai/tests/unit/helpers/llm";
@@ -73,6 +73,7 @@ let hiddenToolCallsAgentId: string;
 let smallPartsAgentId: string;
 let triageAgentId: string;
 let shortResponsesAgentId: string;
+let impatientAgentId: string;
 
 const readNote = { id: "call-1", type: "function", function: { name: "notes_read", arguments: '{"note":"a"}' } };
 const countNotes = { id: "call-2", type: "function", function: { name: "notes_count", arguments: "{}" } };
@@ -123,6 +124,7 @@ beforeAll(async () => {
   smallPartsAgentId = await createAgent("executor-small-parts-agent", { maxToolPartsChars: 1000 });
   triageAgentId = await createAgent("executor-triage-agent", { type: "triage", toolProviders: [] });
   shortResponsesAgentId = await createAgent("executor-short-responses-agent", { maxToolResponseChars: 1000 });
+  impatientAgentId = await createAgent("executor-impatient-agent", { timeoutSec: 1 });
 
   await db.insertInto("aiTriageSpecialists").values({ triageAgentId, specialistAgentId: agentId }).execute();
 });
@@ -396,6 +398,21 @@ describe("agent executor", () => {
     expect((await answers(sessionId)).map((row) => row.content)).toEqual(["Once upon a"]);
 
     expect((await executions(sessionId)).map((execution) => execution.status)).toEqual(["failed", "failed"]);
+  });
+
+  it("stops waiting for the model when the time of the agent runs out", async () => {
+    const sessionId = await createSession(impatientAgentId);
+
+    vi.stubGlobal("fetch", (_url: URL, init: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          reject(init.signal?.reason as Error);
+        });
+      });
+    });
+    const late = await chat(sessionId, impatientAgentId, "Are you there?");
+    expect(late.error).toBeInstanceOf(TimeoutError);
+    expect(await executions(sessionId)).toEqual([{ status: "cancelled", errorMessage: "The operation timed out" }]);
   });
 
   it("ends the execution when the answer stops being read, so that the session takes new messages", async () => {
