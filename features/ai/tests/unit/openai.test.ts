@@ -267,6 +267,32 @@ describe("openai chat completions", () => {
     ]);
   });
 
+  it("joins the streamed arguments of a provider that sends the ID and the name of a call with each delta", async () => {
+    const toolCall = (index: number, id: string, args: string) => ({
+      index,
+      id,
+      type: "function",
+      function: { name: "get_weather", arguments: args },
+    });
+    const deltas = [
+      { tool_calls: [toolCall(0, "call-1", '{"city":')] },
+      { tool_calls: [toolCall(0, "call-1", '"Madrid"}')] },
+      { tool_calls: [toolCall(1, "call-2", '{"city":"Paris"}')] },
+    ];
+    const stream = fromChatCompletionsStream(
+      streamOf([
+        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
+        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+      ]),
+    );
+
+    const { output } = await readStream(stream);
+    expect(output).toEqual([
+      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
+      { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
+    ]);
+  });
+
   it("keeps the streamed tool calls without an index and the data that the provider needs back with them", async () => {
     const signature = { google: { thought_signature: "signature" } };
     const deltas = [

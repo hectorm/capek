@@ -135,18 +135,21 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
       refusal += delta?.refusal ?? "";
 
       for (const toolCall of delta?.tool_calls ?? []) {
-        const index = toolCall.index ?? (toolCall.id ? toolCalls.size : Math.max(toolCalls.size - 1, 0));
+        const last = toolCalls.size - 1;
+        const index =
+          toolCall.index ??
+          (toolCall.id && toolCall.id !== toolCalls.get(last)?.id ? toolCalls.size : Math.max(last, 0));
         const existing = toolCalls.get(index);
 
-        if (toolCall.id && toolCall.function?.name) {
+        if (existing && (!toolCall.id || toolCall.id === existing.id)) {
+          existing.function.arguments += toolCall.function?.arguments ?? "";
+        } else if (toolCall.id && toolCall.function?.name) {
           toolCalls.set(index, {
             id: toolCall.id,
             type: "function",
             function: { name: toolCall.function.name, arguments: toolCall.function.arguments ?? "" },
             extra_content: toolCall.extra_content,
           });
-        } else if (existing && toolCall.function?.arguments) {
-          existing.function.arguments += toolCall.function.arguments;
         }
       }
 
