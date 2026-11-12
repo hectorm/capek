@@ -7,7 +7,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
-import { paginate } from "#layers/core/server/lib/database/pagination";
+import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 export const chatSessionRouter = createTRPCRouter({
@@ -46,7 +46,7 @@ export const chatSessionRouter = createTRPCRouter({
         order: z.enum(["asc", "desc"]).default("desc"),
         orderBy: z.enum(["title", "updatedAt", "createdAt"]).default("updatedAt"),
         limit: z.number().min(1).max(100).default(50),
-        cursor: z.uuid().nullish(),
+        cursor: PageCursorSchema.nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {

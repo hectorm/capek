@@ -12,7 +12,7 @@ import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { paginate } from "#layers/core/server/lib/database/pagination";
+import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
@@ -116,7 +116,7 @@ export const agentRouter = createTRPCRouter({
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description", "type", "model", "priority"]).default("name"),
         limit: z.number().min(1).max(100).default(50),
-        cursor: z.uuid().nullish(),
+        cursor: PageCursorSchema.nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {

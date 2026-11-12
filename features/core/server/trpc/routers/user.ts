@@ -6,7 +6,7 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { paginate } from "#layers/core/server/lib/database/pagination";
+import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter, publicProcedure } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
@@ -89,7 +89,7 @@ export const userRouter = createTRPCRouter({
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["username", "fullname", "email"]).default("username"),
         limit: z.number().min(1).max(100).default(50),
-        cursor: z.uuid().nullish(),
+        cursor: PageCursorSchema.nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {

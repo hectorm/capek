@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Database } from "#layers/core/shared/schema";
 import { paginate } from "#layers/core/server/lib/database/pagination";
 import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
@@ -25,7 +26,7 @@ afterAll(async () => {
 
 const usernames = async (order: "asc" | "desc", orderBy: string): Promise<string[]> => {
   const all: string[] = [];
-  let cursor: string | undefined;
+  let cursor: PageCursor | undefined;
   for (let pages = 0; pages < 10; pages++) {
     const page = await paginate(
       db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"),
@@ -56,14 +57,22 @@ describe("pagination", () => {
     expect(await usernames("asc", "fullname")).toEqual(ordered.map((row) => row.username));
   });
 
-  it("ends when the row of the cursor is gone", async () => {
-    const page = await paginate(db.selectFrom("users").select(["users.id"]), {
-      table: "users",
-      orderBy: "createdAt",
-      order: "asc",
-      limit: 3,
-      cursor: crypto.randomUUID(),
-    });
-    expect(page).toEqual({ rows: [], nextCursor: undefined });
+  it("continues after the row of the cursor when it changes or is gone", async () => {
+    const pageAfter = (cursor?: PageCursor) =>
+      paginate(db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"), {
+        table: "users",
+        orderBy: "username",
+        order: "asc",
+        limit: 3,
+        cursor,
+      });
+    const first = await pageAfter();
+    const lastId = first.rows.at(-1)?.id ?? "";
+
+    await db.updateTable("users").set({ username: "page9" }).where("id", "=", lastId).execute();
+    expect((await pageAfter(first.nextCursor)).rows.map((row) => row.username)).toEqual(["page4", "page5", "page6"]);
+
+    await db.deleteFrom("users").where("id", "=", lastId).execute();
+    expect((await pageAfter(first.nextCursor)).rows.map((row) => row.username)).toEqual(["page4", "page5", "page6"]);
   });
 });

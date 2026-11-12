@@ -10,7 +10,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { paginate } from "#layers/core/server/lib/database/pagination";
+import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
@@ -46,7 +46,7 @@ export const skillRouter = createTRPCRouter({
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description"]).default("name"),
         limit: z.number().min(1).max(100).default(50),
-        cursor: z.uuid().nullish(),
+        cursor: PageCursorSchema.nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {

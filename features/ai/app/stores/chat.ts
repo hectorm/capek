@@ -44,7 +44,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   const isLoadingSessions = ref<boolean>(false);
   const isLoadingMessages = ref<boolean>(false);
   const isCreatingSession = ref<boolean>(false);
-  const sessionsNextCursor = ref<string | undefined>(undefined);
+  const sessionsNextCursor = ref<RouterOutputs["ai"]["chatSession"]["search"]["nextCursor"]>(undefined);
   const sessionsQuery = ref<SearchQuery>({});
 
   const currentSession = computed(() => {
