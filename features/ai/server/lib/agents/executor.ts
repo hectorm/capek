@@ -35,7 +35,7 @@ import {
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
-import { loadAgentToolsets } from "#layers/ai/server/lib/tools";
+import { loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
@@ -121,13 +121,6 @@ const assertComplete = (incomplete: LlmIncompleteDetails | undefined): void => {
   if (incomplete?.reason === "max_output_tokens") {
     throw new MaxOutputTokensError();
   }
-};
-
-const truncate = (text: string, maxChars: number): string => {
-  if (text.length <= maxChars) {
-    return text;
-  }
-  return `${text.slice(0, maxChars).toWellFormed()}\n\n[Response truncated: ${String(text.length)} characters, showing first ${String(maxChars)}]`;
 };
 
 const serialize = (value: unknown, maxChars: number): string => {
@@ -647,6 +640,7 @@ export class AgentExecutor {
             maxExecutionMs: agent.timeoutSec * 1000,
             maxMemoryBytes: CODE_MAX_MEMORY_BYTES,
             maxWorkspaceBytes: CODE_MAX_WORKSPACE_BYTES,
+            maxCallLogChars: agent.maxToolResponseChars,
             signal: context.signal,
           });
 
@@ -665,11 +659,10 @@ export class AgentExecutor {
           for (const mcpCall of executionResult.mcpCallLogs) {
             const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
             await this.saveToolCallFromCodeExecution(
-              agent,
               codeExecutionId,
               server?.id ?? null,
               mcpCall.toolName,
-              JSON.stringify(mcpCall.args),
+              mcpCall.args,
               mcpCall.result,
               mcpCall.error,
             );
@@ -677,11 +670,10 @@ export class AgentExecutor {
 
           for (const toolCallLog of executionResult.toolCallLogs) {
             await this.saveToolCallFromCodeExecution(
-              agent,
               codeExecutionId,
               null,
               toolCallLog.toolName,
-              JSON.stringify(toolCallLog.args),
+              toolCallLog.args,
               toolCallLog.result,
               toolCallLog.error,
               toolCallLog.provider,
@@ -780,17 +772,17 @@ export class AgentExecutor {
             mcpServers: mcpServerBindings,
             maxExecutionMs: agent.timeoutSec * 1000,
             maxMemoryBytes: CODE_MAX_MEMORY_BYTES,
+            maxCallLogChars: agent.maxToolResponseChars,
             signal: context.signal,
           });
 
           for (const mcpCall of executionResult.mcpCallLogs) {
             const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
             await this.saveToolCallFromCodeExecution(
-              agent,
               null,
               server?.id ?? null,
               mcpCall.toolName,
-              JSON.stringify(mcpCall.args),
+              mcpCall.args,
               mcpCall.result,
               mcpCall.error,
             );
@@ -844,7 +836,6 @@ export class AgentExecutor {
   }
 
   private async saveToolCallFromCodeExecution(
-    agent: AgentConfig,
     codeExecutionId: string | null,
     mcpServerId: string | null,
     toolName: string,
@@ -866,7 +857,7 @@ export class AgentExecutor {
           toolProvider,
           toolName,
           arguments: args,
-          result: result === null ? null : truncate(result, agent.maxToolResponseChars),
+          result,
           errorMessage,
           completedAt: new Date(),
         })

@@ -34,12 +34,32 @@ port.on("message", (reply: SandboxReply) => {
 
 let nextCallId = 0;
 
-const callHost = (name: SandboxHostFunction, args: string[]): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const id = nextCallId++;
-    hostCalls.set(id, { resolve, reject });
-    send({ type: "call", id, name, args });
-  });
+const MAX_CONCURRENT_HOST_CALLS = 8;
+
+let activeHostCalls = 0;
+const queuedHostCalls: (() => void)[] = [];
+
+const callHost = async (name: SandboxHostFunction, args: string[]): Promise<string> => {
+  if (activeHostCalls < MAX_CONCURRENT_HOST_CALLS) {
+    activeHostCalls++;
+  } else {
+    await new Promise<void>((resolve) => queuedHostCalls.push(resolve));
+  }
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const id = nextCallId++;
+      hostCalls.set(id, { resolve, reject });
+      send({ type: "call", id, name, args });
+    });
+  } finally {
+    const next = queuedHostCalls.shift();
+    if (next) {
+      next();
+    } else {
+      activeHostCalls--;
+    }
+  }
 };
 
 const vfs = VirtualFileSystem.fromJSON(input.files, { maxWorkspaceBytes: input.maxWorkspaceBytes });

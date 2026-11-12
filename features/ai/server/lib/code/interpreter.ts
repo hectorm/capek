@@ -16,7 +16,7 @@ import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { ToolContext } from "#layers/core/server/lib/tools/define";
 import { AbortError } from "#layers/ai/server/lib/errors";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
-import { findAgentTool } from "#layers/ai/server/lib/tools";
+import { findAgentTool, truncate } from "#layers/ai/server/lib/tools";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 export type { ConsoleLog } from "#layers/ai/server/lib/code/protocol";
@@ -24,7 +24,7 @@ export type { ConsoleLog } from "#layers/ai/server/lib/code/protocol";
 export interface MCPCallLog {
   serverName: string;
   toolName: string;
-  args: Record<string, unknown>;
+  args: string;
   result: string | null;
   error: string | null;
   durationMs: number;
@@ -33,7 +33,7 @@ export interface MCPCallLog {
 export interface ToolCallLog {
   provider: string;
   toolName: string;
-  args: Record<string, unknown>;
+  args: string;
   result: string | null;
   error: string | null;
   durationMs: number;
@@ -56,6 +56,7 @@ export interface ExecuteCodeOptions {
   maxExecutionMs: number;
   maxMemoryBytes: number;
   maxWorkspaceBytes?: number;
+  maxCallLogChars?: number;
   signal?: AbortSignal;
 }
 
@@ -63,6 +64,7 @@ const logger = useLogger();
 
 const WORKER_GRACE_MS = 2_000;
 const WORKER_MAX_HEAP_MB = 256;
+const MAX_HOST_CALLS = 1_000;
 
 type AsyncWASMModule = Awaited<ReturnType<typeof newQuickJSAsyncWASMModuleFromVariant>>;
 let cachedModulePromise: Promise<AsyncWASMModule> | null = null;
@@ -171,6 +173,8 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
   const startTime = Date.now();
   const mcpCallLogs: MCPCallLog[] = [];
   const toolCallLogs: ToolCallLog[] = [];
+  const maxCallLogChars = options.maxCallLogChars ?? Infinity;
+  let hostCalls = 0;
 
   const callMcp = async (signal: AbortSignal, serverName = "", toolName = "", argsJson?: string): Promise<string> => {
     const args = parseArgs(toolName, argsJson);
@@ -193,14 +197,21 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
         server.toolCallTimeoutSec,
         signal,
       );
-      mcpCallLogs.push({ serverName, toolName, args, result: output, error: null, durationMs: Date.now() - callStart });
+      mcpCallLogs.push({
+        serverName,
+        toolName,
+        args: truncate(argsJson ?? "{}", maxCallLogChars),
+        result: truncate(output, maxCallLogChars),
+        error: null,
+        durationMs: Date.now() - callStart,
+      });
       return output;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       mcpCallLogs.push({
         serverName,
         toolName,
-        args,
+        args: truncate(argsJson ?? "{}", maxCallLogChars),
         result: null,
         error: message,
         durationMs: Date.now() - callStart,
@@ -221,14 +232,21 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
     const callStart = Date.now();
     try {
       const output = await tool.execute(args, { ...options.tools.context, signal });
-      toolCallLogs.push({ provider, toolName, args, result: output, error: null, durationMs: Date.now() - callStart });
+      toolCallLogs.push({
+        provider,
+        toolName,
+        args: truncate(argsJson ?? "{}", maxCallLogChars),
+        result: truncate(output, maxCallLogChars),
+        error: null,
+        durationMs: Date.now() - callStart,
+      });
       return output;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toolCallLogs.push({
         provider,
         toolName,
-        args,
+        args: truncate(argsJson ?? "{}", maxCallLogChars),
         result: null,
         error: message,
         durationMs: Date.now() - callStart,
@@ -247,7 +265,12 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
         maxMemoryBytes: options.maxMemoryBytes,
         maxWorkspaceBytes: options.maxWorkspaceBytes,
       },
-      (name, args, signal) => (name === "mcp" ? callMcp(signal, ...args) : callTool(signal, ...args)),
+      (name, args, signal) => {
+        if (++hostCalls > MAX_HOST_CALLS) {
+          return Promise.reject(new Error(`The code cannot call tools more than ${String(MAX_HOST_CALLS)} times`));
+        }
+        return name === "mcp" ? callMcp(signal, ...args) : callTool(signal, ...args);
+      },
       options.signal,
     );
 

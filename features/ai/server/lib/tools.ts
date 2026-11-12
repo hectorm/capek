@@ -50,6 +50,14 @@ export const loadAgentToolsets = async (
   return toolsets;
 };
 
+// Cuts the output of a tool that is too long for the model
+export const truncate = (text: string, maxChars: number): string => {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return `${text.slice(0, maxChars).toWellFormed()}\n\n[Response truncated: ${String(text.length)} characters, showing first ${String(maxChars)}]`;
+};
+
 export const findAgentTool = (
   toolsets: readonly AgentToolset[],
   name: string,
