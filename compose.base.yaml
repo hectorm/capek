@@ -172,12 +172,29 @@ services:
                 users:
                   groups: ["administrators"]
           agents:
+            - name: "Smart assistant"
+              description: "An agent that routes user requests to the appropriate specialist agent."
+              instructions: >-
+                You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
+                Analyze the user request carefully and determine which specialist is best suited to handle it.
+                If multiple specialists could help, choose the one that is most relevant.
+              type: "triage"
+              priority: 2
+              llmProvider: "llama.cpp"
+              model: "local"
+              specialists: ["General assistant", "Developer assistant"]
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators", "finance", "sales", "marketing", "hr"]
             - name: "General assistant"
               description: "A general-purpose assistant for a variety of tasks."
               instructions: >-
                 You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
                 Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
               type: "specialist"
+              priority: 1
               llmProvider: "llama.cpp"
               model: "local"
               tools: { ai_charts: true }
@@ -193,6 +210,7 @@ services:
                 You can write, debug, and optimize code in various programming languages.
                 You are also knowledgeable about software design patterns and best practices.
               type: "specialist"
+              priority: 0
               llmProvider: "llama.cpp"
               model: "local"
               mcpServers: ["Playwright"]
@@ -204,21 +222,6 @@ services:
                   groups: ["administrators"]
                 users:
                   groups: ["administrators"]
-            - name: "Smart assistant"
-              description: "An agent that routes user requests to the appropriate specialist agent."
-              instructions: >-
-                You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
-                Analyze the user request carefully and determine which specialist is best suited to handle it.
-                If multiple specialists could help, choose the one that is most relevant.
-              type: "triage"
-              llmProvider: "llama.cpp"
-              model: "local"
-              specialists: ["General assistant", "Developer assistant"]
-              access:
-                editors:
-                  groups: ["administrators"]
-                users:
-                  groups: ["administrators", "finance", "sales", "marketing", "hr"]
       NUXT_LOG_LEVEL: "${NUXT_LOG_LEVEL:-debug}"
       NODE_TLS_REJECT_UNAUTHORIZED: "0" # for self-signed certs in dev
 
