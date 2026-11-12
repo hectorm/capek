@@ -43,45 +43,53 @@ export const migrateToLatest = async (db: Kysely<Database>, features: readonly S
     throw new Error(`Duplicate feature "${duplicate}"`);
   }
 
-  for (const feature of features) {
-    if (!feature.migrations) {
-      continue;
-    }
+  // Instances that start at once migrate one after another
+  await db.connection().execute(async (conn) => {
+    await sql`SELECT pg_advisory_lock(hashtext('kysely_migration'))`.execute(conn);
+    try {
+      for (const feature of features) {
+        if (!feature.migrations) {
+          continue;
+        }
 
-    if (!/^[a-z][a-z0-9_]*$/.test(feature.name)) {
-      throw new Error(`Invalid feature name "${feature.name}", it must be a lowercase identifier`);
-    }
+        if (!/^[a-z][a-z0-9_]*$/.test(feature.name)) {
+          throw new Error(`Invalid feature name "${feature.name}", it must be a lowercase identifier`);
+        }
 
-    const migrator = new Migrator({
-      db,
-      provider: new VirtualMigrationProvider(feature.migrations),
-      migrationTableName: `kysely_migration_${feature.name}`,
-      migrationLockTableName: `kysely_migration_lock_${feature.name}`,
-    });
+        const migrator = new Migrator({
+          db: conn,
+          provider: new VirtualMigrationProvider(feature.migrations),
+          migrationTableName: `kysely_migration_${feature.name}`,
+          migrationLockTableName: `kysely_migration_lock_${feature.name}`,
+        });
 
-    const existing = await objectNames(db);
-    const { error, results } = await migrator.migrateToLatest();
+        const existing = await objectNames(conn);
+        const { error, results } = await migrator.migrateToLatest();
 
-    results?.forEach((it) => {
-      if (it.status === "Success") {
-        logger.info({ feature: feature.name, migration: it.migrationName }, "Migration completed");
-      } else if (it.status === "NotExecuted") {
-        logger.warn({ feature: feature.name, migration: it.migrationName }, "Migration not executed");
-      } else {
-        logger.error({ feature: feature.name, migration: it.migrationName }, "Migration failed");
+        results?.forEach((it) => {
+          if (it.status === "Success") {
+            logger.info({ feature: feature.name, migration: it.migrationName }, "Migration completed");
+          } else if (it.status === "NotExecuted") {
+            logger.warn({ feature: feature.name, migration: it.migrationName }, "Migration not executed");
+          } else {
+            logger.error({ feature: feature.name, migration: it.migrationName }, "Migration failed");
+          }
+        });
+
+        if (error) {
+          throw new Error(error instanceof Error ? error.message : JSON.stringify(error));
+        }
+
+        for (const name of await objectNames(conn)) {
+          if (!existing.has(name) && !name.startsWith("kysely_")) {
+            assertFeaturePrefix(feature.name, name, "Database object");
+          }
+        }
       }
-    });
 
-    if (error) {
-      throw new Error(error instanceof Error ? error.message : JSON.stringify(error));
+      await applySecurity(conn, features);
+    } finally {
+      await sql`SELECT pg_advisory_unlock(hashtext('kysely_migration'))`.execute(conn);
     }
-
-    for (const name of await objectNames(db)) {
-      if (!existing.has(name) && !name.startsWith("kysely_")) {
-        assertFeaturePrefix(feature.name, name, "Database object");
-      }
-    }
-  }
-
-  await applySecurity(db, features);
+  });
 };
