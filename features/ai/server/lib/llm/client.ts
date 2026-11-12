@@ -55,7 +55,6 @@ export interface LlmClientOptions {
   apiType?: LlmProviderApiType | null;
   apiKey?: string;
   headers?: HttpHeader[] | null;
-  availableModels?: string[] | null;
   model?: string;
   summaryModel?: string | null;
   streaming?: boolean | null;
@@ -66,59 +65,18 @@ export class LlmClient {
   private readonly api: LlmClientApi;
   private readonly apiKey: string;
   private readonly headers: Record<string, string>;
-  private readonly availableModels: string[] | null;
-  private readonly model: string | null;
-  private readonly summaryModel: string | null;
+  private readonly model: string | undefined;
+  private readonly summaryModel: string;
   private readonly streaming: boolean | null;
-  private modelsCache: string[] | null = null;
 
   public constructor(options: LlmClientOptions) {
     this.apiUrl = options.apiUrl;
     this.api = apis[options.apiType ?? "chat-completions"];
     this.apiKey = options.apiKey ?? "";
     this.headers = Object.fromEntries((options.headers ?? []).map((h) => [h.name, h.value]));
-    this.availableModels = options.availableModels ?? null;
-    this.model = options.model ?? null;
-    this.summaryModel = options.summaryModel ?? null;
+    this.model = options.model;
+    this.summaryModel = options.summaryModel ?? "";
     this.streaming = options.streaming ?? null;
-  }
-
-  public async getAvailableModels(): Promise<string[]> {
-    if (this.availableModels !== null) {
-      return this.availableModels;
-    }
-
-    if (this.modelsCache) {
-      logger.debug("Models cache hit");
-      return this.modelsCache;
-    }
-
-    const models = await this.fetchModels();
-    this.modelsCache = models;
-    logger.debug({ count: models.length }, "Models fetched and cached");
-
-    return models;
-  }
-
-  public async getModel(): Promise<string> {
-    if (this.model !== null && this.model !== "") {
-      return this.model;
-    }
-
-    const models = await this.getAvailableModels();
-    if (models.length === 0 || !models[0]) {
-      throw new Error("No models available from LLM provider");
-    }
-
-    return models[0];
-  }
-
-  public async getSummaryModel(): Promise<string> {
-    if (this.summaryModel !== null && this.summaryModel !== "") {
-      return this.summaryModel;
-    }
-
-    return this.getModel();
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -151,7 +109,7 @@ export class LlmClient {
     request: LlmRequest,
     signal?: AbortSignal,
   ): Promise<LlmResponse | ReadableStream<LlmStreamEvent>> {
-    const model = request.model ?? (await this.getModel());
+    const model = request.model ?? this.model;
     const stream = request.stream ?? this.streaming ?? true;
 
     const response = await this.request(this.api.path, {
@@ -177,9 +135,7 @@ export class LlmClient {
     }
   }
 
-  public async summary(prompt: string, model?: string): Promise<string> {
-    const summaryModel = model ?? (await this.getSummaryModel());
-
+  public async summary(prompt: string): Promise<string> {
     const input: LlmItem[] = [
       {
         type: "message",
@@ -212,7 +168,7 @@ export class LlmClient {
 
     try {
       const request: LlmRequest = {
-        model: summaryModel,
+        model: this.summaryModel || this.model,
         input,
         stream: false,
         max_output_tokens: 256,
