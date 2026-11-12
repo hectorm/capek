@@ -7,7 +7,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
-import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
+import { connectionUrl, toRow } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
 
@@ -79,13 +79,18 @@ export class PostgresDriver implements DatasourceDriver {
         return new Promise((resolve, reject) => {
           const rows: Record<string, unknown>[] = [];
           let bytes = 0;
-          const queryConfig: pg.QueryConfig & { queryMode: "extended" } = { text, queryMode: "extended" };
-          const query = client.query(new pg.Query<Record<string, unknown>>(queryConfig));
-          query.on("row", (row) => {
+          const queryConfig: pg.QueryArrayConfig & { queryMode: "extended" } = {
+            text,
+            rowMode: "array",
+            queryMode: "extended",
+          };
+          const query = client.query(new pg.Query<unknown[]>(queryConfig));
+          query.on("row", (values, result) => {
             if (settings.maxRows && rows.length >= settings.maxRows) {
               resolve(rows);
               return;
             }
+            const row = toRow(result?.fields.map((field) => field.name) ?? [], values);
             rows.push(row);
             bytes += Buffer.byteLength(JSON.stringify(row));
             if (settings.maxBytes && bytes > settings.maxBytes) {

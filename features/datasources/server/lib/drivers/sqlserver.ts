@@ -11,6 +11,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { toRow } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { SqlServerDatasourceType } from "#layers/datasources/shared/definitions/sqlserver";
 
@@ -127,7 +128,10 @@ export class SqlServerDriver implements DatasourceDriver {
             connection.cancel();
             return;
           }
-          const row = this.toRow(columns);
+          const row = toRow(
+            columns.map((column) => column.metadata.colName),
+            columns.map((column) => column.value),
+          );
           rows.push(row);
           bytes += Buffer.byteLength(JSON.stringify(row));
           if (settings.maxBytes && bytes > settings.maxBytes) {
@@ -146,16 +150,6 @@ export class SqlServerDriver implements DatasourceDriver {
         // ignore
       }
     }
-  }
-
-  // Columns without a name, or with a repeated one, are named after their position so that none is lost
-  private toRow(columns: TediousColumn[]): Record<string, unknown> {
-    const row: Record<string, unknown> = {};
-    columns.forEach((column, i) => {
-      const name = column.metadata.colName;
-      row[name && !(name in row) ? name : `column${String(i + 1)}`] = column.value;
-    });
-    return row;
   }
 
   private buildAuthentication(config: SqlServerConfig): ConnectionAuthentication {

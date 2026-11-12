@@ -7,7 +7,7 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
-import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
+import { connectionUrl, toRow } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/mariadb";
 
@@ -66,12 +66,12 @@ export class MariaDBDriver implements DatasourceDriver {
 
       const rows: Record<string, unknown>[] = [];
       let bytes = 0;
-      const stream = connection.queryStream(sql);
-      let columns: unknown;
-      stream.once("fields", (fields: unknown) => {
-        columns = fields;
+      const stream = connection.queryStream({ sql, rowsAsArray: true });
+      let columns: string[] | undefined;
+      stream.once("fields", (fields: { name: () => string }[]) => {
+        columns = fields.map((field) => field.name());
       });
-      for await (const row of stream) {
+      for await (const values of stream) {
         if (!columns) {
           continue;
         }
@@ -79,7 +79,7 @@ export class MariaDBDriver implements DatasourceDriver {
           connection.destroy();
           break;
         }
-        const serializable = this.toSerializable(row as Record<string, unknown>);
+        const serializable = this.toSerializable(toRow(columns, values as unknown[]));
         rows.push(serializable);
         bytes += Buffer.byteLength(JSON.stringify(serializable));
         if (settings.maxBytes && bytes > settings.maxBytes) {
