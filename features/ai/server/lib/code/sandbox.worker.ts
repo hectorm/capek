@@ -86,7 +86,7 @@ const execute = async (): Promise<unknown> => {
     setupHostCall(context, scope, "__mcpCall", "mcp", pendingCalls);
     setupHostCall(context, scope, "__toolCall", "tool", pendingCalls);
 
-    const wrappedCode = `(async () => { ${input.code} })()`;
+    const wrappedCode = `(async () => {\n${input.code}\n})()`;
     const evalResult = await context.evalCodeAsync(wrappedCode);
     if (evalResult.error) {
       throw new Error(extractError(context, scope.manage(evalResult.error)));
