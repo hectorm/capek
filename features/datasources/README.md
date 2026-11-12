@@ -2,7 +2,7 @@
 
 This feature lets users connect the application to their ClickHouse, MariaDB, PostgreSQL and SQL Server databases. Datasources are set up in the Studio, where their builders describe the schema of each one and choose who can use it.
 
-Datasources are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. Queries run in read-only mode. SQL Server cannot enforce it, so its datasources should connect with a user that can only read.
+Datasources are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. The application tries to run queries in read-only mode, but how it does so varies with each type of datasource and it is not a hard limit, so datasources should connect with a user that can only read.
 
 ## Tools
 
