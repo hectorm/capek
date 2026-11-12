@@ -62,14 +62,6 @@ export const OpenAICompletionRequestSchema = z.object({
 
 export type OpenAICompletionRequest = z.infer<typeof OpenAICompletionRequestSchema>;
 
-export const OpenAIUsageSchema = z.object({
-  prompt_tokens: z.number(),
-  completion_tokens: z.number(),
-  total_tokens: z.number(),
-});
-
-export type OpenAIUsage = z.infer<typeof OpenAIUsageSchema>;
-
 const OpenAIContentSchema = z.union([
   z.string(),
   z.array(z.object({ type: z.string(), text: z.string().nullish() })).transform((parts) =>
@@ -81,27 +73,18 @@ const OpenAIContentSchema = z.union([
 ]);
 
 export const OpenAICompletionResponseSchema = z.object({
-  id: z.string(),
-  object: z.literal("chat.completion"),
-  created: z.number(),
-  model: z.string(),
-  system_fingerprint: z.string().nullish(),
   choices: z
     .array(
       z.object({
-        index: z.number(),
         message: z.object({
-          role: z.string(),
           content: OpenAIContentSchema.nullish(),
           refusal: z.string().nullish(),
           tool_calls: z.array(OpenAIToolCallSchema).nullish(),
         }),
         finish_reason: z.string().nullish(),
-        logprobs: z.any().nullish(),
       }),
     )
     .min(1),
-  usage: OpenAIUsageSchema.nullish(),
 });
 
 export type OpenAICompletionResponse = z.infer<typeof OpenAICompletionResponseSchema>;
@@ -122,26 +105,16 @@ export const OpenAIStreamDeltaToolCallSchema = z.object({
 export type OpenAIStreamDeltaToolCall = z.infer<typeof OpenAIStreamDeltaToolCallSchema>;
 
 export const OpenAIStreamChunkSchema = z.object({
-  id: z.string().optional(),
-  object: z.union([z.literal("chat.completion.chunk"), z.literal("")]),
-  created: z.number(),
-  model: z.string(),
-  system_fingerprint: z.string().nullish(),
   choices: z.array(
     z.object({
-      index: z.number(),
       delta: z.object({
-        role: z.string().nullish(),
         content: OpenAIContentSchema.nullish(),
         refusal: z.string().nullish(),
         tool_calls: z.array(OpenAIStreamDeltaToolCallSchema).nullish(),
       }),
       finish_reason: z.string().nullish(),
-      logprobs: z.any().nullish(),
     }),
   ),
-  usage: OpenAIUsageSchema.nullish(),
-  prompt_filter_results: z.array(z.unknown()).optional(),
 });
 
 export type OpenAIStreamChunk = z.infer<typeof OpenAIStreamChunkSchema>;
@@ -215,23 +188,11 @@ export const OpenAIResponsesOutputItemSchema = z.object({
 
 export type OpenAIResponsesOutputItem = z.infer<typeof OpenAIResponsesOutputItemSchema>;
 
-export const OpenAIResponsesUsageSchema = z.object({
-  input_tokens: z.number(),
-  output_tokens: z.number(),
-  total_tokens: z.number(),
-});
-
-export type OpenAIResponsesUsage = z.infer<typeof OpenAIResponsesUsageSchema>;
-
 export const OpenAIResponsesResponseSchema = z.object({
-  id: z.string(),
-  created_at: z.number().nullish(),
-  model: z.string(),
   status: z.string().nullish(),
   error: z.object({ message: z.string().nullish() }).nullish(),
   incomplete_details: z.object({ reason: z.string().nullish() }).nullish(),
   output: z.array(OpenAIResponsesOutputItemSchema),
-  usage: OpenAIResponsesUsageSchema.nullish(),
 });
 
 export type OpenAIResponsesResponse = z.infer<typeof OpenAIResponsesResponseSchema>;
