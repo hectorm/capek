@@ -124,18 +124,20 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
     .transaction()
     .setIsolationLevel("read committed")
     .execute(async (trx) => {
-      // Look up user by email
-      const existingUser = await trx
+      // Look up user by email, or by username when the email changed
+      const userQuery = trx
         .selectFrom("users")
         .select(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
-        .where("email", "=", userInfo.email)
-        .executeTakeFirst();
+        .where((eb) => eb.or([eb("email", "=", userInfo.email), eb("username", "=", userInfo.username)]))
+        .orderBy((eb) => eb("email", "=", userInfo.email), "desc");
+      const existingUser = await userQuery.executeTakeFirst();
 
       if (existingUser) {
         // Update user info if changed
         if (
           existingUser.username !== userInfo.username ||
           existingUser.fullname !== userInfo.fullname ||
+          existingUser.email !== userInfo.email ||
           existingUser.picture !== userInfo.picture
         ) {
           const updatedUser = await trx
@@ -143,6 +145,7 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
             .set({
               username: userInfo.username,
               fullname: userInfo.fullname,
+              email: userInfo.email,
               picture: userInfo.picture ?? null,
               updatedAt: new Date(),
             })
@@ -157,7 +160,7 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
         return existingUser;
       }
 
-      // Create user
+      // Create user, unless a concurrent request did it first
       const newUser = await trx
         .insertInto("users")
         .values({
@@ -166,8 +169,12 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
           email: userInfo.email,
           picture: userInfo.picture ?? null,
         })
+        .onConflict((oc) => oc.doNothing())
         .returning(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+      if (!newUser) {
+        return userQuery.executeTakeFirstOrThrow();
+      }
 
       logger.info({ userId: newUser.id, email: userInfo.email }, "User created via proxy headers");
       return newUser;
@@ -233,7 +240,13 @@ export const syncUserGroups = async (
       }
       if (groupsToAdd.length > 0) {
         const userGroups = groupsToAdd.map((g) => ({ userId, groupId: g.id }));
-        ops.push(trx.insertInto("userGroups").values(userGroups).execute());
+        ops.push(
+          trx
+            .insertInto("userGroups")
+            .values(userGroups)
+            .onConflict((oc) => oc.doNothing())
+            .execute(),
+        );
       }
       await Promise.all(ops);
     }
@@ -294,7 +307,13 @@ export const syncUserRoles = async (
       }
       if (rolesToAdd.length > 0) {
         const userRoles = rolesToAdd.map((r) => ({ userId, roleId: r.id }));
-        ops.push(trx.insertInto("userRoles").values(userRoles).execute());
+        ops.push(
+          trx
+            .insertInto("userRoles")
+            .values(userRoles)
+            .onConflict((oc) => oc.doNothing())
+            .execute(),
+        );
       }
       await Promise.all(ops);
     }
@@ -355,7 +374,13 @@ export const syncGroupRoles = async (
       }
       if (rolesToAdd.length > 0) {
         const groupRoles = rolesToAdd.map((r) => ({ groupId, roleId: r.id }));
-        ops.push(trx.insertInto("groupRoles").values(groupRoles).execute());
+        ops.push(
+          trx
+            .insertInto("groupRoles")
+            .values(groupRoles)
+            .onConflict((oc) => oc.doNothing())
+            .execute(),
+        );
       }
       await Promise.all(ops);
     }
@@ -426,7 +451,13 @@ export const syncRolePermissions = async (
       }
       if (permissionsToAdd.length > 0) {
         const rolePermissions = permissionsToAdd.map((p) => ({ roleId, permissionId: p.id }));
-        ops.push(trx.insertInto("rolePermissions").values(rolePermissions).execute());
+        ops.push(
+          trx
+            .insertInto("rolePermissions")
+            .values(rolePermissions)
+            .onConflict((oc) => oc.doNothing())
+            .execute(),
+        );
       }
       await Promise.all(ops);
     }
