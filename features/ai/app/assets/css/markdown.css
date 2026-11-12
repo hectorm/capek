@@ -11,6 +11,14 @@ html.dark {
 .markdown-body {
   @apply bg-transparent! font-sans!;
 
+  & > :first-child > :first-child {
+    @apply mt-0!;
+  }
+
+  & > :last-child > :last-child {
+    @apply mb-0!;
+  }
+
   ul,
   ol {
     @apply list-[revert]!;

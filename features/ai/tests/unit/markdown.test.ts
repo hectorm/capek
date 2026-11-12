@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 
-import { mdToHtml } from "#layers/ai/app/utils/md-to-html";
+import { mdToBlocks, mdToHtml } from "#layers/ai/app/utils/md-to-html";
 
 const render = (markdown: string): HTMLElement => {
   const container = document.createElement("div");
@@ -25,6 +25,38 @@ describe("markdown of the messages", () => {
       ["checkbox", true, true],
       ["checkbox", true, false],
     ]);
+  });
+
+  it("splits an answer in blocks that render like the whole of it", () => {
+    const markdown = [
+      "# Title",
+      "",
+      "Some text",
+      "on two lines.",
+      "",
+      "1. one",
+      "",
+      "   more of one",
+      "2. two",
+      "",
+      "| a | b |",
+      "| - | - |",
+      "| 1 | 2 |",
+      "",
+      "```js",
+      "const a = 1;",
+      "",
+      "const b = 2;",
+      "```",
+      "",
+      "> quote",
+    ].join("\n");
+    const blocks = mdToBlocks(markdown);
+    expect(blocks).toHaveLength(6);
+    expect(blocks.map((block) => mdToHtml(block)).join("")).toBe(mdToHtml(markdown));
+
+    expect(mdToBlocks("<details>\n\nHidden\n\n</details>")).toHaveLength(1);
+    expect(mdToBlocks("See [the docs][docs].\n\n[docs]: https://example.com")).toHaveLength(1);
   });
 
   it("drops the scripts, the styles and the classes that would change the application", () => {

@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { mdToHtml } from "#layers/ai/app/utils/md-to-html";
+import { mdToBlocks, mdToHtml } from "#layers/ai/app/utils/md-to-html";
 
 const props = defineProps<{
   text: string;
 }>();
 
-const html = computed(() => mdToHtml(props.text));
+const blocks = computed(() => mdToBlocks(props.text));
 </script>
 
 <template>
-  <!-- eslint-disable-next-line vue/no-v-html -->
-  <div class="markdown-body max-w-none" v-html="html" />
+  <div class="markdown-body max-w-none">
+    <!-- eslint-disable-next-line vue/no-v-html -->
+    <div v-for="(block, index) in blocks" :key="index" v-memo="[block]" v-html="mdToHtml(block)" />
+  </div>
 </template>
