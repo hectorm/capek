@@ -1,8 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
+import { useRuntimeConfig } from "nitropack/runtime/config";
 import { z } from "zod/v4";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
@@ -10,22 +12,27 @@ import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pag
 import { authorizedProcedure, createTRPCRouter, publicProcedure } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
-export const userRouter = createTRPCRouter({
-  me: publicProcedure.query(({ ctx }): Omit<AuthUser, "lastLoginAt" | "createdAt" | "updatedAt"> | null => {
-    if (!ctx.user) {
-      return null;
-    }
+const config = useRuntimeConfig();
 
-    return {
-      id: ctx.user.id,
-      username: ctx.user.username,
-      fullname: ctx.user.fullname,
-      email: ctx.user.email,
-      picture: ctx.user.picture,
-      groups: ctx.user.groups,
-      permissions: ctx.user.permissions,
-    };
-  }),
+export const userRouter = createTRPCRouter({
+  me: publicProcedure.query(
+    ({ ctx }): (Omit<AuthUser, "lastLoginAt" | "createdAt" | "updatedAt"> & { canLogOut: boolean }) | null => {
+      if (!ctx.user) {
+        return null;
+      }
+
+      return {
+        id: ctx.user.id,
+        username: ctx.user.username,
+        fullname: ctx.user.fullname,
+        email: ctx.user.email,
+        picture: ctx.user.picture,
+        groups: ctx.user.groups,
+        permissions: ctx.user.permissions,
+        canLogOut: config.authMode === AuthModes.OIDC,
+      };
+    },
+  ),
 
   read: authorizedProcedure([CorePermissions.UserReadAll, CorePermissions.UserReadOwn])
     .input(

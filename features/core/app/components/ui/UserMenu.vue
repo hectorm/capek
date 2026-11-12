@@ -73,24 +73,28 @@ const items = computed<DropdownMenuItem[]>(() => {
     })),
   });
 
-  menuItems.push({ type: "separator" });
-
-  if (user.value) {
-    menuItems.push({
-      type: "link",
-      label: i18n.t("components.userMenu.logOut.label"),
-      icon: "i-lucide-log-out",
-      to: "/api/logout",
-      external: true,
-    });
-  } else {
-    menuItems.push({
-      type: "link",
-      label: i18n.t("components.userMenu.logIn.label"),
-      icon: "i-lucide-log-in",
-      to: "/api/login",
-      external: true,
-    });
+  if (user.value?.canLogOut) {
+    menuItems.push(
+      { type: "separator" },
+      {
+        type: "link",
+        label: i18n.t("components.userMenu.logOut.label"),
+        icon: "i-lucide-log-out",
+        to: "/api/logout",
+        external: true,
+      },
+    );
+  } else if (!user.value) {
+    menuItems.push(
+      { type: "separator" },
+      {
+        type: "link",
+        label: i18n.t("components.userMenu.logIn.label"),
+        icon: "i-lucide-log-in",
+        to: "/api/login",
+        external: true,
+      },
+    );
   }
 
   return menuItems;
