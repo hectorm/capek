@@ -2,6 +2,8 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const EVENT_MAX_CHARS = 10 * 1024 * 1024;
+
 export interface SSEEvent {
   data: string;
   eventId: string | null;
@@ -18,6 +20,7 @@ export class SSEProcessor {
   private currentEventId: string | null = null;
   private currentEventType: string | null = null;
   private currentData: string[] = [];
+  private currentDataChars = 0;
   private readonly decoder = new TextDecoder();
   private readonly onEvent: (event: SSEEvent) => void;
   private readonly onRetry?: (retryMs: number) => void;
@@ -34,6 +37,10 @@ export class SSEProcessor {
 
     for (const line of lines) {
       this.processLine(line);
+    }
+
+    if (this.buffer.length + this.currentDataChars > EVENT_MAX_CHARS) {
+      throw new Error(`The stream sent an event larger than ${String(EVENT_MAX_CHARS)} characters`);
     }
   }
 
@@ -80,6 +87,7 @@ export class SSEProcessor {
     switch (field) {
       case "data":
         this.currentData.push(value);
+        this.currentDataChars += value.length;
         break;
       case "id":
         if (!value.includes("\0")) {
@@ -107,6 +115,7 @@ export class SSEProcessor {
 
     const data = this.currentData.join("\n");
     this.currentData = [];
+    this.currentDataChars = 0;
 
     const eventType = this.currentEventType;
     this.currentEventType = null;
