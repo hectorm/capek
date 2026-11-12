@@ -32,12 +32,14 @@ export function createVFS(
   const vfs = new VirtualFileSystem();
 
   const serverExports: string[] = [];
+  const serverIds = uniqueIds();
   for (const server of servers) {
-    const serverName = sanitizeId(server.name);
+    const serverName = serverIds(server.name);
     const toolExports: string[] = [];
 
+    const toolIds = uniqueIds();
     for (const tool of server.tools) {
-      const toolName = sanitizeId(tool.name);
+      const toolName = toolIds(tool.name);
       const toolPath = `/servers/${serverName}/${toolName}.js`;
       vfs.writeFile(toolPath, generateToolModule(server.name, tool), { readonly: true });
 
@@ -52,10 +54,11 @@ export function createVFS(
   vfs.writeFile("/servers/index.js", serverExports.join("\n") + "\n", { readonly: true });
 
   const skillExports: string[] = [];
+  const skillIds = uniqueIds();
   for (const skill of skills) {
-    const skillName = sanitizeId(skill.name);
+    const skillName = skillIds(skill.name);
 
-    const skillMd = generateSkillMarkdown(skill);
+    const skillMd = generateSkillMarkdown(skill, skillName);
     vfs.writeFile(`/skills/${skillName}/SKILL.md`, skillMd, { readonly: true });
 
     if (skill.code) {
@@ -122,7 +125,7 @@ function generateToolModule(serverName: string, tool: MCPTool): string {
   ].join("\n");
 }
 
-function generateSkillMarkdown(skill: SkillBinding): string {
+function generateSkillMarkdown(skill: SkillBinding, skillName: string): string {
   const lines: string[] = [];
 
   lines.push("---");
@@ -144,8 +147,8 @@ function generateSkillMarkdown(skill: SkillBinding): string {
     lines.push("## Usage");
     lines.push("");
     lines.push("```js");
-    lines.push(`const { $${sanitizeId(skill.name)} } = await import('/skills/index.js');`);
-    lines.push(`await $${sanitizeId(skill.name)}({ /* params */ });`);
+    lines.push(`const { $${skillName} } = await import('/skills/index.js');`);
+    lines.push(`await $${skillName}({ /* params */ });`);
     lines.push("```");
   }
 
@@ -156,6 +159,19 @@ function sanitizeId(name: string): string {
   let id = name.replace(/[^a-zA-Z0-9_]/g, "_");
   if (id.length === 0) id = "_unnamed";
   return id;
+}
+
+function uniqueIds(): (name: string) => string {
+  const used = new Set<string>();
+  return (name) => {
+    const base = sanitizeId(name);
+    let id = base;
+    for (let i = 2; used.has(id); i++) {
+      id = `${base}_${String(i)}`;
+    }
+    used.add(id);
+    return id;
+  };
 }
 
 interface ToolInputSchema {
