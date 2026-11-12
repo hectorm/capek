@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+export const HttpUrlSchema = z.url({ protocol: /^https?$/ });
+
 export const HttpHeaderSchema = z.object({
   name: z
     .string()

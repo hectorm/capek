@@ -22,7 +22,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
 import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { useUserStore } from "#layers/core/app/stores/user";
-import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
+import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
@@ -85,7 +85,7 @@ const schema = z
     id: z.uuid().optional(),
     name: z.string().min(1).max(100).trim(),
     description: z.string().max(1000).trim().default(""),
-    apiUrl: z.url(),
+    apiUrl: HttpUrlSchema,
     apiType: LlmProviderApiTypeSchema,
     apiKey: z.string().max(1000).trim().default(""),
     headers: HttpHeadersSchema.default([]),

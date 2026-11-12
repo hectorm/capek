@@ -9,12 +9,12 @@ import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
 import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/tools/define";
-import { HttpHeadersSchema } from "#layers/core/shared/http";
+import { HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
 const seedLLMProviderSchema = z.object({
   name: z.string().min(1).max(100).trim(),
   description: z.string().max(1000).trim().default(""),
-  apiUrl: z.url(),
+  apiUrl: HttpUrlSchema,
   apiType: LlmProviderApiTypeSchema.default("chat-completions"),
   apiKey: z.string().max(1000).trim().default(""),
   headers: HttpHeadersSchema.optional(),
@@ -25,7 +25,7 @@ const seedMCPServerSchema = z
   .object({
     name: z.string().min(1).max(100).trim(),
     description: z.string().max(1000).trim().default(""),
-    url: z.url(),
+    url: HttpUrlSchema,
     headers: HttpHeadersSchema.optional(),
     stateful: z.boolean().default(false),
     access: seedAccessSchema,

@@ -16,7 +16,7 @@ import { paginate } from "#layers/core/server/lib/database/pagination";
 import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
+import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
 
 interface WithRedactedValues {
   apiKey: HttpRedactedHeader["value"];
@@ -95,7 +95,7 @@ export const llmProviderRouter = createTRPCRouter({
       z.object({
         name: z.string().min(1).max(100).trim(),
         description: z.string().max(1000).trim().default(""),
-        apiUrl: z.url(),
+        apiUrl: HttpUrlSchema,
         apiType: LlmProviderApiTypeSchema.default("chat-completions"),
         apiKey: z.string().max(1000).trim().default(""),
         headers: HttpHeadersSchema.optional(),
@@ -155,7 +155,7 @@ export const llmProviderRouter = createTRPCRouter({
         id: z.uuid(),
         name: z.string().min(1).max(100).trim().optional(),
         description: z.string().max(1000).trim().optional(),
-        apiUrl: z.url().optional(),
+        apiUrl: HttpUrlSchema.optional(),
         apiType: LlmProviderApiTypeSchema.optional(),
         apiKey: z.string().max(1000).trim().optional(),
         headers: HttpHeadersSchema.optional(),
@@ -274,7 +274,7 @@ export const llmProviderRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid().optional(),
-        apiUrl: z.url(),
+        apiUrl: HttpUrlSchema,
         apiType: LlmProviderApiTypeSchema.default("chat-completions"),
         apiKey: z.string().max(1000).trim().default(""),
         headers: HttpHeadersSchema.optional(),

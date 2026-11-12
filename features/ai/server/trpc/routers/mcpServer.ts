@@ -16,7 +16,7 @@ import { paginate } from "#layers/core/server/lib/database/pagination";
 import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { HttpHeadersSchema, HttpRedactedValue } from "#layers/core/shared/http";
+import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
 
 interface WithRedactedValues {
   headers: HttpRedactedHeader[];
@@ -92,7 +92,7 @@ export const mcpServerRouter = createTRPCRouter({
         .object({
           name: z.string().min(1).max(100).trim(),
           description: z.string().max(1000).trim().default(""),
-          url: z.url(),
+          url: HttpUrlSchema,
           headers: HttpHeadersSchema.optional(),
           stateful: z.boolean().default(false),
         })
@@ -153,7 +153,7 @@ export const mcpServerRouter = createTRPCRouter({
           id: z.uuid(),
           name: z.string().min(1).max(100).trim().optional(),
           description: z.string().max(1000).trim().optional(),
-          url: z.url().optional(),
+          url: HttpUrlSchema.optional(),
           headers: HttpHeadersSchema.optional(),
           stateful: z.boolean().optional(),
         })
@@ -268,7 +268,7 @@ export const mcpServerRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid().optional(),
-        url: z.url(),
+        url: HttpUrlSchema,
         headers: HttpHeadersSchema.optional(),
       }),
     )
