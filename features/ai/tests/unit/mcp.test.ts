@@ -100,11 +100,27 @@ describe("mcp", () => {
       "Screenshot taken\n[image content omitted: image/png]\nNotes\n[resource_link content omitted: file:///report.pdf]",
     );
     expect(await call("count")).toBe('{"total":3}');
-    expect(manager.hasClient("test", chatSessionId)).toBe(true);
 
     expect(await manager.cleanupIdleSessions(Date.now() + 10 * 60 * 1000)).toBe(0);
     expect(await manager.cleanupIdleSessions(Date.now() + 31 * 60 * 1000)).toBe(1);
-    expect(manager.hasClient("test", chatSessionId)).toBe(false);
+  });
+
+  it("replaces the client of a server whose URL or headers change, like when its token is rotated", async () => {
+    const manager = MCPManager.getInstance();
+    const chatSessionId = crypto.randomUUID();
+
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", (target: string, init: RequestInit) => {
+      paths.push(new URL(target).pathname);
+      return respond(target, init);
+    });
+
+    await manager.callTool("test", `${url}/mcp`, [], "count", {}, chatSessionId, false, 5);
+    await manager.callTool("test", `${url}/rotated`, [], "count", {}, chatSessionId, false, 5);
+    expect(paths.at(-1)).toBe("/rotated");
+
+    vi.stubGlobal("fetch", respond);
+    await manager.cleanupSession(chatSessionId);
   });
 
   it("keeps the clients of a chat session while one of its calls is running", async () => {
@@ -116,7 +132,6 @@ describe("mcp", () => {
     await vi.waitFor(() => {
       expect(finishSlowCall).not.toBe(previousSlowCall);
     });
-    expect(manager.hasClient("test", chatSessionId)).toBe(true);
     expect(await manager.cleanupIdleSessions(Date.now() + 31 * 60 * 1000)).toBe(0);
 
     finishSlowCall();

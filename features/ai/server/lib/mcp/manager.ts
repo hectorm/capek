@@ -31,8 +31,16 @@ const mcpResultText = (result: MCPCallToolResult): string => {
   return texts.join("\n");
 };
 
+const terminateClient = async (serverName: string, client: Promise<MCPClient>): Promise<void> => {
+  try {
+    await (await client).terminate();
+  } catch (error) {
+    logger.warn({ error, serverName }, "Failed to terminate MCP client");
+  }
+};
+
 interface MCPSession {
-  clients: Map<string, Promise<MCPClient>>;
+  clients: Map<string, { config: string; client: Promise<MCPClient> }>;
   calls: number;
   lastUsedAt: number;
 }
@@ -52,14 +60,6 @@ export class MCPManager {
     return (MCPManager.instance ??= new MCPManager());
   }
 
-  public hasClient(serverName: string, chatSessionId: string): boolean {
-    if (cluster.isWorker) {
-      throw new Error("Method not available in worker processes");
-    }
-
-    return this.sessions.get(chatSessionId)?.clients.has(serverName) ?? false;
-  }
-
   public async getOrCreateClient(
     serverName: string,
     serverUrl: string,
@@ -72,28 +72,32 @@ export class MCPManager {
     }
 
     const session = this.sessions.get(chatSessionId) ?? {
-      clients: new Map<string, Promise<MCPClient>>(),
+      clients: new Map<string, { config: string; client: Promise<MCPClient> }>(),
       calls: 0,
       lastUsedAt: 0,
     };
     session.lastUsedAt = Date.now();
     this.sessions.set(chatSessionId, session);
 
-    let client = session.clients.get(serverName);
-    if (client) {
-      return client;
+    const config = JSON.stringify([serverUrl, serverHeaders, stateful]);
+    const existing = session.clients.get(serverName);
+    if (existing?.config === config) {
+      return existing.client;
+    }
+    if (existing) {
+      void terminateClient(serverName, existing.client);
     }
 
-    client = (async () => {
+    const client = (async () => {
       const created = new MCPClient({ name: serverName, url: serverUrl, headers: serverHeaders, stateful });
       await created.initialize();
       logger.debug({ serverName, chatSessionId, sessionId: created.sessionId }, "MCP client created for chat session");
       return created;
     })();
-    session.clients.set(serverName, client);
+    session.clients.set(serverName, { config, client });
 
     client.catch(() => {
-      if (session.clients.get(serverName) === client) {
+      if (session.clients.get(serverName)?.client === client) {
         session.clients.delete(serverName);
       }
     });
@@ -114,14 +118,8 @@ export class MCPManager {
 
     this.sessions.delete(chatSessionId);
 
-    await Promise.allSettled(
-      Array.from(session.clients.entries()).map(async ([serverName, client]) => {
-        try {
-          await (await client).terminate();
-        } catch (error) {
-          logger.warn({ error, serverName }, "Failed to terminate MCP client during cleanup");
-        }
-      }),
+    await Promise.all(
+      Array.from(session.clients.entries()).map(([serverName, { client }]) => terminateClient(serverName, client)),
     );
 
     logger.debug({ chatSessionId, clientCount: session.clients.size }, "MCP session cleaned up");
