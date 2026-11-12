@@ -1,7 +1,10 @@
 import type { Kysely } from "kysely";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { FeatureToolProvider, ResourceToolProvider, Tool, Toolset } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
+import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
+import { withUserTransaction } from "#layers/core/server/lib/database";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
 
@@ -9,11 +12,12 @@ export interface AgentToolset extends Toolset {
   provider: string;
 }
 
-// Loaded without a user, since access was checked on assignment. Resources and providers that are gone are ignored
+// Tools of an agent, with only the assigned resources that the calling user can use and that still exist
 export const loadAgentToolsets = async (
   db: Kysely<Database>,
   providers: readonly FeatureToolProvider[],
   agentId: string,
+  user: AuthUser,
 ): Promise<AgentToolset[]> => {
   const assigned = await db
     .selectFrom("aiAgentToolResources")
@@ -22,32 +26,38 @@ export const loadAgentToolsets = async (
     .execute();
   const agent = await db.selectFrom("aiAgents").select(["toolProviders"]).where("id", "=", agentId).executeTakeFirst();
 
-  const toolsets: AgentToolset[] = [];
-  const toolNames = new Set<string>();
-  for (const provider of providers) {
-    const resourceIds = hasToolResources(provider)
-      ? assigned
-          .filter((resource) => resource.resourceType === provider.resource.type)
-          .map((resource) => resource.resourceId)
-      : [];
-    const enabled = hasToolResources(provider)
-      ? resourceIds.length > 0
-      : (agent?.toolProviders.includes(provider.name) ?? false);
-    if (!enabled) {
-      continue;
-    }
-
-    const toolset = await provider.load(db, resourceIds);
-    for (const tool of toolset.tools) {
-      assertFeaturePrefix(provider.feature, tool.name, "Tool");
-      if (toolNames.has(tool.name)) {
-        throw new Error(`Duplicate tool "${tool.name}" in tool provider "${provider.name}"`);
+  return withUserTransaction(user, async (trx) => {
+    const toolsets: AgentToolset[] = [];
+    const toolNames = new Set<string>();
+    for (const provider of providers) {
+      const resourceIds = hasToolResources(provider)
+        ? await usableResourceIds(
+            trx,
+            provider.resource,
+            assigned
+              .filter((resource) => resource.resourceType === provider.resource.type)
+              .map((resource) => resource.resourceId),
+          )
+        : [];
+      const enabled = hasToolResources(provider)
+        ? resourceIds.length > 0
+        : (agent?.toolProviders.includes(provider.name) ?? false);
+      if (!enabled) {
+        continue;
       }
-      toolNames.add(tool.name);
+
+      const toolset = await provider.load(trx, resourceIds);
+      for (const tool of toolset.tools) {
+        assertFeaturePrefix(provider.feature, tool.name, "Tool");
+        if (toolNames.has(tool.name)) {
+          throw new Error(`Duplicate tool "${tool.name}" in tool provider "${provider.name}"`);
+        }
+        toolNames.add(tool.name);
+      }
+      toolsets.push({ ...toolset, provider: provider.name });
     }
-    toolsets.push({ ...toolset, provider: provider.name });
-  }
-  return toolsets;
+    return toolsets;
+  });
 };
 
 // Cuts the output of a tool that is too long for the model

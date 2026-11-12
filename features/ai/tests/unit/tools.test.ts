@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { ToolContext } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
@@ -75,6 +76,7 @@ const providers = collectToolProviders([coreFeature, aiFeature, notesFeature]);
 
 const agentEditor = ["ai_agent:update:own", "ai_agent:read:own"];
 const skillUser = ["ai_skill:read:own", "ai_skill:use:own"];
+const caller = { id: alice, groups: [], permissions: skillUser } as unknown as AuthUser;
 
 beforeAll(async () => {
   db = await createAiTestDb();
@@ -134,7 +136,7 @@ describe("agent tool resources", () => {
       ])
       .execute();
 
-    const toolsets = await loadAgentToolsets(db, providers, agentId);
+    const toolsets = await loadAgentToolsets(db, providers, agentId, caller);
     expect(toolsets.map((toolset) => toolset.provider)).toEqual(["notes"]);
     expect(toolsets[0]?.tools.map((tool) => tool.name)).toEqual(["notes_read"]);
     expect(toolsets[0]?.tools[0]?.parameters.properties.note).toEqual({ type: "string", enum: ["usable-note"] });
@@ -142,6 +144,17 @@ describe("agent tool resources", () => {
     expect(buildToolsetsPrompt(toolsets)).toBe(
       "## Notes\n\nUse `notes_read` to read a note.\n\n### usable-note\n\nAbout usable-note",
     );
+
+    // Nor reach the resources that the user who calls them cannot use
+    await db
+      .insertInto("aiAgentToolResources")
+      .values({ agentId, resourceType: SkillResource.type, resourceId: otherSkillId })
+      .execute();
+    const [notes] = await loadAgentToolsets(db, providers, agentId, caller);
+    expect(notes?.tools[0]?.parameters.properties.note).toEqual({ type: "string", enum: ["usable-note"] });
+
+    const outsider = { id: crypto.randomUUID(), groups: [], permissions: skillUser } as unknown as AuthUser;
+    expect(await loadAgentToolsets(db, providers, agentId, outsider)).toEqual([]);
   });
 
   it("loads the tools of the providers switched on for the agent", async () => {
@@ -152,7 +165,7 @@ describe("agent tool resources", () => {
     ]);
 
     const loadedTools = async (): Promise<string[]> => {
-      const loaded = await loadAgentToolsets(db, providers, agentId);
+      const loaded = await loadAgentToolsets(db, providers, agentId, caller);
       return loaded.flatMap((candidate) => candidate.tools.map((tool) => tool.name));
     };
     expect(await loadedTools()).toEqual(["notes_read"]);
@@ -166,7 +179,7 @@ describe("agent tool resources", () => {
     expect(await loadedTools()).toEqual(["notes_read", "notes_whoami"]);
 
     // Their tools act on behalf of the user that calls them
-    const [, toolset] = await loadAgentToolsets(db, providers, agentId);
+    const [, toolset] = await loadAgentToolsets(db, providers, agentId, caller);
     const result = await toolset?.tools[0]?.execute({}, { user: { id: alice } } as ToolContext);
     expect(result).toBe(JSON.stringify({ userId: alice, resources: [] }));
 
@@ -189,13 +202,13 @@ describe("agent tool resources", () => {
           ],
         }),
     });
-    await expect(loadAgentToolsets(db, [{ ...provider, feature: "notes" }], agentId)).rejects.toThrow(
+    await expect(loadAgentToolsets(db, [{ ...provider, feature: "notes" }], agentId, caller)).rejects.toThrow(
       /Tool "read" of feature "notes" must start with "notes_"/,
     );
   });
 
   it("exposes the tools in the code interpreter", async () => {
-    const toolsets: AgentToolset[] = await loadAgentToolsets(db, providers, agentId);
+    const toolsets: AgentToolset[] = await loadAgentToolsets(db, providers, agentId, caller);
     const vfs = createVFS([], [], toolsets);
 
     expect(vfs.readFile("/tools/notes/README.md")).toContain("notes_read");

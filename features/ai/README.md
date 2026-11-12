@@ -8,7 +8,7 @@ Each agent answers through an LLM provider, which can be any API compatible with
 
 Agents can also use the tools that other features provide, like the datasources assigned to them.
 
-Agents, LLM providers, MCP servers and skills are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. Assigning a provider, MCP server, skill or specialist to an agent requires permission to edit the agent and to use the resource. Once assigned, everyone who can use the agent uses them through it, without having access to them directly.
+Agents, LLM providers, MCP servers and skills are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. Assigning a provider, MCP server, skill or specialist to an agent requires permission to edit the agent and to use the resource. Once assigned, everyone who can use the agent uses its provider and specialists through it, while its MCP servers, skills and the resources of other features only reach the users who can use them.
 
 ## Configuration
 

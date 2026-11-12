@@ -62,7 +62,7 @@ Each feature owns its database changes:
 
 ## Tools
 
-A feature exposes tools to automated callers, such as the agents of the AI feature, with the providers in the `tools` field of its server feature (`defineToolProvider()`). A provider gives the tools of the resources assigned to each caller, like the datasources of an agent. Without resources it is switched on for each caller instead, and its tools act on behalf of the user that calls them.
+A feature exposes tools to automated callers, such as the agents of the AI feature, with the providers in the `tools` field of its server feature (`defineToolProvider()`). A provider gives the tools of the resources assigned to each caller, like the datasources of an agent, and only of the ones that the user who calls them can use. Without resources it is switched on for each caller instead. Either way, the tools are loaded with the restrictions of that user and act on their behalf.
 
 ## Extension points
 

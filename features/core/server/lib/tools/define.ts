@@ -47,9 +47,9 @@ export interface ToolProvider {
   name: string;
   // i18n key of the label shown where the provider is given to a caller
   label: string;
-  // Resources assigned to each caller with `<type>:use` access, or none for tools that act as the user that calls them
+  // Resources assigned to each caller with `<type>:use` access, or none for tools that are switched on for each caller
   resource?: SharedResource;
-  // Tools of the assigned resources that still exist, read without the restrictions of a user
+  // Tools of the assigned resources that still exist and the user that calls them can use, read as that user
   load: (db: Kysely<Database>, resourceIds: readonly string[]) => Promise<Toolset>;
 }
 

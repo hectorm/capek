@@ -11,6 +11,7 @@ import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
@@ -36,12 +37,14 @@ import {
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
+import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
 import { OpenAIFunctionParametersSchema } from "#layers/ai/shared/openai";
+import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { paginate } from "#layers/core/server/lib/database/pagination";
@@ -354,7 +357,7 @@ export class AgentExecutor {
 
     const skillBindings: SkillBinding[] = agent.type === "specialist" ? await this.loadAgentSkills(agent.id) : [];
     const toolsets: AgentToolset[] =
-      agent.type === "specialist" ? await loadAgentToolsets(db, getToolProviders(), agent.id) : [];
+      agent.type === "specialist" ? await loadAgentToolsets(db, getToolProviders(), agent.id, this.config.user) : [];
 
     let systemInstructions = agent.instructions;
     let tools: AgentTool[];
@@ -998,9 +1001,18 @@ export class AgentExecutor {
     }));
   }
 
+  private async filterUsable<R extends { id: string }>(resource: SharedResource, rows: R[]): Promise<R[]> {
+    if (rows.length === 0) {
+      return rows;
+    }
+    const ids = rows.map((row) => row.id);
+    const usable = new Set(await withUserTransaction(this.config.user, (trx) => usableResourceIds(trx, resource, ids)));
+    return rows.filter((row) => usable.has(row.id));
+  }
+
   private async loadAgentMCPServers(agentId: string): Promise<MCPServerInfo[]> {
     const db = await useDb();
-    const servers = await db
+    const assigned = await db
       .selectFrom("aiAgentMcpServers")
       .innerJoin("aiMcpServers", "aiMcpServers.id", "aiAgentMcpServers.mcpServerId")
       .select([
@@ -1014,6 +1026,7 @@ export class AgentExecutor {
       ])
       .where("aiAgentMcpServers.agentId", "=", agentId)
       .execute();
+    const servers = await this.filterUsable(McpServerResource, assigned);
 
     return servers.map((s) => {
       const parsed = z.array(MCPToolSchema).safeParse(s.cachedTools);
@@ -1026,7 +1039,7 @@ export class AgentExecutor {
 
   private async loadAgentSkills(agentId: string): Promise<SkillBinding[]> {
     const db = await useDb();
-    const skills = await db
+    const assigned = await db
       .selectFrom("aiAgentSkills")
       .innerJoin("aiSkills", "aiSkills.id", "aiAgentSkills.skillId")
       .select([
@@ -1039,6 +1052,7 @@ export class AgentExecutor {
       ])
       .where("aiAgentSkills.agentId", "=", agentId)
       .execute();
+    const skills = await this.filterUsable(SkillResource, assigned);
 
     return skills.map((s) => {
       const parsed = OpenAIFunctionParametersSchema.safeParse(s.parameters);

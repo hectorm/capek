@@ -69,6 +69,24 @@ export const listResources = async (
   return result.rows;
 };
 
+// IDs of the given resources that the user of the transaction can use
+export const usableResourceIds = async (
+  db: Kysely<Database>,
+  resource: SharedResource,
+  ids: readonly string[],
+): Promise<string[]> => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const result = await sql<{ id: string }>`
+    SELECT id FROM unnest(ARRAY[${sql.join(ids)}]::UUID[]) AS id
+    WHERE security.can_any(ARRAY[${`${resource.type}:use:all`}])
+    OR (security.can_any(ARRAY[${`${resource.type}:use:own`}]) AND security.has_access(${resource.type}, id))
+  `.execute(db);
+  return result.rows.map((row) => row.id);
+};
+
 const accessKey = (access: PrincipalAccess): string => `${access.type}:${access.id.toLowerCase()}:${access.role}`;
 
 export const listResourceAccess = async (
