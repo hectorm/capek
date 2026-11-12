@@ -105,6 +105,7 @@ export class SqlServerDriver implements DatasourceDriver {
       });
 
       settings.signal?.addEventListener("abort", onAbort, { once: true });
+      settings.signal?.throwIfAborted();
       return await new Promise<unknown[]>((resolve, reject) => {
         const rows: Record<string, unknown>[] = [];
         let bytes = 0;

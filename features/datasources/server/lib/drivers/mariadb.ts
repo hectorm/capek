@@ -47,6 +47,7 @@ export class MariaDBDriver implements DatasourceDriver {
       settings.signal?.throwIfAborted();
       connection = await mariadb.createConnection(url.toString());
       settings.signal?.addEventListener("abort", onAbort, { once: true });
+      settings.signal?.throwIfAborted();
       if (settings.statementTimeoutMs) {
         timeout = AbortSignal.timeout(settings.statementTimeoutMs + STATEMENT_GRACE_MS);
         timeout.addEventListener("abort", onAbort, { once: true });

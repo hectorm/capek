@@ -41,7 +41,11 @@ export class PostgresDriver implements DatasourceDriver {
         await canceller.end().catch(() => undefined);
       }
     };
-    const onAbort = (): void => void cancel();
+    const onAbort = (): void => {
+      void cancel();
+      // The query would otherwise wait for a server that does not answer
+      client.connection.stream.destroy();
+    };
 
     client.on("error", () => undefined);
 
@@ -64,6 +68,7 @@ export class PostgresDriver implements DatasourceDriver {
         const backend = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
         pid = backend.rows[0]?.pid;
         settings.signal.addEventListener("abort", onAbort, { once: true });
+        settings.signal.throwIfAborted();
       }
       await client.query("BEGIN TRANSACTION READ ONLY");
       if (settings.statementTimeoutMs) {
