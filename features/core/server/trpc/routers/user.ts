@@ -1,9 +1,11 @@
+import type { Kysely } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 import { z } from "zod/v4";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { Database } from "#layers/core/shared/schema";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
@@ -13,6 +15,42 @@ import { authorizedProcedure, createTRPCRouter, publicProcedure } from "#layers/
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 const config = useRuntimeConfig();
+
+// Users with the names of their groups and roles
+const selectUsers = (db: Kysely<Database>) =>
+  db.selectFrom("users").select([
+    "users.id",
+    "users.username",
+    "users.fullname",
+    "users.email",
+    (eb) =>
+      eb
+        .selectFrom("userGroups")
+        .innerJoin("groups", "groups.id", "userGroups.groupId")
+        .select(
+          sql<string[]>`COALESCE(jsonb_agg(groups.name) FILTER (WHERE groups.name IS NOT NULL), '[]'::jsonb)`.as(
+            "value",
+          ),
+        )
+        .whereRef("userGroups.userId", "=", "users.id")
+        .as("groups"),
+    (eb) =>
+      eb
+        .selectFrom("userRoles")
+        .innerJoin("roles", "roles.id", "userRoles.roleId")
+        .select(
+          sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
+        )
+        .whereRef("userRoles.userId", "=", "users.id")
+        .as("roles"),
+  ]);
+
+// The names are typed as nullable, although their aggregation always gives a list
+const withNames = <U extends { groups: string[] | null; roles: string[] | null }>(user: U) => ({
+  ...user,
+  groups: user.groups ?? [],
+  roles: user.roles ?? [],
+});
 
 export const userRouter = createTRPCRouter({
   me: publicProcedure.query(
@@ -42,38 +80,7 @@ export const userRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
-        const user = await trx
-          .selectFrom("users")
-          .select([
-            "users.id",
-            "users.username",
-            "users.fullname",
-            "users.email",
-            (eb) =>
-              eb
-                .selectFrom("userGroups")
-                .innerJoin("groups", "groups.id", "userGroups.groupId")
-                .select(
-                  sql<
-                    string[]
-                  >`COALESCE(jsonb_agg(groups.name) FILTER (WHERE groups.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                )
-                .whereRef("userGroups.userId", "=", "users.id")
-                .as("groups"),
-            (eb) =>
-              eb
-                .selectFrom("userRoles")
-                .innerJoin("roles", "roles.id", "userRoles.roleId")
-                .select(
-                  sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as(
-                    "value",
-                  ),
-                )
-                .whereRef("userRoles.userId", "=", "users.id")
-                .as("roles"),
-          ])
-          .where("users.id", "=", input.id)
-          .executeTakeFirst();
+        const user = await selectUsers(trx).where("users.id", "=", input.id).executeTakeFirst();
 
         if (!user) {
           ctx.logger.warn({ userId: input.id }, "User not found");
@@ -84,7 +91,7 @@ export const userRouter = createTRPCRouter({
         }
 
         ctx.logger.debug({ userId: input.id }, "User retrieved");
-        return { ...user, roles: user.roles ?? [], groups: user.groups ?? [] };
+        return withNames(user);
       });
     }),
 
@@ -103,34 +110,7 @@ export const userRouter = createTRPCRouter({
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx.selectFrom("users").select([
-          "users.id",
-          "users.username",
-          "users.fullname",
-          "users.email",
-          (eb) =>
-            eb
-              .selectFrom("userGroups")
-              .innerJoin("groups", "groups.id", "userGroups.groupId")
-              .select(
-                sql<string[]>`COALESCE(jsonb_agg(groups.name) FILTER (WHERE groups.name IS NOT NULL), '[]'::jsonb)`.as(
-                  "value",
-                ),
-              )
-              .whereRef("userGroups.userId", "=", "users.id")
-              .as("groups"),
-          (eb) =>
-            eb
-              .selectFrom("userRoles")
-              .innerJoin("roles", "roles.id", "userRoles.roleId")
-              .select(
-                sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as(
-                  "value",
-                ),
-              )
-              .whereRef("userRoles.userId", "=", "users.id")
-              .as("roles"),
-        ]);
+        let query = selectUsers(trx);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
@@ -169,14 +149,8 @@ export const userRouter = createTRPCRouter({
           cursor,
         });
 
-        const usersWithDefaults = users.map((u) => ({
-          ...u,
-          roles: u.roles ?? [],
-          groups: u.groups ?? [],
-        }));
-
         ctx.logger.debug("User list retrieved");
-        return { users: usersWithDefaults, nextCursor };
+        return { users: users.map(withNames), nextCursor };
       });
     }),
 
@@ -238,41 +212,10 @@ export const userRouter = createTRPCRouter({
             await Promise.all(insertOps);
           }
 
-          const user = await trx
-            .selectFrom("users")
-            .select([
-              "users.id",
-              "users.username",
-              "users.fullname",
-              "users.email",
-              (eb) =>
-                eb
-                  .selectFrom("userGroups")
-                  .innerJoin("groups", "groups.id", "userGroups.groupId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(groups.name) FILTER (WHERE groups.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("userGroups.userId", "=", "users.id")
-                  .as("groups"),
-              (eb) =>
-                eb
-                  .selectFrom("userRoles")
-                  .innerJoin("roles", "roles.id", "userRoles.roleId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("userRoles.userId", "=", "users.id")
-                  .as("roles"),
-            ])
-            .where("users.id", "=", insertedUser.id)
-            .executeTakeFirstOrThrow();
+          const user = await selectUsers(trx).where("users.id", "=", insertedUser.id).executeTakeFirstOrThrow();
 
           ctx.logger.info({ userId: user.id }, "User created");
-          return { ...user, roles: user.roles ?? [], groups: user.groups ?? [] };
+          return withNames(user);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -348,41 +291,10 @@ export const userRouter = createTRPCRouter({
             await Promise.all(syncOps);
           }
 
-          const user = await trx
-            .selectFrom("users")
-            .select([
-              "users.id",
-              "users.username",
-              "users.fullname",
-              "users.email",
-              (eb) =>
-                eb
-                  .selectFrom("userGroups")
-                  .innerJoin("groups", "groups.id", "userGroups.groupId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(groups.name) FILTER (WHERE groups.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("userGroups.userId", "=", "users.id")
-                  .as("groups"),
-              (eb) =>
-                eb
-                  .selectFrom("userRoles")
-                  .innerJoin("roles", "roles.id", "userRoles.roleId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("userRoles.userId", "=", "users.id")
-                  .as("roles"),
-            ])
-            .where("users.id", "=", input.id)
-            .executeTakeFirstOrThrow();
+          const user = await selectUsers(trx).where("users.id", "=", input.id).executeTakeFirstOrThrow();
 
           ctx.logger.info({ userId: user.id }, "User updated");
-          return { ...user, roles: user.roles ?? [], groups: user.groups ?? [] };
+          return withNames(user);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({

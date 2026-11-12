@@ -1,13 +1,35 @@
+import type { Kysely } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 
+import type { Database } from "#layers/core/shared/schema";
 import { syncGroupRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
+
+// Groups with the names of their roles
+const selectGroups = (db: Kysely<Database>) =>
+  db.selectFrom("groups").select([
+    "groups.id",
+    "groups.name",
+    "groups.description",
+    (eb) =>
+      eb
+        .selectFrom("groupRoles")
+        .innerJoin("roles", "roles.id", "groupRoles.roleId")
+        .select(
+          sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
+        )
+        .whereRef("groupRoles.groupId", "=", "groups.id")
+        .as("roles"),
+  ]);
+
+// The names are typed as nullable, although their aggregation always gives a list
+const withNames = <G extends { roles: string[] | null }>(group: G) => ({ ...group, roles: group.roles ?? [] });
 
 export const groupRouter = createTRPCRouter({
   read: authorizedProcedure([CorePermissions.GroupReadAll, CorePermissions.GroupReadOwn])
@@ -18,26 +40,7 @@ export const groupRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
-        const group = await trx
-          .selectFrom("groups")
-          .select([
-            "groups.id",
-            "groups.name",
-            "groups.description",
-            (eb) =>
-              eb
-                .selectFrom("groupRoles")
-                .innerJoin("roles", "roles.id", "groupRoles.roleId")
-                .select(
-                  sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as(
-                    "value",
-                  ),
-                )
-                .whereRef("groupRoles.groupId", "=", "groups.id")
-                .as("roles"),
-          ])
-          .where("groups.id", "=", input.id)
-          .executeTakeFirst();
+        const group = await selectGroups(trx).where("groups.id", "=", input.id).executeTakeFirst();
 
         if (!group) {
           ctx.logger.warn({ groupId: input.id }, "Group not found");
@@ -48,7 +51,7 @@ export const groupRouter = createTRPCRouter({
         }
 
         ctx.logger.debug({ groupId: input.id }, "Group retrieved");
-        return { ...group, roles: group.roles ?? [] };
+        return withNames(group);
       });
     }),
 
@@ -67,22 +70,7 @@ export const groupRouter = createTRPCRouter({
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx.selectFrom("groups").select([
-          "groups.id",
-          "groups.name",
-          "groups.description",
-          (eb) =>
-            eb
-              .selectFrom("groupRoles")
-              .innerJoin("roles", "roles.id", "groupRoles.roleId")
-              .select(
-                sql<string[]>`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as(
-                  "value",
-                ),
-              )
-              .whereRef("groupRoles.groupId", "=", "groups.id")
-              .as("roles"),
-        ]);
+        let query = selectGroups(trx);
 
         // Apply search filters
         if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
@@ -111,13 +99,8 @@ export const groupRouter = createTRPCRouter({
           cursor,
         });
 
-        const groupsWithDefaults = groups.map((g) => ({
-          ...g,
-          roles: g.roles ?? [],
-        }));
-
         ctx.logger.debug("Group list retrieved");
-        return { groups: groupsWithDefaults, nextCursor };
+        return { groups: groups.map(withNames), nextCursor };
       });
     }),
 
@@ -155,29 +138,10 @@ export const groupRouter = createTRPCRouter({
               .execute();
           }
 
-          const group = await trx
-            .selectFrom("groups")
-            .select([
-              "groups.id",
-              "groups.name",
-              "groups.description",
-              (eb) =>
-                eb
-                  .selectFrom("groupRoles")
-                  .innerJoin("roles", "roles.id", "groupRoles.roleId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("groupRoles.groupId", "=", "groups.id")
-                  .as("roles"),
-            ])
-            .where("groups.id", "=", insertedGroup.id)
-            .executeTakeFirstOrThrow();
+          const group = await selectGroups(trx).where("groups.id", "=", insertedGroup.id).executeTakeFirstOrThrow();
 
           ctx.logger.info({ groupId: group.id }, "Group created");
-          return { ...group, roles: group.roles ?? [] };
+          return withNames(group);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -241,29 +205,10 @@ export const groupRouter = createTRPCRouter({
             await syncGroupRoles(input.id, input.roles, trx);
           }
 
-          const group = await trx
-            .selectFrom("groups")
-            .select([
-              "groups.id",
-              "groups.name",
-              "groups.description",
-              (eb) =>
-                eb
-                  .selectFrom("groupRoles")
-                  .innerJoin("roles", "roles.id", "groupRoles.roleId")
-                  .select(
-                    sql<
-                      string[]
-                    >`COALESCE(jsonb_agg(roles.name) FILTER (WHERE roles.name IS NOT NULL), '[]'::jsonb)`.as("value"),
-                  )
-                  .whereRef("groupRoles.groupId", "=", "groups.id")
-                  .as("roles"),
-            ])
-            .where("groups.id", "=", input.id)
-            .executeTakeFirstOrThrow();
+          const group = await selectGroups(trx).where("groups.id", "=", input.id).executeTakeFirstOrThrow();
 
           ctx.logger.info({ groupId: group.id }, "Group updated");
-          return { ...group, roles: group.roles ?? [] };
+          return withNames(group);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
