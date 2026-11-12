@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 
 import type { TokenCredential } from "@azure/identity";
 import type { ConnectionAuthentication, ConnectionOptions } from "tedious";
-import { DefaultAzureCredential } from "@azure/identity";
+import { ManagedIdentityCredential } from "@azure/identity";
 import { parse } from "@tediousjs/connection-string";
 import { Connection, Request } from "tedious";
 
@@ -26,6 +26,16 @@ interface ParseTarget {
 
 type SqlServerConfig = ReturnType<typeof SqlServerDatasourceType.configSchema.parse>;
 
+const AZURE_DATABASE_HOST_SUFFIXES = [
+  ".database.windows.net",
+  ".database.usgovcloudapi.net",
+  ".database.chinacloudapi.cn",
+  ".database.cloudapi.de",
+  ".sql.azuresynapse.net",
+  ".datawarehouse.fabric.microsoft.com",
+  ".database.fabric.microsoft.com",
+];
+
 const DATABASE_TOKEN_SCOPES = new Set([
   "https://database.windows.net/.default",
   "https://database.usgovcloudapi.net/.default",
@@ -34,7 +44,7 @@ const DATABASE_TOKEN_SCOPES = new Set([
 ]);
 
 const databaseCredential = (clientId: string): TokenCredential => {
-  const credential = new DefaultAzureCredential(clientId ? { managedIdentityClientId: clientId } : undefined);
+  const credential = new ManagedIdentityCredential(clientId ? { clientId } : undefined);
   return {
     getToken: (scopes, options) => {
       const requested = [scopes].flat();
@@ -60,6 +70,16 @@ export class SqlServerDriver implements DatasourceDriver {
 
     const { server, options } = this.parseConnectionString(config.connectionString);
     const authentication = this.buildAuthentication(config);
+
+    if (config.authType === "azure-managed-identity") {
+      if (!AZURE_DATABASE_HOST_SUFFIXES.some((suffix) => server.toLowerCase().endsWith(suffix))) {
+        throw new Error(
+          `Managed identities only connect to the databases of Azure, and "${server}" is not one of them`,
+        );
+      }
+      options.encrypt = options.encrypt === "strict" ? "strict" : true;
+      options.trustServerCertificate = false;
+    }
 
     options.readOnlyIntent = true;
     // Changes are discarded on close since nothing is committed, unless a statement commits them itself
