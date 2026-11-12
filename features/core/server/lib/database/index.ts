@@ -8,7 +8,7 @@ import pg from "pg";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
-import { FALLBACK_ROLE, isSuperuser } from "#layers/core/server/lib/database/rls";
+import { bypassesRls, FALLBACK_ROLE, isSuperuser } from "#layers/core/server/lib/database/rls";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const config = useRuntimeConfig();
@@ -92,6 +92,12 @@ export const useDb = async (): Promise<Kysely<Database>> => {
 
     try {
       connIsSuperuser = await isSuperuser(database);
+      if (!connIsSuperuser && (await bypassesRls(database))) {
+        throw new Error(
+          "Database connection is a role with the BYPASSRLS attribute, which bypasses row level security. " +
+            "Connect as a role without it.",
+        );
+      }
     } catch (error) {
       await database.destroy();
       throw error;

@@ -12,3 +12,10 @@ export const isSuperuser = async (db: Kysely<Database>): Promise<boolean> => {
   );
   return result.rows[0]?.usesuper ?? false;
 };
+
+export const bypassesRls = async (db: Kysely<Database>): Promise<boolean> => {
+  const result = await sql<{ usebypassrls: boolean }>`
+    SELECT usebypassrls FROM pg_user WHERE usename = CURRENT_USER
+  `.execute(db);
+  return result.rows[0]?.usebypassrls ?? false;
+};
