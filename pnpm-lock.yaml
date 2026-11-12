@@ -20,9 +20,6 @@ importers:
       '@electric-sql/pglite':
         specifier: ~0.5.14
         version: 0.5.14
-      '@electric-sql/pglite-socket':
-        specifier: ~0.2.17
-        version: 0.2.17(@electric-sql/pglite-age@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_hashids@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_ivm@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_textsearch@0.0.16(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_uuidv7@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pgtap@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pgvector@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite@0.5.14)
       '@iconify-json/lucide':
         specifier: ~1.2.150
         version: 1.2.150
@@ -162,6 +159,9 @@ importers:
         specifier: ~4.6.7
         version: 4.6.7
     devDependencies:
+      '@electric-sql/pglite-socket':
+        specifier: ~0.2.17
+        version: 0.2.17(@electric-sql/pglite-age@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_hashids@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_ivm@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_textsearch@0.0.16(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pg_uuidv7@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pgtap@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite-pgvector@0.0.15(@electric-sql/pglite@0.5.14))(@electric-sql/pglite@0.5.14)
       '@eslint/js':
         specifier: ~10.0.1
         version: 10.0.1(eslint@10.14.0(jiti@2.7.0)(supports-color@10.2.2))

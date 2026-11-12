@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { Transaction } from "kysely";
-import { CamelCasePlugin, Kysely, PostgresDialect, sql } from "kysely";
+import type { Dialect, Transaction } from "kysely";
+import { CamelCasePlugin, Kysely, PGliteDialect, PostgresDialect, sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 import pg from "pg";
 
@@ -27,13 +27,12 @@ pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val)
 export const useDb = async (): Promise<Kysely<Database>> => {
   // Calls that arrive while the database is being set up share it, and a failed setup is tried again
   db ??= (async () => {
-    let pool: pg.Pool | undefined;
+    let dialect: Dialect;
 
     if (usingPGlite) {
       logger.warn("Using PGlite for database, this is only suitable for development and testing purposes");
 
       const { PGlite } = await import("@electric-sql/pglite");
-      const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
 
       let dataDir: string;
       if (databaseUrl.protocol === "file:") {
@@ -43,43 +42,38 @@ export const useDb = async (): Promise<Kysely<Database>> => {
         dataDir = "memory://";
       }
 
-      const pglite = new PGlite(dataDir);
-      const server = new PGLiteSocketServer({ db: pglite, host: "127.0.0.1", port: 0 });
-      await server.start();
-
-      pool = new pg.Pool({
-        connectionString: `postgresql://postgres:postgres@${server.getServerConn()}/app`,
-        max: 1,
-      });
+      dialect = new PGliteDialect({ pglite: new PGlite(dataDir) });
     } else {
-      pool = new pg.Pool({
+      const pool = new pg.Pool({
         connectionString: databaseUrl.toString(),
         max: config.databaseMaxConnections,
       });
+
+      pool.on("connect", () => {
+        logger.trace("Database connection established");
+      });
+
+      pool.on("acquire", () => {
+        logger.trace("Database connection acquired from pool");
+      });
+
+      pool.on("release", () => {
+        logger.trace("Database connection released back to pool");
+      });
+
+      pool.on("remove", () => {
+        logger.trace("Database connection removed from pool");
+      });
+
+      pool.on("error", (error) => {
+        logger.error({ error }, "Database pool error");
+      });
+
+      dialect = new PostgresDialect({ pool });
     }
 
-    pool.on("connect", () => {
-      logger.trace("Database connection established");
-    });
-
-    pool.on("acquire", () => {
-      logger.trace("Database connection acquired from pool");
-    });
-
-    pool.on("release", () => {
-      logger.trace("Database connection released back to pool");
-    });
-
-    pool.on("remove", () => {
-      logger.trace("Database connection removed from pool");
-    });
-
-    pool.on("error", (error) => {
-      logger.error({ error }, "Database pool error");
-    });
-
     const database = new Kysely<Database>({
-      dialect: new PostgresDialect({ pool }),
+      dialect,
       plugins: [new CamelCasePlugin({ maintainNestedObjectKeys: true })],
       log(event) {
         if (event.level === "error") {
