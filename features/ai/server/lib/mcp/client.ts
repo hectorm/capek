@@ -8,6 +8,7 @@ import type { TestResult } from "#layers/core/shared/types";
 import { AbortError, describeError } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { MCPCallToolResultSchema, MCPListToolsResultSchema, McpPingRequestSchema } from "#layers/ai/shared/mcp";
+import { fetchEndpoint, readErrorText } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -104,7 +105,7 @@ export class MCPClient {
       accept: "application/json, text/event-stream",
     });
 
-    const response = await fetch(this.url, {
+    const response = await fetchEndpoint(this.url, {
       method: "POST",
       headers,
       body: JSON.stringify(jsonRPCRequest),
@@ -131,7 +132,7 @@ export class MCPClient {
         }
       }
 
-      const errorText = await response.text();
+      const errorText = await readErrorText(response);
       throw new Error(`MCP request failed with status ${String(response.status)}: ${errorText}`);
     }
 
@@ -223,7 +224,7 @@ export class MCPClient {
     };
 
     try {
-      const response = await fetch(this.url, {
+      const response = await fetchEndpoint(this.url, {
         method: "POST",
         headers,
         body: JSON.stringify(pongResponse),
@@ -252,7 +253,7 @@ export class MCPClient {
         headers.set("Last-Event-ID", this._lastEventId);
       }
 
-      const response = await fetch(this.url, {
+      const response = await fetchEndpoint(this.url, {
         method: "GET",
         headers,
         signal,
@@ -489,7 +490,7 @@ export class MCPClient {
     const headers = this.buildHeaders();
 
     try {
-      const response = await fetch(this.url, {
+      const response = await fetchEndpoint(this.url, {
         method: "DELETE",
         headers,
         signal: this.timeoutMs === null ? undefined : AbortSignal.timeout(this.timeoutMs),

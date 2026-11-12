@@ -9,6 +9,43 @@ export interface Endpoint {
   headers: HttpHeaders;
 }
 
+const ERROR_TEXT_MAX_CHARS = 1000;
+
+// Requests an endpoint without following redirects
+export const fetchEndpoint = async (url: string | URL, init: RequestInit = {}): Promise<Response> => {
+  const response = await fetch(url, { ...init, redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    await response.body?.cancel();
+    const location = response.headers.get("Location")?.slice(0, ERROR_TEXT_MAX_CHARS);
+    throw new Error(`The endpoint redirects${location ? ` to "${location}"` : ""}, its URL has to be changed`);
+  }
+  return response;
+};
+
+// Start of the body of a failed response
+export const readErrorText = async (response: Response): Promise<string> => {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    while (text.length <= ERROR_TEXT_MAX_CHARS) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return text;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+
+  return `${text.slice(0, ERROR_TEXT_MAX_CHARS).toWellFormed()}…`;
+};
+
 // Completes what a client sends of an endpoint with the stored one, whose secrets are only taken for the same URL
 export const unredactEndpoint = (incoming: Partial<Endpoint>, stored: Endpoint | undefined): Required<Endpoint> => {
   // Stored secrets that the endpoint keeps

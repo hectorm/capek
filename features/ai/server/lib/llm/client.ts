@@ -11,6 +11,7 @@ import {
 } from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
+import { fetchEndpoint, readErrorText } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -143,7 +144,7 @@ export class LlmClient {
       });
     }
 
-    return fetch(url, { ...init, headers });
+    return fetchEndpoint(url, { ...init, headers });
   }
 
   public async completion(
@@ -160,7 +161,7 @@ export class LlmClient {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = await readErrorText(response);
       throw new Error(`AI service completion request failed: ${errorText}`);
     }
 
@@ -278,7 +279,7 @@ export class LlmClient {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = await readErrorText(response);
       throw new Error(`AI service models request failed: ${errorText}`);
     }
 
