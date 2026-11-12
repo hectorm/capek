@@ -54,6 +54,17 @@ describe("code interpreter", () => {
     expect(stall).toBeLessThan(250);
   });
 
+  it("limits the memory that the code and its output take", async () => {
+    const exhausted = await executeCode(
+      `const chunks = []; try { for (;;) chunks.push(new Uint8Array(1_000_000)); } catch { return chunks.length; }`,
+      options(),
+    );
+    expect(exhausted.result).toBeLessThan(25);
+
+    const logged = await executeCode(`console.log(...Array(1000).fill("x".repeat(1_000_000)));`, options());
+    expect(logged.consoleLogs[0]?.args).toHaveLength(1);
+  });
+
   it("stops the code when it is aborted", async () => {
     const controller = new AbortController();
     setTimeout(() => {

@@ -15,6 +15,16 @@ if (!parentPort) {
 const port = parentPort;
 const input = workerData as SandboxInput;
 
+const WASM_PAGE_BYTES = 65_536;
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const growMemory = WebAssembly.Memory.prototype.grow;
+WebAssembly.Memory.prototype.grow = function (this: WebAssembly.Memory, delta: number): number {
+  if (this.buffer.byteLength + delta * WASM_PAGE_BYTES > input.maxMemoryBytes) {
+    throw new RangeError("Out of memory");
+  }
+  return growMemory.call(this, delta);
+};
+
 const send = (message: SandboxMessage): void => {
   port.postMessage(message);
 };
@@ -38,8 +48,10 @@ port.on("message", (reply: SandboxReply) => {
 let nextCallId = 0;
 
 const MAX_CONCURRENT_HOST_CALLS = 8;
+const MAX_HOST_CALL_ARGS = 3;
 
 let activeHostCalls = 0;
+let pendingHostCallChars = 0;
 const queuedHostCalls: (() => void)[] = [];
 
 const callHost = async (name: SandboxHostFunction, args: string[]): Promise<string> => {
@@ -79,7 +91,6 @@ const execute = async (): Promise<unknown> => {
     const quickJS = await newQuickJSAsyncWASMModuleFromVariant(variant.default);
     const runtime = scope.manage(quickJS.newRuntime());
 
-    runtime.setMemoryLimit(input.maxMemoryBytes);
     runtime.setInterruptHandler(() => Date.now() > deadline);
 
     setupModuleLoader(runtime);
@@ -148,12 +159,22 @@ function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope): void {
 
   for (const level of levels) {
     const fn = scope.manage(
-      context.newFunction(level, (...args: QuickJSHandle[]) => {
-        if (consoleChars < MAX_CONSOLE_CHARS) {
-          const log = { level, args: args.map((arg) => marshallFromQuickJS(context, arg)), timestamp: Date.now() };
-          consoleChars += formatConsoleLog(log).length + 1;
-          consoleLogs.push(log);
+      context.newFunction(level, (...handles: QuickJSHandle[]) => {
+        if (consoleChars >= MAX_CONSOLE_CHARS) {
+          return;
         }
+
+        const log: ConsoleLog = { level, args: [], timestamp: Date.now() };
+        consoleChars += formatConsoleLog(log).length;
+        for (const handle of handles) {
+          if (consoleChars >= MAX_CONSOLE_CHARS) {
+            break;
+          }
+          const arg = marshallFromQuickJS(context, handle);
+          consoleChars += formatConsoleLog({ level, args: [arg] }).length;
+          log.args.push(arg);
+        }
+        consoleLogs.push(log);
       }),
     );
     context.setProp(consoleObj, level, fn);
@@ -359,7 +380,12 @@ function setupHostCall(
 ): void {
   const hostFn = scope.manage(
     context.newFunction(name, (...handles) => {
-      const args = handles.map((handle) => context.getString(handle));
+      if (pendingHostCallChars > input.maxMemoryBytes) {
+        throw new Error("Too many calls are waiting for an answer");
+      }
+      const args = handles.slice(0, MAX_HOST_CALL_ARGS).map((handle) => context.getString(handle));
+      const chars = args.reduce((total, arg) => total + arg.length, 0);
+      pendingHostCallChars += chars;
 
       const deferred = context.newPromise();
       const promiseHandle = deferred.handle;
@@ -374,6 +400,7 @@ function setupHostCall(
           deferred.reject(errorHandle);
           errorHandle.dispose();
         } finally {
+          pendingHostCallChars -= chars;
           deferred.dispose();
         }
       })();
