@@ -12,30 +12,26 @@ const deflateAsync = promisify(deflate);
 const inflateAsync = promisify(inflate);
 
 export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
-  try {
-    await withUserTransaction(user, async (trx) => {
-      const row = await trx
-        .selectFrom("aiChatSessionVfs")
-        .select(["data"])
-        .where("sessionId", "=", sessionId)
-        .executeTakeFirst();
+  await withUserTransaction(user, async (trx) => {
+    const row = await trx
+      .selectFrom("aiChatSessionVfs")
+      .select(["data"])
+      .where("sessionId", "=", sessionId)
+      .executeTakeFirst();
 
-      if (!row) {
-        return;
-      }
+    if (!row) {
+      return;
+    }
 
-      const decompressed = (await inflateAsync(row.data)).toString("utf8");
-      const snapshot = JSON.parse(decompressed) as VFSSnapshot;
+    const decompressed = (await inflateAsync(row.data)).toString("utf8");
+    const snapshot = JSON.parse(decompressed) as VFSSnapshot;
 
-      for (const [path, file] of Object.entries(snapshot.files)) {
-        vfs.writeFile(path, file.content, { readonly: file.readonly });
-      }
+    for (const [path, file] of Object.entries(snapshot.files)) {
+      vfs.writeFile(path, file.content, { readonly: file.readonly });
+    }
 
-      logger.debug({ sessionId, fileCount: Object.keys(snapshot.files).length }, "Session workspace loaded");
-    });
-  } catch (error) {
-    logger.warn({ sessionId, error }, "Failed to load session workspace, continuing with empty workspace");
-  }
+    logger.debug({ sessionId, fileCount: Object.keys(snapshot.files).length }, "Session workspace loaded");
+  });
 }
 
 export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
