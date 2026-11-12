@@ -176,11 +176,11 @@ export const userRouter = createTRPCRouter({
   create: authorizedProcedure([CorePermissions.UserCreate])
     .input(
       z.object({
-        username: z.string().min(1).max(255).trim(),
-        fullname: z.string().min(1).max(255).trim(),
+        username: z.string().trim().min(1).max(255),
+        fullname: z.string().trim().min(1).max(255),
         email: z.email({ pattern: z.regexes.unicodeEmail }).max(255).trim().toLowerCase(),
-        roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).optional(),
-        groups: z.array(z.string().min(1).max(255).trim()).max(255).optional(),
+        roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).optional(),
+        groups: z.array(z.string().trim().min(1).max(255)).max(255).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -289,11 +289,11 @@ export const userRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid(),
-        username: z.string().min(1).max(255).trim().optional(),
-        fullname: z.string().min(1).max(255).trim().optional(),
+        username: z.string().trim().min(1).max(255).optional(),
+        fullname: z.string().trim().min(1).max(255).optional(),
         email: z.email({ pattern: z.regexes.unicodeEmail }).max(255).trim().toLowerCase().optional(),
-        roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).optional(),
-        groups: z.array(z.string().min(1).max(255).trim()).max(255).optional(),
+        roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).optional(),
+        groups: z.array(z.string().trim().min(1).max(255)).max(255).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

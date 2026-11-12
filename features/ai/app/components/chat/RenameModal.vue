@@ -31,7 +31,7 @@ const session = ref<ChatSessionReadOutput>(await $trpc.ai.chatSession.read.query
 
 const schema = z.object({
   id: z.uuid(),
-  title: z.string().min(1).max(500).trim(),
+  title: z.string().trim().min(1).max(500),
 }) satisfies z.ZodType<Partial<ChatSessionUpdateInput>>;
 
 type Schema = z.infer<typeof schema>;

@@ -84,7 +84,7 @@ const canModify = computed(() => {
 const schema = z
   .object({
     id: z.uuid().optional(),
-    name: z.string().min(1).max(100).trim(),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).trim().default(""),
     documentation: z.string().max(100000).trim().optional(),
     editors: z.array(z.string()).default([]),

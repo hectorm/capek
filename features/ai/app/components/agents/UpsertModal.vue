@@ -95,7 +95,7 @@ const canModify = computed(() => {
 const schema = z
   .object({
     id: z.uuid().optional(),
-    name: z.string().min(1).max(100).trim(),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).trim().default(""),
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
@@ -105,7 +105,7 @@ const schema = z
     type: z.enum(["triage", "specialist"]),
     specialists: z.array(z.string()).default([]),
     llmProviderId: z.uuid().nullable(),
-    model: z.string().min(1).max(100).trim(),
+    model: z.string().trim().min(1).max(100),
     summaryModel: z.string().max(100).trim().default(""),
     reasoningEffort: z.string().max(20).trim().default(""),
     mcpServers: z.array(z.string()).default([]),

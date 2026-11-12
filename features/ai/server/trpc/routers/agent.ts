@@ -161,14 +161,14 @@ export const agentRouter = createTRPCRouter({
     .input(
       z
         .object({
-          name: z.string().min(1).max(100).trim(),
+          name: z.string().trim().min(1).max(100),
           description: z.string().max(1000).trim().default(""),
           instructions: z.string().max(100000).trim().default(""),
           greetingMessage: z.string().max(10000).trim().default(""),
           priority: z.number().int().min(-1000).max(1000).default(0),
           type: z.enum(["triage", "specialist"]),
           llmProviderId: z.uuid().nullish(),
-          model: z.string().min(1).max(100).trim(),
+          model: z.string().trim().min(1).max(100),
           summaryModel: z.string().max(100).trim().default(""),
           reasoningEffort: z.string().max(20).trim().default(""),
           codeInterpreter: z.boolean().default(false),
@@ -294,13 +294,13 @@ export const agentRouter = createTRPCRouter({
       z
         .object({
           id: z.uuid(),
-          name: z.string().min(1).max(100).trim().optional(),
+          name: z.string().trim().min(1).max(100).optional(),
           description: z.string().max(1000).trim().optional(),
           instructions: z.string().max(100000).trim().optional(),
           greetingMessage: z.string().max(10000).trim().optional(),
           priority: z.number().int().min(-1000).max(1000).optional(),
           llmProviderId: z.uuid().nullish(),
-          model: z.string().min(1).max(100).trim().optional(),
+          model: z.string().trim().min(1).max(100).optional(),
           summaryModel: z.string().max(100).trim().optional(),
           reasoningEffort: z.string().max(20).trim().optional(),
           codeInterpreter: z.boolean().optional(),
@@ -1019,7 +1019,7 @@ export const agentRouter = createTRPCRouter({
       z
         .object({
           llmProviderId: z.uuid(),
-          model: z.string().min(1).max(100).trim(),
+          model: z.string().trim().min(1).max(100),
           reasoningEffort: z.string().max(20).trim().default(""),
           streaming: z.boolean().default(true),
         })

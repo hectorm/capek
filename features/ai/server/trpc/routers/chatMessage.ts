@@ -50,7 +50,7 @@ export const chatMessageRouter = createTRPCRouter({
       z.object({
         sessionId: z.uuid(),
         role: z.literal("user"),
-        content: z.string().min(1).max(100000).trim(),
+        content: z.string().trim().min(1).max(100000),
       }),
     )
     .mutation(() => {
@@ -65,7 +65,7 @@ export const chatMessageRouter = createTRPCRouter({
       z.object({
         id: z.uuid(),
         sessionId: z.uuid(),
-        content: z.string().min(1).max(100000).trim(),
+        content: z.string().trim().min(1).max(100000),
       }),
     )
     .mutation(() => {

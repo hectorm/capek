@@ -10,25 +10,25 @@ export const SqlServerDatasourceType = defineDatasourceType({
   authTypes: ["basic", "azure-service-principal", "azure-managed-identity", "none"],
   configSchema: z.discriminatedUnion("authType", [
     z.object({
-      connectionString: z.string().min(1).max(4000).trim(),
+      connectionString: z.string().trim().min(1).max(4000),
       authType: z.literal("basic"),
       username: z.string().max(1000).trim().default(""),
       password: z.string().max(1000).default(""),
     }),
     z.object({
-      connectionString: z.string().min(1).max(4000).trim(),
+      connectionString: z.string().trim().min(1).max(4000),
       authType: z.literal("azure-service-principal"),
       azureTenantId: z.string().max(1000).trim().default(""),
       azureClientId: z.string().max(1000).trim().default(""),
       azureClientSecret: z.string().max(1000).default(""),
     }),
     z.object({
-      connectionString: z.string().min(1).max(4000).trim(),
+      connectionString: z.string().trim().min(1).max(4000),
       authType: z.literal("azure-managed-identity"),
       azureClientId: z.string().max(1000).trim().default(""),
     }),
     z.object({
-      connectionString: z.string().min(1).max(4000).trim(),
+      connectionString: z.string().trim().min(1).max(4000),
       authType: z.literal("none"),
     }),
   ]),

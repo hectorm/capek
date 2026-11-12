@@ -9,7 +9,7 @@ export const HttpHeaderSchema = z.object({
     .max(256)
     .trim()
     .regex(/^[a-zA-Z0-9!#$%&'*+\-.^_`|~]+$/),
-  value: z.string().min(1).max(8192).trim(),
+  value: z.string().trim().min(1).max(8192),
 });
 
 export type HttpHeader = z.infer<typeof HttpHeaderSchema>;

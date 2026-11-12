@@ -12,7 +12,7 @@ import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/
 import { HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
 const seedLLMProviderSchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).trim().default(""),
   apiUrl: HttpUrlSchema,
   apiType: LlmProviderApiTypeSchema.default("chat-completions"),
@@ -23,7 +23,7 @@ const seedLLMProviderSchema = z.object({
 
 const seedMCPServerSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).trim().default(""),
     url: HttpUrlSchema,
     headers: HttpHeadersSchema.optional(),
@@ -33,7 +33,7 @@ const seedMCPServerSchema = z
   .extend(MCPServerParametersSchema.shape);
 
 const seedSkillSchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).trim().default(""),
   documentation: z.string().max(100000).trim().optional(),
   code: z.string().max(100000).optional(),
@@ -42,23 +42,23 @@ const seedSkillSchema = z.object({
 
 const seedAgentSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(500).trim().default(""),
     instructions: z.string().max(100000).trim().default(""),
     greetingMessage: z.string().max(10000).trim().default(""),
     priority: z.number().int().min(-1000).max(1000).default(0),
     type: z.enum(["triage", "specialist"]),
-    llmProvider: z.string().min(1).max(100).trim(),
-    model: z.string().min(1).max(100).trim(),
+    llmProvider: z.string().trim().min(1).max(100),
+    model: z.string().trim().min(1).max(100),
     summaryModel: z.string().max(100).trim().default(""),
     reasoningEffort: z.string().max(20).trim().default(""),
-    specialists: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
-    mcpServers: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
-    skills: z.array(z.string().min(1).max(100).trim()).max(100).default([]),
+    specialists: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+    mcpServers: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+    skills: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
     tools: z
       .record(
         z.string().min(1).max(100),
-        z.union([z.literal(true), z.array(z.string().min(1).max(255).trim()).max(100)]),
+        z.union([z.literal(true), z.array(z.string().trim().min(1).max(255)).max(100)]),
       )
       .default({}),
     codeInterpreter: z.boolean().default(false),

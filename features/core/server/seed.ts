@@ -3,17 +3,17 @@ import { z } from "zod/v4";
 import { defineSeed } from "#layers/core/server/lib/seed";
 
 const seedUserSchema = z.object({
-  username: z.string().min(1).max(255).trim(),
-  fullname: z.string().min(1).max(255).trim(),
+  username: z.string().trim().min(1).max(255),
+  fullname: z.string().trim().min(1).max(255),
   email: z.email({ pattern: z.regexes.unicodeEmail }).max(255).trim().toLowerCase(),
-  roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).default([]),
-  groups: z.array(z.string().min(1).max(255).trim()).max(255).default([]),
+  roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).default([]),
+  groups: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
 });
 
 const seedGroupSchema = z.object({
-  name: z.string().min(1).max(255).trim(),
+  name: z.string().trim().min(1).max(255),
   description: z.string().max(1000).trim().default(""),
-  roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).default([]),
+  roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).default([]),
 });
 
 export const coreSeed = defineSeed({

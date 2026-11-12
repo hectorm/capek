@@ -18,7 +18,7 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 
 const bodySchema = z.object({
   sessionId: z.uuid(),
-  message: z.string().min(1).max(100000).trim(),
+  message: z.string().trim().min(1).max(100000),
 });
 
 const errorEvent = (reason: ChatStreamError): string => {

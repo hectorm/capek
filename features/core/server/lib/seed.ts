@@ -9,8 +9,8 @@ import type { Database } from "#layers/core/shared/schema";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 
 const seedPrincipalsSchema = z.object({
-  users: z.array(z.string().min(1).max(255).trim()).max(255).default([]),
-  groups: z.array(z.string().min(1).max(255).trim()).max(255).default([]),
+  users: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
+  groups: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
 });
 
 export const seedAccessSchema = z

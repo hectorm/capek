@@ -84,7 +84,7 @@ export const chatSessionRouter = createTRPCRouter({
   create: authorizedProcedure([AiPermissions.ChatCreate])
     .input(
       z.object({
-        title: z.string().min(1).max(500).trim().optional(),
+        title: z.string().trim().min(1).max(500).optional(),
         agentId: z.uuid().optional(),
       }),
     )
@@ -138,7 +138,7 @@ export const chatSessionRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid(),
-        title: z.string().min(1).max(500).trim().optional(),
+        title: z.string().trim().min(1).max(500).optional(),
         agentId: z.uuid().optional(),
       }),
     )

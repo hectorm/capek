@@ -53,11 +53,11 @@ const canModify = computed(() => {
 
 const schema = z.object({
   id: z.uuid().optional(),
-  username: z.string().min(1).max(255).trim(),
-  fullname: z.string().min(1).max(255).trim(),
+  username: z.string().trim().min(1).max(255),
+  fullname: z.string().trim().min(1).max(255),
   email: z.email({ pattern: z.regexes.unicodeEmail }).max(255).trim().toLowerCase(),
-  roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).optional(),
-  groups: z.array(z.string().min(1).max(255).trim()).max(255).optional(),
+  roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).optional(),
+  groups: z.array(z.string().trim().min(1).max(255)).max(255).optional(),
 }) satisfies z.ZodType<UserCreateOrUpdateInput>;
 
 type Schema = z.infer<typeof schema>;

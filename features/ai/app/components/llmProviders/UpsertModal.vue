@@ -83,7 +83,7 @@ const canModify = computed(() => {
 const schema = z
   .object({
     id: z.uuid().optional(),
-    name: z.string().min(1).max(100).trim(),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).trim().default(""),
     apiUrl: HttpUrlSchema,
     apiType: LlmProviderApiTypeSchema,

@@ -124,9 +124,9 @@ export const groupRouter = createTRPCRouter({
   create: authorizedProcedure([CorePermissions.GroupCreate])
     .input(
       z.object({
-        name: z.string().min(1).max(255).trim(),
+        name: z.string().trim().min(1).max(255),
         description: z.string().max(1000).trim().default(""),
-        roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).optional(),
+        roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -201,9 +201,9 @@ export const groupRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid(),
-        name: z.string().min(1).max(255).trim().optional(),
+        name: z.string().trim().min(1).max(255).optional(),
         description: z.string().max(1000).trim().optional(),
-        roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).optional(),
+        roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

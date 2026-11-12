@@ -52,9 +52,9 @@ const canModify = computed(() => {
 
 const schema = z.object({
   id: z.uuid().optional(),
-  name: z.string().min(1).max(255).trim(),
+  name: z.string().trim().min(1).max(255),
   description: z.string().max(1000).trim().default(""),
-  roles: z.array(z.string().min(1).max(255).trim().toLowerCase()).max(255).default([]),
+  roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).default([]),
 }) satisfies z.ZodType<GroupCreateOrUpdateInput>;
 
 type Schema = z.infer<typeof schema>;

@@ -91,7 +91,7 @@ export const mcpServerRouter = createTRPCRouter({
     .input(
       z
         .object({
-          name: z.string().min(1).max(100).trim(),
+          name: z.string().trim().min(1).max(100),
           description: z.string().max(1000).trim().default(""),
           url: HttpUrlSchema,
           headers: HttpHeadersSchema.optional(),
@@ -152,7 +152,7 @@ export const mcpServerRouter = createTRPCRouter({
       z
         .object({
           id: z.uuid(),
-          name: z.string().min(1).max(100).trim().optional(),
+          name: z.string().trim().min(1).max(100).optional(),
           description: z.string().max(1000).trim().optional(),
           url: HttpUrlSchema.optional(),
           headers: HttpHeadersSchema.optional(),

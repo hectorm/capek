@@ -136,7 +136,7 @@ export const sourceRouter = createTRPCRouter({
   create: authorizedProcedure([DatasourcesPermissions.SourceCreate])
     .input(
       z.object({
-        name: z.string().min(1).max(100).trim(),
+        name: z.string().trim().min(1).max(100),
         description: z.string().max(1000).trim().default(""),
         documentation: z
           .string()
@@ -196,7 +196,7 @@ export const sourceRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.uuid(),
-        name: z.string().min(1).max(100).trim().optional(),
+        name: z.string().trim().min(1).max(100).optional(),
         description: z.string().max(1000).trim().optional(),
         documentation: z
           .string()
