@@ -560,7 +560,11 @@ export class AgentExecutor {
     };
 
     try {
-      const response = await agentTool.tool.execute(args, { user: this.config.user, signal, show });
+      const response = await agentTool.tool.execute(args, {
+        user: this.config.user,
+        signal: this.withTimeout(agent, signal),
+        show,
+      });
 
       const result = truncate(response, agent.maxToolResponseChars);
       if (result !== response) {
