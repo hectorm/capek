@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 
 import type { ServerDatasourceType } from "#layers/datasources/server/lib/drivers";
 import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
+import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
@@ -310,7 +311,7 @@ export const sourceRouter = createTRPCRouter({
       // The secrets hidden in the form are taken from the stored datasource
       let config = parseConfig(datasourceType, input.config);
       if (id) {
-        // The lock limits the secrets to those who can update it
+        // The lock only returns it to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("datasourcesSources")
@@ -319,7 +320,19 @@ export const sourceRouter = createTRPCRouter({
             .forUpdate()
             .executeTakeFirst();
         });
+        if (!stored) {
+          ctx.logger.warn({ sourceId: id }, "Datasource not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Datasource not found or you don't have permission to update it",
+          });
+        }
         config = unredactConfig(datasourceType, config, stored);
+      } else if (!can(ctx.user, DatasourcesPermissions.SourceCreate)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions",
+        });
       }
 
       return testConnection(datasourceType, { config });

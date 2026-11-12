@@ -9,6 +9,7 @@ import { MCPClient } from "#layers/ai/server/lib/mcp/client";
 import { McpServerResource } from "#layers/ai/server/lib/resources";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
+import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
@@ -277,7 +278,7 @@ export const mcpServerRouter = createTRPCRouter({
 
       let endpoint: Endpoint = { url: input.url, headers: input.headers ?? [] };
       if (id) {
-        // The lock limits the secrets to those who can update it
+        // The lock only returns it to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("aiMcpServers")
@@ -286,7 +287,19 @@ export const mcpServerRouter = createTRPCRouter({
             .forUpdate()
             .executeTakeFirst();
         });
+        if (!stored) {
+          ctx.logger.warn({ mcpServerId: id }, "MCP server not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "MCP server not found or you don't have permission to update it",
+          });
+        }
         endpoint = unredactEndpoint(endpoint, stored);
+      } else if (!can(ctx.user, AiPermissions.McpServerCreate)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions",
+        });
       }
 
       const mcpClient = new MCPClient({

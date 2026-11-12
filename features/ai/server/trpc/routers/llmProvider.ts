@@ -9,6 +9,7 @@ import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
+import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
@@ -285,7 +286,7 @@ export const llmProviderRouter = createTRPCRouter({
 
       let endpoint: Endpoint = { url: input.apiUrl, apiKey: input.apiKey, headers: input.headers ?? [] };
       if (id) {
-        // The lock limits the secrets to those who can update it
+        // The lock only returns it to those who can update it
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("aiLlmProviders")
@@ -294,7 +295,19 @@ export const llmProviderRouter = createTRPCRouter({
             .forUpdate()
             .executeTakeFirst();
         });
+        if (!stored) {
+          ctx.logger.warn({ llmProviderId: id }, "LLM provider not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "LLM provider not found or you don't have permission to update it",
+          });
+        }
         endpoint = unredactEndpoint(endpoint, stored);
+      } else if (!can(ctx.user, AiPermissions.LlmProviderCreate)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions",
+        });
       }
 
       const llmClient = new LlmClient({
