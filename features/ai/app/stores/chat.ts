@@ -299,6 +299,8 @@ export const useChatStore = defineStore("ai.chat", () => {
 
     const shouldAutoRename = currentSession.value?.title === "" && !currentMsgs.some((m) => m.role === "user");
 
+    let textEnded = false;
+
     const onStreamComplete = () => {
       void fetchMessages(sessionId);
       void fetchSessions();
@@ -331,6 +333,7 @@ export const useChatStore = defineStore("ai.chat", () => {
         await handleStreamResponse(response.body, {
           signal: controller.signal,
           onStatus: (status) => {
+            textEnded = true;
             const state = activeStreams.value.get(sessionId);
             if (state) {
               state.status = status;
@@ -346,9 +349,10 @@ export const useChatStore = defineStore("ai.chat", () => {
             if (lastMsg?.id === tempAssistantMessageId) {
               const lastPart = lastMsg.parts.at(-1);
               const parts: ChatMessagePart[] =
-                lastPart?.type === "text"
+                lastPart?.type === "text" && !textEnded
                   ? [...lastMsg.parts.slice(0, -1), { type: "text", text: lastPart.text + chunk }]
                   : [...lastMsg.parts, { type: "text", text: chunk }];
+              textEnded = false;
               const updatedMsg = { ...lastMsg, content: lastMsg.content + chunk, parts };
               messages.value.set(sessionId, [...msgs.slice(0, -1), updatedMsg]);
               triggerRef(messages);
