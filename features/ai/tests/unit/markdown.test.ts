@@ -68,12 +68,14 @@ describe("markdown of the messages", () => {
         "",
         '<svg overflow="visible"><a href="https://attacker.example"><rect width="6000" height="6000"/></a></svg>',
         '<button popovertarget="panel">Details</button><div popover id="panel">Session expired</div>',
+        '<button command="show-modal" commandfor="modal">Continue</button><dialog id="modal" open>Log in</dialog>',
         "![logout](/api/logout) ![pixel](data:image/gif;base64,R0lGODlhAQABAAAAACw=)",
         '<video src="/api/logout" poster="/api/logout"></video><table background="/api/logout"></table>',
       ].join("\n"),
     );
     expect(html.querySelector("svg")).toBeNull();
     expect(html.querySelector("[popover], [popovertarget]")).toBeNull();
+    expect(html.querySelector("dialog, [command], [commandfor]")).toBeNull();
     expect(html.querySelector("video[src], [poster], [background]")).toBeNull();
     expect([...html.querySelectorAll("img")].map((img) => img.getAttribute("src"))).toEqual([
       null,

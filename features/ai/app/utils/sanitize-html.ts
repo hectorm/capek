@@ -23,13 +23,15 @@ purify.addHook("afterSanitizeAttributes", (node) => {
 export const sanitizeHtml = (html: string): string => {
   return purify.sanitize(html, {
     USE_PROFILES: { html: true },
-    FORBID_TAGS: ["style", "form"],
+    FORBID_TAGS: ["style", "form", "dialog"],
     FORBID_ATTR: [
       "style",
       "class",
       "popover",
       "popovertarget",
       "popovertargetaction",
+      "command",
+      "commandfor",
       "srcset",
       "poster",
       "background",
