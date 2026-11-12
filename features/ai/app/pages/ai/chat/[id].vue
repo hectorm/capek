@@ -60,7 +60,9 @@ const toolStatus = computed(() => streamState.value?.status ?? "");
 const selectedAgent = computed({
   get: () => currentSession.value?.agentId ?? null,
   set: (agentId: string | null) => {
-    if (currentSession.value?.agentId === agentId) return;
+    if (currentSession.value?.agentId === agentId) {
+      return;
+    }
 
     void (async () => {
       try {
@@ -185,7 +187,9 @@ const handleStopGeneration = () => {
 
 const handleSubmit = async (e: Event) => {
   e.preventDefault();
-  if (!input.value.trim() || chatStatus.value === "streaming") return;
+  if (!input.value.trim() || chatStatus.value === "streaming") {
+    return;
+  }
 
   const userMessage = input.value;
   input.value = "";
@@ -322,7 +326,9 @@ useInfiniteScroll(
   messagesContainer,
   async () => {
     const container = messagesContainer.value;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const offsetFromBottom = container.scrollHeight - container.scrollTop;
     try {

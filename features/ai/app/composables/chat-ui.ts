@@ -31,7 +31,9 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
   });
 
   const filteredSessions = computed(() => {
-    if (!searchQuery.value) return formattedSessions.value;
+    if (!searchQuery.value) {
+      return formattedSessions.value;
+    }
 
     const query = searchQuery.value.toLowerCase();
     return formattedSessions.value.filter((s: ChatItem) => s.label.toLowerCase().includes(query));

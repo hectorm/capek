@@ -66,12 +66,16 @@ export const useChatStore = defineStore("ai.chat", () => {
   };
 
   const currentSession = computed(() => {
-    if (!currentSessionId.value) return null;
+    if (!currentSessionId.value) {
+      return null;
+    }
     return findSession(currentSessionId.value) ?? null;
   });
 
   const currentMessages = computed(() => {
-    if (!currentSessionId.value) return [];
+    if (!currentSessionId.value) {
+      return [];
+    }
     return messages.value.get(currentSessionId.value) ?? [];
   });
 
@@ -323,7 +327,9 @@ export const useChatStore = defineStore("ai.chat", () => {
           },
           onChunk: (chunk) => {
             const msgs = messages.value.get(sessionId);
-            if (!msgs) return;
+            if (!msgs) {
+              return;
+            }
 
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg?.id === tempAssistantMessageId) {
@@ -339,7 +345,9 @@ export const useChatStore = defineStore("ai.chat", () => {
           },
           onPart: (part) => {
             const msgs = messages.value.get(sessionId);
-            if (!msgs) return;
+            if (!msgs) {
+              return;
+            }
 
             const lastMsg = msgs[msgs.length - 1];
             if (lastMsg?.id === tempAssistantMessageId) {
@@ -537,7 +545,9 @@ export const useChatStore = defineStore("ai.chat", () => {
 
     const parseStreamLine = (line: string): void => {
       const trimmed = line.trim();
-      if (trimmed === "") return;
+      if (trimmed === "") {
+        return;
+      }
 
       if (trimmed.startsWith("event: ")) {
         eventType = trimmed.slice(7);
@@ -575,7 +585,9 @@ export const useChatStore = defineStore("ai.chat", () => {
     try {
       while (!options.signal?.aborted) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");

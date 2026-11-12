@@ -46,10 +46,14 @@ export const SqlServerDatasourceType = defineDatasourceType({
   unredact: (i, s) => {
     switch (i.authType) {
       case "basic":
-        if (i.password !== HttpRedactedValue) return i;
+        if (i.password !== HttpRedactedValue) {
+          return i;
+        }
         return { ...i, password: s?.authType === "basic" ? s.password : "" };
       case "azure-service-principal":
-        if (i.azureClientSecret !== HttpRedactedValue) return i;
+        if (i.azureClientSecret !== HttpRedactedValue) {
+          return i;
+        }
         return {
           ...i,
           azureClientSecret: s?.authType === "azure-service-principal" ? s.azureClientSecret : "",

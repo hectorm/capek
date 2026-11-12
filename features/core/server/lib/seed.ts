@@ -34,6 +34,7 @@ export interface SeedDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
   // Shape of the section of the seed configuration owned by the feature
   schema: S;
   // Seeds the feature resources, it must be idempotent
+  // eslint-disable-next-line @typescript-eslint/method-signature-style
   run(config: z.output<z.ZodObject<S>>, ctx: SeedContext): Promise<void>;
 }
 

@@ -113,7 +113,7 @@ const doSearch = async (reset = false): Promise<void> => {
 };
 
 const hasOrder = (column: TableColumn<Datasource>) => {
-  return query.value.orderBy === column.id && !!query.value.order;
+  return query.value.orderBy === column.id && Boolean(query.value.order);
 };
 
 const setOrder = (column: TableColumn<Datasource>, order: "asc" | "desc" | undefined) => {
@@ -188,7 +188,9 @@ const handleUpdateModal = async (datasource: Datasource): Promise<void> => {
   if (modalResult.datasource) {
     const updatedDatasource = modalResult.datasource;
     const i = datasources.value.findIndex((d) => d.id === updatedDatasource.id);
-    if (i >= 0) datasources.value = datasources.value.toSpliced(i, 1, updatedDatasource);
+    if (i >= 0) {
+      datasources.value = datasources.value.toSpliced(i, 1, updatedDatasource);
+    }
     toast.add({
       color: "success",
       title: i18n.t("datasources.pages.studio.datasources.table.actions.update.success.title"),
@@ -222,7 +224,9 @@ const handleDeleteModal = async (datasource: Datasource): Promise<void> => {
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = datasources.value.findIndex((d) => d.id === datasource.id);
-    if (i >= 0) datasources.value = datasources.value.toSpliced(i, 1);
+    if (i >= 0) {
+      datasources.value = datasources.value.toSpliced(i, 1);
+    }
     toast.add({
       color: "success",
       title: i18n.t("datasources.pages.studio.datasources.table.actions.delete.success.title"),

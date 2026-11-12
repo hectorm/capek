@@ -129,10 +129,9 @@ export class LlmClient {
       }
 
       return this.api.fromStream(response.body);
-    } else {
-      const rawCompletion: unknown = await response.json();
-      return this.api.fromResponse(rawCompletion);
     }
+    const rawCompletion: unknown = await response.json();
+    return this.api.fromResponse(rawCompletion);
   }
 
   public async summary(prompt: string): Promise<string> {
@@ -181,7 +180,7 @@ export class LlmClient {
 
     if (!summary) {
       prompt = prompt.trim();
-      summary = prompt.length <= 80 ? prompt : prompt.slice(0, 77) + "...";
+      summary = prompt.length <= 80 ? prompt : `${prompt.slice(0, 77)}...`;
     }
 
     return summary;

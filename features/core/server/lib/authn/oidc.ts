@@ -102,7 +102,9 @@ export class OIDC {
     this.clientAuth = oauth.ClientSecretBasic(options.clientSecret);
 
     const scopes = options.scopes.split(/\s+/).filter(Boolean);
-    if (!scopes.includes("openid")) scopes.unshift("openid");
+    if (!scopes.includes("openid")) {
+      scopes.unshift("openid");
+    }
     this.scopes = scopes.join(" ");
     this.prompt = options.prompt;
 
@@ -136,7 +138,9 @@ export class OIDC {
 
     const now = Date.now();
     const cached = this.discoveryCache.get(issuer);
-    if (cached && cached.expiresAt > now) as = cached.as;
+    if (cached && cached.expiresAt > now) {
+      as = cached.as;
+    }
 
     if (!as) {
       logger.debug({ issuer }, "Fetching OIDC discovery document");
@@ -366,7 +370,9 @@ export class OIDC {
     const url = new URL(this.as.end_session_endpoint);
     url.searchParams.set("client_id", this.client.client_id);
     url.searchParams.set("post_logout_redirect_uri", this.rootUrl.toString());
-    if (typeof idToken === "string") url.searchParams.set("id_token_hint", idToken);
+    if (typeof idToken === "string") {
+      url.searchParams.set("id_token_hint", idToken);
+    }
 
     return url;
   }

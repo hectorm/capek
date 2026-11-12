@@ -20,15 +20,21 @@ export default defineNitroPlugin((nitroApp: NitroApp): void => {
         process.send?.(READY_MESSAGE);
       })
     : (async (): Promise<void> => {
-        if (!(await runTask("database:migrate")).result) process.exit(1);
-        if (!(await runTask("database:seed")).result) process.exit(1);
+        if (!(await runTask("database:migrate")).result) {
+          process.exit(1);
+        }
+        if (!(await runTask("database:seed")).result) {
+          process.exit(1);
+        }
       })();
 
   if (cluster.isPrimary) {
     cluster.on("message", (worker, message: unknown) => {
       if (message === READY_MESSAGE) {
         void ready.then(() => {
-          if (worker.isConnected()) worker.send(READY_MESSAGE);
+          if (worker.isConnected()) {
+            worker.send(READY_MESSAGE);
+          }
         });
       }
     });

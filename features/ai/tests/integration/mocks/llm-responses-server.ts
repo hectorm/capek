@@ -30,8 +30,8 @@ interface OpenAIResponsesRequest {
 
 export class MockLLMResponsesServer {
   private server: http.Server | null = null;
-  private port: number;
-  private chatCompletionsUrl: string;
+  private readonly port: number;
+  private readonly chatCompletionsUrl: string;
 
   public constructor(options: MockLLMResponsesServerOptions) {
     this.port = options.port;
@@ -127,8 +127,11 @@ export class MockLLMResponsesServer {
       }),
     });
 
-    if (request.stream) await this.handleStreamingResponse(request, completion, res);
-    else await this.handleNonStreamingResponse(request, completion, res);
+    if (request.stream) {
+      await this.handleStreamingResponse(request, completion, res);
+    } else {
+      await this.handleNonStreamingResponse(request, completion, res);
+    }
   }
 
   private async handleNonStreamingResponse(

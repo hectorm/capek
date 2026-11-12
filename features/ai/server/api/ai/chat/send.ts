@@ -164,7 +164,9 @@ export default defineEventHandler(async (event) => {
 
     try {
       for await (const chunk of executor.executeStream(session.agentId, abortController.signal)) {
-        if (abortController.signal.aborted) break;
+        if (abortController.signal.aborted) {
+          break;
+        }
         event.node.res.write(chunk);
       }
 

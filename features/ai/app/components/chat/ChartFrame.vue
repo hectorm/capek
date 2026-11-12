@@ -52,7 +52,9 @@ const exportImage = (format: ExportFormat) => {
 type FrameMessage = MessageEvent<{ type?: string; message?: string; formats?: unknown; url?: unknown }>;
 
 useEventListener("message", (event: FrameMessage) => {
-  if (!event.source || event.source !== frame.value?.contentWindow) return;
+  if (!event.source || event.source !== frame.value?.contentWindow) {
+    return;
+  }
 
   if (event.data.type === "ready") {
     draw();

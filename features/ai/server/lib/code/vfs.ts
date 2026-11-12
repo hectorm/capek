@@ -31,7 +31,7 @@ export interface VFSOptions {
 }
 
 export class VirtualFileSystem {
-  private root: VFSDirNode = VirtualFileSystem.createDir();
+  private readonly root: VFSDirNode = VirtualFileSystem.createDir();
   private workspaceBytes = 0;
   private maxWorkspaceBytes: number | undefined;
 
@@ -94,12 +94,14 @@ export class VirtualFileSystem {
         result.push(part);
       }
     }
-    return "/" + result.join("/");
+    return `/${result.join("/")}`;
   }
 
   public stat(path: string): { isFile: () => boolean; isDirectory: () => boolean; size: number; mode: number } | null {
     const node = this.getNode(path);
-    if (!node) return null;
+    if (!node) {
+      return null;
+    }
 
     const fileNode = VirtualFileSystem.isFile(node);
     return {
@@ -112,17 +114,21 @@ export class VirtualFileSystem {
 
   public readFile(path: string): string | null {
     const node = this.getNode(path);
-    if (!node || !VirtualFileSystem.isFile(node)) return null;
+    if (!node || !VirtualFileSystem.isFile(node)) {
+      return null;
+    }
     return node.content;
   }
 
   public readdir(path: string): string[] | null {
     const node = this.getNode(path);
-    if (!node || !VirtualFileSystem.isDir(node)) return null;
+    if (!node || !VirtualFileSystem.isDir(node)) {
+      return null;
+    }
 
     const result: string[] = [];
     for (const [name, child] of node.entries) {
-      result.push(VirtualFileSystem.isDir(child) ? name + "/" : name);
+      result.push(VirtualFileSystem.isDir(child) ? `${name}/` : name);
     }
     return result;
   }
@@ -139,11 +145,15 @@ export class VirtualFileSystem {
   public writeFile(path: string, content: string, options?: { readonly?: boolean }): boolean {
     const normalized = this.normalizePath(path);
     const parts = normalized.split("/").filter((p) => p !== "");
-    if (parts.length === 0) return false;
+    if (parts.length === 0) {
+      return false;
+    }
 
     const fileName = parts.pop();
-    if (!fileName) return false;
-    const dirPath = "/" + parts.join("/");
+    if (!fileName) {
+      return false;
+    }
+    const dirPath = `/${parts.join("/")}`;
 
     const existingNode = this.getNode(normalized);
     if (existingNode && (VirtualFileSystem.isDir(existingNode) || existingNode.readonly)) {
@@ -176,17 +186,23 @@ export class VirtualFileSystem {
 
   public copyFile(src: string, dest: string): boolean {
     const content = this.readFile(src);
-    if (content === null) return false;
+    if (content === null) {
+      return false;
+    }
     return this.writeFile(dest, content);
   }
 
   public unlink(path: string): boolean {
     const normalized = this.normalizePath(path);
     const info = this.getParent(normalized);
-    if (!info) return false;
+    if (!info) {
+      return false;
+    }
 
     const node = info.parent.entries.get(info.name);
-    if (!node || !VirtualFileSystem.isFile(node) || node.readonly) return false;
+    if (!node || !VirtualFileSystem.isFile(node) || node.readonly) {
+      return false;
+    }
 
     info.parent.entries.delete(info.name);
     if (VirtualFileSystem.inWorkspace(normalized)) {
@@ -197,13 +213,19 @@ export class VirtualFileSystem {
 
   public rmdir(path: string): boolean {
     const normalized = this.normalizePath(path);
-    if (normalized === "/") return false;
+    if (normalized === "/") {
+      return false;
+    }
 
     const info = this.getParent(normalized);
-    if (!info) return false;
+    if (!info) {
+      return false;
+    }
 
     const node = info.parent.entries.get(info.name);
-    if (!node || !VirtualFileSystem.isDir(node) || node.entries.size > 0) return false;
+    if (!node || !VirtualFileSystem.isDir(node) || node.entries.size > 0) {
+      return false;
+    }
 
     info.parent.entries.delete(info.name);
     return true;
@@ -211,24 +233,32 @@ export class VirtualFileSystem {
 
   public rm(path: string, options?: { recursive?: boolean; force?: boolean }): boolean {
     const normalized = this.normalizePath(path);
-    if (normalized === "/") return false;
+    if (normalized === "/") {
+      return false;
+    }
 
     const node = this.getNode(normalized);
-    if (!node) return options?.force === true;
+    if (!node) {
+      return options?.force === true;
+    }
 
     if (VirtualFileSystem.isFile(node)) {
       return node.readonly ? false : this.unlink(normalized);
     }
 
     if (node.entries.size > 0) {
-      if (!options?.recursive) return false;
+      if (!options?.recursive) {
+        return false;
+      }
       for (const [name, child] of node.entries) {
-        const childPath = normalized + "/" + name;
+        const childPath = `${normalized}/${name}`;
         if (VirtualFileSystem.isFile(child)) {
-          if (child.readonly) return false;
+          if (child.readonly) {
+            return false;
+          }
           this.unlink(childPath);
-        } else {
-          if (!this.rm(childPath, options)) return false;
+        } else if (!this.rm(childPath, options)) {
+          return false;
         }
       }
     }
@@ -239,21 +269,31 @@ export class VirtualFileSystem {
   public rename(oldPath: string, newPath: string): boolean {
     const oldNorm = this.normalizePath(oldPath);
     const newNorm = this.normalizePath(newPath);
-    if (newNorm.startsWith(`${oldNorm}/`)) return false;
+    if (newNorm.startsWith(`${oldNorm}/`)) {
+      return false;
+    }
 
     const oldInfo = this.getParent(oldNorm);
-    if (!oldInfo) return false;
+    if (!oldInfo) {
+      return false;
+    }
 
     const node = oldInfo.parent.entries.get(oldInfo.name);
-    if (!node || (VirtualFileSystem.isFile(node) && node.readonly)) return false;
+    if (!node || (VirtualFileSystem.isFile(node) && node.readonly)) {
+      return false;
+    }
 
     const newParts = newNorm.split("/").filter((p) => p !== "");
     const newName = newParts.at(-1);
-    if (!newName) return false;
+    if (!newName) {
+      return false;
+    }
     newParts.pop();
 
-    const newParent = this.ensureDirectoryExists("/" + newParts.join("/"));
-    if (newParent.entries.has(newName)) return false;
+    const newParent = this.ensureDirectoryExists(`/${newParts.join("/")}`);
+    if (newParent.entries.has(newName)) {
+      return false;
+    }
 
     const growth =
       VirtualFileSystem.workspaceBytesOf(node, newNorm) - VirtualFileSystem.workspaceBytesOf(node, oldNorm);
@@ -298,7 +338,7 @@ export class VirtualFileSystem {
         files[path] = { content: node.content, readonly: node.readonly };
       } else {
         for (const [name, child] of node.entries) {
-          traverse(child, path + "/" + name);
+          traverse(child, `${path}/${name}`);
         }
       }
     };
@@ -315,7 +355,7 @@ export class VirtualFileSystem {
         }
       } else {
         for (const [name, child] of node.entries) {
-          traverse(child, path + "/" + name);
+          traverse(child, `${path}/${name}`);
         }
       }
     };
@@ -325,15 +365,21 @@ export class VirtualFileSystem {
 
   private getNode(path: string): VFSNode | null {
     const normalized = this.normalizePath(path);
-    if (normalized === "/") return this.root;
+    if (normalized === "/") {
+      return this.root;
+    }
 
     const parts = normalized.split("/").filter((p) => p !== "");
     let current: VFSNode = this.root;
 
     for (const part of parts) {
-      if (!VirtualFileSystem.isDir(current)) return null;
+      if (!VirtualFileSystem.isDir(current)) {
+        return null;
+      }
       const child = current.entries.get(part);
-      if (!child) return null;
+      if (!child) {
+        return null;
+      }
       current = child;
     }
 
@@ -343,13 +389,17 @@ export class VirtualFileSystem {
   private getParent(normalized: string): { parent: VFSDirNode; name: string } | null {
     const parts = normalized.split("/").filter((p) => p !== "");
     const name = parts.at(-1);
-    if (!name) return null;
+    if (!name) {
+      return null;
+    }
 
     parts.pop();
-    const parentPath = "/" + parts.join("/");
+    const parentPath = `/${parts.join("/")}`;
     const parent = this.getNode(parentPath);
 
-    if (!parent || !VirtualFileSystem.isDir(parent)) return null;
+    if (!parent || !VirtualFileSystem.isDir(parent)) {
+      return null;
+    }
     return { parent, name };
   }
 
@@ -379,14 +429,14 @@ export class VirtualFileSystem {
       if (VirtualFileSystem.isFile(node)) {
         paths.push(path);
       } else {
-        paths.push(path + "/");
+        paths.push(`${path}/`);
         for (const [name, child] of node.entries) {
-          traverse(child, path + "/" + name);
+          traverse(child, `${path}/${name}`);
         }
       }
     };
     for (const [name, child] of this.root.entries) {
-      traverse(child, "/" + name);
+      traverse(child, `/${name}`);
     }
     return paths;
   }
@@ -400,7 +450,9 @@ export class VirtualFileSystem {
         if (pattern[i + 1] === "*") {
           regex += ".*";
           i += 2;
-          if (pattern[i] === "/") i++;
+          if (pattern[i] === "/") {
+            i++;
+          }
         } else {
           regex += "[^/]*";
           i++;
@@ -419,6 +471,6 @@ export class VirtualFileSystem {
         i++;
       }
     }
-    return new RegExp("^" + regex + "$");
+    return new RegExp(`^${regex}$`);
   }
 }

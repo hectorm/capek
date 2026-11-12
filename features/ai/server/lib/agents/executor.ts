@@ -155,11 +155,11 @@ const countChars = (items: LlmItem[]): number => {
 };
 
 export class AgentExecutor {
-  private config: AgentExecutorConfig;
+  private readonly config: AgentExecutorConfig;
   private executionId: string | null = null;
   private iterationCount = 0;
   private partsChars = 0;
-  private startedAt: Date;
+  private readonly startedAt: Date;
 
   public constructor(config: AgentExecutorConfig) {
     this.config = config;
@@ -447,7 +447,9 @@ export class AgentExecutor {
           try {
             while (!signal?.aborted) {
               const { done, value } = await reader.read();
-              if (done) break;
+              if (done) {
+                break;
+              }
 
               if (value.type === "response.output_text.delta") {
                 text += value.delta;
@@ -859,7 +861,9 @@ export class AgentExecutor {
     toolProvider: string | null = null,
   ): Promise<void> {
     const executionId = this.executionId;
-    if (!executionId) return;
+    if (!executionId) {
+      return;
+    }
 
     await withUserTransaction(this.config.user, async (trx) => {
       await trx
@@ -886,7 +890,9 @@ export class AgentExecutor {
     error: string | null,
   ): Promise<void> {
     const executionId = this.executionId;
-    if (!executionId) return;
+    if (!executionId) {
+      return;
+    }
 
     await withUserTransaction(this.config.user, async (trx) => {
       await trx
@@ -1169,7 +1175,9 @@ export class AgentExecutor {
   }
 
   private async updateLastActivity(): Promise<void> {
-    if (!this.executionId) return;
+    if (!this.executionId) {
+      return;
+    }
 
     await withUserTransaction(
       this.config.user,
@@ -1185,7 +1193,9 @@ export class AgentExecutor {
   }
 
   private async completeExecution({ status, errorMessage }: ExecutionOutcome): Promise<void> {
-    if (!this.executionId) return;
+    if (!this.executionId) {
+      return;
+    }
 
     await withUserTransaction(
       this.config.user,

@@ -103,7 +103,7 @@ const doSearch = async (reset = false): Promise<void> => {
 };
 
 const hasOrder = (column: TableColumn<LlmProvider>) => {
-  return query.value.orderBy === column.id && !!query.value.order;
+  return query.value.orderBy === column.id && Boolean(query.value.order);
 };
 
 const setOrder = (column: TableColumn<LlmProvider>, order: "asc" | "desc" | undefined) => {
@@ -178,7 +178,9 @@ const handleUpdateModal = async (llmProvider: LlmProvider): Promise<void> => {
   if (modalResult.llmProvider) {
     const updatedLlmProvider = modalResult.llmProvider;
     const i = llmProviders.value.findIndex((p) => p.id === updatedLlmProvider.id);
-    if (i >= 0) llmProviders.value = llmProviders.value.toSpliced(i, 1, updatedLlmProvider);
+    if (i >= 0) {
+      llmProviders.value = llmProviders.value.toSpliced(i, 1, updatedLlmProvider);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.llmProviders.table.actions.update.success.title"),
@@ -212,7 +214,9 @@ const handleDeleteModal = async (llmProvider: LlmProvider): Promise<void> => {
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = llmProviders.value.findIndex((p) => p.id === llmProvider.id);
-    if (i >= 0) llmProviders.value = llmProviders.value.toSpliced(i, 1);
+    if (i >= 0) {
+      llmProviders.value = llmProviders.value.toSpliced(i, 1);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.llmProviders.table.actions.delete.success.title"),

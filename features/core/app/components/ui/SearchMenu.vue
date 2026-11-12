@@ -40,7 +40,9 @@ const loading = ref<boolean>(false);
 const timer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 const getSelectedValues = (): string[] => {
-  if (!props.modelValue) return [];
+  if (!props.modelValue) {
+    return [];
+  }
   return Array.isArray(props.modelValue) ? props.modelValue : [props.modelValue];
 };
 
@@ -68,7 +70,9 @@ const doSearch = async (value?: string) => {
 };
 
 const initializeItemsFromModel = () => {
-  if (!props.modelValue) return;
+  if (!props.modelValue) {
+    return;
+  }
 
   const values = Array.isArray(props.modelValue) ? props.modelValue : [props.modelValue];
   const newItems = values.map((v) => ({
@@ -84,7 +88,9 @@ const initializeItemsFromModel = () => {
 watch(() => props.modelValue, initializeItemsFromModel, { immediate: true });
 
 watch(search, (value) => {
-  if (timer.value) clearTimeout(timer.value);
+  if (timer.value) {
+    clearTimeout(timer.value);
+  }
   timer.value = setTimeout(() => void doSearch(value), 500);
 });
 

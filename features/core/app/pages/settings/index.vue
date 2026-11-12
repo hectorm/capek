@@ -35,7 +35,9 @@ const formValues = ref<Record<string, SettingValue>>({});
 const formRef = ref<HTMLFormElement | null>(null);
 
 const settingList = computed<SettingDefinition[]>(() => {
-  if (!settingsStore.settings) return [];
+  if (!settingsStore.settings) {
+    return [];
+  }
   return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }));
 });
 
@@ -163,7 +165,9 @@ const handleSaveAllSettings = async (): Promise<void> => {
 
     for (const key of changedKeys.value) {
       const value = formValues.value[key];
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
       settingsToUpdate.push({ key, value });
     }
 

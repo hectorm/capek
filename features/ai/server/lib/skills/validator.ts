@@ -165,7 +165,9 @@ function buildNestedSchema(params: ParsedParameter[]): OpenAIFunctionParameters 
 
   for (const param of params) {
     const rootKey = param.path[0];
-    if (!rootKey) continue;
+    if (!rootKey) {
+      continue;
+    }
 
     let paramsArray = topLevelParams.get(rootKey);
     if (!paramsArray) {

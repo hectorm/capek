@@ -23,7 +23,7 @@ export const AuthModes = {
 } as const;
 
 export interface AuthStrategy {
-  getUserFromEvent(event: H3Event): Promise<AuthUser | null>;
+  getUserFromEvent: (event: H3Event) => Promise<AuthUser | null>;
 }
 
 export interface AuthUser extends User {

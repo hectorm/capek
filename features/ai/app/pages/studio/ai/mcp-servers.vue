@@ -103,7 +103,7 @@ const doSearch = async (reset = false): Promise<void> => {
 };
 
 const hasOrder = (column: TableColumn<McpServer>) => {
-  return query.value.orderBy === column.id && !!query.value.order;
+  return query.value.orderBy === column.id && Boolean(query.value.order);
 };
 
 const setOrder = (column: TableColumn<McpServer>, order: "asc" | "desc" | undefined) => {
@@ -178,7 +178,9 @@ const handleUpdateModal = async (mcpServer: McpServer): Promise<void> => {
   if (modalResult.mcpServer) {
     const updatedMcpServer = modalResult.mcpServer;
     const i = mcpServers.value.findIndex((m) => m.id === updatedMcpServer.id);
-    if (i >= 0) mcpServers.value = mcpServers.value.toSpliced(i, 1, updatedMcpServer);
+    if (i >= 0) {
+      mcpServers.value = mcpServers.value.toSpliced(i, 1, updatedMcpServer);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.mcpServers.table.actions.update.success.title"),
@@ -212,7 +214,9 @@ const handleDeleteModal = async (mcpServer: McpServer): Promise<void> => {
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = mcpServers.value.findIndex((m) => m.id === mcpServer.id);
-    if (i >= 0) mcpServers.value = mcpServers.value.toSpliced(i, 1);
+    if (i >= 0) {
+      mcpServers.value = mcpServers.value.toSpliced(i, 1);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.mcpServers.table.actions.delete.success.title"),

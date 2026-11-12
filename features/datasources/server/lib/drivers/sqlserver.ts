@@ -85,9 +85,15 @@ export class SqlServerDriver implements DatasourceDriver {
     options.readOnlyIntent = true;
     // Changes are discarded on close since nothing is committed, unless a statement commits them itself
     options.enableImplicitTransactions = true;
-    if (settings.requestTimeoutMs) options.connectTimeout = settings.requestTimeoutMs;
-    if (settings.statementTimeoutMs) options.requestTimeout = settings.statementTimeoutMs;
-    if (settings.maxBytes) options.textsize = 2 * settings.maxBytes;
+    if (settings.requestTimeoutMs) {
+      options.connectTimeout = settings.requestTimeoutMs;
+    }
+    if (settings.statementTimeoutMs) {
+      options.requestTimeout = settings.statementTimeoutMs;
+    }
+    if (settings.maxBytes) {
+      options.textsize = 2 * settings.maxBytes;
+    }
 
     const connection = new Connection({ server, authentication, options });
     const onAbort = (): void => {
@@ -98,8 +104,11 @@ export class SqlServerDriver implements DatasourceDriver {
       settings.signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {
         connection.once("connect", (err?: Error) => {
-          if (err) reject(err);
-          else resolve();
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
         });
         connection.once("error", reject);
         connection.connect();
@@ -113,16 +122,21 @@ export class SqlServerDriver implements DatasourceDriver {
         let hasResultSet = false;
         let cancelled = false;
         const request = new Request(sql, (err) => {
-          if (err && !cancelled) reject(err);
-          else if (!hasResultSet)
+          if (err && !cancelled) {
+            reject(err);
+          } else if (!hasResultSet) {
             reject(new Error("The statement returned no result, and changes to data are not kept"));
-          else resolve(rows);
+          } else {
+            resolve(rows);
+          }
         });
         request.on("columnMetadata", () => {
           hasResultSet = true;
         });
         request.on("row", (columns: TediousColumn[]) => {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           if (settings.maxRows && rows.length >= settings.maxRows) {
             cancelled = true;
             connection.cancel();
@@ -249,8 +263,12 @@ export class SqlServerDriver implements DatasourceDriver {
 
   private toBoolean(value: string): boolean {
     const trimmed = value.trim();
-    if (/^(true|yes|1)$/i.test(trimmed)) return true;
-    if (/^(false|no|0)$/i.test(trimmed)) return false;
+    if (/^(true|yes|1)$/i.test(trimmed)) {
+      return true;
+    }
+    if (/^(false|no|0)$/i.test(trimmed)) {
+      return false;
+    }
     throw new Error(`Invalid boolean value in connection string: ${value}`);
   }
 

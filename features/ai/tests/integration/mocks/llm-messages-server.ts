@@ -32,8 +32,8 @@ interface AnthropicMessagesRequest {
 
 export class MockLLMMessagesServer {
   private server: http.Server | null = null;
-  private port: number;
-  private chatCompletionsUrl: string;
+  private readonly port: number;
+  private readonly chatCompletionsUrl: string;
 
   public constructor(options: MockLLMMessagesServerOptions) {
     this.port = options.port;
@@ -135,8 +135,11 @@ export class MockLLMMessagesServer {
       }),
     });
 
-    if (request.stream) await this.handleStreamingMessage(request, completion, res);
-    else await this.handleNonStreamingMessage(request, completion, res);
+    if (request.stream) {
+      await this.handleStreamingMessage(request, completion, res);
+    } else {
+      await this.handleNonStreamingMessage(request, completion, res);
+    }
   }
 
   private async handleNonStreamingMessage(

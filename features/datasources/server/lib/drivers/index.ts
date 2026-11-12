@@ -23,7 +23,7 @@ export interface DatasourceQuerySettings {
 // Runs the queries of a type of datasource in read-only mode
 export interface DatasourceDriver {
   readonly validationQuery: string;
-  execute(params: DatasourceConnectionParams, sql: string, settings: DatasourceQuerySettings): Promise<unknown[]>;
+  execute: (params: DatasourceConnectionParams, sql: string, settings: DatasourceQuerySettings) => Promise<unknown[]>;
 }
 
 export interface ServerDatasourceType {

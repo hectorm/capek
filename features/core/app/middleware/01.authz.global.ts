@@ -16,8 +16,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.meta.permissions && !(to.meta.permissionsStrict ? can : canAny)(to.meta.permissions)) {
     if (to.path !== "/") {
       return navigateTo({ path: "/" }, { redirectCode: 302 });
-    } else {
-      return abortNavigation();
     }
+    return abortNavigation();
   }
 });

@@ -23,7 +23,9 @@ const hostCalls = new Map<number, { resolve: (value: string) => void; reject: (e
 
 port.on("message", (reply: SandboxReply) => {
   const call = hostCalls.get(reply.id);
-  if (!call) return;
+  if (!call) {
+    return;
+  }
 
   hostCalls.delete(reply.id);
   if ("error" in reply) {
@@ -135,7 +137,7 @@ function setupModuleLoader(runtime: QuickJSAsyncRuntime): void {
       return content;
     },
     (baseModulePath: string, requestedName: string) => {
-      return vfs.normalizePath(requestedName.startsWith("/") ? requestedName : baseModulePath + "/../" + requestedName);
+      return vfs.normalizePath(requestedName.startsWith("/") ? requestedName : `${baseModulePath}/../${requestedName}`);
     },
   );
 }
@@ -172,8 +174,8 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
   };
 
   const register = (name: string, fn: (...args: QuickJSHandle[]) => QuickJSHandle) => {
-    const syncFn = scope.manage(context.newFunction(name + "Sync", fn));
-    context.setProp(fsObj, name + "Sync", syncFn);
+    const syncFn = scope.manage(context.newFunction(`${name}Sync`, fn));
+    context.setProp(fsObj, `${name}Sync`, syncFn);
 
     const asyncFn = scope.manage(
       context.newFunction(name, (...args: QuickJSHandle[]) => {
@@ -206,21 +208,27 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
   register("stat", (pathH) => {
     const path = context.getString(pathH);
     const stats = vfs.stat(path);
-    if (!stats) throw new Error(`ENOENT: no such file, stat '${path}'`);
+    if (!stats) {
+      throw new Error(`ENOENT: no such file, stat '${path}'`);
+    }
     return marshallToQuickJS(context, stats);
   });
 
   register("readFile", (pathH) => {
     const path = context.getString(pathH);
     const content = vfs.readFile(path);
-    if (content === null) throw new Error(`ENOENT: no such file, open '${path}'`);
+    if (content === null) {
+      throw new Error(`ENOENT: no such file, open '${path}'`);
+    }
     return marshallToQuickJS(context, content);
   });
 
   register("readdir", (pathH) => {
     const path = context.getString(pathH);
     const entries = vfs.readdir(path);
-    if (entries === null) throw new Error(`ENOENT: no such directory, scandir '${path}'`);
+    if (entries === null) {
+      throw new Error(`ENOENT: no such directory, scandir '${path}'`);
+    }
     return marshallToQuickJS(context, entries);
   });
 
@@ -232,24 +240,36 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
   register("mkdir", (pathH) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.mkdir(path)) throw new Error(`EEXIST: already exists, mkdir '${path}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.mkdir(path)) {
+      throw new Error(`EEXIST: already exists, mkdir '${path}'`);
+    }
     return context.undefined;
   });
 
   register("writeFile", (pathH, dataH) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.writeFile(path, context.getString(dataH))) throw new Error(`EISDIR: is a directory, open '${path}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.writeFile(path, context.getString(dataH))) {
+      throw new Error(`EISDIR: is a directory, open '${path}'`);
+    }
     return context.undefined;
   });
 
   register("appendFile", (pathH, dataH) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.appendFile(path, context.getString(dataH))) throw new Error(`EISDIR: is a directory, open '${path}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.appendFile(path, context.getString(dataH))) {
+      throw new Error(`EISDIR: is a directory, open '${path}'`);
+    }
     return context.undefined;
   });
 
@@ -257,24 +277,36 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     const src = context.getString(srcH);
     const dest = context.getString(destH);
     const permErr = checkWritePermission(dest);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.copyFile(src, dest)) throw new Error(`ENOENT: copyFile failed '${src}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.copyFile(src, dest)) {
+      throw new Error(`ENOENT: copyFile failed '${src}'`);
+    }
     return context.undefined;
   });
 
   register("unlink", (pathH) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.unlink(path)) throw new Error(`ENOENT: no such file, unlink '${path}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.unlink(path)) {
+      throw new Error(`ENOENT: no such file, unlink '${path}'`);
+    }
     return context.undefined;
   });
 
   register("rmdir", (pathH) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
-    if (!vfs.rmdir(path)) throw new Error(`ENOTEMPTY: directory not empty, rmdir '${path}'`);
+    if (permErr) {
+      throw new Error(permErr);
+    }
+    if (!vfs.rmdir(path)) {
+      throw new Error(`ENOTEMPTY: directory not empty, rmdir '${path}'`);
+    }
     return context.undefined;
   });
 
@@ -282,23 +314,33 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     const oldPath = context.getString(oldH);
     const newPath = context.getString(newH);
     const oldPermErr = checkWritePermission(oldPath);
-    if (oldPermErr) throw new Error(oldPermErr);
+    if (oldPermErr) {
+      throw new Error(oldPermErr);
+    }
     const newPermErr = checkWritePermission(newPath);
-    if (newPermErr) throw new Error(newPermErr);
-    if (!vfs.rename(oldPath, newPath)) throw new Error(`ENOENT: rename failed '${oldPath}' -> '${newPath}'`);
+    if (newPermErr) {
+      throw new Error(newPermErr);
+    }
+    if (!vfs.rename(oldPath, newPath)) {
+      throw new Error(`ENOENT: rename failed '${oldPath}' -> '${newPath}'`);
+    }
     return context.undefined;
   });
 
   register("rm", (pathH, optionsH?) => {
     const path = context.getString(pathH);
     const permErr = checkWritePermission(path);
-    if (permErr) throw new Error(permErr);
+    if (permErr) {
+      throw new Error(permErr);
+    }
     let options: { recursive?: boolean; force?: boolean } | undefined;
     if (optionsH && context.typeof(optionsH) === "object") {
       options = context.dump(optionsH) as { recursive?: boolean; force?: boolean };
     }
     const success = vfs.rm(path, options);
-    if (!success && !options?.force) throw new Error(`ENOENT: rm failed '${path}'`);
+    if (!success && !options?.force) {
+      throw new Error(`ENOENT: rm failed '${path}'`);
+    }
     return context.undefined;
   });
 
@@ -344,11 +386,21 @@ function setupHostCall(
 }
 
 function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHandle {
-  if (value === null) return context.null;
-  if (value === undefined) return context.undefined;
-  if (typeof value === "boolean") return value ? context.true : context.false;
-  if (typeof value === "number") return context.newNumber(value);
-  if (typeof value === "string") return context.newString(value);
+  if (value === null) {
+    return context.null;
+  }
+  if (value === undefined) {
+    return context.undefined;
+  }
+  if (typeof value === "boolean") {
+    return value ? context.true : context.false;
+  }
+  if (typeof value === "number") {
+    return context.newNumber(value);
+  }
+  if (typeof value === "string") {
+    return context.newString(value);
+  }
 
   if (Array.isArray(value)) {
     const arr = context.newArray();
@@ -392,10 +444,18 @@ function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHand
 function marshallFromQuickJS(context: QuickJSContext, handle: QuickJSHandle): unknown {
   const type = context.typeof(handle);
 
-  if (type === "undefined") return undefined;
-  if (type === "string") return context.getString(handle);
-  if (type === "number") return context.getNumber(handle);
-  if (type === "bigint") return context.getBigInt(handle).toString();
+  if (type === "undefined") {
+    return undefined;
+  }
+  if (type === "string") {
+    return context.getString(handle);
+  }
+  if (type === "number") {
+    return context.getNumber(handle);
+  }
+  if (type === "bigint") {
+    return context.getBigInt(handle).toString();
+  }
 
   return context.dump(handle);
 }

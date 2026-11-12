@@ -135,7 +135,9 @@ const runSandbox = (
     let settled = false;
 
     const settle = (complete: () => void): void => {
-      if (settled) return;
+      if (settled) {
+        return;
+      }
       settled = true;
       clearTimeout(timeout);
       signal?.removeEventListener("abort", onAbort);

@@ -188,13 +188,17 @@ export class Lucia {
 
   public createSessionCookie(token: string, expiresAt: Date): string {
     let cookie = `${this.cookieName}=${token}; Path=/; Expires=${expiresAt.toUTCString()}; HttpOnly; SameSite=Lax`;
-    if (!import.meta.dev) cookie += "; Secure; Partitioned";
+    if (!import.meta.dev) {
+      cookie += "; Secure; Partitioned";
+    }
     return cookie;
   }
 
   public createSessionDeleteCookie(): string {
     let cookie = `${this.cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
-    if (!import.meta.dev) cookie += "; Secure; Partitioned";
+    if (!import.meta.dev) {
+      cookie += "; Secure; Partitioned";
+    }
     return cookie;
   }
 

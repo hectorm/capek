@@ -34,7 +34,9 @@ const usernames = async (order: "asc" | "desc", orderBy: string): Promise<string
     );
     all.push(...page.rows.map((row) => row.username));
     cursor = page.nextCursor;
-    if (!cursor) break;
+    if (!cursor) {
+      break;
+    }
   }
   return all;
 };

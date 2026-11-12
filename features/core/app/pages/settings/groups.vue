@@ -109,7 +109,7 @@ const doSearch = async (reset = false): Promise<void> => {
 };
 
 const hasOrder = (column: TableColumn<Group>) => {
-  return query.value.orderBy === column.id && !!query.value.order;
+  return query.value.orderBy === column.id && Boolean(query.value.order);
 };
 
 const setOrder = (column: TableColumn<Group>, order: "asc" | "desc" | undefined) => {
@@ -177,7 +177,9 @@ const handleUpdateModal = async (group: Group): Promise<void> => {
   if (modalResult.group) {
     const updatedGroup = modalResult.group;
     const i = groups.value.findIndex((g) => g.id === updatedGroup.id);
-    if (i >= 0) groups.value = groups.value.toSpliced(i, 1, updatedGroup);
+    if (i >= 0) {
+      groups.value = groups.value.toSpliced(i, 1, updatedGroup);
+    }
     toast.add({
       color: "success",
       title: i18n.t("pages.settings.groups.table.actions.update.success.title"),
@@ -197,7 +199,9 @@ const handleDeleteModal = async (group: Group): Promise<void> => {
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = groups.value.findIndex((g) => g.id === group.id);
-    if (i >= 0) groups.value = groups.value.toSpliced(i, 1);
+    if (i >= 0) {
+      groups.value = groups.value.toSpliced(i, 1);
+    }
     toast.add({
       color: "success",
       title: i18n.t("pages.settings.groups.table.actions.delete.success.title"),

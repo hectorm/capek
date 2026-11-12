@@ -47,7 +47,9 @@ export const readStream = async (stream: ReadableStream<LlmStreamEvent>) => {
   const reader = stream.getReader();
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
 
     if (value.type === "response.output_text.delta") {
       text += value.delta;

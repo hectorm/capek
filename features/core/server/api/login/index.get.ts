@@ -23,7 +23,9 @@ export default defineEventHandler(async (event) => {
   let redirect;
   try {
     const url = new URL(loginUrl.searchParams.get("redirect") ?? "/", oidc.rootUrl);
-    if (url.origin === oidc.rootUrl.origin) redirect = url;
+    if (url.origin === oidc.rootUrl.origin) {
+      redirect = url;
+    }
   } catch {
     // Ignore invalid URLs
   }

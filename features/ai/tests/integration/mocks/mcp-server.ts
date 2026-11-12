@@ -20,8 +20,8 @@ interface JSONRPCResponse {
 
 export class MockMCPServer {
   private server: http.Server | null = null;
-  private port: number;
-  private sessions = new Set<string>();
+  private readonly port: number;
+  private readonly sessions = new Set<string>();
   private sessionCounter = 0;
 
   public constructor(options: MockMCPServerOptions) {

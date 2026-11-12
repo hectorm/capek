@@ -203,7 +203,9 @@ const { testing, test } = useFormTest({
 });
 
 const onTestConnection = async () => {
-  if (!state.url) return;
+  if (!state.url) {
+    return;
+  }
 
   await test(
     $trpc.ai.mcpServer.testConnection.mutate({

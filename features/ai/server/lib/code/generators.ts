@@ -48,10 +48,10 @@ export function createVFS(
       );
     }
 
-    vfs.writeFile(`/servers/${serverName}/index.js`, toolExports.join("\n\n") + "\n", { readonly: true });
+    vfs.writeFile(`/servers/${serverName}/index.js`, `${toolExports.join("\n\n")}\n`, { readonly: true });
     serverExports.push(`export * from "./${serverName}/index.js";`);
   }
-  vfs.writeFile("/servers/index.js", serverExports.join("\n") + "\n", { readonly: true });
+  vfs.writeFile("/servers/index.js", `${serverExports.join("\n")}\n`, { readonly: true });
 
   const skillExports: string[] = [];
   const skillIds = uniqueIds();
@@ -69,7 +69,7 @@ export function createVFS(
       );
     }
   }
-  vfs.writeFile("/skills/index.js", skillExports.join("\n\n") + "\n", { readonly: true });
+  vfs.writeFile("/skills/index.js", `${skillExports.join("\n\n")}\n`, { readonly: true });
 
   if (toolsets.length > 0) {
     const toolsetExports: string[] = [];
@@ -85,7 +85,7 @@ export function createVFS(
           `${briefComment(tool.description, tool.name)}\nexport { default as $${toolName} } from "./${toolName}.js";`,
         );
       }
-      vfs.writeFile(`/tools/${provider}/index.js`, toolExports.join("\n\n") + "\n", { readonly: true });
+      vfs.writeFile(`/tools/${provider}/index.js`, `${toolExports.join("\n\n")}\n`, { readonly: true });
 
       if (toolset.instructions) {
         vfs.writeFile(`/tools/${provider}/README.md`, toolset.instructions, { readonly: true });
@@ -97,7 +97,7 @@ export function createVFS(
 
       toolsetExports.push(`export * from "./${provider}/index.js";`);
     }
-    vfs.writeFile("/tools/index.js", toolsetExports.join("\n") + "\n", { readonly: true });
+    vfs.writeFile("/tools/index.js", `${toolsetExports.join("\n")}\n`, { readonly: true });
   }
 
   return vfs;
@@ -157,7 +157,9 @@ function generateSkillMarkdown(skill: SkillBinding, skillName: string): string {
 
 function sanitizeId(name: string): string {
   let id = name.replace(/[^a-zA-Z0-9_]/g, "_");
-  if (id.length === 0) id = "_unnamed";
+  if (id.length === 0) {
+    id = "_unnamed";
+  }
   return id;
 }
 
@@ -302,20 +304,24 @@ function wrapText(text: string, maxWidth: number): string[] {
   const lines: string[] = [];
   for (const para of text.split(/\n\n+/)) {
     const normalized = para.replace(/\s+/g, " ").trim();
-    if (!normalized) continue;
+    if (!normalized) {
+      continue;
+    }
 
     let line = "";
     for (const word of normalized.split(" ")) {
       if (!line) {
         line = word;
       } else if (line.length + 1 + word.length <= maxWidth) {
-        line += " " + word;
+        line += ` ${word}`;
       } else {
         lines.push(line);
         line = word;
       }
     }
-    if (line) lines.push(line);
+    if (line) {
+      lines.push(line);
+    }
   }
   return lines;
 }

@@ -5,8 +5,8 @@ import { defineNuxtModule } from "nuxt/kit";
 import ts from "typescript";
 
 interface BundlerContext {
-  addWatchFile(file: string): void;
-  emitFile(file: { type: "asset"; fileName: string; source: string }): string;
+  addWatchFile: (file: string) => void;
+  emitFile: (file: { type: "asset"; fileName: string; source: string }) => string;
 }
 
 // Emits the worker threads of the server as they are, since bundling them could start another server in the thread

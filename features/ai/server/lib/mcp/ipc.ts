@@ -31,13 +31,18 @@ export interface MCPIPCResponse {
 }
 
 export class MCPIPCClient {
-  private pendingRequests = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+  private readonly pendingRequests = new Map<
+    string,
+    { resolve: (value: unknown) => void; reject: (error: Error) => void }
+  >();
 
   public constructor() {
     if (cluster.isWorker) {
       process.on("message", (response: MCPIPCResponse) => {
         const pending = this.pendingRequests.get(response.requestId);
-        if (!pending) return;
+        if (!pending) {
+          return;
+        }
 
         this.pendingRequests.delete(response.requestId);
         if (response.success) {
@@ -112,7 +117,9 @@ export class MCPIPCClient {
 }
 
 export function setupMCPIPCHandler(): void {
-  if (!cluster.isPrimary) return;
+  if (!cluster.isPrimary) {
+    return;
+  }
 
   const manager = MCPManager.getInstance();
   const activeToolCalls = new Map<string, AbortController>();

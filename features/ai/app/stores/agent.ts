@@ -22,7 +22,9 @@ export const useAgentStore = defineStore("ai.agent", () => {
   };
 
   const fetch = async (): Promise<void> => {
-    if (isLoaded.value) return;
+    if (isLoaded.value) {
+      return;
+    }
 
     try {
       agents.value = await search();

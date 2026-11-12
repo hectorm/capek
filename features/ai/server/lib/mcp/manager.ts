@@ -48,7 +48,7 @@ interface MCPSession {
 export class MCPManager {
   private static instance: MCPManager | null = null;
   private static ipcClient: MCPIPCClient | null = null;
-  private sessions = new Map<string, MCPSession>();
+  private readonly sessions = new Map<string, MCPSession>();
 
   private constructor() {}
 
@@ -189,7 +189,9 @@ export class MCPManager {
       };
 
       const settle = (fn: () => void) => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
         settled = true;
         cleanup();
         fn();

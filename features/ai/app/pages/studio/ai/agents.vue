@@ -125,7 +125,7 @@ const doSearch = async (reset = false): Promise<void> => {
 };
 
 const hasOrder = (column: TableColumn<Agent>) => {
-  return query.value.orderBy === column.id && !!query.value.order;
+  return query.value.orderBy === column.id && Boolean(query.value.order);
 };
 
 const setOrder = (column: TableColumn<Agent>, order: "asc" | "desc" | undefined) => {
@@ -200,7 +200,9 @@ const handleUpdateModal = async (agent: Agent): Promise<void> => {
   if (modalResult.agent) {
     const updatedAgent = modalResult.agent;
     const i = agents.value.findIndex((a) => a.id === updatedAgent.id);
-    if (i >= 0) agents.value = agents.value.toSpliced(i, 1, updatedAgent);
+    if (i >= 0) {
+      agents.value = agents.value.toSpliced(i, 1, updatedAgent);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.agents.table.actions.update.success.title"),
@@ -234,7 +236,9 @@ const handleDeleteModal = async (agent: Agent): Promise<void> => {
   const modalResult = (await instance.result) as { deleted: boolean; error: Error | null };
   if (modalResult.deleted) {
     const i = agents.value.findIndex((a) => a.id === agent.id);
-    if (i >= 0) agents.value = agents.value.toSpliced(i, 1);
+    if (i >= 0) {
+      agents.value = agents.value.toSpliced(i, 1);
+    }
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.agents.table.actions.delete.success.title"),

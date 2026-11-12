@@ -16,7 +16,7 @@ interface OpenAICompletionRequest {
 
 export class MockLLMChatCompletionsServer {
   private server: http.Server | null = null;
-  private port: number;
+  private readonly port: number;
   private readonly response = "This is a mock response";
 
   public constructor(options: MockLLMChatCompletionsServerOptions) {
@@ -129,19 +129,26 @@ export class MockLLMChatCompletionsServer {
       !isAfterToolResponse &&
       this.getLastUserMessageContent(request).includes("iteration limit")
     ) {
-      if (request.stream) this.handleStreamingPartialThenToolCall(request, res);
-      else this.handleNonStreamingPartialThenToolCall(request, res);
+      if (request.stream) {
+        this.handleStreamingPartialThenToolCall(request, res);
+      } else {
+        this.handleNonStreamingPartialThenToolCall(request, res);
+      }
       return;
     }
 
     // Code interpreter: call execute_code or handle its response
     if (hasTool("execute_code")) {
       if (!isAfterToolResponse) {
-        if (request.stream) this.handleStreamingCodeExecutionToolCall(request, res);
-        else this.handleNonStreamingCodeExecutionToolCall(request, res);
+        if (request.stream) {
+          this.handleStreamingCodeExecutionToolCall(request, res);
+        } else {
+          this.handleNonStreamingCodeExecutionToolCall(request, res);
+        }
+      } else if (request.stream) {
+        this.handleStreamingCodeExecutionResponse(request, res);
       } else {
-        if (request.stream) this.handleStreamingCodeExecutionResponse(request, res);
-        else this.handleNonStreamingCodeExecutionResponse(request, res);
+        this.handleNonStreamingCodeExecutionResponse(request, res);
       }
       return;
     }
@@ -149,24 +156,34 @@ export class MockLLMChatCompletionsServer {
     // Skill tool: call skill_rot13 or handle its response (only if message mentions rot13)
     if (hasTool("skill_rot13") && this.getLastUserMessageContent(request).includes("rot13")) {
       if (!isAfterToolResponse) {
-        if (request.stream) this.handleStreamingSkillToolCall(request, res);
-        else this.handleNonStreamingSkillToolCall(request, res);
+        if (request.stream) {
+          this.handleStreamingSkillToolCall(request, res);
+        } else {
+          this.handleNonStreamingSkillToolCall(request, res);
+        }
+      } else if (request.stream) {
+        this.handleStreamingSkillToolResponse(request, res);
       } else {
-        if (request.stream) this.handleStreamingSkillToolResponse(request, res);
-        else this.handleNonStreamingSkillToolResponse(request, res);
+        this.handleNonStreamingSkillToolResponse(request, res);
       }
       return;
     }
 
     // MCP tools or default completion
     if (request.tools?.length && !isAfterToolResponse) {
-      if (request.stream) this.handleStreamingToolCallCompletion(request, res);
-      else this.handleNonStreamingToolCallCompletion(request, res);
+      if (request.stream) {
+        this.handleStreamingToolCallCompletion(request, res);
+      } else {
+        this.handleNonStreamingToolCallCompletion(request, res);
+      }
     } else {
       // An answer that ends slowly leaves time to disconnect while it is streamed
       const endDelay = this.getLastUserMessageContent(request).includes("end slowly") ? 5000 : 10;
-      if (request.stream) this.handleStreamingCompletion(request, res, endDelay);
-      else this.handleNonStreamingCompletion(request, res);
+      if (request.stream) {
+        this.handleStreamingCompletion(request, res, endDelay);
+      } else {
+        this.handleNonStreamingCompletion(request, res);
+      }
     }
   }
 
@@ -425,7 +442,7 @@ export class MockLLMChatCompletionsServer {
 
   private handleNonStreamingCompletion(request: OpenAICompletionRequest, res: http.ServerResponse): void {
     const response = {
-      id: "chatcmpl-mock-" + String(Date.now()),
+      id: `chatcmpl-mock-${String(Date.now())}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model: request.model,
@@ -521,13 +538,14 @@ export class MockLLMChatCompletionsServer {
     const messageContent = this.getLastUserMessageContent(request);
     if (messageContent.includes("SKILL.md")) {
       return { code: this.rot13DocCode, reasoning: "Reading the SKILL.md documentation file" };
-    } else if (messageContent.includes("rot13")) {
-      return { code: this.rot13Code, reasoning: "Using the rot13 skill to encode the text" };
-    } else if (messageContent.includes("vfs")) {
-      return { code: this.vfsCode, reasoning: "Writing and reading a file in the VFS workspace" };
-    } else {
-      return { code: "", reasoning: "Unknown skill" };
     }
+    if (messageContent.includes("rot13")) {
+      return { code: this.rot13Code, reasoning: "Using the rot13 skill to encode the text" };
+    }
+    if (messageContent.includes("vfs")) {
+      return { code: this.vfsCode, reasoning: "Writing and reading a file in the VFS workspace" };
+    }
+    return { code: "", reasoning: "Unknown skill" };
   }
 
   private handleNonStreamingCodeExecutionToolCall(request: OpenAICompletionRequest, res: http.ServerResponse): void {
@@ -633,7 +651,7 @@ export class MockLLMChatCompletionsServer {
     const responseContent = `Code execution completed. Here's the result:\n\n${toolResult}`;
 
     const response = {
-      id: "chatcmpl-mock-code-exec-resp-" + String(Date.now()),
+      id: `chatcmpl-mock-code-exec-resp-${String(Date.now())}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model: request.model,

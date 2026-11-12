@@ -3,7 +3,9 @@ import { defineNitroPlugin } from "nitropack/runtime/plugin";
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook("render:html", (html, { event }) => {
     const nonce = event.context.nonce;
-    if (!nonce) return;
+    if (!nonce) {
+      return;
+    }
 
     const stamp = (fragments: string[]): void => {
       fragments.forEach((fragment, i) => {

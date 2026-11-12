@@ -130,7 +130,9 @@ export default defineEventHandler(async (event) => {
   try {
     const redirectParam = parsedState?.redirect;
     const url = new URL(typeof redirectParam === "string" ? redirectParam : "/", oidc.rootUrl);
-    if (url.origin === oidc.rootUrl.origin) redirect = url;
+    if (url.origin === oidc.rootUrl.origin) {
+      redirect = url;
+    }
   } catch {
     // Ignore invalid URLs
   }

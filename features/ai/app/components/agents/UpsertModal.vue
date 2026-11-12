@@ -390,7 +390,9 @@ const { testing, test } = useFormTest({
 });
 
 const onTestModel = async () => {
-  if (!state.llmProviderId || !state.model) return;
+  if (!state.llmProviderId || !state.model) {
+    return;
+  }
 
   await test(
     $trpc.ai.agent.testModel.mutate({

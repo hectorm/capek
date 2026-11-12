@@ -70,6 +70,19 @@ export default withNuxt(
         },
       ],
       "preserve-caught-error": ["off"],
+      curly: ["error", "all"],
+      eqeqeq: ["error", "smart"],
+      "logical-assignment-operators": ["error", "always"],
+      "no-else-return": ["error", { allowElseIf: false }],
+      "no-implicit-coercion": "error",
+      "no-lonely-if": "error",
+      "no-useless-concat": "error",
+      "no-useless-rename": "error",
+      "object-shorthand": "error",
+      "operator-assignment": "error",
+      "prefer-arrow-callback": "error",
+      "prefer-object-spread": "error",
+      "prefer-template": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -82,6 +95,16 @@ export default withNuxt(
         "error",
         {
           allow: ["private-constructors"],
+        },
+      ],
+      "@typescript-eslint/consistent-type-exports": "error",
+      "@typescript-eslint/method-signature-style": "error",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/prefer-readonly": "error",
+      "@typescript-eslint/switch-exhaustiveness-check": [
+        "error",
+        {
+          considerDefaultExhaustiveForUnions: true,
         },
       ],
       "vue/block-order": [
@@ -104,6 +127,15 @@ export default withNuxt(
           order: ["defineProps", "defineEmits"],
         },
       ],
+      "vue/block-lang": ["error", { script: { lang: "ts" } }],
+      "vue/component-api-style": ["error", ["script-setup"]],
+      "vue/define-emits-declaration": ["error", "type-based"],
+      "vue/define-props-declaration": ["error", "type-based"],
+      "vue/html-button-has-type": "error",
+      "vue/no-unused-properties": "error",
+      "vue/no-unused-refs": "error",
+      "vue/no-useless-v-bind": "error",
+      "vue/require-typed-ref": "error",
     },
   },
   {

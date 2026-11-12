@@ -272,7 +272,7 @@ export const chatSessionRouter = createTRPCRouter({
       } catch (error) {
         ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
         const content = firstUserMessageContent.trim();
-        title = content.length <= 80 ? content : content.slice(0, 77) + "...";
+        title = content.length <= 80 ? content : `${content.slice(0, 77)}...`;
       }
 
       return withUserTransaction(ctx.user, async (trx) => {

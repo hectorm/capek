@@ -131,7 +131,7 @@ export const coreSeed = defineSeed({
 
         await db
           .insertInto("userGroups")
-          .values({ userId: userId, groupId: resolvedGroupId })
+          .values({ userId, groupId: resolvedGroupId })
           .onConflict((oc) => oc.doNothing())
           .execute();
         logger.info(`Added user "${userConfig.username}" to group "${groupname}"`);

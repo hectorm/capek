@@ -31,7 +31,9 @@ const input = ref<string>("");
 const selectedAgent = ref<string | null>(null);
 
 const handleCreateChat = async (prompt: string) => {
-  if (!prompt.trim() || chatStore.isCreatingSession) return;
+  if (!prompt.trim() || chatStore.isCreatingSession) {
+    return;
+  }
 
   const userInput = prompt.trim();
   input.value = "";
@@ -60,7 +62,9 @@ const handleCreateChat = async (prompt: string) => {
 
 const handleSubmit = async (e: Event) => {
   e.preventDefault();
-  if (!input.value.trim() || chatStore.isCreatingSession) return;
+  if (!input.value.trim() || chatStore.isCreatingSession) {
+    return;
+  }
   await handleCreateChat(input.value);
 };
 

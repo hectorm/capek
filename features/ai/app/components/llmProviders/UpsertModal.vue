@@ -197,7 +197,9 @@ const { testing, test } = useFormTest({
 });
 
 const onTestConnection = async () => {
-  if (!state.apiUrl) return;
+  if (!state.apiUrl) {
+    return;
+  }
 
   await test(
     $trpc.ai.llmProvider.testConnection.mutate({
