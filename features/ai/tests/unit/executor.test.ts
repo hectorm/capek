@@ -179,7 +179,8 @@ const executions = (sessionId: string) => {
 
 const streamedAnswer = (deltas: Record<string, unknown>[]): Response => {
   const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
-  return new Response(streamOf(deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] }))));
+  const end = { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] };
+  return new Response(streamOf([...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })), end]));
 };
 
 const decoder = new TextDecoder();

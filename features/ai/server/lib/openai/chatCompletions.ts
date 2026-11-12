@@ -3,6 +3,9 @@ import type { OpenAICompletionRequest, OpenAIMessage, OpenAIToolCall } from "#la
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { OpenAICompletionResponseSchema, OpenAIStreamChunkSchema } from "#layers/ai/shared/openai";
 
+const failure = (message?: string | null): Error =>
+  new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
+
 // The data that a provider needs back with a tool call is the reasoning that precedes it
 const toExtraContent = (encryptedContent?: string): OpenAIToolCall["extra_content"] => {
   try {
@@ -119,15 +122,26 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
   let content = "";
   let refusal = "";
   let finishReason: string | null | undefined;
+  let ended = false;
+  let failed = false;
   const toolCalls = new Map<number, OpenAIToolCall>();
 
   const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
     for (const data of pendingEvents.splice(0)) {
+      if (data === "[DONE]") {
+        ended = true;
+        continue;
+      }
       let rawChunk: unknown;
       try {
         rawChunk = JSON.parse(data);
       } catch {
         continue;
+      }
+      if (typeof rawChunk === "object" && rawChunk !== null && "error" in rawChunk) {
+        failed = true;
+        controller.error(failure((rawChunk.error as { message?: string } | null)?.message));
+        return;
       }
       const parsed = OpenAIStreamChunkSchema.safeParse(rawChunk);
       if (!parsed.success) {
@@ -137,6 +151,7 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
       const choice = parsed.data.choices.at(0);
       const delta = choice?.delta;
       finishReason = choice?.finish_reason ?? finishReason;
+      ended ||= Boolean(finishReason);
       refusal += delta?.refusal ?? "";
       if (delta?.content) {
         content += delta.content;
@@ -170,6 +185,13 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
       flush(controller) {
         sseProcessor.flush();
         translateEvents(controller);
+        if (failed) {
+          return;
+        }
+        if (!ended) {
+          controller.error(failure("the answer ended before it was complete"));
+          return;
+        }
         controller.enqueue({
           type: "response.completed",
           response: {

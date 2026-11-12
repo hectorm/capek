@@ -121,6 +121,8 @@ export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): Readabl
   const pendingEvents: string[] = [];
   const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
 
+  let completed = false;
+
   const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
     for (const data of pendingEvents.splice(0)) {
       let rawEvent: unknown;
@@ -144,6 +146,7 @@ export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): Readabl
           break;
         case "response.completed":
         case "response.incomplete":
+          completed = true;
           controller.enqueue({
             type: "response.completed",
             response: {
@@ -171,6 +174,9 @@ export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): Readabl
       flush(controller) {
         sseProcessor.flush();
         translateEvents(controller);
+        if (!completed) {
+          controller.error(failure("the answer ended before it was complete"));
+        }
       },
     }),
   );

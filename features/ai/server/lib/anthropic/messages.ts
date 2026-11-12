@@ -134,6 +134,7 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
 
   const items = new Map<number, LlmItem>();
   let incompleteDetails: LlmIncompleteDetails | undefined;
+  let completed = false;
 
   const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
     for (const data of pendingEvents.splice(0)) {
@@ -181,6 +182,7 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
           incompleteDetails ??= fromStop(event.delta?.stop_reason, event.delta?.stop_details?.explanation);
           break;
         case "message_stop":
+          completed = true;
           controller.enqueue({
             type: "response.completed",
             response: {
@@ -205,6 +207,9 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
       flush(controller) {
         sseProcessor.flush();
         translateEvents(controller);
+        if (!completed) {
+          controller.error(failure("the answer ended before it was complete"));
+        }
       },
     }),
   );

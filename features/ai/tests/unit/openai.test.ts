@@ -213,12 +213,25 @@ describe("openai chat completions", () => {
       "ny",
     ];
     const stream = fromChatCompletionsStream(
-      streamOf(deltas.map((content) => ({ ...chunk, choices: [{ index: 0, delta: { content } }] }))),
+      streamOf([
+        ...deltas.map((content) => ({ ...chunk, choices: [{ index: 0, delta: { content } }] })),
+        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+      ]),
     );
 
     const { text, output } = await readStream(stream);
     expect(text).toBe("Sunny");
     expect(output).toEqual([{ type: "message", role: "assistant", content: "Sunny" }]);
+  });
+
+  it("fails a streamed answer that is cut or that fails before it ends", async () => {
+    const delta = { ...chunk, choices: [{ index: 0, delta: { content: "Sun" } }] };
+    await expect(readStream(fromChatCompletionsStream(streamOf([delta])))).rejects.toThrow(
+      "the answer ended before it was complete",
+    );
+    await expect(
+      readStream(fromChatCompletionsStream(streamOf([delta, { error: { message: "Overloaded" } }]))),
+    ).rejects.toThrow("Overloaded");
   });
 
   it("reads the streamed tool calls of a provider that sends null for the fields it leaves out", async () => {
@@ -242,7 +255,10 @@ describe("openai chat completions", () => {
       },
     ];
     const stream = fromChatCompletionsStream(
-      streamOf(deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] }))),
+      streamOf([
+        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
+        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+      ]),
     );
 
     const { output } = await readStream(stream);
@@ -273,7 +289,10 @@ describe("openai chat completions", () => {
       },
     ];
     const stream = fromChatCompletionsStream(
-      streamOf(deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] }))),
+      streamOf([
+        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
+        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
+      ]),
     );
 
     const { output } = await readStream(stream);
