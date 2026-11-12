@@ -22,6 +22,18 @@ export interface MCPClientOptions {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
+
+async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+  let bytes = 0;
+  for await (const chunk of body) {
+    bytes += chunk.byteLength;
+    if (bytes > RESPONSE_MAX_BYTES) {
+      throw new Error(`The MCP server sent a response larger than ${String(RESPONSE_MAX_BYTES)} bytes`);
+    }
+    yield chunk;
+  }
+}
 
 interface RequestParams {
   signal: AbortSignal;
@@ -151,7 +163,6 @@ export class MCPClient {
       }
 
       let jsonRpcResponse: unknown = null;
-      const reader = response.body.getReader();
       const sse = new SSEProcessor({
         onEvent: (event) => {
           if (event.eventId) {
@@ -172,16 +183,10 @@ export class MCPClient {
         },
       });
 
-      try {
-        let result = await reader.read();
-        while (!result.done) {
-          sse.process(result.value);
-          result = await reader.read();
-        }
-        sse.flush();
-      } finally {
-        reader.releaseLock();
+      for await (const chunk of readBody(response.body)) {
+        sse.process(chunk);
       }
+      sse.flush();
 
       if (!jsonRpcResponse) {
         throw new Error("No valid JSON-RPC response in SSE stream");
@@ -190,7 +195,16 @@ export class MCPClient {
       return jsonRpcResponse;
     }
 
-    return response.json();
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+
+    const decoder = new TextDecoder();
+    let text = "";
+    for await (const chunk of readBody(response.body)) {
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
   }
 
   private resetSessionState(): void {
