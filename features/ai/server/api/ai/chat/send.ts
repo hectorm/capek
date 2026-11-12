@@ -1,3 +1,5 @@
+import { clearInterval, setInterval } from "node:timers";
+
 import { createError, defineEventHandler, readBody, setResponseHeaders } from "h3";
 import { z } from "zod/v4";
 
@@ -15,6 +17,8 @@ import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny, requirePermissions } from "#layers/core/server/lib/authz/permissions";
 import { withUserTransaction } from "#layers/core/server/lib/database";
+
+const KEEPALIVE_MS = 15_000;
 
 const bodySchema = z.object({
   sessionId: z.uuid(),
@@ -151,6 +155,10 @@ export default defineEventHandler(async (event) => {
       Connection: "keep-alive",
     });
 
+    const keepAlive = setInterval(() => {
+      event.node.res.write(":\n\n");
+    }, KEEPALIVE_MS);
+
     try {
       for await (const chunk of executor.executeStream(session.agentId, abortController.signal)) {
         if (abortController.signal.aborted) break;
@@ -186,6 +194,7 @@ export default defineEventHandler(async (event) => {
         event.node.res.write(errorEvent(reason));
       }
     } finally {
+      clearInterval(keepAlive);
       if (!event.node.res.writableEnded) {
         event.node.res.end();
       }
