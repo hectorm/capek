@@ -705,6 +705,10 @@ export default () => ({
             png: "PNG image",
             svg: "SVG image",
           },
+          fullscreen: {
+            enter: "Full screen",
+            exit: "Exit full screen",
+          },
         },
       },
     },

@@ -707,6 +707,10 @@ export default (): ReturnType<typeof enUS> => ({
             png: "Imagen PNG",
             svg: "Imagen SVG",
           },
+          fullscreen: {
+            enter: "Pantalla completa",
+            exit: "Salir de pantalla completa",
+          },
         },
       },
     },

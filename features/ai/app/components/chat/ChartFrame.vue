@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useEventListener } from "@vueuse/core";
+import { useEventListener, useFullscreen } from "@vueuse/core";
 import { useNuxtApp } from "nuxt/app";
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -20,6 +20,8 @@ const { $colorMode: colorMode } = useNuxtApp();
 
 const container = useTemplateRef<HTMLDivElement>("container");
 const frame = useTemplateRef<HTMLIFrameElement>("frame");
+
+const { isSupported: canFullscreen, isFullscreen, toggle: toggleFullscreen } = useFullscreen(container);
 
 const visible = ref<boolean>(false);
 const failed = ref<boolean>(false);
@@ -106,7 +108,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="container" class="group/chart relative h-96">
+  <div ref="container" class="group/chart relative h-96 [&:fullscreen]:bg-default">
     <p v-if="failed" class="flex h-full items-center justify-center text-sm text-muted">
       {{ $t("ai.components.chat.chartFrame.error") }}
     </p>
@@ -118,17 +120,31 @@ onBeforeUnmount(() => {
         :src="`/api/ai/chart/frame#${colorMode.value}`"
         :title="$t('ai.components.chat.chartFrame.title')"
       />
-      <UDropdownMenu v-if="formats.length > 0" :items="exportItems">
+      <div
+        v-if="formats.length > 0"
+        class="absolute top-0 right-0 flex transition-opacity ease-out group-hover/chart:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:hover)]:opacity-0"
+      >
+        <UDropdownMenu :portal="false" :items="exportItems">
+          <UButton
+            square
+            size="sm"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-download"
+            :aria-label="$t('ai.components.chat.chartFrame.export.label')"
+          />
+        </UDropdownMenu>
         <UButton
+          v-if="canFullscreen"
           square
           size="sm"
           color="neutral"
           variant="ghost"
-          icon="i-lucide-download"
-          :aria-label="$t('ai.components.chat.chartFrame.export.label')"
-          class="absolute top-0 right-0 transition-opacity ease-out group-hover/chart:opacity-100 data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0"
+          :icon="isFullscreen ? 'i-lucide-minimize' : 'i-lucide-maximize'"
+          :aria-label="$t(`ai.components.chat.chartFrame.fullscreen.${isFullscreen ? 'exit' : 'enter'}`)"
+          @click="toggleFullscreen"
         />
-      </UDropdownMenu>
+      </div>
     </template>
   </div>
 </template>
