@@ -191,7 +191,7 @@ const handleSubmit = async (e: Event) => {
     return;
   }
 
-  const userMessage = input.value;
+  const userMessage = input.value.trim();
   input.value = "";
 
   try {
