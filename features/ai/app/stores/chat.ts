@@ -45,6 +45,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   const messages = shallowRef<Map<string, ChatMessage[]>>(new Map());
   const messagesNextCursors = ref<Map<string, MessagesCursor>>(new Map());
   const activeStreams = ref<Map<string, StreamState>>(new Map());
+  const unsentMessageIds = new Set<string>();
   const isLoadingSessions = ref<boolean>(false);
   const isLoadingMessages = ref<boolean>(false);
   const isCreatingSession = ref<boolean>(false);
@@ -394,11 +395,18 @@ export const useChatStore = defineStore("ai.chat", () => {
         };
         messages.value.set(sessionId, [...updatedMsgs, preservedUserMessage]);
         triggerRef(messages);
+        unsentMessageIds.add(tempUserMessageId);
       }
 
       throw new Error("Failed to send message", { cause: error });
     } finally {
       activeStreams.value.delete(sessionId);
+    }
+  };
+
+  const deleteMessagesFrom = async (sessionId: string, messageId: string): Promise<void> => {
+    if (!unsentMessageIds.delete(messageId)) {
+      await $trpc.ai.chatMessage.delete.mutate({ id: messageId, sessionId });
     }
   };
 
@@ -418,14 +426,15 @@ export const useChatStore = defineStore("ai.chat", () => {
     const userMessageContent = message.content;
 
     try {
-      await $trpc.ai.chatMessage.delete.mutate({ id: messageId, sessionId });
-      messages.value.set(sessionId, msgs.slice(0, messageIndex));
-      triggerRef(messages);
-      await sendMessage(sessionId, userMessageContent);
+      await deleteMessagesFrom(sessionId, messageId);
     } catch (error) {
       await fetchMessages(sessionId);
       throw new Error("Failed to retry message", { cause: error });
     }
+
+    messages.value.set(sessionId, msgs.slice(0, messageIndex));
+    triggerRef(messages);
+    await sendMessage(sessionId, userMessageContent);
   };
 
   const regenerateMessage = async (sessionId: string, messageId: string): Promise<void> => {
@@ -454,7 +463,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     }
 
     try {
-      await $trpc.ai.chatMessage.delete.mutate({ id: messageId, sessionId });
+      await deleteMessagesFrom(sessionId, messageId);
       messages.value.set(sessionId, msgs.slice(0, messageIndex));
       triggerRef(messages);
     } catch (error) {
@@ -474,7 +483,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     const messageContent = msgs[messageIndex].content;
 
     try {
-      await $trpc.ai.chatMessage.delete.mutate({ id: messageId, sessionId });
+      await deleteMessagesFrom(sessionId, messageId);
       messages.value.set(sessionId, msgs.slice(0, messageIndex));
       triggerRef(messages);
       return messageContent;
@@ -525,6 +534,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     messages.value = new Map();
     messagesNextCursors.value = new Map();
     activeStreams.value = new Map();
+    unsentMessageIds.clear();
     isLoadingSessions.value = false;
     isLoadingMessages.value = false;
     isCreatingSession.value = false;
