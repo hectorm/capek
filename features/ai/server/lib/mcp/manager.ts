@@ -32,7 +32,7 @@ const mcpResultText = (result: MCPCallToolResult): string => {
 };
 
 interface MCPSession {
-  clients: Map<string, MCPClient>;
+  clients: Map<string, Promise<MCPClient>>;
   calls: number;
   lastUsedAt: number;
 }
@@ -50,14 +50,6 @@ export class MCPManager {
     }
 
     return (MCPManager.instance ??= new MCPManager());
-  }
-
-  public getClient(serverName: string, chatSessionId: string): MCPClient | undefined {
-    if (cluster.isWorker) {
-      throw new Error("Method not available in worker processes");
-    }
-
-    return this.sessions.get(chatSessionId)?.clients.get(serverName);
   }
 
   public hasClient(serverName: string, chatSessionId: string): boolean {
@@ -80,7 +72,7 @@ export class MCPManager {
     }
 
     const session = this.sessions.get(chatSessionId) ?? {
-      clients: new Map<string, MCPClient>(),
+      clients: new Map<string, Promise<MCPClient>>(),
       calls: 0,
       lastUsedAt: 0,
     };
@@ -92,11 +84,20 @@ export class MCPManager {
       return client;
     }
 
-    client = new MCPClient({ name: serverName, url: serverUrl, headers: serverHeaders, stateful });
-    await client.initialize();
+    client = (async () => {
+      const created = new MCPClient({ name: serverName, url: serverUrl, headers: serverHeaders, stateful });
+      await created.initialize();
+      logger.debug({ serverName, chatSessionId, sessionId: created.sessionId }, "MCP client created for chat session");
+      return created;
+    })();
     session.clients.set(serverName, client);
 
-    logger.debug({ serverName, chatSessionId, sessionId: client.sessionId }, "MCP client created for chat session");
+    client.catch(() => {
+      if (session.clients.get(serverName) === client) {
+        session.clients.delete(serverName);
+      }
+    });
+
     return client;
   }
 
@@ -114,11 +115,11 @@ export class MCPManager {
     this.sessions.delete(chatSessionId);
 
     await Promise.allSettled(
-      Array.from(session.clients.values()).map(async (client) => {
+      Array.from(session.clients.entries()).map(async ([serverName, client]) => {
         try {
-          await client.terminate();
+          await (await client).terminate();
         } catch (error) {
-          logger.warn({ error, serverName: client.name }, "Failed to terminate MCP client during cleanup");
+          logger.warn({ error, serverName }, "Failed to terminate MCP client during cleanup");
         }
       }),
     );
@@ -172,7 +173,7 @@ export class MCPManager {
       )) as string;
     }
 
-    const client = await this.getOrCreateClient(serverName, serverUrl, serverHeaders, chatSessionId, stateful);
+    const client = this.getOrCreateClient(serverName, serverUrl, serverHeaders, chatSessionId, stateful);
     const session = this.sessions.get(chatSessionId);
     if (session) {
       session.calls++;
@@ -217,22 +218,24 @@ export class MCPManager {
         });
       }, callTimeoutMs);
 
-      client.callTool(toolName, args, { signal, timeoutMs: callTimeoutMs }).then(
-        (callResult) => {
-          settle(() => {
-            if (callResult.isError) {
-              reject(new Error(`Tool error: ${mcpResultText(callResult)}`));
-            } else {
-              resolve(mcpResultText(callResult));
-            }
-          });
-        },
-        (error: unknown) => {
-          settle(() => {
-            reject(error instanceof Error ? error : new Error(String(error)));
-          });
-        },
-      );
+      client
+        .then((created) => created.callTool(toolName, args, { signal, timeoutMs: callTimeoutMs }))
+        .then(
+          (callResult) => {
+            settle(() => {
+              if (callResult.isError) {
+                reject(new Error(`Tool error: ${mcpResultText(callResult)}`));
+              } else {
+                resolve(mcpResultText(callResult));
+              }
+            });
+          },
+          (error: unknown) => {
+            settle(() => {
+              reject(error instanceof Error ? error : new Error(String(error)));
+            });
+          },
+        );
     }).finally(() => {
       if (session) {
         session.calls--;

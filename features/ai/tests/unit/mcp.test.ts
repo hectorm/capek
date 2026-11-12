@@ -111,10 +111,12 @@ describe("mcp", () => {
     const manager = MCPManager.getInstance();
     const chatSessionId = crypto.randomUUID();
 
+    const previousSlowCall = finishSlowCall;
     const call = manager.callTool("test", `${url}/mcp`, [], "slow", {}, chatSessionId, false, 5);
     await vi.waitFor(() => {
-      expect(manager.hasClient("test", chatSessionId)).toBe(true);
+      expect(finishSlowCall).not.toBe(previousSlowCall);
     });
+    expect(manager.hasClient("test", chatSessionId)).toBe(true);
     expect(await manager.cleanupIdleSessions(Date.now() + 31 * 60 * 1000)).toBe(0);
 
     finishSlowCall();
