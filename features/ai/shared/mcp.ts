@@ -26,7 +26,7 @@ export type MCPConfig = z.infer<typeof MCPConfigSchema>;
 export const MCPToolSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
-  inputSchema: z.object({
+  inputSchema: z.looseObject({
     type: z.literal("object"),
     properties: z.record(z.string(), z.unknown()).optional(),
     required: z.array(z.string()).optional(),
