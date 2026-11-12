@@ -7,6 +7,7 @@ import tseslint from "typescript-eslint";
 
 import withNuxt from "./.nuxt/eslint.config.mjs";
 import selection from "./.nuxt/features/selection.json" with { type: "json" };
+import commentWidthRule from "./tools/eslint-rules/comment-width.js";
 import wrappedArrowBodyRule from "./tools/eslint-rules/wrapped-arrow-body.js";
 
 const virtualModulePatterns = [
@@ -30,7 +31,12 @@ const layerImportPatterns = [
 export default withNuxt(
   {
     plugins: {
-      capek: { rules: { "wrapped-arrow-body": wrappedArrowBodyRule } },
+      capek: {
+        rules: {
+          "comment-width": commentWidthRule,
+          "wrapped-arrow-body": wrappedArrowBodyRule,
+        },
+      },
     },
     languageOptions: {
       ecmaVersion: "latest",
@@ -49,6 +55,7 @@ export default withNuxt(
       features: selection.enabled,
     },
     rules: {
+      "capek/comment-width": ["error", { maxLength: 120 }],
       "capek/wrapped-arrow-body": "error",
       "no-console": [
         "error",
