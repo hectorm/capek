@@ -126,19 +126,16 @@ export const withUserTransaction = async <T>(
 ): Promise<T> => {
   const database = await useDb();
   return database.transaction().execute(async (trx) => {
-    if (connIsSuperuser) {
-      await sql`SET LOCAL ROLE ${sql.raw(FALLBACK_ROLE)}`.execute(trx);
-    }
-    await Promise.all([
-      sql`SELECT set_config('app.user_id', ${user.id}::UUID::TEXT, true)`.execute(trx),
-      sql`SELECT set_config('app.user_groups', ARRAY[${sql.join(user.groups)}]::UUID[]::TEXT, true)`.execute(trx),
-      sql`SELECT set_config('app.user_permissions', ARRAY[${sql.join(user.permissions)}]::TEXT[]::TEXT, true)`.execute(
-        trx,
-      ),
-      ...(options.trustedWrites ? [sql`SELECT set_config('app.trusted_write', 'on', true)`.execute(trx)] : []),
-      // The policies trigger JIT compilation in short queries, which is slower than running them
-      sql`SELECT set_config('jit', 'off', true)`.execute(trx),
-    ]);
+    await sql`
+      SELECT
+        ${connIsSuperuser ? sql`set_config('role', ${FALLBACK_ROLE}, true),` : sql``}
+        set_config('app.user_id', ${user.id}::UUID::TEXT, true),
+        set_config('app.user_groups', ARRAY[${sql.join(user.groups)}]::UUID[]::TEXT, true),
+        set_config('app.user_permissions', ARRAY[${sql.join(user.permissions)}]::TEXT[]::TEXT, true),
+        set_config('app.trusted_write', ${options.trustedWrites ? "on" : "off"}, true),
+        -- The policies trigger JIT compilation in short queries, which is slower than running them
+        set_config('jit', 'off', true)
+    `.execute(trx);
     return callback(trx);
   });
 };
