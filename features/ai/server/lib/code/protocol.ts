@@ -6,6 +6,9 @@ export interface ConsoleLog {
   timestamp: number;
 }
 
+export const formatConsoleLog = (log: Pick<ConsoleLog, "level" | "args">): string =>
+  `[${log.level}] ${log.args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ")}`;
+
 export type SandboxHostFunction = "mcp" | "tool";
 
 export interface SandboxInput {

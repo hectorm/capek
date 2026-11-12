@@ -5,6 +5,7 @@ import type { QuickJSAsyncContext, QuickJSAsyncRuntime, QuickJSContext, QuickJSH
 import { newQuickJSAsyncWASMModuleFromVariant, Scope } from "quickjs-emscripten-core";
 
 import type { ConsoleLog, SandboxHostFunction, SandboxInput, SandboxMessage, SandboxReply } from "./protocol.ts";
+import { formatConsoleLog } from "./protocol.ts";
 import { VirtualFileSystem, WORKSPACE_DIR } from "./vfs.ts";
 
 if (!parentPort) {
@@ -62,8 +63,11 @@ const callHost = async (name: SandboxHostFunction, args: string[]): Promise<stri
   }
 };
 
+const MAX_CONSOLE_CHARS = 1_000_000;
+
 const vfs = VirtualFileSystem.fromJSON(input.files, { maxWorkspaceBytes: input.maxWorkspaceBytes });
 const consoleLogs: ConsoleLog[] = [];
+let consoleChars = 0;
 
 const execute = async (): Promise<unknown> => {
   const deadline = Date.now() + input.maxExecutionMs;
@@ -143,12 +147,10 @@ function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope): void {
   for (const level of levels) {
     const fn = scope.manage(
       context.newFunction(level, (...args: QuickJSHandle[]) => {
-        if (consoleLogs.length < 10_000) {
-          consoleLogs.push({
-            level,
-            args: args.map((arg) => marshallFromQuickJS(context, arg)),
-            timestamp: Date.now(),
-          });
+        if (consoleChars < MAX_CONSOLE_CHARS) {
+          const log = { level, args: args.map((arg) => marshallFromQuickJS(context, arg)), timestamp: Date.now() };
+          consoleChars += formatConsoleLog(log).length + 1;
+          consoleLogs.push(log);
         }
       }),
     );

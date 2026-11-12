@@ -26,6 +26,7 @@ import {
 import { createVFS, uniqueIds } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
+import { formatConsoleLog } from "#layers/ai/server/lib/code/protocol";
 import {
   AbortError,
   ConcurrentExecutionError,
@@ -712,11 +713,7 @@ export class AgentExecutor {
           }
 
           if (executionResult.consoleLogs.length > 0) {
-            const logLines = executionResult.consoleLogs.map((log) => {
-              const argsStr = log.args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-              return `[${log.level}] ${argsStr}`;
-            });
-            parts.push(`Console output:\n${logLines.join("\n")}`);
+            parts.push(`Console output:\n${executionResult.consoleLogs.map(formatConsoleLog).join("\n")}`);
           }
 
           if (executionResult.mcpCallLogs.length > 0) {
