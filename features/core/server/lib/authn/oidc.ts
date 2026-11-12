@@ -284,15 +284,20 @@ export class OIDC {
       await this.discover();
 
       if (this.as.userinfo_endpoint) {
-        const userInfoResponse = await oauth.userInfoRequest(
-          this.as,
-          this.client,
-          accessToken,
-          this.httpRequestOptions,
-        );
-        const userInfo = await oauth.processUserInfoResponse(this.as, this.client, idTokenClaims.sub, userInfoResponse);
+        let userInfo: oauth.UserInfoResponse | undefined;
+        try {
+          const userInfoResponse = await oauth.userInfoRequest(
+            this.as,
+            this.client,
+            accessToken,
+            this.httpRequestOptions,
+          );
+          userInfo = await oauth.processUserInfoResponse(this.as, this.client, idTokenClaims.sub, userInfoResponse);
+        } catch (error) {
+          logger.warn({ error }, "UserInfo request failed");
+        }
 
-        if (jmespath.search(userInfo, this.allowedPath) === true) {
+        if (userInfo && jmespath.search(userInfo, this.allowedPath) === true) {
           const username: unknown = jmespath.search(userInfo, this.usernameAttributePath);
           const name: unknown = jmespath.search(userInfo, this.fullnameAttributePath);
           const email: unknown = jmespath.search(userInfo, this.emailAttributePath);
@@ -315,7 +320,7 @@ export class OIDC {
               profile.groups ??= filteredGroups.length > 0 ? filteredGroups : undefined;
             }
           }
-        } else {
+        } else if (userInfo) {
           logger.debug({ userInfo }, "UserInfo response do not match the allowed path");
         }
 
@@ -324,7 +329,6 @@ export class OIDC {
         }
       } else {
         logger.debug({ profile }, "User profile is incomplete and no UserInfo endpoint is configured");
-        return null;
       }
     }
 

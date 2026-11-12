@@ -72,6 +72,15 @@ describe("oidc user profile", () => {
     expect(profile?.email).toBe("alice@example.com");
   });
 
+  it("keeps the claims of the ID token when the UserInfo endpoint fails", async () => {
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(null, { status: 500 })));
+    const profile = await oidc.getUserProfile(claims({ picture: undefined }), "token");
+    expect(profile).toMatchObject({ preferred_username: "alice", email: "alice@example.com", roles: ["member"] });
+
+    // Unless the users are not allowed by them
+    expect(await oidc.getUserProfile(claims({ email_verified: false }), "token")).toBeNull();
+  });
+
   it("rejects the users whose email is not verified", async () => {
     const unverified = claims({ email_verified: false });
     answerUserInfo(unverified);
