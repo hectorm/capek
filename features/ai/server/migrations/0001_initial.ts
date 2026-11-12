@@ -252,7 +252,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema
     .createTable("public.aiAgentExecutions")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn("sessionId", "uuid", (col) => col.references("public.aiChatSessions.id").onDelete("set null"))
+    .addColumn("sessionId", "uuid", (col) => col.references("public.aiChatSessions.id").onDelete("cascade"))
     .addColumn("agentId", "uuid", (col) => col.references("public.aiAgents.id").onDelete("set null"))
     .addColumn("userId", "uuid", (col) => col.references("public.users.id").onDelete("set null"))
     .addColumn("status", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo("pending"))
@@ -287,6 +287,20 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .execute();
 
   await db.schema
+    .createIndex("aiAgentExecutionsInputMessageIdIdx")
+    .on("public.aiAgentExecutions")
+    .column("inputMessageId")
+    .where(sql.ref("inputMessageId"), "is not", null)
+    .execute();
+
+  await db.schema
+    .createIndex("aiAgentExecutionsOutputMessageIdIdx")
+    .on("public.aiAgentExecutions")
+    .column("outputMessageId")
+    .where(sql.ref("outputMessageId"), "is not", null)
+    .execute();
+
+  await db.schema
     .createIndex("aiAgentExecutionsSessionRunningUniqIdx")
     .on("public.aiAgentExecutions")
     .column("sessionId")
@@ -299,7 +313,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema
     .createTable("public.aiAgentCodeExecutions")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn("executionId", "uuid", (col) => col.references("public.aiAgentExecutions.id").onDelete("set null"))
+    .addColumn("executionId", "uuid", (col) => col.references("public.aiAgentExecutions.id").onDelete("cascade"))
     .addColumn("code", sql`text COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("reasoning", sql`text COLLATE ${naturalCs}`)
     .addColumn("result", "jsonb")
@@ -320,7 +334,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema
     .createTable("public.aiAgentToolCalls")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn("executionId", "uuid", (col) => col.references("public.aiAgentExecutions.id").onDelete("set null"))
+    .addColumn("executionId", "uuid", (col) => col.references("public.aiAgentExecutions.id").onDelete("cascade"))
     .addColumn("mcpServerId", "uuid", (col) => col.references("public.aiMcpServers.id").onDelete("set null"))
     .addColumn("skillId", "uuid", (col) => col.references("public.aiSkills.id").onDelete("set null"))
     .addColumn("toolProvider", sql`varchar(100) COLLATE "C"`)
