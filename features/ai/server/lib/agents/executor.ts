@@ -700,7 +700,7 @@ export class AgentExecutor {
             );
           }
 
-          if (executionResult.error) {
+          if (executionResult.error !== null) {
             throw new Error(executionResult.error);
           }
 
@@ -804,7 +804,7 @@ export class AgentExecutor {
             );
           }
 
-          if (executionResult.error) {
+          if (executionResult.error !== null) {
             throw new Error(executionResult.error);
           }
 
