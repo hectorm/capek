@@ -32,6 +32,12 @@ export const createAccessTable = async (db: Kysely<Database>, resource: SharedRe
     .execute();
 
   await db.schema
+    .createIndex(`${accessTable}_${foreignKey}_idx`)
+    .on(`public.${accessTable}`)
+    .column(foreignKey)
+    .execute();
+
+  await db.schema
     .createIndex(`${accessTable}_user_id_idx`)
     .on(`public.${accessTable}`)
     .column("user_id")

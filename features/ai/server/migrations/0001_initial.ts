@@ -26,6 +26,13 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .columns(["userId", "updatedAt"])
     .execute();
 
+  await db.schema
+    .createIndex("aiChatSessionsAgentIdIdx")
+    .on("public.aiChatSessions")
+    .column("agentId")
+    .where(sql.ref("agentId"), "is not", null)
+    .execute();
+
   ////////////////////////////////
 
   await db.schema
