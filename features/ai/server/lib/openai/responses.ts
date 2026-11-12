@@ -4,11 +4,9 @@ import type {
   OpenAIResponsesOutputItem,
   OpenAIResponsesRequest,
 } from "#layers/ai/shared/openai";
-import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { failure } from "#layers/ai/server/lib/errors";
+import { translateEventStream } from "#layers/ai/server/lib/llm/stream";
 import { OpenAIResponsesResponseSchema, OpenAIResponsesStreamEventSchema } from "#layers/ai/shared/openai";
-
-const failure = (message?: string | null): Error =>
-  new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
 
 const fromOutput = (items: OpenAIResponsesOutputItem[]): LlmItem[] => {
   const output: LlmItem[] = [];
@@ -118,66 +116,40 @@ export const fromResponsesResponse = (rawResponse: unknown): LlmResponse => {
 
 // Translates the events of a streamed response of the Responses API
 export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
-  const pendingEvents: string[] = [];
-  const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
-
   let completed = false;
 
-  const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
-    for (const data of pendingEvents.splice(0)) {
-      let rawEvent: unknown;
-      try {
-        rawEvent = JSON.parse(data);
-      } catch {
-        continue;
-      }
+  return translateEventStream(stream, {
+    event(rawEvent) {
       const parsed = OpenAIResponsesStreamEventSchema.safeParse(rawEvent);
       if (!parsed.success) {
-        continue;
+        return [];
       }
 
       const event = parsed.data;
 
       switch (event.type) {
         case "response.output_text.delta":
-          if (event.delta) {
-            controller.enqueue({ type: "response.output_text.delta", delta: event.delta });
-          }
-          break;
+          return event.delta ? [{ type: "response.output_text.delta", delta: event.delta }] : [];
         case "response.completed":
         case "response.incomplete":
           completed = true;
-          controller.enqueue({
-            type: "response.completed",
-            response: {
-              output: fromOutput(event.response?.output ?? []),
-              incomplete_details: fromIncomplete(event.response ?? undefined),
+          return [
+            {
+              type: "response.completed",
+              response: {
+                output: fromOutput(event.response?.output ?? []),
+                incomplete_details: fromIncomplete(event.response ?? undefined),
+              },
             },
-          });
-          break;
+          ];
         case "response.failed":
-          controller.error(failure(event.response?.error?.message));
-          return;
+          throw failure(event.response?.error?.message);
         case "error":
-          controller.error(failure(event.message ?? event.error?.message));
-          return;
+          throw failure(event.message ?? event.error?.message);
+        default:
+          return [];
       }
-    }
-  };
-
-  return stream.pipeThrough(
-    new TransformStream<Uint8Array, LlmStreamEvent>({
-      transform(bytes, controller) {
-        sseProcessor.process(bytes);
-        translateEvents(controller);
-      },
-      flush(controller) {
-        sseProcessor.flush();
-        translateEvents(controller);
-        if (!completed) {
-          controller.error(failure("the answer ended before it was complete"));
-        }
-      },
-    }),
-  );
+    },
+    end: () => (completed ? [] : null),
+  });
 };

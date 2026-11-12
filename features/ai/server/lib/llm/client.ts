@@ -3,7 +3,7 @@ import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { TestResult } from "#layers/core/shared/types";
 import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
-import { describeError } from "#layers/ai/server/lib/errors";
+import { describeError, failure } from "#layers/ai/server/lib/errors";
 import {
   fromChatCompletionsResponse,
   fromChatCompletionsStream,
@@ -162,7 +162,7 @@ export class LlmClient {
 
     if (!response.ok) {
       const errorText = await readErrorText(response);
-      throw new Error(`AI service completion request failed: ${errorText}`);
+      throw failure(errorText);
     }
 
     if (stream) {

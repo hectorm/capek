@@ -5,12 +5,10 @@ import type {
   AnthropicMessagesRequest,
 } from "#layers/ai/shared/anthropic";
 import type { LlmIncompleteDetails, LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
-import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { failure } from "#layers/ai/server/lib/errors";
+import { translateEventStream } from "#layers/ai/server/lib/llm/stream";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { AnthropicMessagesResponseSchema, AnthropicMessagesStreamEventSchema } from "#layers/ai/shared/anthropic";
-
-const failure = (message?: string | null): Error =>
-  new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
 
 const toToolInput = (toolArguments: string): Record<string, unknown> => {
   try {
@@ -129,24 +127,15 @@ export const fromMessagesResponse = (rawResponse: unknown): LlmResponse => {
 
 // Translates the events of a streamed response of the Messages API
 export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
-  const pendingEvents: string[] = [];
-  const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
-
   const items = new Map<number, LlmItem>();
   let incompleteDetails: LlmIncompleteDetails | undefined;
   let completed = false;
 
-  const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
-    for (const data of pendingEvents.splice(0)) {
-      let rawEvent: unknown;
-      try {
-        rawEvent = JSON.parse(data);
-      } catch {
-        continue;
-      }
+  return translateEventStream(stream, {
+    event(rawEvent) {
       const parsed = AnthropicMessagesStreamEventSchema.safeParse(rawEvent);
       if (!parsed.success) {
-        continue;
+        return [];
       }
 
       const event = parsed.data;
@@ -159,58 +148,46 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
           if (started) {
             items.set(index, started.type === "function_call" ? { ...started, arguments: "" } : started);
           }
-          break;
+          return [];
         }
         case "content_block_delta":
           if (item?.type === "message" && event.delta?.text) {
             item.content += event.delta.text;
-            controller.enqueue({ type: "response.output_text.delta", delta: event.delta.text });
-          } else if (item?.type === "reasoning") {
+            return [{ type: "response.output_text.delta", delta: event.delta.text }];
+          }
+          if (item?.type === "reasoning") {
             item.content = (item.content ?? "") + (event.delta?.thinking ?? "");
             item.encrypted_content = (item.encrypted_content ?? "") + (event.delta?.signature ?? "");
           } else if (item?.type === "function_call") {
             item.arguments += event.delta?.partial_json ?? "";
           }
-          break;
+          return [];
         case "content_block_stop":
           // A tool called without arguments streams none
           if (item?.type === "function_call" && !item.arguments) {
             item.arguments = "{}";
           }
-          break;
+          return [];
         case "message_delta":
           incompleteDetails ??= fromStop(event.delta?.stop_reason, event.delta?.stop_details?.explanation);
-          break;
+          return [];
         case "message_stop":
           completed = true;
-          controller.enqueue({
-            type: "response.completed",
-            response: {
-              output: Array.from(items.values()).filter((i) => i.type !== "message" || i.content),
-              incomplete_details: incompleteDetails,
+          return [
+            {
+              type: "response.completed",
+              response: {
+                output: Array.from(items.values()).filter((i) => i.type !== "message" || i.content),
+                incomplete_details: incompleteDetails,
+              },
             },
-          });
-          break;
+          ];
         case "error":
-          controller.error(failure(event.error?.message));
-          return;
+          throw failure(event.error?.message);
+        default:
+          return [];
       }
-    }
-  };
-
-  return stream.pipeThrough(
-    new TransformStream<Uint8Array, LlmStreamEvent>({
-      transform(bytes, controller) {
-        sseProcessor.process(bytes);
-        translateEvents(controller);
-      },
-      flush(controller) {
-        sseProcessor.flush();
-        translateEvents(controller);
-        if (!completed) {
-          controller.error(failure("the answer ended before it was complete"));
-        }
-      },
-    }),
-  );
+    },
+    end: () => (completed ? [] : null),
+  });
 };

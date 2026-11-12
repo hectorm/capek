@@ -1,10 +1,8 @@
 import type { LlmIncompleteDetails, LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { OpenAICompletionRequest, OpenAIMessage, OpenAIToolCall } from "#layers/ai/shared/openai";
-import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { failure } from "#layers/ai/server/lib/errors";
+import { translateEventStream } from "#layers/ai/server/lib/llm/stream";
 import { OpenAICompletionResponseSchema, OpenAIStreamChunkSchema } from "#layers/ai/shared/openai";
-
-const failure = (message?: string | null): Error =>
-  new Error(`AI service completion request failed: ${message ?? "unknown error"}`);
 
 // The data that a provider needs back with a tool call is the reasoning that precedes it
 const toExtraContent = (encryptedContent?: string): OpenAIToolCall["extra_content"] => {
@@ -116,47 +114,25 @@ export const fromChatCompletionsResponse = (rawResponse: unknown): LlmResponse =
 
 // Translates the chunks of a streamed response of the Chat Completions API
 export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
-  const pendingEvents: string[] = [];
-  const sseProcessor = new SSEProcessor({ onEvent: (event) => pendingEvents.push(event.data) });
-
   let content = "";
   let refusal = "";
   let finishReason: string | null | undefined;
-  let ended = false;
-  let failed = false;
   const toolCalls = new Map<number, OpenAIToolCall>();
 
-  const translateEvents = (controller: TransformStreamDefaultController<LlmStreamEvent>): void => {
-    for (const data of pendingEvents.splice(0)) {
-      if (data === "[DONE]") {
-        ended = true;
-        continue;
-      }
-      let rawChunk: unknown;
-      try {
-        rawChunk = JSON.parse(data);
-      } catch {
-        continue;
-      }
+  return translateEventStream(stream, {
+    event(rawChunk) {
       if (typeof rawChunk === "object" && rawChunk !== null && "error" in rawChunk) {
-        failed = true;
-        controller.error(failure((rawChunk.error as { message?: string } | null)?.message));
-        return;
+        throw failure((rawChunk.error as { message?: string } | null)?.message);
       }
       const parsed = OpenAIStreamChunkSchema.safeParse(rawChunk);
       if (!parsed.success) {
-        continue;
+        return [];
       }
 
       const choice = parsed.data.choices.at(0);
       const delta = choice?.delta;
       finishReason = choice?.finish_reason ?? finishReason;
-      ended ||= Boolean(finishReason);
       refusal += delta?.refusal ?? "";
-      if (delta?.content) {
-        content += delta.content;
-        controller.enqueue({ type: "response.output_text.delta", delta: delta.content });
-      }
 
       for (const toolCall of delta?.tool_calls ?? []) {
         const index = toolCall.index ?? (toolCall.id ? toolCalls.size : Math.max(toolCalls.size - 1, 0));
@@ -173,33 +149,26 @@ export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): R
           existing.function.arguments += toolCall.function.arguments;
         }
       }
-    }
-  };
 
-  return stream.pipeThrough(
-    new TransformStream<Uint8Array, LlmStreamEvent>({
-      transform(bytes, controller) {
-        sseProcessor.process(bytes);
-        translateEvents(controller);
-      },
-      flush(controller) {
-        sseProcessor.flush();
-        translateEvents(controller);
-        if (failed) {
-          return;
-        }
-        if (!ended) {
-          controller.error(failure("the answer ended before it was complete"));
-          return;
-        }
-        controller.enqueue({
+      if (!delta?.content) {
+        return [];
+      }
+      content += delta.content;
+      return [{ type: "response.output_text.delta", delta: delta.content }];
+    },
+    end() {
+      if (!finishReason) {
+        return null;
+      }
+      return [
+        {
           type: "response.completed",
           response: {
             output: fromMessage(content, Array.from(toolCalls.values())),
             incomplete_details: fromFinish(finishReason, refusal || null),
           },
-        });
-      },
-    }),
-  );
+        },
+      ];
+    },
+  });
 };
