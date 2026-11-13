@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import prettierConfig from "eslint-config-prettier";
+import pluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
 import pluginVue from "eslint-plugin-vue";
 import { globalIgnores } from "eslint/config";
 import globals from "globals";
@@ -31,6 +32,7 @@ const layerImportPatterns = [
 export default withNuxt(
   {
     plugins: {
+      "better-tailwindcss": pluginBetterTailwindcss,
       capek: {
         rules: {
           "comment-width": commentWidthRule,
@@ -53,6 +55,9 @@ export default withNuxt(
     },
     settings: {
       features: selection.enabled,
+      "better-tailwindcss": {
+        entryPoint: "./features/core/app/assets/css/main.css",
+      },
     },
     rules: {
       "capek/comment-width": ["error", { maxLength: 120 }],
@@ -143,6 +148,7 @@ export default withNuxt(
       "vue/no-unused-refs": "error",
       "vue/no-useless-v-bind": "error",
       "vue/require-typed-ref": "error",
+      "better-tailwindcss/enforce-canonical-classes": "error",
     },
   },
   {

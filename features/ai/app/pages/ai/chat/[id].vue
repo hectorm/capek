@@ -417,9 +417,9 @@ definePageMeta({
           >
             <div class="flex items-center gap-2 py-3 text-muted">
               <div class="flex gap-1">
-                <div class="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.3s]"></div>
-                <div class="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.15s]"></div>
-                <div class="h-2 w-2 animate-bounce rounded-full bg-current"></div>
+                <div class="size-2 animate-bounce rounded-full bg-current [animation-delay:-0.3s]"></div>
+                <div class="size-2 animate-bounce rounded-full bg-current [animation-delay:-0.15s]"></div>
+                <div class="size-2 animate-bounce rounded-full bg-current"></div>
               </div>
             </div>
           </template>
@@ -440,7 +440,7 @@ definePageMeta({
           color="primary"
           :model-value="null"
           animation="carousel"
-          class="absolute top-0 right-0 left-0"
+          class="absolute inset-x-0 top-0"
         />
         <div class="flex items-center gap-2 px-0 py-3 text-sm text-muted">
           <UIcon name="i-lucide-wrench" class="size-4 text-primary" />

@@ -122,7 +122,7 @@ onBeforeUnmount(() => {
       />
       <div
         v-if="formats.length > 0"
-        class="absolute top-0 right-0 flex transition-opacity ease-out group-hover/chart:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:hover)]:opacity-0"
+        class="absolute top-0 right-0 flex transition-opacity ease-out group-hover/chart:opacity-100 has-data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0"
       >
         <UDropdownMenu :portal="false" :items="exportItems">
           <UButton
