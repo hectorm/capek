@@ -17,6 +17,7 @@ export interface UserInfo {
 export interface OIDCUserInfo extends UserInfo {
   iss: string;
   sub: string;
+  emailVerified: boolean;
 }
 
 export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<User> => {
@@ -54,11 +55,13 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
       }
 
       // Check if user exists by email (for linking existing accounts)
-      const existingUser = await trx
-        .selectFrom("users")
-        .select(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
-        .where("email", "=", userInfo.email)
-        .executeTakeFirst();
+      const existingUser = userInfo.emailVerified
+        ? await trx
+            .selectFrom("users")
+            .select(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
+            .where("email", "=", userInfo.email)
+            .executeTakeFirst()
+        : undefined;
 
       if (existingUser) {
         const [updatedUser] = await Promise.all([

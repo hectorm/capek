@@ -167,6 +167,7 @@ export default defineNuxtConfig({
       usernameAttributePath: "preferred_username || email",
       fullnameAttributePath: "name || preferred_username",
       emailAttributePath: "email",
+      emailVerifiedAttributePath: "email_verified",
       pictureAttributePath: "picture",
       rolesAttributePath: "(type(roles) == 'array' && roles) || `[\"member\"]`",
       groupsAttributePath: "(type(groups) == 'array' && groups) || `[]`",

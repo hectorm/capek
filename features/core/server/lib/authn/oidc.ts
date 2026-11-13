@@ -26,6 +26,7 @@ export interface OIDCOptions {
   usernameAttributePath: string;
   fullnameAttributePath: string;
   emailAttributePath: string;
+  emailVerifiedAttributePath: string;
   pictureAttributePath: string;
   rolesAttributePath?: string;
   groupsAttributePath?: string;
@@ -48,6 +49,7 @@ export interface OIDCUserProfile {
   preferred_username: string;
   name: string;
   email: string;
+  email_verified?: boolean;
   picture?: string;
   roles?: string[];
   groups?: string[];
@@ -71,6 +73,7 @@ export class OIDC {
   public usernameAttributePath: string;
   public fullnameAttributePath: string;
   public emailAttributePath: string;
+  public emailVerifiedAttributePath: string;
   public pictureAttributePath: string;
   public rolesAttributePath?: string;
   public groupsAttributePath?: string;
@@ -112,6 +115,7 @@ export class OIDC {
     this.usernameAttributePath = options.usernameAttributePath;
     this.fullnameAttributePath = options.fullnameAttributePath;
     this.emailAttributePath = options.emailAttributePath;
+    this.emailVerifiedAttributePath = options.emailVerifiedAttributePath;
     this.pictureAttributePath = options.pictureAttributePath;
     this.rolesAttributePath = options.rolesAttributePath;
     this.groupsAttributePath = options.groupsAttributePath;
@@ -262,10 +266,12 @@ export class OIDC {
       const username: unknown = jmespath.search(idTokenClaims, this.usernameAttributePath);
       const name: unknown = jmespath.search(idTokenClaims, this.fullnameAttributePath);
       const email: unknown = jmespath.search(idTokenClaims, this.emailAttributePath);
+      const emailVerified: unknown = jmespath.search(idTokenClaims, this.emailVerifiedAttributePath);
       const picture: unknown = jmespath.search(idTokenClaims, this.pictureAttributePath);
       profile.preferred_username = typeof username === "string" ? username : undefined;
       profile.name = typeof name === "string" ? name : undefined;
       profile.email = typeof email === "string" ? email.toLowerCase() : undefined;
+      profile.email_verified = typeof emailVerified === "boolean" ? emailVerified : undefined;
       profile.picture = typeof picture === "string" ? picture : undefined;
       if (this.rolesAttributePath) {
         const roles: unknown = jmespath.search(idTokenClaims, this.rolesAttributePath);
@@ -306,10 +312,12 @@ export class OIDC {
           const username: unknown = jmespath.search(userInfo, this.usernameAttributePath);
           const name: unknown = jmespath.search(userInfo, this.fullnameAttributePath);
           const email: unknown = jmespath.search(userInfo, this.emailAttributePath);
+          const emailVerified: unknown = jmespath.search(userInfo, this.emailVerifiedAttributePath);
           const picture: unknown = jmespath.search(userInfo, this.pictureAttributePath);
           profile.preferred_username ??= (typeof username === "string" ? username : undefined) ?? "";
           profile.name ??= (typeof name === "string" ? name : undefined) ?? "";
           profile.email ??= (typeof email === "string" ? email.toLowerCase() : undefined) ?? "";
+          profile.email_verified ??= typeof emailVerified === "boolean" ? emailVerified : undefined;
           profile.picture ??= typeof picture === "string" ? picture : undefined;
           if (this.rolesAttributePath) {
             const roles: unknown = jmespath.search(userInfo, this.rolesAttributePath);

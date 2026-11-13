@@ -4,18 +4,23 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "#layers/core/shared/schema";
 import { Sessions } from "#layers/core/server/lib/authn/sessions";
+import { getOrCreateUserFromOIDC } from "#layers/core/server/lib/authn/sync";
 import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
 
 const alice = crypto.randomUUID();
+const bob = crypto.randomUUID();
 
 beforeAll(async () => {
   db = await createTestDb();
 
   await db
     .insertInto("users")
-    .values([{ id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" }])
+    .values([
+      { id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" },
+      { id: bob, username: "bob", fullname: "Bob", email: "bob@example.com" },
+    ])
     .execute();
 });
 
@@ -47,5 +52,18 @@ describe("sessions", () => {
 
     await age(100, 0);
     expect(await sessions.validateSession(token)).toEqual({ session: null, fresh: false });
+  });
+});
+
+describe("oidc users", () => {
+  it("are linked to the user that has their email only when it is verified", async () => {
+    const identity = { iss: "https://idp.localhost", fullname: "Bob", email: "bob@example.com" };
+
+    await expect(
+      getOrCreateUserFromOIDC({ ...identity, sub: "mallory", username: "mallory", emailVerified: false }),
+    ).rejects.toThrow();
+
+    const user = await getOrCreateUserFromOIDC({ ...identity, sub: "bob", username: "bob", emailVerified: true });
+    expect(user.id).toBe(bob);
   });
 });

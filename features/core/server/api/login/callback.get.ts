@@ -101,6 +101,7 @@ export default defineEventHandler(async (event) => {
       username: profile.preferred_username,
       fullname: profile.name,
       email: profile.email,
+      emailVerified: profile.email_verified ?? false,
       picture: profile.picture ?? null,
       iss: tokens.idTokenClaims.iss,
       sub: tokens.idTokenClaims.sub,
