@@ -1,5 +1,5 @@
 import { defineToolProvider } from "#layers/core/server/lib/tools/define";
-import { executeQuery } from "#layers/datasources/server/lib/query";
+import { executeQuery, QUERY_MAX_ROWS } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
 
 export const DATASOURCES_QUERY_TOOL = "datasources_query";
@@ -26,7 +26,8 @@ export const datasourcesToolProvider = defineToolProvider({
         {
           name: DATASOURCES_QUERY_TOOL,
           description: [
-            "Execute a read-only SQL query on a datasource. Returns the resulting rows as JSON.",
+            "Execute a read-only SQL query on a datasource.",
+            `Returns a JSON object with up to ${String(QUERY_MAX_ROWS)} \`rows\`, and \`truncated\` set when there are more.`,
             "Available datasources:",
             ...sources.map((source) => `- "${source.name}" (${source.type})`),
           ].join("\n"),
@@ -72,6 +73,7 @@ export const datasourcesToolProvider = defineToolProvider({
         "Use the schema and examples of each datasource to generate correct SQL for it.",
         "IMPORTANT:",
         "- Always call the tool to run queries, never include raw SQL in your response without executing it first.",
+        `- Queries return at most ${String(QUERY_MAX_ROWS)} rows, aggregate and filter in SQL rather than over them.`,
         "- Always respond in the same language the user is using.",
         "",
         "Available datasources:",

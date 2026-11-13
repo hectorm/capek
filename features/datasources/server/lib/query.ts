@@ -10,7 +10,9 @@ export interface QuerySource extends DatasourceConnectionParams {
   type: string;
 }
 
-// Runs a query on a datasource and returns its rows as JSON
+export const QUERY_MAX_ROWS = 100;
+
+// Runs a query on a datasource and returns its first rows as JSON, telling whether it has more
 export async function executeQuery(source: QuerySource, sql: string, signal?: AbortSignal): Promise<string> {
   const type = findDatasourceType(source.type);
   if (!type) {
@@ -19,13 +21,13 @@ export async function executeQuery(source: QuerySource, sql: string, signal?: Ab
 
   try {
     const rows = await type.driver.execute(source, sql, {
-      maxRows: 100,
+      maxRows: QUERY_MAX_ROWS + 1,
       maxBytes: 1_000_000,
       statementTimeoutMs: 30_000,
       requestTimeoutMs: 10_000,
       signal,
     });
-    return JSON.stringify(rows);
+    return JSON.stringify({ rows: rows.slice(0, QUERY_MAX_ROWS), truncated: rows.length > QUERY_MAX_ROWS });
   } catch (error) {
     logger.warn({ sourceId: source.id, error }, "Datasource query failed");
     throw error;

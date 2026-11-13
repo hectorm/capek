@@ -116,8 +116,12 @@ describe("datasources", () => {
     expect(tool?.parameters.properties.datasource).toMatchObject({ enum: ["legacy", "sales"] });
 
     const args = { datasource: "sales", sql: "SELECT sum(total)::INT AS total FROM orders" };
-    expect(await tool?.execute(args, context)).toBe(JSON.stringify([{ total: 30 }]));
+    expect(await tool?.execute(args, context)).toBe(JSON.stringify({ rows: [{ total: 30 }], truncated: false }));
     expect(tool?.describe?.(args)).toBe("```sql\nSELECT sum(total)::INT AS total FROM orders\n```");
+
+    const series = { datasource: "sales", sql: "SELECT generate_series(1, 101) AS id" };
+    const rows = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
+    expect(await tool?.execute(series, context)).toBe(JSON.stringify({ rows, truncated: true }));
 
     await expect(tool?.execute({ datasource: "sales", sql: "SELECT * FROM missing" }, context)).rejects.toThrow(
       /does not exist/,
