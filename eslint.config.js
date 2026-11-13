@@ -33,7 +33,7 @@ export default withNuxt(
   {
     plugins: {
       "better-tailwindcss": pluginBetterTailwindcss,
-      capek: {
+      local: {
         rules: {
           "comment-width": commentWidthRule,
           "wrapped-arrow-body": wrappedArrowBodyRule,
@@ -123,8 +123,8 @@ export default withNuxt(
       "better-tailwindcss/no-conflicting-classes": "error",
       "better-tailwindcss/no-deprecated-classes": "error",
       "better-tailwindcss/no-unknown-classes": ["error", { ignore: ["markdown-body"] }],
-      "capek/comment-width": ["error", { maxLength: 120 }],
-      "capek/wrapped-arrow-body": "error",
+      "local/comment-width": ["error", { maxLength: 120 }],
+      "local/wrapped-arrow-body": "error",
       "vue/attributes-order": [
         "error",
         {
