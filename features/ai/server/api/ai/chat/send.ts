@@ -13,9 +13,11 @@ import {
   RefusalError,
   TimeoutError,
 } from "#layers/ai/server/lib/errors";
+import { AgentResource } from "#layers/ai/server/lib/resources";
 import { ChatStreamErrors, ChatStreamEvents } from "#layers/ai/shared/chat";
 import { AiPermissions } from "#layers/ai/shared/rbac";
-import { canAny, requirePermissions } from "#layers/core/server/lib/authz/permissions";
+import { requirePermissions } from "#layers/core/server/lib/authz/permissions";
+import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 
 const KEEPALIVE_MS = 15_000;
@@ -86,22 +88,9 @@ export default defineEventHandler(async (event) => {
         return { error: "not_found" as const };
       }
 
-      if (!canAny(user, [AiPermissions.AgentUseAll])) {
-        const hasAccess = await trx
-          .selectFrom("aiAgentAccess")
-          .select(["id"])
-          .where("agentId", "=", result.agentId)
-          .where((eb) => {
-            return eb.or([
-              eb("userId", "=", user.id),
-              ...(user.groups.length > 0 ? [eb("groupId", "in", user.groups)] : []),
-            ]);
-          })
-          .executeTakeFirst();
-
-        if (!hasAccess) {
-          return { error: "not_found" as const };
-        }
+      const usable = await usableResourceIds(trx, AgentResource, [result.agentId]);
+      if (usable.length === 0) {
+        return { error: "not_found" as const };
       }
 
       return result;

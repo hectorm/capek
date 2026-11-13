@@ -4,12 +4,12 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
-import { AgentResource } from "#layers/ai/server/lib/resources";
+import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
-import { grantResourceAccess, listResources } from "#layers/core/server/lib/authz/resources";
+import { grantResourceAccess, listResources, usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { syncLinks } from "#layers/core/server/lib/database/links";
@@ -889,22 +889,9 @@ export const agentRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const llmProvider = await withUserTransaction(ctx.user, async (trx) => {
-        if (!canAny(ctx.user, [AiPermissions.LlmProviderUseAll])) {
-          const hasAccess = await trx
-            .selectFrom("aiLlmProviderAccess")
-            .select(["id"])
-            .where("llmProviderId", "=", input.llmProviderId)
-            .where((eb) => {
-              return eb.or([
-                eb("userId", "=", ctx.user.id),
-                ...(ctx.user.groups.length > 0 ? [eb("groupId", "in", ctx.user.groups)] : []),
-              ]);
-            })
-            .executeTakeFirst();
-
-          if (!hasAccess) {
-            return undefined;
-          }
+        const usable = await usableResourceIds(trx, LlmProviderResource, [input.llmProviderId]);
+        if (usable.length === 0) {
+          return undefined;
         }
 
         return trx
