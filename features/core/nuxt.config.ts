@@ -186,8 +186,8 @@ export default defineNuxtConfig({
       headerPicture: "X-Forwarded-Picture",
       headerRoles: "X-Forwarded-Roles",
       headerGroups: "X-Forwarded-Groups",
-      syncRoles: true,
-      syncGroups: true,
+      syncRoles: false,
+      syncGroups: false,
       cacheTtlSec: 30,
     },
     session: {
