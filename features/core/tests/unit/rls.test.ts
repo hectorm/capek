@@ -4,12 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
+import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
 import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { applySecurity, composeSecurity, hasAccess, protectTable } from "#layers/core/server/lib/database/security";
-import { asUser, closeDb, createTestDb, isSuperuser } from "#layers/core/tests/unit/helpers/db";
+import { asUser, closeDb, createTestDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
 
@@ -21,13 +22,7 @@ const daveGroup = crypto.randomUUID();
 beforeAll(async () => {
   db = await createTestDb();
 
-  await db
-    .insertInto("users")
-    .values([
-      { id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" },
-      { id: bob, username: "bob", fullname: "Bob", email: "bob@example.com" },
-    ])
-    .execute();
+  await insertUsers(db, { alice, bob });
 
   await db
     .insertInto("groups")
@@ -44,18 +39,8 @@ afterAll(async () => {
   await closeDb();
 });
 
-const visibleIds = (
-  table: "users" | "groups",
-  principal: { id: string; groups?: string[]; permissions?: string[] },
-): Promise<string[]> => {
-  return asUser(principal, async (trx) => {
-    const rows = await trx.selectFrom(table).select(["id"]).execute();
-    return rows.map((r) => r.id);
-  });
-};
-
-describe("rls core", () => {
-  it("uses a non-superuser role so RLS actually applies", async () => {
+describe("row level security", () => {
+  it("runs as a role without superuser rights", async () => {
     expect(await isSuperuser(db)).toBe(true);
     const role = await asUser({ id: alice, permissions: ["user:read:own"] }, async (trx) => {
       const r = await sql<{ roleName: string }>`SELECT CURRENT_USER AS role_name`.execute(trx);
@@ -64,7 +49,7 @@ describe("rls core", () => {
     expect(role).toBe(FALLBACK_ROLE);
   });
 
-  it("runs the transactions of users without JIT compilation", async () => {
+  it("disables JIT compilation in the transactions of users", async () => {
     const jit = await asUser({ id: alice }, async (trx) => {
       const r = await sql<{ jit: string }>`SHOW jit`.execute(trx);
       return r.rows[0]?.jit;
@@ -72,26 +57,33 @@ describe("rls core", () => {
     expect(jit).toBe("off");
   });
 
-  it("only shows a member their own user", async () => {
-    expect(await visibleIds("users", { id: alice, permissions: ["user:read:own"] })).toEqual([alice]);
+  it.each<{ principal: string; as: TestPrincipal; users: string[]; groups: string[] }>([
+    {
+      principal: "a member",
+      as: { id: alice, permissions: ["user:read:own", "group:read:own"] },
+      users: ["alice"],
+      groups: ["carol-group"],
+    },
+    {
+      principal: "a principal with the all scope",
+      as: { id: alice, permissions: ["user:read:all", "group:read:all"] },
+      users: ["alice", "bob"],
+      groups: ["carol-group", "dave-group"],
+    },
+    { principal: "a principal without permissions", as: { id: alice }, users: [], groups: [] },
+  ])("lets $principal read the users and groups that it can access", async ({ as, users, groups }) => {
+    const visible = await asUser(as, async (trx) => {
+      return {
+        users: (await trx.selectFrom("users").select(["username"]).orderBy("username").execute()).map(
+          (u) => u.username,
+        ),
+        groups: (await trx.selectFrom("groups").select(["name"]).orderBy("name").execute()).map((g) => g.name),
+      };
+    });
+    expect(visible).toEqual({ users, groups });
   });
 
-  it("shows every user to a principal with the all scope", async () => {
-    const ids = await visibleIds("users", { id: alice, permissions: ["user:read:all"] });
-    expect(ids).toEqual(expect.arrayContaining([alice, bob]));
-  });
-
-  it("only shows a member the groups they belong to", async () => {
-    const ids = await visibleIds("groups", { id: alice, permissions: ["group:read:own"] });
-    expect(ids).toEqual([carolGroup]);
-  });
-
-  it("hides everything from a principal with no permissions", async () => {
-    expect(await visibleIds("users", { id: alice })).toHaveLength(0);
-    expect(await visibleIds("groups", { id: alice })).toHaveLength(0);
-  });
-
-  it("denies writes without the matching permission", async () => {
+  it("rejects writes without the matching permission", async () => {
     await expect(
       asUser({ id: alice, permissions: ["user:read:own"] }, (trx) => {
         return trx.insertInto("groups").values({ name: "forbidden-group", description: "" }).execute();
@@ -99,7 +91,20 @@ describe("rls core", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("does not know any shared resource without other features", async () => {
+  it("rejects a member assigning roles to themselves", async () => {
+    const role = await db
+      .insertInto("roles")
+      .values({ name: "test-admin" })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await expect(
+      asUser({ id: alice, permissions: ["user:read:own", "user:update:own"] }, (trx) => {
+        return trx.insertInto("userRoles").values({ userId: alice, roleId: role.id }).execute();
+      }),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("knows no shared resource without other features", async () => {
     const result = await asUser({ id: alice, permissions: ["user:read:own"] }, async (trx) => {
       return sql<{ hasAccess: boolean }>`
         SELECT security.has_access('agent', ${crypto.randomUUID()}::UUID) AS has_access
@@ -179,7 +184,7 @@ describe("rls core", () => {
     expect(() => composeSecurity([coreFeature, feature("user_id = (SELECT security.user_id())")])).not.toThrow();
   });
 
-  it("requires the access checks of a policy to name the table of their column", () => {
+  it("requires the access checks of a policy to qualify their column", () => {
     const resource = defineSharedResource({ type: "extra_object", table: "extra_objects" });
     expect(() => hasAccess(resource, "id")).toThrow(/must be qualified with its table/);
     expect(hasAccess(resource, "extra_objects.id")).toContain("acl.extra_object_id = extra_objects.id");

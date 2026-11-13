@@ -19,7 +19,7 @@ const table = async (args: Record<string, unknown>, show?: (part: ToolPart) => v
 };
 
 describe("table tool", () => {
-  it("shows the table of its columns and rows to the user", async () => {
+  it("shows the table of its columns and rows", async () => {
     const columns = ["name", "total"];
     const rows = [
       ["a", 1],
@@ -40,8 +40,8 @@ describe("table tool", () => {
   });
 });
 
-describe("cells of a table", () => {
-  it("are sorted by what they are, also the numbers and the dates given as text", () => {
+describe("table cell comparison", () => {
+  it("sorts numbers and dates given as text by their value", () => {
     const sorted = (cells: unknown[]) => cells.toSorted(compareCells);
 
     expect(sorted(["10.5", "-3", 9, "3.10", "3.9", "1e3"])).toEqual(["-3", "3.10", "3.9", 9, "10.5", "1e3"]);
@@ -58,8 +58,8 @@ describe("cells of a table", () => {
   });
 });
 
-describe("CSV of a table", () => {
-  it("quotes the values that need it and keeps spreadsheets from running them as formulas", () => {
+describe("table CSV", () => {
+  it("escapes the values for spreadsheets", () => {
     const rows = [
       ["a, b", 1],
       ['say "hi"', null],

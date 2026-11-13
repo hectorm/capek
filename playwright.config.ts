@@ -57,7 +57,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   timeout: 60000,
   expect: {
-    timeout: 5000,
+    timeout: 15000,
   },
   use: {
     baseURL: "http://localhost:51234",

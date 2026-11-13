@@ -93,8 +93,8 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-describe("mcp", () => {
-  it("reads the text of a result and says what else it had", async () => {
+describe("MCP client", () => {
+  it("reads the text of a result", async () => {
     const manager = MCPManager.getInstance();
     const chatSessionId = crypto.randomUUID();
     const call = (toolName: string): Promise<string> => {
@@ -106,11 +106,10 @@ describe("mcp", () => {
     );
     expect(await call("count")).toBe('{"total":3}');
 
-    expect(await manager.cleanupIdleSessions(Date.now() + 10 * 60 * 1000)).toBe(0);
-    expect(await manager.cleanupIdleSessions(Date.now() + 31 * 60 * 1000)).toBe(1);
+    await manager.cleanupSession(chatSessionId);
   });
 
-  it("replaces the client of a server whose URL or headers change, like when its token is rotated", async () => {
+  it("replaces the client of a server whose URL or headers change", async () => {
     const manager = MCPManager.getInstance();
     const chatSessionId = crypto.randomUUID();
 
@@ -141,10 +140,11 @@ describe("mcp", () => {
 
     finishSlowCall();
     expect(await call).toBe("done");
+    expect(await manager.cleanupIdleSessions(Date.now() + 10 * 60 * 1000)).toBe(0);
     expect(await manager.cleanupIdleSessions(Date.now() + 31 * 60 * 1000)).toBe(1);
   });
 
-  it("does not wait forever for a server that never sends the response", async () => {
+  it("times out on a server that never responds", async () => {
     const started = Date.now();
 
     const other = new MCPClient({ name: "other", url: `${url}/other`, headers: [], stateful: false, timeoutMs: 300 });
@@ -162,7 +162,7 @@ describe("mcp", () => {
     expect(Date.now() - started).toBeLessThan(3_000);
   });
 
-  it("gives up on a server that never ends its list of tools or expires every session", async () => {
+  it("gives up on a server that keeps failing to list its tools", async () => {
     const endless = new MCPClient({ name: "endless", url: `${url}/endless`, headers: [], stateful: false });
     expect(await endless.testConnection()).toEqual({ success: false, error: "The MCP server lists too many tools" });
 
@@ -170,7 +170,7 @@ describe("mcp", () => {
     expect(await expired.testConnection()).toMatchObject({ success: false });
   });
 
-  it("waits before opening again the stream of a server that asks for no delay", async () => {
+  it("waits before reopening the stream of a server that asks for no delay", async () => {
     let streams = 0;
     vi.stubGlobal("fetch", (target: string, init: RequestInit) => {
       if (init.method !== "GET") {
@@ -189,7 +189,7 @@ describe("mcp", () => {
     expect(streams).toBe(1);
   });
 
-  it("builds modules that can be imported whatever the names and descriptions of their tools say", async () => {
+  it("builds importable modules whatever the names and descriptions of the tools", async () => {
     const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: false });
     await client.initialize();
     const listed = await client.listTools();

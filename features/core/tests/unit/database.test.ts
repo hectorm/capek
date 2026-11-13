@@ -11,7 +11,7 @@ afterAll(async () => {
 });
 
 describe("database", () => {
-  it("is set up once for the calls that arrive at the same time", async () => {
+  it("is set up once for concurrent calls", async () => {
     await Promise.all([useDb(), useDb()]);
     expect(PGlite).toHaveBeenCalledTimes(1);
   });

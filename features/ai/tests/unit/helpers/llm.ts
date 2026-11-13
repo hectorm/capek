@@ -39,6 +39,28 @@ export const streamOf = (events: Record<string, unknown>[]): ReadableStream<Uint
   });
 };
 
+const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
+
+// A completion of the Chat Completions API with the given message
+export const chatCompletion = (message: Record<string, unknown>, finishReason = "stop"): Record<string, unknown> => {
+  return {
+    id: "chatcmpl-test",
+    object: "chat.completion",
+    created: 0,
+    model: "reasoner",
+    choices: [{ index: 0, message: { role: "assistant", ...message }, finish_reason: finishReason }],
+  };
+};
+
+// A streamed completion of the Chat Completions API with the given deltas
+export const chatCompletionStream = (
+  deltas: Record<string, unknown>[],
+  finishReason: string | null = "stop",
+): ReadableStream<Uint8Array> => {
+  const end = finishReason ? [{ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: finishReason }] }] : [];
+  return streamOf([...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })), ...end]);
+};
+
 // Reads a translated stream the way the agents do
 export const readStream = async (stream: ReadableStream<LlmStreamEvent>) => {
   let text = "";

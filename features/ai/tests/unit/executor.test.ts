@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import type { ChatTablePart } from "#layers/ai/shared/chat";
 import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
+import type { NewAgent } from "#layers/ai/shared/schema";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { FeatureToolProvider } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
@@ -10,8 +11,15 @@ import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { loadTable } from "#layers/ai/server/lib/tables";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { closeDb, createAiTestDb, insertAgent } from "#layers/ai/tests/unit/helpers/db";
-import { streamOf } from "#layers/ai/tests/unit/helpers/llm";
+import {
+  closeDb,
+  createAiTestDb,
+  insertAgent,
+  insertLlmProvider,
+  insertSkill,
+  insertUsers,
+} from "#layers/ai/tests/unit/helpers/db";
+import { chatCompletion, chatCompletionStream } from "#layers/ai/tests/unit/helpers/llm";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
 // Tools that stand in for the ones of another feature, one telling what it does and others showing a chart or a table
@@ -76,76 +84,32 @@ vi.mock("#layers/core/server/lib/tools", () => {
 });
 
 let db: Kysely<Database>;
+let llmProviderId: string;
 
 const alice = crypto.randomUUID();
-const user = {
+const bob = crypto.randomUUID();
+const admin = {
   id: alice,
   groups: [],
   permissions: [...CoreRolePermissions[Roles.Admin], ...AiRolePermissions[Roles.Admin]],
 } as unknown as AuthUser;
-
-let agentId: string;
-let streamingAgentId: string;
-let smallContextAgentId: string;
-let singleIterationAgentId: string;
-let hiddenToolCallsAgentId: string;
-let smallPartsAgentId: string;
-let triageAgentId: string;
-let shortResponsesAgentId: string;
-let impatientAgentId: string;
+const member = {
+  id: bob,
+  groups: [],
+  permissions: [...CoreRolePermissions[Roles.Member], ...AiRolePermissions[Roles.Member]],
+} as unknown as AuthUser;
 
 const readNote = { id: "call-1", type: "function", function: { name: "notes_read", arguments: '{"note":"a"}' } };
 const countNotes = { id: "call-2", type: "function", function: { name: "notes_count", arguments: "{}" } };
 const chartNotes = { id: "call-3", type: "function", function: { name: "notes_chart", arguments: "{}" } };
+const listNotes = (rows: number) => {
+  return { id: "call-4", type: "function", function: { name: "notes_table", arguments: JSON.stringify({ rows }) } };
+};
 
 beforeAll(async () => {
   db = await createAiTestDb();
-
-  await db
-    .insertInto("users")
-    .values({ id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" })
-    .execute();
-
-  const llmProvider = await db
-    .insertInto("aiLlmProviders")
-    .values({
-      name: "executor-provider",
-      description: "",
-      apiUrl: "http://llm.localhost/v1",
-      apiType: "chat-completions",
-      apiKey: "hunter2",
-      headers: "[]",
-    })
-    .returning(["id"])
-    .executeTakeFirstOrThrow();
-
-  const createAgent = async (name: string, settings: Record<string, unknown> = {}): Promise<string> => {
-    const id = await insertAgent(db, name);
-    await db
-      .updateTable("aiAgents")
-      .set({
-        instructions: "Be brief.",
-        llmProviderId: llmProvider.id,
-        toolProviders: ["notes"],
-        streaming: false,
-        ...settings,
-      })
-      .where("id", "=", id)
-      .execute();
-    return id;
-  };
-
-  agentId = await createAgent("executor-agent");
-  streamingAgentId = await createAgent("executor-streaming-agent", { streaming: true });
-  smallContextAgentId = await createAgent("executor-small-context-agent", { maxContextChars: 300 });
-  singleIterationAgentId = await createAgent("executor-single-iteration-agent", { maxIterations: 1 });
-  hiddenToolCallsAgentId = await createAgent("executor-hidden-tool-calls-agent", { showToolCalls: false });
-  smallPartsAgentId = await createAgent("executor-small-parts-agent", { maxToolPartsChars: 1000 });
-  triageAgentId = await createAgent("executor-triage-agent", { type: "triage", toolProviders: [] });
-  shortResponsesAgentId = await createAgent("executor-short-responses-agent", { maxToolResponseChars: 1000 });
-  impatientAgentId = await createAgent("executor-impatient-agent", { timeoutSec: 1 });
-
-  await db.insertInto("aiTriageSpecialists").values({ triageAgentId, specialistAgentId: agentId }).execute();
+  await insertUsers(db, { alice, bob });
+  llmProviderId = await insertLlmProvider(db, "executor-provider");
 });
 
 afterEach(() => {
@@ -156,13 +120,27 @@ afterAll(async () => {
   await closeDb();
 });
 
-const createSession = async (sessionAgentId: string): Promise<string> => {
+interface TestChat {
+  sessionId: string;
+  agentId: string;
+  user: AuthUser;
+}
+
+// A chat with a new agent of the given settings, which answers briefly with the tools of the notes
+const createChat = async (settings: Partial<NewAgent> = {}, user: AuthUser = admin): Promise<TestChat> => {
+  const agentId = await insertAgent(db, `agent-${crypto.randomUUID()}`, {
+    instructions: "Be brief.",
+    llmProviderId,
+    toolProviders: ["notes"],
+    streaming: false,
+    ...settings,
+  });
   const session = await db
     .insertInto("aiChatSessions")
-    .values({ userId: alice, agentId: sessionAgentId, title: "" })
+    .values({ userId: user.id, agentId, title: "" })
     .returning(["id"])
     .executeTakeFirstOrThrow();
-  return session.id;
+  return { sessionId: session.id, agentId, user };
 };
 
 // The model answers with the given responses in order, and its requests are kept to check them
@@ -176,42 +154,23 @@ const fakeModel = (responses: Response[]): OpenAICompletionRequest[] => {
 };
 
 const answer = (content: string | null, toolCalls?: unknown[], finishReason = "stop"): Response => {
-  return Response.json({
-    id: "chatcmpl-test",
-    object: "chat.completion",
-    created: 0,
-    model: "reasoner",
-    choices: [
-      { index: 0, message: { role: "assistant", content, tool_calls: toolCalls }, finish_reason: finishReason },
-    ],
-  });
-};
-
-const executions = (sessionId: string) => {
-  return db
-    .selectFrom("aiAgentExecutions")
-    .select(["status", "errorMessage"])
-    .where("sessionId", "=", sessionId)
-    .orderBy("createdAt")
-    .execute();
+  return Response.json(chatCompletion({ content, tool_calls: toolCalls }, finishReason));
 };
 
 const streamedAnswer = (deltas: Record<string, unknown>[]): Response => {
-  const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
-  const end = { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] };
-  return new Response(streamOf([...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })), end]));
+  return new Response(chatCompletionStream(deltas));
 };
 
 const decoder = new TextDecoder();
 
-const chat = async (sessionId: string, sessionAgentId: string, message: string) => {
+const send = async ({ sessionId, agentId, user }: TestChat, message: string) => {
   const executor = new AgentExecutor({ sessionId, user, message });
 
   let tokens = "";
   const parts: unknown[] = [];
   let error: unknown;
   try {
-    for await (const bytes of executor.executeStream(sessionAgentId)) {
+    for await (const bytes of executor.executeStream(agentId)) {
       const [, event, data] = /^event: (.*)\ndata: (.*)\n\n$/.exec(decoder.decode(bytes)) ?? [];
       if (event === "token" && data) {
         tokens += JSON.parse(data) as string;
@@ -226,7 +185,7 @@ const chat = async (sessionId: string, sessionAgentId: string, message: string) 
   return { tokens, parts, error };
 };
 
-const answers = (sessionId: string) => {
+const answers = ({ sessionId }: TestChat) => {
   return db
     .selectFrom("aiChatMessages")
     .select(["content", "items"])
@@ -236,16 +195,29 @@ const answers = (sessionId: string) => {
     .execute();
 };
 
+const executions = ({ sessionId }: TestChat) => {
+  return db
+    .selectFrom("aiAgentExecutions")
+    .select(["status", "errorMessage"])
+    .where("sessionId", "=", sessionId)
+    .orderBy("createdAt")
+    .execute();
+};
+
+const tables = ({ sessionId }: TestChat) => {
+  return db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute();
+};
+
 const roles = (request?: OpenAICompletionRequest): string[] => {
   return (request?.messages ?? []).map((message) => (message.tool_calls ? `${message.role} with tools` : message.role));
 };
 
 describe("agent executor", () => {
-  it("keeps the tools that the model calls with its answer and sends them in the next turn", async () => {
-    const sessionId = await createSession(agentId);
+  it("keeps the tool calls of an answer for the next turns", async () => {
+    const chat = await createChat();
 
     const requests = fakeModel([answer(null, [readNote]), answer("The note says hello.")]);
-    const { tokens, parts } = await chat(sessionId, agentId, "What does the note a say?");
+    const { tokens, parts } = await send(chat, "What does the note a say?");
 
     expect(tokens).toBe("The note says hello.");
     expect(parts).toEqual([{ type: "tool", id: "call-1", name: "notes_read", description: 'Reads the note "a"' }]);
@@ -253,7 +225,7 @@ describe("agent executor", () => {
       { role: "assistant", tool_calls: [{ id: "call-1", function: { name: "notes_read" } }] },
       { role: "tool", tool_call_id: "call-1", content: expect.stringContaining("Content of a") as string },
     ]);
-    expect(await answers(sessionId)).toEqual([
+    expect(await answers(chat)).toEqual([
       {
         content: "The note says hello.",
         items: [
@@ -275,53 +247,94 @@ describe("agent executor", () => {
     ]);
 
     const nextRequests = fakeModel([answer("Bye.")]);
-    await chat(sessionId, agentId, "Thanks, bye.");
+    await send(chat, "Thanks, bye.");
 
     expect(roles(nextRequests[0])).toEqual(["system", "user", "assistant with tools", "tool", "assistant", "user"]);
   });
 
-  it("streams the answer and gives back to the model what it needs along with its tool calls", async () => {
-    const sessionId = await createSession(streamingAgentId);
+  it("sends the settings of the agent to the model", async () => {
+    const chat = await createChat({ temperature: 0.2, maxTokens: 100, reasoningEffort: "low" });
+
+    const requests = fakeModel([answer("Hello.")]);
+    await send(chat, "Hi");
+
+    expect(requests[0]).toMatchObject({ temperature: 0.2, max_completion_tokens: 100, reasoning_effort: "low" });
+  });
+
+  it("streams an answer with the provider data of its tool calls", async () => {
+    const chat = await createChat({ streaming: true });
     const signature = { google: { thought_signature: "signature" } };
 
     const requests = fakeModel([
       streamedAnswer([{ role: "assistant", tool_calls: [{ ...readNote, index: 0, extra_content: signature }] }]),
       streamedAnswer([{ content: "The note " }, { content: "says hello." }]),
     ]);
-    const { tokens } = await chat(sessionId, streamingAgentId, "What does the note a say?");
+    const { tokens } = await send(chat, "What does the note a say?");
 
     expect(tokens).toBe("The note says hello.");
     expect(requests[1]?.messages.at(-2)).toMatchObject({ tool_calls: [{ id: "call-1", extra_content: signature }] });
-    expect((await answers(sessionId)).map((message) => message.items.map((item) => item.type))).toEqual([
+    expect((await answers(chat)).map((message) => message.items.map((item) => item.type))).toEqual([
       ["function_call", "function_call_output", "message"],
     ]);
   });
 
-  it("keeps only the text of an answer whose tool calls do not fit in the context", async () => {
-    const sessionId = await createSession(smallContextAgentId);
+  it("only gives the model the skills that the user can use", async () => {
+    const code = "export default async function () { return 1; }";
+    const usable = await insertSkill(db, "usable", { code });
+    const other = await insertSkill(db, "other", { code });
+    await db.insertInto("aiSkillAccess").values({ skillId: usable, userId: bob, role: "user" }).execute();
+
+    const chat = await createChat({ toolProviders: [] }, member);
+    await db.insertInto("aiAgentAccess").values({ agentId: chat.agentId, userId: bob, role: "user" }).execute();
+    await db
+      .insertInto("aiAgentSkills")
+      .values([
+        { agentId: chat.agentId, skillId: usable },
+        { agentId: chat.agentId, skillId: other },
+      ])
+      .execute();
+
+    const requests = fakeModel([answer("Hello.")]);
+    await send(chat, "Hi");
+
+    expect(requests[0]?.tools?.map((tool) => tool.function.name)).toEqual(["skill_usable"]);
+  });
+
+  it("drops the tool calls that do not fit in the context", async () => {
+    const chat = await createChat({ maxContextChars: 300 });
 
     fakeModel([answer(null, [readNote]), answer("The note says hello.")]);
-    await chat(sessionId, smallContextAgentId, "What does the note a say?");
+    await send(chat, "What does the note a say?");
 
     const requests = fakeModel([answer("Bye.")]);
-    await chat(sessionId, smallContextAgentId, "Thanks, bye.");
+    await send(chat, "Thanks, bye.");
 
     expect(roles(requests[0])).toEqual(["system", "user", "assistant", "user"]);
   });
 
-  it("keeps an answer without text only when one of its tool calls tells what it did", async () => {
-    const countSessionId = await createSession(singleIterationAgentId);
+  it("saves the answer of an agent that finishes on its last iteration", async () => {
+    const chat = await createChat({ maxIterations: 1 });
+
+    fakeModel([answer("Hello.")]);
+    const { error } = await send(chat, "Hi");
+
+    expect(error).toBeUndefined();
+    expect((await answers(chat)).map((message) => message.content)).toEqual(["Hello."]);
+  });
+
+  it("keeps an answer without text only when a tool call describes it", async () => {
+    const counted = await createChat({ maxIterations: 1 });
     fakeModel([answer(null, [countNotes])]);
-    const { error } = await chat(countSessionId, singleIterationAgentId, "How many notes are there?");
+    const { error } = await send(counted, "How many notes are there?");
 
     expect(error).toBeInstanceOf(MaxIterationsError);
-    expect(await answers(countSessionId)).toEqual([]);
+    expect(await answers(counted)).toEqual([]);
 
-    const readSessionId = await createSession(singleIterationAgentId);
+    const read = await createChat({ maxIterations: 1 });
     fakeModel([answer(null, [readNote])]);
-    await chat(readSessionId, singleIterationAgentId, "What does the note a say?");
+    await send(read, "What does the note a say?");
 
-    expect(await answers(readSessionId)).toMatchObject([
+    expect(await answers(read)).toMatchObject([
       {
         content: "",
         items: [{ type: "function_call", description: 'Reads the note "a"' }, { type: "function_call_output" }],
@@ -329,83 +342,100 @@ describe("agent executor", () => {
     ]);
   });
 
-  it("does not tell what the tool calls of an agent do when it does not show them", async () => {
-    const sessionId = await createSession(hiddenToolCallsAgentId);
+  it("hides the tool calls of an agent that does not show them", async () => {
+    const chat = await createChat({ showToolCalls: false });
 
     fakeModel([answer(null, [readNote]), answer("The note says hello.")]);
-    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "What does the note a say?");
+    const { parts } = await send(chat, "What does the note a say?");
 
     expect(parts).toEqual([]);
-    expect((await answers(sessionId)).flatMap((message) => message.items)).toEqual([
+    expect((await answers(chat)).flatMap((message) => message.items)).toEqual([
       { type: "function_call", call_id: "call-1", name: "notes_read", arguments: '{"note":"a"}' },
       { type: "function_call_output", call_id: "call-1", output: expect.stringContaining("Content of a") as string },
       { type: "message", role: "assistant", content: "The note says hello." },
     ]);
   });
 
-  it("shows the charts of the tool calls and keeps them with the answer", async () => {
-    const sessionId = await createSession(hiddenToolCallsAgentId);
+  it("keeps the charts of the tool calls with the answer", async () => {
+    const chat = await createChat({ showToolCalls: false });
     const option = { series: [{ type: "bar", data: [3] }] };
 
     fakeModel([answer(null, [chartNotes]), answer("There are 3 notes.")]);
-    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "Chart the notes.");
+    const { parts } = await send(chat, "Chart the notes.");
 
     expect(parts).toEqual([{ type: "chart", name: "Notes", option }]);
-    expect((await answers(sessionId)).flatMap((message) => message.items)).toMatchObject([
+    expect((await answers(chat)).flatMap((message) => message.items)).toMatchObject([
       { type: "function_call", name: "notes_chart", parts: [{ type: "chart", name: "Notes", option }] },
       { type: "function_call_output", output: "Shown" },
       { type: "message", content: "There are 3 notes." },
     ]);
   });
 
-  it("keeps the tables of the tool calls apart from the answer, which only has their first rows", async () => {
-    const sessionId = await createSession(hiddenToolCallsAgentId);
-    const listNotes = (rows: number) => {
-      return { id: "call-6", type: "function", function: { name: "notes_table", arguments: JSON.stringify({ rows }) } };
-    };
+  it("stores the tables of the tool calls apart from the answer", async () => {
+    const chat = await createChat({ showToolCalls: false });
 
     fakeModel([answer(null, [listNotes(30)]), answer("There are 30 notes.")]);
-    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "List the notes.");
+    const { parts } = await send(chat, "List the notes.");
 
     const [part] = parts as ChatTablePart[];
     expect(part).toMatchObject({ type: "table", name: "Notes", columns: ["note"], rowCount: 30 });
     expect(part?.rows).toHaveLength(20);
-    expect((await answers(sessionId)).flatMap((message) => message.items)).toMatchObject([
+    expect((await answers(chat)).flatMap((message) => message.items)).toMatchObject([
       { type: "function_call", name: "notes_table", parts: [part] },
       { type: "function_call_output", output: "Shown" },
       { type: "message", content: "There are 30 notes." },
     ]);
     const tableId = part?.id ?? "";
     const notes = Array.from({ length: 30 }, (_, index) => [`note ${String(index)}`]);
-    expect(await loadTable(tableId, user)).toBe(JSON.stringify({ columns: ["note"], rows: notes }));
+    expect(await loadTable(tableId, admin)).toBe(JSON.stringify({ columns: ["note"], rows: notes }));
 
     // The table goes with its answer
-    await db.deleteFrom("aiChatMessages").where("sessionId", "=", sessionId).where("role", "=", "assistant").execute();
-    expect(await loadTable(tableId, user)).toBeUndefined();
+    await db
+      .deleteFrom("aiChatMessages")
+      .where("sessionId", "=", chat.sessionId)
+      .where("role", "=", "assistant")
+      .execute();
+    expect(await loadTable(tableId, admin)).toBeUndefined();
+  });
 
-    const requests = fakeModel([answer(null, [listNotes(5001)]), answer("There are too many notes.")]);
-    const tooMany = await chat(sessionId, hiddenToolCallsAgentId, "List every note.");
+  it("rejects the tables that exceed the limits", async () => {
+    const chat = await createChat();
 
-    expect(tooMany.parts).toEqual([]);
-    expect(requests[1]?.messages.at(-1)?.content).toContain("A table cannot have more than 5000 rows");
-    expect(await db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute()).toEqual([]);
+    const tooManyRows = fakeModel([answer(null, [listNotes(5001)]), answer("There are too many notes.")]);
+    expect((await send(chat, "List every note.")).parts).toEqual([]);
+    expect(tooManyRows[1]?.messages.at(-1)?.content).toContain("A table cannot have more than 5000 rows");
+
+    const message = await db
+      .insertInto("aiChatMessages")
+      .values({ sessionId: chat.sessionId, role: "assistant", content: "" })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("aiChatTables")
+      .values({ sessionId: chat.sessionId, messageId: message.id, data: Buffer.from(""), size: 50_000_000 })
+      .execute();
+
+    const fullChat = fakeModel([answer(null, [listNotes(1)]), answer("The chat is full.")]);
+    expect((await send(chat, "List one note.")).parts).toEqual([]);
+    expect(fullChat[1]?.messages.at(-1)?.content).toContain("The tables of a chat cannot have more than");
+    expect(await tables(chat)).toHaveLength(1);
   });
 
   it("discards the tables of the answers that were not saved", async () => {
-    const sessionId = await createSession(agentId);
+    const chat = await createChat();
     await db
       .insertInto("aiChatTables")
-      .values({ sessionId, data: Buffer.from(""), size: 10 })
+      .values({ sessionId: chat.sessionId, data: Buffer.from(""), size: 10 })
       .execute();
 
     fakeModel([answer("Hello.")]);
-    await chat(sessionId, agentId, "Hi");
+    await send(chat, "Hi");
 
-    expect(await db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute()).toEqual([]);
+    expect(await tables(chat)).toEqual([]);
   });
 
-  it("limits what the tool calls of an answer show in all", async () => {
-    const sessionId = await createSession(smallPartsAgentId);
+  it("limits the size of what the tool calls show", async () => {
+    const chat = await createChat({ maxToolPartsChars: 1000 });
     const chartManyNotes = (id: string) => {
       return { id, type: "function", function: { name: "notes_chart", arguments: '{"points":300}' } };
     };
@@ -414,7 +444,7 @@ describe("agent executor", () => {
       answer(null, [chartManyNotes("call-4"), chartManyNotes("call-5")]),
       answer("That is too much to show."),
     ]);
-    const { parts } = await chat(sessionId, smallPartsAgentId, "Chart many notes, twice.");
+    const { parts } = await send(chat, "Chart many notes, twice.");
 
     expect(parts).toHaveLength(1);
     expect(requests[1]?.messages.slice(-2)).toMatchObject([
@@ -427,47 +457,54 @@ describe("agent executor", () => {
     ]);
   });
 
-  it("gives a triage agent what was said, without the tool calls of its specialists", async () => {
-    const sessionId = await createSession(triageAgentId);
+  it("hides the tool calls of the specialists from a triage agent", async () => {
+    const specialistId = await insertAgent(db, `agent-${crypto.randomUUID()}`, {
+      instructions: "Be brief.",
+      llmProviderId,
+      toolProviders: ["notes"],
+      streaming: false,
+    });
+    const chat = await createChat({ type: "triage", toolProviders: [] });
+    await db
+      .insertInto("aiTriageSpecialists")
+      .values({ triageAgentId: chat.agentId, specialistAgentId: specialistId })
+      .execute();
     const route = {
       id: "call-0",
       type: "function",
-      function: {
-        name: "route_to_specialist",
-        arguments: JSON.stringify({ specialistId: agentId, routingReason: "Routing to the specialist" }),
-      },
+      function: { name: "route_to_specialist", arguments: JSON.stringify({ specialistId, routingReason: "Notes" }) },
     };
 
     fakeModel([answer(null, [route]), answer(null, [readNote]), answer("The note says hello.")]);
-    await chat(sessionId, triageAgentId, "What does the note a say?");
+    await send(chat, "What does the note a say?");
 
     const requests = fakeModel([answer(null, [route]), answer("Bye.")]);
-    await chat(sessionId, triageAgentId, "Thanks, bye.");
+    await send(chat, "Thanks, bye.");
 
     expect(requests[0]?.tools?.map((tool) => tool.function.name)).toEqual(["route_to_specialist"]);
     expect(roles(requests[0])).toEqual(["system", "user", "assistant", "user"]);
     expect(roles(requests[1])).toEqual(["system", "user", "assistant with tools", "tool", "assistant", "user"]);
   });
 
-  it("fails the answers that the model declines or leaves unfinished, instead of leaving nothing", async () => {
-    const sessionId = await createSession(agentId);
+  it("fails the answers that the model declines or leaves unfinished", async () => {
+    const chat = await createChat();
 
     fakeModel([answer(null, undefined, "content_filter")]);
-    const declined = await chat(sessionId, agentId, "Do something that is not allowed");
+    const declined = await send(chat, "Do something that is not allowed");
     expect(declined.error).toBeInstanceOf(RefusalError);
-    expect(await answers(sessionId)).toHaveLength(0);
+    expect(await answers(chat)).toHaveLength(0);
 
     fakeModel([answer("Once upon a", undefined, "length")]);
-    const cut = await chat(sessionId, agentId, "Tell me a long story");
+    const cut = await send(chat, "Tell me a long story");
     expect(cut.error).toBeInstanceOf(MaxOutputTokensError);
     expect(cut.tokens).toBe("Once upon a");
-    expect((await answers(sessionId)).map((row) => row.content)).toEqual(["Once upon a"]);
+    expect((await answers(chat)).map((row) => row.content)).toEqual(["Once upon a"]);
 
-    expect((await executions(sessionId)).map((execution) => execution.status)).toEqual(["failed", "failed"]);
+    expect((await executions(chat)).map((execution) => execution.status)).toEqual(["failed", "failed"]);
   });
 
-  it("stops waiting for the model when the time of the agent runs out", async () => {
-    const sessionId = await createSession(impatientAgentId);
+  it("cancels the execution when the agent runs out of time", async () => {
+    const chat = await createChat({ timeoutSec: 1 });
 
     vi.stubGlobal("fetch", (_url: URL, init: RequestInit) => {
       return new Promise((_resolve, reject) => {
@@ -476,29 +513,30 @@ describe("agent executor", () => {
         });
       });
     });
-    const late = await chat(sessionId, impatientAgentId, "Are you there?");
+    const late = await send(chat, "Are you there?");
     expect(late.error).toBeInstanceOf(TimeoutError);
-    expect(await executions(sessionId)).toEqual([{ status: "cancelled", errorMessage: "The operation timed out" }]);
+    expect(await executions(chat)).toEqual([{ status: "cancelled", errorMessage: "The operation timed out" }]);
   });
 
-  it("ends the execution when the answer stops being read, so that the session takes new messages", async () => {
-    const sessionId = await createSession(streamingAgentId);
+  it("cancels the execution when the client stops reading", async () => {
+    const chat = await createChat({ streaming: true });
 
     fakeModel([streamedAnswer([{ content: "One " }, { content: "two " }, { content: "three" }])]);
-    const stopped = new AgentExecutor({ sessionId, user, message: "Count to three" });
-    const stream = stopped.executeStream(streamingAgentId);
+    const stopped = new AgentExecutor({ sessionId: chat.sessionId, user: admin, message: "Count to three" });
+    const stream = stopped.executeStream(chat.agentId);
     await stream.next();
     await stream.return(undefined);
-    expect(await executions(sessionId)).toEqual([{ status: "cancelled", errorMessage: "The operation was aborted" }]);
+    expect(await executions(chat)).toEqual([{ status: "cancelled", errorMessage: "The operation was aborted" }]);
 
     fakeModel([streamedAnswer([{ content: "Four" }])]);
-    const next = await chat(sessionId, streamingAgentId, "And the next one?");
+    const next = await send(chat, "And the next one?");
     expect(next.error).toBeUndefined();
     expect(next.tokens).toBe("Four");
   });
 
-  it("frees the sessions of the executions that stopped reporting activity", async () => {
-    const sessionId = await createSession(agentId);
+  it("fails the executions that stopped reporting activity", async () => {
+    const chat = await createChat();
+    const { sessionId, agentId } = chat;
     const execution = (lastActivityAt: Date) => {
       return db
         .insertInto("aiAgentExecutions")
@@ -517,18 +555,18 @@ describe("agent executor", () => {
       .execute();
     expect(await AgentExecutor.failAbandonedExecutions(db, crypto.randomUUID())).toBe(0);
     expect(await AgentExecutor.failAbandonedExecutions(db, sessionId)).toBe(1);
-    expect((await executions(sessionId)).map((row) => row.status)).toEqual(["failed"]);
+    expect((await executions(chat)).map((row) => row.status)).toEqual(["failed"]);
 
     fakeModel([answer("Hello again.")]);
-    expect((await chat(sessionId, agentId, "Hello?")).tokens).toBe("Hello again.");
+    expect((await send(chat, "Hello?")).tokens).toBe("Hello again.");
   });
 
-  it("keeps the responses of the tools as short as the model gets them", async () => {
-    const sessionId = await createSession(shortResponsesAgentId);
+  it("stores the tool responses as truncated for the model", async () => {
+    const chat = await createChat({ maxToolResponseChars: 1000 });
     const exportNotes = { id: "call-4", type: "function", function: { name: "notes_export", arguments: "{}" } };
 
     const requests = fakeModel([answer(null, [exportNotes]), answer("Exported.")]);
-    await chat(sessionId, shortResponsesAgentId, "Export the notes");
+    await send(chat, "Export the notes");
 
     const sent = requests[1]?.messages.find((message) => message.role === "tool")?.content;
     expect(sent).toContain("[Response truncated: 5000 characters, showing first 1000]");
@@ -541,27 +579,27 @@ describe("agent executor", () => {
     expect(stored.result).toBe(sent);
   });
 
-  it("limits what the tools of an answer return to the size of its context", async () => {
-    const sessionId = await createSession(smallContextAgentId);
+  it("truncates the tool responses to fit in the context", async () => {
+    const chat = await createChat({ maxContextChars: 300 });
 
     const requests = fakeModel([answer(null, [readNote]), answer(null, [readNote]), answer("The note says hello.")]);
-    await chat(sessionId, smallContextAgentId, "What does the note a say?");
+    await send(chat, "What does the note a say?");
 
     const sent = requests[2]?.messages.filter((message) => message.role === "tool").map((message) => message.content);
     expect(sent).toEqual([
-      expect.stringContaining("showing first 254]") as string,
+      expect.stringContaining("[Response truncated: 614 characters") as string,
       "\n\n[Response truncated: 614 characters, showing first 0]",
     ]);
   });
 
-  it("keeps the answer whose tools return characters that cannot be stored", async () => {
-    const sessionId = await createSession(agentId);
+  it("replaces the characters of tool responses that cannot be stored", async () => {
+    const chat = await createChat();
     const scanNotes = { id: "call-5", type: "function", function: { name: "notes_scan", arguments: "{}" } };
 
     const requests = fakeModel([answer(null, [scanNotes]), answer("Scanned.")]);
-    await chat(sessionId, agentId, "Scan the note");
+    await send(chat, "Scan the note");
 
     expect(requests[1]?.messages.at(-1)?.content).toBe("Scanned \uFFFD\uFFFD");
-    expect((await answers(sessionId)).map((message) => message.content)).toEqual(["Scanned."]);
+    expect((await answers(chat)).map((message) => message.content)).toEqual(["Scanned."]);
   });
 });

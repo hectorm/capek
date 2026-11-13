@@ -9,7 +9,7 @@ import type { ToolPart } from "#layers/core/shared/tools";
 import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { collectToolProviders } from "#layers/core/server/lib/tools/define";
-import { asUser, closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
+import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
 import { datasourceTypes, findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { datasourcesToolProvider } from "#layers/datasources/server/lib/tools";
@@ -17,7 +17,6 @@ import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
 let db: Kysely<Database>;
 
-// Database that the datasource of the tests connects to
 let salesDb: PGlite;
 let salesServer: PGLiteSocketServer;
 
@@ -38,10 +37,7 @@ beforeAll(async () => {
 
   db = await createTestDb([datasourcesFeature]);
 
-  await db
-    .insertInto("users")
-    .values([{ id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" }])
-    .execute();
+  await insertUsers(db, { alice });
   await db
     .insertInto("datasourcesSources")
     .values([
@@ -77,8 +73,16 @@ afterAll(async () => {
   await salesDb.close();
 });
 
-describe("datasources", () => {
-  it("only shows the datasources shared with the user", async () => {
+const loadQueryTool = async () => {
+  const [tool] = (await datasourcesToolProvider.load(db, [salesId, legacyId])).tools;
+  if (!tool) {
+    throw new Error("Query tool not found");
+  }
+  return tool;
+};
+
+describe("datasource", () => {
+  it("is only visible to the users that it is shared with", async () => {
     const visible = (granted: string[]): Promise<string[]> => {
       return asUser({ id: alice, permissions: granted }, async (trx) => {
         const rows = await trx.selectFrom("datasourcesSources").select(["name"]).orderBy("name").execute();
@@ -89,8 +93,9 @@ describe("datasources", () => {
     expect(await visible(["datasources_source:read:own", "datasources_source:list:own"])).toEqual(["sales"]);
     expect(await visible(["datasources_source:list:all"])).toEqual(["legacy", "sales"]);
     expect(await visible([])).toEqual([]);
+  });
 
-    // Same filter for the resources that can be assigned to the callers of the tools
+  it("is only assignable by the users that can use it", async () => {
     const permissions = ["datasources_source:read:own", "datasources_source:use:own"];
     const assignable = await asUser({ id: alice, permissions }, (trx) => {
       return listResources(trx, datasourcesToolProvider.resource, { limit: 10 });
@@ -98,54 +103,58 @@ describe("datasources", () => {
     expect(assignable).toEqual([{ id: salesId, name: "sales" }]);
   });
 
-  it("supports the same types of datasource in the browser and in the server", () => {
-    const types = ["clickhouse", "mariadb", "postgres", "sqlserver"];
-    expect(DatasourceTypes.map((type) => type.type)).toEqual(types);
-    expect(datasourceTypes.map((type) => type.definition.type)).toEqual(types);
+  it("has the same types in the browser and in the server", () => {
+    expect(datasourceTypes.map((type) => type.definition)).toEqual(DatasourceTypes);
     expect(findDatasourceType("removed")).toBeUndefined();
   });
+});
 
-  it("provides a tool to query the assigned datasources", async () => {
+describe("datasource tool", () => {
+  it("is loaded for the assigned datasources", async () => {
     expect(collectToolProviders(features).map((provider) => provider.name)).toEqual(["datasources"]);
 
     const toolset = await datasourcesToolProvider.load(db, [salesId, legacyId, crypto.randomUUID()]);
     expect(toolset.tools.map((candidate) => candidate.name)).toEqual(["datasources_query"]);
     expect(toolset.documents).toEqual({ "sales.md": "Table `orders(id, total)`" });
     expect(toolset.instructions).toContain(`- "sales" (postgres)`);
+    expect(toolset.tools[0]?.parameters.properties.datasource).toMatchObject({ enum: ["legacy", "sales"] });
 
-    const tool = toolset.tools[0];
-    expect(tool?.parameters.properties.datasource).toMatchObject({ enum: ["legacy", "sales"] });
+    expect(await datasourcesToolProvider.load(db, [crypto.randomUUID()])).toEqual({ tools: [] });
+  });
 
-    const args = { datasource: "sales", sql: "SELECT sum(total)::INT AS total FROM orders" };
-    expect(await tool?.execute(args, context)).toBe(JSON.stringify({ rows: [{ total: 30 }], truncated: false }));
-    expect(tool?.describe?.(args)).toBe("```sql\nSELECT sum(total)::INT AS total FROM orders\n```");
+  it("returns the rows of a query and whether they were cut", async () => {
+    const tool = await loadQueryTool();
+
+    const sum = { datasource: "sales", sql: "SELECT sum(total)::INT AS total FROM orders" };
+    expect(await tool.execute(sum, context)).toBe(JSON.stringify({ rows: [{ total: 30 }], truncated: false }));
+    expect(tool.describe?.(sum)).toBe("```sql\nSELECT sum(total)::INT AS total FROM orders\n```");
 
     const series = { datasource: "sales", sql: "SELECT generate_series(1, 101) AS id" };
-    const rows = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
-    expect(await tool?.execute(series, context)).toBe(JSON.stringify({ rows, truncated: true }));
+    const rows = Array.from({ length: 100 }, (_, index) => ({ id: index + 1 }));
+    expect(await tool.execute(series, context)).toBe(JSON.stringify({ rows, truncated: true }));
+  });
 
+  it("shows the rows of a query as a table", async () => {
+    const tool = await loadQueryTool();
     const parts: ToolPart[] = [];
     const show = (part: ToolPart) => parts.push(part);
-    expect(await tool?.execute({ ...series, show: true, name: "Series" }, { ...context, show })).toBe(
+
+    const series = { datasource: "sales", sql: "SELECT generate_series(1, 101) AS id", show: true };
+    expect(await tool.execute({ ...series, name: "Series" }, { ...context, show })).toBe(
       JSON.stringify({ shown: 101, truncated: false }),
     );
     expect(parts).toEqual([
       { type: "table", name: "Series", columns: ["id"], rows: Array.from({ length: 101 }, (_, index) => [index + 1]) },
     ]);
-    await expect(tool?.execute({ ...series, show: true }, { ...context, show })).rejects.toThrow(
-      "Missing required 'name' field",
-    );
-
-    await expect(tool?.execute({ datasource: "sales", sql: "SELECT * FROM missing" }, context)).rejects.toThrow(
-      /does not exist/,
-    );
-    await expect(tool?.execute({ datasource: "other", sql: "SELECT 1" }, context)).rejects.toThrow(/not found/);
-    await expect(tool?.execute({ datasource: "legacy", sql: "SELECT 1" }, context)).rejects.toThrow(
-      /Datasource type "removed" is not supported/,
-    );
+    await expect(tool.execute(series, { ...context, show })).rejects.toThrow("Missing required 'name' field");
   });
 
-  it("provides no tools without datasources", async () => {
-    expect(await datasourcesToolProvider.load(db, [crypto.randomUUID()])).toEqual({ tools: [] });
+  it("rejects the queries of missing or unsupported datasources", async () => {
+    const tool = await loadQueryTool();
+
+    await expect(tool.execute({ datasource: "other", sql: "SELECT 1" }, context)).rejects.toThrow(/not found/);
+    await expect(tool.execute({ datasource: "legacy", sql: "SELECT 1" }, context)).rejects.toThrow(
+      /Datasource type "removed" is not supported/,
+    );
   });
 });

@@ -33,3 +33,11 @@ export const asUser = <T>(
   } as unknown as AuthUser;
   return withUserTransaction(user, callback);
 };
+
+// Users are named by the keys of the object and take its values as IDs, so `{ alice }` adds "alice"
+export const insertUsers = async (db: Kysely<Database>, users: Record<string, string>): Promise<void> => {
+  const rows = Object.entries(users).map(([username, id]) => {
+    return { id, username, fullname: username, email: `${username}@example.com` };
+  });
+  await db.insertInto("users").values(rows).execute();
+};

@@ -2,10 +2,19 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "#layers/core/shared/schema";
+import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
 import aiFeature from "#layers/ai/server/feature";
 import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { asUser, closeDb, createAiTestDb, insertAgent, insertSkill } from "#layers/ai/tests/unit/helpers/db";
+import {
+  asUser,
+  closeDb,
+  createAiTestDb,
+  insertAgent,
+  insertLlmProvider,
+  insertSkill,
+  insertUsers,
+} from "#layers/ai/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
 import { grantResourceAccess, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { composeSecurity } from "#layers/core/server/lib/database/security";
@@ -17,26 +26,17 @@ const alice = crypto.randomUUID();
 const bob = crypto.randomUUID();
 const carolGroup = crypto.randomUUID();
 
-let ownedAgentId: string;
-let sharedAgentId: string;
 let groupAgentId: string;
 let orphanAgentId: string;
 
 beforeAll(async () => {
   db = await createAiTestDb();
 
-  await db
-    .insertInto("users")
-    .values([
-      { id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" },
-      { id: bob, username: "bob", fullname: "Bob", email: "bob@example.com" },
-    ])
-    .execute();
-
+  await insertUsers(db, { alice, bob });
   await db.insertInto("groups").values({ id: carolGroup, name: "carol-group", description: "" }).execute();
 
-  ownedAgentId = await insertAgent(db, "owned-agent");
-  sharedAgentId = await insertAgent(db, "shared-agent");
+  const ownedAgentId = await insertAgent(db, "owned-agent");
+  const sharedAgentId = await insertAgent(db, "shared-agent");
   groupAgentId = await insertAgent(db, "group-agent");
   orphanAgentId = await insertAgent(db, "orphan-agent");
 
@@ -54,75 +54,48 @@ afterAll(async () => {
   await closeDb();
 });
 
-const visibleAgentIds = (principal: { id: string; groups?: string[]; permissions?: string[] }): Promise<string[]> => {
-  return asUser(principal, async (trx) => {
-    const rows = await trx.selectFrom("aiAgents").select(["id"]).execute();
-    return rows.map((r) => r.id);
-  });
-};
+const own = ["ai_agent:read:own", "ai_agent:list:own"];
+const all = ["ai_agent:read:all", "ai_agent:list:all"];
 
-describe("rls agent visibility", () => {
-  it("hides agents a member neither owns nor was granted", async () => {
-    const ids = await visibleAgentIds({ id: bob, permissions: ["ai_agent:read:own", "ai_agent:list:own"] });
-    expect(ids).not.toContain(ownedAgentId);
-    expect(ids).not.toContain(sharedAgentId);
-    expect(ids).not.toContain(groupAgentId);
-    expect(ids).not.toContain(orphanAgentId);
-    expect(ids).toHaveLength(0);
-  });
-
-  it("shows an editor their granted agent under the own scope", async () => {
-    const ids = await visibleAgentIds({ id: alice, permissions: ["ai_agent:read:own", "ai_agent:list:own"] });
-    expect(ids).toContain(ownedAgentId);
-    expect(ids).toContain(sharedAgentId);
-    expect(ids).not.toContain(groupAgentId);
-    expect(ids).not.toContain(orphanAgentId);
-  });
-
-  it("propagates access through group membership", async () => {
-    const withGroup = await visibleAgentIds({
-      id: bob,
-      groups: [carolGroup],
-      permissions: ["ai_agent:read:own", "ai_agent:list:own"],
-    });
-    expect(withGroup).toContain(groupAgentId);
-
-    const withoutGroup = await visibleAgentIds({ id: bob, permissions: ["ai_agent:read:own", "ai_agent:list:own"] });
-    expect(withoutGroup).not.toContain(groupAgentId);
-  });
-
-  it("shows every agent to a principal with the all scope", async () => {
-    const ids = await visibleAgentIds({ id: bob, permissions: ["ai_agent:read:all", "ai_agent:list:all"] });
-    expect(ids).toContain(ownedAgentId);
-    expect(ids).toContain(sharedAgentId);
-    expect(ids).toContain(groupAgentId);
-    expect(ids).toContain(orphanAgentId);
-  });
-
-  it("hides everything from a principal with no agent permissions", async () => {
-    const ids = await visibleAgentIds({ id: bob, permissions: ["ai_chat:read:own"] });
-    expect(ids).toHaveLength(0);
+describe("agent visibility", () => {
+  it.each<{ principal: string; as: TestPrincipal; agents: string[] }>([
+    { principal: "a member without access", as: { id: bob, permissions: own }, agents: [] },
+    { principal: "an editor or user", as: { id: alice, permissions: own }, agents: ["owned-agent", "shared-agent"] },
+    { principal: "a group member", as: { id: bob, groups: [carolGroup], permissions: own }, agents: ["group-agent"] },
+    {
+      principal: "a principal with the all scope",
+      as: { id: bob, permissions: all },
+      agents: ["group-agent", "orphan-agent", "owned-agent", "shared-agent"],
+    },
+    {
+      principal: "a principal without agent permissions",
+      as: { id: bob, permissions: ["ai_chat:read:own"] },
+      agents: [],
+    },
+  ])("lets $principal read the agents that it can access", async ({ as, agents }) => {
+    const visible = await asUser(as, (trx) => trx.selectFrom("aiAgents").select(["name"]).orderBy("name").execute());
+    expect(visible.map((agent) => agent.name)).toEqual(agents);
   });
 });
 
-describe("rls shared resource principals", () => {
+describe("principal visibility", () => {
   const memberPermissions = [...CoreRolePermissions[Roles.Member], ...AiRolePermissions[Roles.Member]];
 
-  const visibleUserIds = (principal: { id: string; permissions: string[] }): Promise<string[]> => {
+  const visibleUserIds = (principal: TestPrincipal): Promise<string[]> => {
     return asUser(principal, async (trx) => {
       const rows = await trx.selectFrom("users").select(["id"]).execute();
       return rows.map((r) => r.id);
     });
   };
 
-  const visibleGroupIds = (principal: { id: string; permissions: string[] }): Promise<string[]> => {
+  const visibleGroupIds = (principal: TestPrincipal): Promise<string[]> => {
     return asUser(principal, async (trx) => {
       const rows = await trx.selectFrom("groups").select(["id"]).execute();
       return rows.map((r) => r.id);
     });
   };
 
-  it("covers every shared resource type in the visibility of users and groups", () => {
+  it("covers every shared resource type", () => {
     const statements = composeSecurity([coreFeature, aiFeature]);
     for (const policy of ["users_select", "groups_select"]) {
       const statement = statements.find((s) => s.includes(`CREATE POLICY ${policy} `)) ?? "";
@@ -132,18 +105,12 @@ describe("rls shared resource principals", () => {
     }
   });
 
-  it("lets editors see the principals a resource is shared with", async () => {
+  it("shows editors the principals that a resource is shared with", async () => {
     const dave = crypto.randomUUID();
     const erin = crypto.randomUUID();
     const frankGroup = crypto.randomUUID();
 
-    await db
-      .insertInto("users")
-      .values([
-        { id: dave, username: "dave", fullname: "Dave", email: "dave@example.com" },
-        { id: erin, username: "erin", fullname: "Erin", email: "erin@example.com" },
-      ])
-      .execute();
+    await insertUsers(db, { dave, erin });
     await db.insertInto("groups").values({ id: frankGroup, name: "frank-group", description: "" }).execute();
 
     expect(await visibleUserIds({ id: dave, permissions: memberPermissions })).toEqual([dave]);
@@ -169,7 +136,7 @@ describe("rls shared resource principals", () => {
   });
 });
 
-describe("rls shared resource access sync", () => {
+describe("resource access sync", () => {
   const memberPermissions = [...CoreRolePermissions[Roles.Member], ...AiRolePermissions[Roles.Member]];
 
   it("lets an editor move their editor access to a group they belong to", async () => {
@@ -198,7 +165,7 @@ describe("rls shared resource access sync", () => {
     expect(rows).toHaveLength(2);
   });
 
-  it("rejects removing access entries without being an editor", async () => {
+  it("rejects removing access without being an editor", async () => {
     const skillId = await insertSkill(db, "readonly-skill");
     await db
       .insertInto("aiSkillAccess")
@@ -218,32 +185,14 @@ describe("rls shared resource access sync", () => {
   });
 });
 
-describe("rls shared resource secrets", () => {
-  it("locks an LLM provider only for those who can update it", async () => {
+describe("resource secret", () => {
+  it("is only locked for update by an editor", async () => {
     const grace = crypto.randomUUID();
     const permissions = ["ai_llm_provider:create", "ai_llm_provider:update:own", "ai_llm_provider:use:own"];
 
-    await db
-      .insertInto("users")
-      .values({ id: grace, username: "grace", fullname: "Grace", email: "grace@example.com" })
-      .execute();
-
-    const llmProvider = await db
-      .insertInto("aiLlmProviders")
-      .values({
-        name: "locked-provider",
-        description: "",
-        apiUrl: "http://llm.localhost/v1",
-        apiType: "chat-completions",
-        apiKey: "hunter2",
-        headers: "[]",
-      })
-      .returning(["id"])
-      .executeTakeFirstOrThrow();
-    await db
-      .insertInto("aiLlmProviderAccess")
-      .values({ llmProviderId: llmProvider.id, userId: grace, role: "user" })
-      .execute();
+    await insertUsers(db, { grace });
+    const llmProviderId = await insertLlmProvider(db, "locked-provider");
+    await db.insertInto("aiLlmProviderAccess").values({ llmProviderId, userId: grace, role: "user" }).execute();
 
     // The connection test takes the secrets hidden in the form with this lock
     const lockedApiKey = (): Promise<string | undefined> => {
@@ -251,7 +200,7 @@ describe("rls shared resource secrets", () => {
         const row = await trx
           .selectFrom("aiLlmProviders")
           .select(["apiKey"])
-          .where("id", "=", llmProvider.id)
+          .where("id", "=", llmProviderId)
           .forUpdate()
           .executeTakeFirst();
         return row?.apiKey;
@@ -260,16 +209,13 @@ describe("rls shared resource secrets", () => {
 
     expect(await lockedApiKey()).toBeUndefined();
 
-    await db
-      .insertInto("aiLlmProviderAccess")
-      .values({ llmProviderId: llmProvider.id, userId: grace, role: "editor" })
-      .execute();
+    await db.insertInto("aiLlmProviderAccess").values({ llmProviderId, userId: grace, role: "editor" }).execute();
 
     expect(await lockedApiKey()).toBe("hunter2");
   });
 });
 
-describe("rls shared resource creation", () => {
+describe("resource creation", () => {
   const creatorPermissions = [...CoreRolePermissions[Roles.Creator], ...AiRolePermissions[Roles.Creator]];
   const ownAccess = [
     { id: alice, type: "user", role: "editor" },
@@ -291,7 +237,7 @@ describe("rls shared resource creation", () => {
     expect(rows.map((row) => row.role).toSorted()).toEqual(["editor", "user"]);
   });
 
-  it("does not let creators grant themselves access to the resources of others", async () => {
+  it("rejects creators granting themselves access to the resources of others", async () => {
     const skillId = await insertSkill(db, "existing-skill");
     await expect(
       asUser({ id: alice, permissions: creatorPermissions }, (trx) => {
@@ -300,7 +246,7 @@ describe("rls shared resource creation", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("does not let creators grant access to others while creating", async () => {
+  it("rejects creators granting access to others", async () => {
     const skillId = crypto.randomUUID();
     await expect(
       asUser({ id: alice, permissions: ["ai_skill:create"] }, async (trx) => {
@@ -311,7 +257,7 @@ describe("rls shared resource creation", () => {
   });
 });
 
-describe("rls chat ownership", () => {
+describe("chat ownership", () => {
   const permissions = [...AiRolePermissions[Roles.Member]];
   let sessionId: string;
 
@@ -351,7 +297,7 @@ describe("rls chat ownership", () => {
     await expect(write(alice)).resolves.toBeDefined();
   });
 
-  it("lets the owner of a chat keep, but not choose, an agent that they cannot use", async () => {
+  it("lets the owner keep an agent that they can no longer choose", async () => {
     const chat = await db
       .insertInto("aiChatSessions")
       .values({ userId: alice, agentId: orphanAgentId, title: "unshared" })
@@ -367,7 +313,7 @@ describe("rls chat ownership", () => {
     await expect(update({ agentId: groupAgentId })).rejects.toThrow(/row-level security/);
   });
 
-  it("keeps the roles of the server out of the reach of users", async () => {
+  it("rejects messages with the roles of the server", async () => {
     await expect(
       asUser({ id: alice, permissions }, (trx) => {
         return trx.insertInto("aiChatMessages").values({ sessionId, role: "assistant", content: "forged" }).execute();
@@ -375,16 +321,21 @@ describe("rls chat ownership", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("only shows the tables of a chat to its owner, who cannot write them", async () => {
-    const table = { sessionId, data: Buffer.from(""), size: 0 };
-    await db.insertInto("aiChatTables").values(table).execute();
+  it("only shows the tables of a chat to its owner", async () => {
+    await db
+      .insertInto("aiChatTables")
+      .values({ sessionId, data: Buffer.from(""), size: 0 })
+      .execute();
 
     const visibleTables = (userId: string) => {
       return asUser({ id: userId, permissions }, (trx) => trx.selectFrom("aiChatTables").select(["id"]).execute());
     };
     expect(await visibleTables(alice)).toHaveLength(1);
     expect(await visibleTables(bob)).toHaveLength(0);
+  });
 
+  it("rejects tables written by users", async () => {
+    const table = { sessionId, data: Buffer.from(""), size: 0 };
     await expect(
       asUser({ id: alice, permissions }, (trx) => trx.insertInto("aiChatTables").values(table).execute()),
     ).rejects.toThrow(/row-level security/);

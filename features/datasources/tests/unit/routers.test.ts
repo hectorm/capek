@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "#layers/core/shared/schema";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
-import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
+import { closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
 import { sourceRouter } from "#layers/datasources/server/trpc/routers/source";
 import { DatasourcesRolePermissions } from "#layers/datasources/shared/rbac";
@@ -25,10 +25,7 @@ const member = createCallerFactory(router)({ logger, user: { id: mallory, groups
 beforeAll(async () => {
   db = await createTestDb([datasourcesFeature]);
 
-  await db
-    .insertInto("users")
-    .values({ id: mallory, username: "mallory", fullname: "Mallory", email: "mallory@example.com" })
-    .execute();
+  await insertUsers(db, { mallory });
   await db
     .insertInto("datasourcesSources")
     .values({
@@ -47,8 +44,8 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("connection tests", () => {
-  it("are not run for those who can neither create nor update what they test", async () => {
+describe("connection test", () => {
+  it("is not run for users who can neither create nor update the resource", async () => {
     await expect(member.source.testConnection({ type: "postgres", config })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });

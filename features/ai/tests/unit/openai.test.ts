@@ -7,7 +7,13 @@ import {
   toChatCompletionsRequest,
 } from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
-import { createClient, readStream, streamOf } from "#layers/ai/tests/unit/helpers/llm";
+import {
+  chatCompletion,
+  chatCompletionStream,
+  createClient,
+  readStream,
+  streamOf,
+} from "#layers/ai/tests/unit/helpers/llm";
 
 const request: LlmRequest = {
   input: [{ type: "message", role: "user", content: "What is the weather in Madrid?" }],
@@ -15,38 +21,32 @@ const request: LlmRequest = {
   tools: [{ type: "function", name: "get_weather", parameters: { type: "object", properties: {} } }],
 };
 
-const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
+const madrid = { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } };
+const paris = { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } };
+const madridCall = {
+  type: "function_call",
+  call_id: "call-1",
+  name: "get_weather",
+  arguments: '{"city":"Madrid"}',
+} as const;
+const parisCall = {
+  type: "function_call",
+  call_id: "call-2",
+  name: "get_weather",
+  arguments: '{"city":"Paris"}',
+} as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("openai chat completions", () => {
-  it("uses the Chat Completions API of the providers set up with it", async () => {
+describe("OpenAI Chat Completions API", () => {
+  it("is used for the providers set up with it", async () => {
     const { client, sent, paths, headers } = createClient(() => {
-      return Response.json({
-        id: "chatcmpl-test",
-        object: "chat.completion",
-        created: 0,
-        model: "reasoner",
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: "assistant",
-              tool_calls: [
-                { id: "call-1", type: "function", function: { name: "get_weather", arguments: '{"city":"Madrid"}' } },
-              ],
-            },
-            finish_reason: "tool_calls",
-          },
-        ],
-      });
+      return Response.json(chatCompletion({ tool_calls: [madrid] }, "tool_calls"));
     });
 
-    await expect(client.completion(request)).resolves.toEqual({
-      output: [{ type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' }],
-    });
+    await expect(client.completion(request)).resolves.toEqual({ output: [madridCall] });
     expect(paths).toEqual(["/v1/chat/completions"]);
     expect(headers[0]?.get("authorization")).toBe("Bearer hunter2");
     expect(sent[0]).toMatchObject({
@@ -56,7 +56,7 @@ describe("openai chat completions", () => {
     });
   });
 
-  it("translates the conversation, the tools and the parameters of a request", () => {
+  it("translates a request", () => {
     const signature = { google: { thought_signature: "signature" } };
     const completionRequest: LlmRequest = {
       model: "reasoner",
@@ -70,8 +70,8 @@ describe("openai chat completions", () => {
         { type: "message", role: "user", content: "What is the weather in Madrid and in Paris?" },
         { type: "message", role: "assistant", content: "Let me check." },
         { type: "reasoning", encrypted_content: JSON.stringify(signature) },
-        { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
-        { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
+        madridCall,
+        parisCall,
         { type: "function_call_output", call_id: "call-1", output: "Sunny" },
         { type: "function_call_output", call_id: "call-2", output: "Rainy" },
         { type: "function_call", call_id: "call-3", name: "get_weather", arguments: '{"city":"Lyon"}' },
@@ -96,19 +96,7 @@ describe("openai chat completions", () => {
       messages: [
         { role: "system", content: "Be brief." },
         { role: "user", content: "What is the weather in Madrid and in Paris?" },
-        {
-          role: "assistant",
-          content: "Let me check.",
-          tool_calls: [
-            {
-              id: "call-1",
-              type: "function",
-              function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
-              extra_content: signature,
-            },
-            { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
-          ],
-        },
+        { role: "assistant", content: "Let me check.", tool_calls: [{ ...madrid, extra_content: signature }, paris] },
         { role: "tool", content: "Sunny", tool_call_id: "call-1" },
         { role: "tool", content: "Rainy", tool_call_id: "call-2" },
         {
@@ -133,67 +121,40 @@ describe("openai chat completions", () => {
     });
   });
 
-  it("keeps the text of an answer split in parts", () => {
-    const translated = fromChatCompletionsResponse({
-      id: "chatcmpl-1",
-      object: "chat.completion",
-      created: 0,
-      model: "reasoner",
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: [
-              { type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }], closed: true },
-              { type: "text", text: "Sunny" },
-            ],
-          },
-          finish_reason: "stop",
-        },
-      ],
-    });
+  it("keeps the text of a response split in parts", () => {
+    const content = [
+      { type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }], closed: true },
+      { type: "text", text: "Sunny" },
+    ];
 
-    expect(translated).toEqual({ output: [{ type: "message", role: "assistant", content: "Sunny" }] });
+    expect(fromChatCompletionsResponse(chatCompletion({ content }))).toEqual({
+      output: [{ type: "message", role: "assistant", content: "Sunny" }],
+    });
   });
 
-  it("tells when the model declines to answer or runs out of tokens", async () => {
-    const completion = (message: Record<string, unknown>, finishReason: string) => ({
-      id: "chatcmpl-test",
-      object: "chat.completion",
-      created: 0,
-      model: "reasoner",
-      choices: [{ index: 0, message: { role: "assistant", ...message }, finish_reason: finishReason }],
-    });
+  it.each([
+    { label: "cut", message: { content: "Once upon" }, finish: "length", details: { reason: "max_output_tokens" } },
+    { label: "filtered", message: { content: null }, finish: "content_filter", details: { reason: "content_filter" } },
+    {
+      label: "refused",
+      message: { content: null, refusal: "I cannot help" },
+      finish: "stop",
+      details: { reason: "content_filter", message: "I cannot help" },
+    },
+    { label: "complete", message: { content: "Done" }, finish: "stop", details: undefined },
+  ])("reports the incomplete details of a $label response", ({ message, finish, details }) => {
+    expect(fromChatCompletionsResponse(chatCompletion(message, finish)).incomplete_details).toEqual(details);
+  });
 
-    expect(fromChatCompletionsResponse(completion({ content: "Once upon" }, "length"))).toEqual({
-      output: [{ type: "message", role: "assistant", content: "Once upon" }],
-      incomplete_details: { reason: "max_output_tokens" },
-    });
-    expect(fromChatCompletionsResponse(completion({ content: null }, "content_filter")).incomplete_details).toEqual({
-      reason: "content_filter",
-    });
-    expect(
-      fromChatCompletionsResponse(completion({ content: null, refusal: "I cannot help with that" }, "stop"))
-        .incomplete_details,
-    ).toEqual({ reason: "content_filter", message: "I cannot help with that" });
-    expect(fromChatCompletionsResponse(completion({ content: "Done" }, "stop")).incomplete_details).toBeUndefined();
-
-    const reader = fromChatCompletionsStream(
-      streamOf([
-        { ...chunk, choices: [{ index: 0, delta: { role: "assistant", content: "Once upon" } }] },
-        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "length" }] },
-      ]),
-    ).getReader();
-    await reader.read();
-    expect((await reader.read()).value).toMatchObject({
+  it("reports why a streamed response is incomplete", async () => {
+    const cut = fromChatCompletionsStream(chatCompletionStream([{ content: "Once upon" }], "length")).getReader();
+    await cut.read();
+    expect((await cut.read()).value).toMatchObject({
       type: "response.completed",
       response: { incomplete_details: { reason: "max_output_tokens" } },
     });
 
-    const filtered = fromChatCompletionsStream(
-      streamOf([{ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "content_filter" }] }]),
-    ).getReader();
+    const filtered = fromChatCompletionsStream(chatCompletionStream([], "content_filter")).getReader();
     expect((await filtered.read()).value).toEqual({
       type: "response.completed",
       response: { output: [], incomplete_details: { reason: "content_filter", message: undefined } },
@@ -206,132 +167,93 @@ describe("openai chat completions", () => {
     );
   });
 
-  it("keeps the text of a streamed answer split in parts", async () => {
-    const deltas = [
-      [{ type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }] }],
-      [{ type: "text", text: "Sun" }],
-      "ny",
-    ];
-    const stream = fromChatCompletionsStream(
-      streamOf([
-        ...deltas.map((content) => ({ ...chunk, choices: [{ index: 0, delta: { content } }] })),
-        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
-      ]),
-    );
+  it("keeps the text of a streamed response split in parts", async () => {
+    const stream = chatCompletionStream([
+      { content: [{ type: "thinking", thinking: [{ type: "text", text: "It is about Madrid" }] }] },
+      { content: [{ type: "text", text: "Sun" }] },
+      { content: "ny" },
+    ]);
 
-    const { text, output } = await readStream(stream);
+    const { text, output } = await readStream(fromChatCompletionsStream(stream));
     expect(text).toBe("Sunny");
     expect(output).toEqual([{ type: "message", role: "assistant", content: "Sunny" }]);
   });
 
-  it("fails a streamed answer that is cut or that fails before it ends", async () => {
-    const delta = { ...chunk, choices: [{ index: 0, delta: { content: "Sun" } }] };
-    await expect(readStream(fromChatCompletionsStream(streamOf([delta])))).rejects.toThrow(
-      "the answer ended before it was complete",
-    );
-    await expect(
-      readStream(fromChatCompletionsStream(streamOf([delta, { error: { message: "Overloaded" } }]))),
-    ).rejects.toThrow("Overloaded");
+  it("fails a streamed response that is cut or fails", async () => {
+    const cut = chatCompletionStream([{ content: "Sun" }], null);
+    await expect(readStream(fromChatCompletionsStream(cut))).rejects.toThrow("the answer ended before it was complete");
+
+    const delta = { object: "chat.completion.chunk", choices: [{ index: 0, delta: { content: "Sun" } }] };
+    const failed = streamOf([delta, { error: { message: "Overloaded" } }]);
+    await expect(readStream(fromChatCompletionsStream(failed))).rejects.toThrow("Overloaded");
   });
 
-  it("reads the streamed tool calls of a provider that sends null for the fields it leaves out", async () => {
+  it("reads streamed tool calls with null fields", async () => {
     const toolCall = { index: 0, type: "function" };
-    const deltas = [
-      { role: "assistant", content: "" },
-      {
-        role: null,
-        content: null,
-        tool_calls: [{ ...toolCall, id: "call-1", function: { name: "get_weather", arguments: "" } }],
-      },
-      {
-        role: null,
-        content: null,
-        tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '{"city":' } }],
-      },
-      {
-        role: null,
-        content: null,
-        tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '"Madrid"}' } }],
-      },
-    ];
-    const stream = fromChatCompletionsStream(
-      streamOf([
-        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
-        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
-      ]),
+    const stream = chatCompletionStream(
+      [
+        { role: "assistant", content: "" },
+        {
+          role: null,
+          content: null,
+          tool_calls: [{ ...toolCall, id: "call-1", function: { name: "get_weather", arguments: "" } }],
+        },
+        {
+          role: null,
+          content: null,
+          tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '{"city":' } }],
+        },
+        {
+          role: null,
+          content: null,
+          tool_calls: [{ ...toolCall, id: null, function: { name: null, arguments: '"Madrid"}' } }],
+        },
+      ],
+      "tool_calls",
     );
 
-    const { output } = await readStream(stream);
-    expect(output).toEqual([
-      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
-    ]);
+    const { output } = await readStream(fromChatCompletionsStream(stream));
+    expect(output).toEqual([madridCall]);
   });
 
-  it("joins the streamed arguments of a provider that sends the ID and the name of a call with each delta", async () => {
-    const toolCall = (index: number, id: string, args: string) => ({
-      index,
-      id,
-      type: "function",
-      function: { name: "get_weather", arguments: args },
-    });
-    const deltas = [
-      { tool_calls: [toolCall(0, "call-1", '{"city":')] },
-      { tool_calls: [toolCall(0, "call-1", '"Madrid"}')] },
-      { tool_calls: [toolCall(1, "call-2", '{"city":"Paris"}')] },
-    ];
-    const stream = fromChatCompletionsStream(
-      streamOf([
-        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
-        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
-      ]),
+  it("joins streamed arguments that repeat the ID and the name of the call", async () => {
+    const toolCall = (index: number, id: string, args: string) => {
+      return { index, id, type: "function", function: { name: "get_weather", arguments: args } };
+    };
+    const stream = chatCompletionStream(
+      [
+        { tool_calls: [toolCall(0, "call-1", '{"city":')] },
+        { tool_calls: [toolCall(0, "call-1", '"Madrid"}')] },
+        { tool_calls: [toolCall(1, "call-2", '{"city":"Paris"}')] },
+      ],
+      "tool_calls",
     );
 
-    const { output } = await readStream(stream);
-    expect(output).toEqual([
-      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
-      { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
-    ]);
+    const { output } = await readStream(fromChatCompletionsStream(stream));
+    expect(output).toEqual([madridCall, parisCall]);
   });
 
-  it("keeps the streamed tool calls without an index and the data that the provider needs back with them", async () => {
+  it("keeps streamed tool calls without an index and their provider data", async () => {
     const signature = { google: { thought_signature: "signature" } };
-    const deltas = [
-      {
-        role: "assistant",
-        tool_calls: [
-          {
-            id: "call-1",
-            type: "function",
-            function: { name: "get_weather", arguments: '{"city":"Madrid"}' },
-            extra_content: signature,
-          },
-        ],
-      },
-      {
-        role: "assistant",
-        tool_calls: [
-          { id: "call-2", type: "function", function: { name: "get_weather", arguments: '{"city":"Paris"}' } },
-        ],
-      },
-    ];
-    const stream = fromChatCompletionsStream(
-      streamOf([
-        ...deltas.map((delta) => ({ ...chunk, choices: [{ index: 0, delta }] })),
-        { ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] },
-      ]),
+    const stream = chatCompletionStream(
+      [
+        { role: "assistant", tool_calls: [{ ...madrid, extra_content: signature }] },
+        { role: "assistant", tool_calls: [paris] },
+      ],
+      "tool_calls",
     );
 
-    const { output } = await readStream(stream);
+    const { output } = await readStream(fromChatCompletionsStream(stream));
     expect(output).toEqual([
       { type: "reasoning", encrypted_content: JSON.stringify(signature) },
-      { type: "function_call", call_id: "call-1", name: "get_weather", arguments: '{"city":"Madrid"}' },
-      { type: "function_call", call_id: "call-2", name: "get_weather", arguments: '{"city":"Paris"}' },
+      madridCall,
+      parisCall,
     ]);
   });
 });
 
-describe("openai responses", () => {
-  it("uses the Responses API of the providers set up with it", async () => {
+describe("OpenAI Responses API", () => {
+  it("is used for the providers set up with it", async () => {
     const { client, sent, paths, headers } = createClient(() => {
       return Response.json({
         id: "resp-test",
@@ -354,7 +276,7 @@ describe("openai responses", () => {
     });
   });
 
-  it("translates the conversation, the tools and the parameters of a request", () => {
+  it("translates a request", () => {
     const completionRequest: LlmRequest = {
       model: "reasoner",
       stream: true,
@@ -417,7 +339,7 @@ describe("openai responses", () => {
     });
   });
 
-  it("translates the reasoning, the answer and the tool calls of a response", () => {
+  it("translates a response", () => {
     const translated = fromResponsesResponse({
       id: "resp-1",
       created_at: 1700000000,
@@ -445,7 +367,7 @@ describe("openai responses", () => {
     });
   });
 
-  it("tells when the model declines to answer or runs out of tokens", () => {
+  it("reports why a response is incomplete", () => {
     const response = { id: "resp-1", model: "reasoner", output: [] };
 
     expect(
@@ -475,7 +397,7 @@ describe("openai responses", () => {
     expect(() => fromResponsesResponse({ id: "resp-1" })).toThrow("Invalid AI service completion response format");
   });
 
-  it("translates the events of a streamed response", async () => {
+  it("translates a streamed response", async () => {
     const response = { id: "resp-1", created_at: 1700000000, model: "reasoner" };
     const output = [
       { type: "reasoning", summary: [], encrypted_content: "encrypted" },
@@ -511,7 +433,7 @@ describe("openai responses", () => {
     ]);
   });
 
-  it("fails the stream of a response that fails", async () => {
+  it("fails a streamed response that fails", async () => {
     const stream = fromResponsesStream(
       streamOf([
         { type: "response.output_text.delta", output_index: 0, delta: "Let me " },

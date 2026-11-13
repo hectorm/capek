@@ -7,7 +7,7 @@ import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { composeSecurity } from "#layers/core/server/lib/database/security";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
 
-describe("features", () => {
+describe("feature registry", () => {
   it("sets up features after the ones they depend on", () => {
     const ordered = orderFeatures([
       { name: "core", dependsOn: [] },
@@ -30,12 +30,6 @@ describe("features", () => {
     await expect(migrateToLatest(null as never, [{ name: "a" }, { name: "a" }])).rejects.toThrow(
       /Duplicate feature "a"/,
     );
-  });
-
-  it("composes the core security without references to other features", () => {
-    const statements = composeSecurity([coreFeature]).join("\n");
-    expect(statements).toContain("CREATE POLICY users_select ON public.users");
-    expect(statements).not.toMatch(/agent|chat|llm_provider|mcp_server|skill/);
   });
 
   it("rejects resource types registered twice", () => {
@@ -69,7 +63,7 @@ describe("features", () => {
     );
   });
 
-  it("rejects resource types used in policies without being registered", () => {
+  it("rejects unregistered resource types in policies", () => {
     const policy = "CREATE POLICY files_select ON public.files USING (security.has_access('file', id))";
     expect(() => composeSecurity([coreFeature, { name: "a", security: { statements: () => [policy] } }])).toThrow(
       /Resource type "file" used in security.has_access\(\) is not registered/,

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { describeError } from "#layers/ai/server/lib/errors";
 
-describe("errors", () => {
-  it("describes an error with the reason that caused it", () => {
+describe("error description", () => {
+  it("includes the causes of an error", () => {
     const refused = new Error("connect ECONNREFUSED 127.0.0.1:8080");
     const refusedToo = new Error("connect ECONNREFUSED ::1:8080");
 

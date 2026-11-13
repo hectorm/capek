@@ -9,7 +9,7 @@ const render = (markdown: string): HTMLElement => {
   return container;
 };
 
-describe("markdown of the messages", () => {
+describe("message markdown", () => {
   it("renders the formatting of an answer", () => {
     const html = render(
       ["# Title", "", "Some **bold** text with a [link](https://example.com).", "", "- [x] done", "- [ ] pending"].join(
@@ -27,7 +27,7 @@ describe("markdown of the messages", () => {
     ]);
   });
 
-  it("splits an answer in blocks that render like the whole of it", () => {
+  it("splits an answer into blocks that render like the whole answer", () => {
     const markdown = [
       "# Title",
       "",
@@ -59,7 +59,7 @@ describe("markdown of the messages", () => {
     expect(mdToBlocks("See [the docs][docs].\n\n[docs]: https://example.com")).toHaveLength(1);
   });
 
-  it("drops the scripts, the styles and the classes that would change the application", () => {
+  it("drops the scripts, styles and classes that would change the application", () => {
     const html = render(
       [
         "Summary.",
@@ -80,7 +80,7 @@ describe("markdown of the messages", () => {
     expect(html.textContent).toContain("text");
   });
 
-  it("drops the forms that would send away what is typed in them", () => {
+  it("drops the forms that would submit what is typed in them", () => {
     const html = render(
       [
         "Summary.",

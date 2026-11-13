@@ -24,16 +24,18 @@ afterAll(async () => {
   await closeDb();
 });
 
-const usernames = async (order: "asc" | "desc", orderBy: string): Promise<string[]> => {
+const page = (orderBy: string, order: "asc" | "desc", cursor?: PageCursor) => {
+  const query = db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page");
+  return paginate(query, { table: "users", orderBy, order, limit: 3, cursor });
+};
+
+const usernames = async (orderBy: string, order: "asc" | "desc"): Promise<string[]> => {
   const all: string[] = [];
   let cursor: PageCursor | undefined;
   for (let pages = 0; pages < 10; pages++) {
-    const page = await paginate(
-      db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"),
-      { table: "users", orderBy, order, limit: 3, cursor },
-    );
-    all.push(...page.rows.map((row) => row.username));
-    cursor = page.nextCursor;
+    const current = await page(orderBy, order, cursor);
+    all.push(...current.rows.map((row) => row.username));
+    cursor = current.nextCursor;
     if (!cursor) {
       break;
     }
@@ -44,41 +46,37 @@ const usernames = async (order: "asc" | "desc", orderBy: string): Promise<string
 describe("pagination", () => {
   const users = [1, 2, 3, 4, 5, 6, 7].map((n) => `page${String(n)}`);
 
-  it("returns every row once when their order is closer than a date can tell", async () => {
-    expect(await usernames("asc", "createdAt")).toEqual(users);
-    expect(await usernames("desc", "createdAt")).toEqual(users.toReversed());
+  it("returns every row once when values tie within the date precision", async () => {
+    expect(await usernames("createdAt", "asc")).toEqual(users);
+    expect(await usernames("createdAt", "desc")).toEqual(users.toReversed());
   });
 
-  it("orders by the ID the rows with the same value", async () => {
+  it("orders the rows with the same value by ID", async () => {
     const ordered = await db
       .selectFrom("users")
       .select(["username"])
       .where("fullname", "=", "Page")
       .orderBy("id")
       .execute();
-    expect(await usernames("asc", "fullname")).toEqual(ordered.map((row) => row.username));
+    expect(await usernames("fullname", "asc")).toEqual(ordered.map((row) => row.username));
   });
 
-  it("continues after the row of the cursor when it changes or is gone", async () => {
-    const pageAfter = (cursor?: PageCursor) => {
-      return paginate(
-        db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page"),
-        {
-          table: "users",
-          orderBy: "username",
-          order: "asc",
-          limit: 3,
-          cursor,
-        },
-      );
-    };
-    const first = await pageAfter();
+  it("continues after the cursor row when it changes or is gone", async () => {
+    const first = await page("username", "asc");
     const lastId = first.rows.at(-1)?.id ?? "";
 
     await db.updateTable("users").set({ username: "page9" }).where("id", "=", lastId).execute();
-    expect((await pageAfter(first.nextCursor)).rows.map((row) => row.username)).toEqual(["page4", "page5", "page6"]);
+    expect((await page("username", "asc", first.nextCursor)).rows.map((row) => row.username)).toEqual([
+      "page4",
+      "page5",
+      "page6",
+    ]);
 
     await db.deleteFrom("users").where("id", "=", lastId).execute();
-    expect((await pageAfter(first.nextCursor)).rows.map((row) => row.username)).toEqual(["page4", "page5", "page6"]);
+    expect((await page("username", "asc", first.nextCursor)).rows.map((row) => row.username)).toEqual([
+      "page4",
+      "page5",
+      "page6",
+    ]);
   });
 });

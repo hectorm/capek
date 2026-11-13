@@ -14,8 +14,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("anthropic messages", () => {
-  it("uses the Messages API of the providers set up with it", async () => {
+describe("Anthropic Messages API", () => {
+  it("is used for the providers set up with it", async () => {
     const { client, sent, paths, headers } = createClient(() => {
       return Response.json({
         id: "msg-test",
@@ -39,7 +39,7 @@ describe("anthropic messages", () => {
     });
   });
 
-  it("translates the conversation, the tools and the parameters of a request", () => {
+  it("translates a request", () => {
     const completionRequest: LlmRequest = {
       model: "reasoner",
       stream: true,
@@ -106,11 +106,11 @@ describe("anthropic messages", () => {
     });
   });
 
-  it("limits the tokens of a request that does not", () => {
+  it("sets a token limit on a request without one", () => {
     expect(toMessagesRequest(request).max_tokens).toBe(8192);
   });
 
-  it("translates the thinking, the answer and the tool calls of a response", () => {
+  it("translates a response", () => {
     const translated = fromMessagesResponse({
       id: "msg-1",
       model: "reasoner",
@@ -134,7 +134,7 @@ describe("anthropic messages", () => {
     });
   });
 
-  it("tells when the model declines to answer or runs out of tokens", async () => {
+  it("reports why a response is incomplete", () => {
     const response = { id: "msg-1", model: "reasoner", content: [] };
 
     expect(
@@ -151,7 +151,9 @@ describe("anthropic messages", () => {
       output: [{ type: "message", role: "assistant", content: "Once upon" }],
       incomplete_details: { reason: "max_output_tokens" },
     });
+  });
 
+  it("reports why a streamed response is incomplete", async () => {
     const reader = fromMessagesStream(
       streamOf([
         { type: "message_start", message: { id: "msg-1", model: "reasoner", content: [] } },
@@ -169,7 +171,7 @@ describe("anthropic messages", () => {
     expect(() => fromMessagesResponse({ id: "msg-1" })).toThrow("Invalid AI service completion response format");
   });
 
-  it("translates the events of a streamed response", async () => {
+  it("translates a streamed response", async () => {
     const stream = fromMessagesStream(
       streamOf([
         {
@@ -215,7 +217,7 @@ describe("anthropic messages", () => {
     ]);
   });
 
-  it("fails the stream of a response that fails", async () => {
+  it("fails a streamed response that fails", async () => {
     const stream = fromMessagesStream(
       streamOf([
         { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },

@@ -18,7 +18,7 @@ const chart = async (option: unknown, show?: (part: ToolPart) => void): Promise<
 };
 
 describe("chart tool", () => {
-  it("shows the chart of an option to the user", async () => {
+  it("shows the chart of an option", async () => {
     const option = {
       xAxis: { type: "category", data: ["a", "b"] },
       yAxis: {},
@@ -29,7 +29,6 @@ describe("chart tool", () => {
     expect(await chart(option, (part) => parts.push(part))).toBe("The chart was shown to the user");
     expect(parts).toEqual([{ type: "chart", name: "Notes", option }]);
 
-    // The points of the series can also come from a dataset
     const dataset = {
       dataset: { source: [["a", 1]] },
       xAxis: { type: "category" },
@@ -43,7 +42,7 @@ describe("chart tool", () => {
     ]);
   });
 
-  it("rejects an option that is not one of a chart or cannot be shown", async () => {
+  it("rejects an option that is not a valid chart", async () => {
     const parts: ToolPart[] = [];
     const show = (part: ToolPart): void => {
       parts.push(part);
@@ -60,7 +59,7 @@ describe("chart tool", () => {
     expect(parts).toEqual([]);
   });
 
-  it("rejects what would not be drawn as it is written, telling how to write it", async () => {
+  it("rejects an option that would not be drawn as written", async () => {
     const bars = { xAxis: { type: "category", data: ["a"] }, yAxis: {}, series: [{ type: "bar", data: [1] }] };
     const show = (): void => undefined;
 

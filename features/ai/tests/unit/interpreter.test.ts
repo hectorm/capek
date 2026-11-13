@@ -44,7 +44,7 @@ describe("code interpreter", () => {
     expect(execution.result).toBeNull();
   });
 
-  it("stops code that never ends without holding up the server", async () => {
+  it("stops code that runs too long without blocking the server", async () => {
     let execution: Awaited<ReturnType<typeof executeCode>> | undefined;
     const stall = await longestStall(async () => {
       execution = await executeCode(`while (true) {}`, options({ maxExecutionMs: 500 }));
@@ -54,7 +54,7 @@ describe("code interpreter", () => {
     expect(stall).toBeLessThan(250);
   });
 
-  it("limits the memory that the code and its output take", async () => {
+  it("limits the memory of the code and its output", async () => {
     const exhausted = await executeCode(
       `const chunks = []; try { for (;;) chunks.push(new Uint8Array(1_000_000)); } catch { return chunks.length; }`,
       options(),
@@ -75,7 +75,7 @@ describe("code interpreter", () => {
     expect(execution.executionMs).toBeLessThan(2_000);
   });
 
-  it("keeps the files that the code writes in its workspace", async () => {
+  it("keeps the files that the code writes to its workspace", async () => {
     const vfs = createVFS([], []);
     const written = await executeCode(
       `fs.writeFileSync("/workspace/notes.txt", "hello"); fs.mkdirSync("/workspace/data"); return fs.readdirSync("/workspace");`,
@@ -93,14 +93,14 @@ describe("code interpreter", () => {
     expect(vfs.exists("/workspace/notes.txt")).toBe(false);
   });
 
-  it("only lets the code write in its workspace", async () => {
+  it("only lets the code write to its workspace", async () => {
     const vfs = createVFS([], []);
     const execution = await executeCode(`fs.writeFileSync("/skills/index.js", "export {}");`, options({ vfs }));
     expect(execution.error).toContain("EACCES");
     expect(vfs.readFile("/skills/index.js")).toBe("\n");
   });
 
-  it("has a workspace before anything is written to it", async () => {
+  it("starts with an empty workspace", async () => {
     const execution = await executeCode(
       `return [fs.existsSync("/workspace"), fs.readdirSync("/workspace")];`,
       options({ vfs: createVFS([], []) }),

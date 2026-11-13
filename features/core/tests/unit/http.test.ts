@@ -12,8 +12,8 @@ const stored: Endpoint = {
 
 const hiddenHeaders = [{ name: "X-Token", value: HttpRedactedValue }];
 
-describe("endpoint secrets", () => {
-  it("takes what was not sent, and what was left hidden, from the stored endpoint", () => {
+describe("endpoint secret", () => {
+  it("is taken from the stored endpoint when missing or hidden", () => {
     expect(unredactEndpoint({}, stored)).toEqual(stored);
     expect(unredactEndpoint({ url: stored.url, apiKey: HttpRedactedValue, headers: hiddenHeaders }, stored)).toEqual(
       stored,
@@ -25,17 +25,18 @@ describe("endpoint secrets", () => {
     });
   });
 
-  it("does not send the stored secrets to another URL", () => {
+  it("is not sent to another URL", () => {
     const url = "https://attacker.example/v1";
 
-    expect(() => unredactEndpoint({ url }, stored)).toThrow(/have to be entered again/);
-    expect(() => unredactEndpoint({ url, apiKey: "typed-key" }, stored)).toThrow(/have to be entered again/);
-    expect(() => unredactEndpoint({ url, apiKey: "typed-key", headers: hiddenHeaders }, stored)).toThrow(
-      /have to be entered again/,
-    );
-    expect(() => unredactEndpoint({ url, apiKey: HttpRedactedValue, headers: [] }, stored)).toThrow(
-      /have to be entered again/,
-    );
+    const sentWithStoredSecrets = [
+      { url },
+      { url, apiKey: "typed-key" },
+      { url, apiKey: "typed-key", headers: hiddenHeaders },
+      { url, apiKey: HttpRedactedValue, headers: [] },
+    ];
+    for (const sent of sentWithStoredSecrets) {
+      expect(() => unredactEndpoint(sent, stored)).toThrow(/have to be entered again/);
+    }
 
     const headers = [{ name: "X-Token", value: "typed-token" }];
     expect(unredactEndpoint({ url, apiKey: "typed-key", headers }, stored)).toEqual({
@@ -45,7 +46,7 @@ describe("endpoint secrets", () => {
     });
   });
 
-  it("moves the endpoints that have no secrets, and leaves empty the hidden ones that are not stored", () => {
+  it("is not needed to move an endpoint without secrets", () => {
     const url = "https://other.example/v1";
 
     expect(unredactEndpoint({ url }, { url: stored.url, apiKey: "", headers: [] })).toEqual({
@@ -53,6 +54,11 @@ describe("endpoint secrets", () => {
       apiKey: "",
       headers: [],
     });
+  });
+
+  it("is left empty when hidden and not stored", () => {
+    const url = "https://other.example/v1";
+
     expect(unredactEndpoint({ url, apiKey: HttpRedactedValue, headers: hiddenHeaders }, undefined)).toEqual({
       url,
       apiKey: "",

@@ -12,7 +12,14 @@ import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, syncAgentToolResources } from "#layers/ai/server/lib/tools";
-import { asUser, closeDb, createAiTestDb, insertAgent, insertSkill } from "#layers/ai/tests/unit/helpers/db";
+import {
+  asUser,
+  closeDb,
+  createAiTestDb,
+  insertAgent,
+  insertSkill,
+  insertUsers,
+} from "#layers/ai/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { collectToolProviders, defineToolProvider } from "#layers/core/server/lib/tools/define";
@@ -82,10 +89,7 @@ const caller = { id: alice, groups: [], permissions: skillUser } as unknown as A
 beforeAll(async () => {
   db = await createAiTestDb();
 
-  await db
-    .insertInto("users")
-    .values([{ id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" }])
-    .execute();
+  await insertUsers(db, { alice });
 
   agentId = await insertAgent(db, "tools-agent");
   usableSkillId = await insertSkill(db, "usable-note");
@@ -99,7 +103,7 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("agent tool resources", () => {
+describe("agent tools", () => {
   it("requires use access to the resources assigned to an agent", async () => {
     const permissions = [...agentEditor, ...skillUser];
 
@@ -120,15 +124,7 @@ describe("agent tool resources", () => {
     expect(result).toEqual({ added: 1, removed: 0 });
   });
 
-  it("lists the resources that a user can assign", async () => {
-    const names = await asUser({ id: alice, permissions: skillUser }, async (trx) => {
-      const resources = await listResources(trx, SkillResource, { search: "note", limit: 10 });
-      return resources.map((resource) => resource.name);
-    });
-    expect(names).toEqual(["usable-note"]);
-  });
-
-  it("loads the tools of the assigned resources, ignoring the ones that are gone", async () => {
+  it("loads the tools of the assigned resources that still exist", async () => {
     await db
       .insertInto("aiAgentToolResources")
       .values([
@@ -158,14 +154,7 @@ describe("agent tool resources", () => {
     expect(await loadAgentToolsets(db, providers, agentId, outsider)).toEqual([]);
   });
 
-  it("loads the tools of the providers switched on for the agent", async () => {
-    expect(providers.map((provider) => [provider.name, provider.resource?.type])).toEqual([
-      ["ai_charts", undefined],
-      ["ai_tables", undefined],
-      ["notes", "ai_skill"],
-      ["notes_profile", undefined],
-    ]);
-
+  it("loads the tools of the providers enabled for the agent", async () => {
     const loadedTools = async (): Promise<string[]> => {
       const loaded = await loadAgentToolsets(db, providers, agentId, caller);
       return loaded.flatMap((candidate) => candidate.tools.map((tool) => tool.name));

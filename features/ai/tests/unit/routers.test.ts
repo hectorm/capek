@@ -11,7 +11,7 @@ import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { closeDb, createAiTestDb } from "#layers/ai/tests/unit/helpers/db";
+import { closeDb, createAiTestDb, insertLlmProvider, insertUsers } from "#layers/ai/tests/unit/helpers/db";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
@@ -49,26 +49,8 @@ beforeAll(async () => {
 
   db = await createAiTestDb();
 
-  await db
-    .insertInto("users")
-    .values([
-      { id: alice, username: "alice", fullname: "Alice", email: "alice@example.com" },
-      { id: mallory, username: "mallory", fullname: "Mallory", email: "mallory@example.com" },
-    ])
-    .execute();
-
-  await db
-    .insertInto("aiLlmProviders")
-    .values({
-      id: llmProviderId,
-      name: "provider",
-      description: "",
-      apiUrl: `${endpointUrl}/v1`,
-      apiType: "chat-completions",
-      apiKey: "",
-      headers: JSON.stringify([]),
-    })
-    .execute();
+  await insertUsers(db, { alice, mallory });
+  await insertLlmProvider(db, "provider", { id: llmProviderId, apiUrl: `${endpointUrl}/v1`, apiKey: "" });
   await db.insertInto("aiLlmProviderAccess").values({ llmProviderId, userId: mallory, role: "user" }).execute();
 
   await db
@@ -95,8 +77,8 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("connection tests", () => {
-  it("are not run for those who can neither create nor update what they test", async () => {
+describe("connection test", () => {
+  it("is not run for users who can neither create nor update the resource", async () => {
     const member = as(mallory, Roles.Member);
     const apiUrl = `${endpointUrl}/v1`;
     const url = `${endpointUrl}/mcp`;
@@ -115,7 +97,7 @@ describe("connection tests", () => {
     expect(requests).toEqual([]);
   });
 
-  it("are run for those who can create what they test, and tell the start of what a failed request answers", async () => {
+  it("reports the start of a failed response to users who can create the resource", async () => {
     const creator = as(alice, Roles.Creator);
 
     const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/v1`, apiKey: "typed-key" });
@@ -133,7 +115,7 @@ describe("connection tests", () => {
     expect(requests).toEqual(["GET /v1/models Bearer typed-key", "POST /mcp -"]);
   });
 
-  it("do not follow redirects", async () => {
+  it("does not follow redirects", async () => {
     const creator = as(alice, Roles.Creator);
 
     const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/moved`, apiKey: "key" });
@@ -152,8 +134,8 @@ describe("connection tests", () => {
   });
 });
 
-describe("tool discoveries", () => {
-  it("are not repeated at once for the servers that gave no tools", async () => {
+describe("tool discovery", () => {
+  it("is not repeated at once for a server without tools", async () => {
     await expect(ensureToolsDiscovered(db, mcpServerId)).rejects.toThrow(/status 403/);
     expect(await ensureToolsDiscovered(db, mcpServerId)).toEqual([]);
 
@@ -161,8 +143,8 @@ describe("tool discoveries", () => {
   });
 });
 
-describe("access lists", () => {
-  it("are only given for the resources that can be read", async () => {
+describe("access list", () => {
+  it("is only given for a readable resource", async () => {
     const member = as(mallory, Roles.Member);
 
     expect(await member.llmProvider.listAccess({ llmProviderId })).toHaveLength(1);

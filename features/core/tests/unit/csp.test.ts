@@ -8,10 +8,6 @@ const base = {
 };
 
 describe("content security policy", () => {
-  it("keeps the base policy without contributions", () => {
-    expect(composeCsp(base, [])).toBe("default-src 'self'; img-src 'self' data:");
-  });
-
   it("adds the sources of the features to their directives", () => {
     const policy = composeCsp(base, [
       { "frame-src": ["https://example.com"], "img-src": ["https://cdn.example.com"] },

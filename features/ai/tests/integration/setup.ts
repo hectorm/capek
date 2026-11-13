@@ -1,4 +1,3 @@
-// Seed data of the integration tests, merged with the one of other features
 export default {
   seed: {
     ai: {
@@ -6,26 +5,6 @@ export default {
         {
           name: "Mock LLM Chat Completions",
           apiUrl: "http://localhost:51235/v1",
-          apiKey: "hunter2",
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock LLM Responses",
-          apiUrl: "http://localhost:51236/v1",
-          apiType: "responses",
-          apiKey: "hunter2",
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock LLM Messages",
-          apiUrl: "http://localhost:51237/v1",
-          apiType: "messages",
           apiKey: "hunter2",
           access: {
             editors: { users: ["admin"] },
@@ -155,85 +134,7 @@ export default {
           priority: 1,
           llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
-          specialists: ["Mock specialist tool agent", "Mock specialist code agent"],
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Responses tool agent",
-          description: "A specialist agent of a provider with the Responses API",
-          instructions: "You are a helpful specialist agent used for testing.",
-          type: "specialist",
-          llmProvider: "Mock LLM Responses",
-          model: "goody-2",
-          mcpServers: ["Mock MCP"],
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Responses reasoning agent",
-          description: "A specialist agent with a reasoning effort of a provider with the Responses API",
-          instructions: "You are a helpful specialist agent used for testing.",
-          type: "specialist",
-          llmProvider: "Mock LLM Responses",
-          model: "goody-2",
-          reasoningEffort: "low",
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Responses triage agent",
-          description: "A triage agent of a provider with the Responses API",
-          instructions: "You are a helpful triage agent used for testing.",
-          type: "triage",
-          llmProvider: "Mock LLM Responses",
-          model: "goody-2",
-          specialists: ["Mock Responses tool agent"],
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Messages tool agent",
-          description: "A specialist agent of a provider with the Messages API",
-          instructions: "You are a helpful specialist agent used for testing.",
-          type: "specialist",
-          llmProvider: "Mock LLM Messages",
-          model: "goody-2",
-          mcpServers: ["Mock MCP"],
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Messages reasoning agent",
-          description: "A specialist agent with a reasoning effort of a provider with the Messages API",
-          instructions: "You are a helpful specialist agent used for testing.",
-          type: "specialist",
-          llmProvider: "Mock LLM Messages",
-          model: "goody-2",
-          reasoningEffort: "low",
-          access: {
-            editors: { users: ["admin"] },
-            users: { users: ["admin"] },
-          },
-        },
-        {
-          name: "Mock Messages triage agent",
-          description: "A triage agent of a provider with the Messages API",
-          instructions: "You are a helpful triage agent used for testing.",
-          type: "triage",
-          llmProvider: "Mock LLM Messages",
-          model: "goody-2",
-          specialists: ["Mock Messages tool agent"],
+          specialists: ["Mock specialist tool agent"],
           access: {
             editors: { users: ["admin"] },
             users: { users: ["admin"] },

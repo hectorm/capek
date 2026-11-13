@@ -51,7 +51,7 @@ const claims = (extra: Record<string, unknown>): IDToken => {
   } as unknown as IDToken;
 };
 
-describe("oidc user profile", () => {
+describe("OIDC user profile", () => {
   it("takes the roles and groups of the claims", async () => {
     const profile = await oidc.getUserProfile(claims({ roles: ["admin"], groups: ["finance"] }), "token");
     expect(profile).toMatchObject({ roles: ["admin"], groups: ["finance"] });
@@ -62,7 +62,7 @@ describe("oidc user profile", () => {
     expect(profile?.roles).toEqual(["member"]);
   });
 
-  it("leaves the users that come without groups in none, so they are removed from the ones they were in", async () => {
+  it("gives no groups to the users without groups", async () => {
     const withoutGroups = claims({ roles: ["admin"], groups: [] });
     answerUserInfo(withoutGroups);
     const profile = await oidc.getUserProfile(withoutGroups, "token");
@@ -79,9 +79,6 @@ describe("oidc user profile", () => {
     vi.stubGlobal("fetch", () => Promise.resolve(new Response(null, { status: 500 })));
     const profile = await oidc.getUserProfile(claims({ picture: undefined }), "token");
     expect(profile).toMatchObject({ preferred_username: "alice", email: "alice@example.com", roles: ["member"] });
-
-    // Unless the users are not allowed by them
-    expect(await oidc.getUserProfile(claims({ email_verified: false }), "token")).toBeNull();
   });
 
   it("rejects the users whose email is not verified", async () => {
@@ -90,7 +87,7 @@ describe("oidc user profile", () => {
     expect(await oidc.getUserProfile(unverified, "token")).toBeNull();
   });
 
-  it("takes the email in lowercase, as the users that are created by hand have it", async () => {
+  it("lowercases the email", async () => {
     const profile = await oidc.getUserProfile(claims({ email: "Alice@Example.com" }), "token");
     expect(profile?.email).toBe("alice@example.com");
 
@@ -100,8 +97,8 @@ describe("oidc user profile", () => {
   });
 });
 
-describe("oidc back-channel logout", () => {
-  it("checks the logout tokens with the keys of the provider", async () => {
+describe("OIDC back-channel logout", () => {
+  it("verifies the logout tokens with the keys of the provider", async () => {
     const provider = await generateKeyPair("ES256");
     const stranger = await generateKeyPair("ES256");
     const jwk = { ...(await exportJWK(provider.publicKey)), kid: "key", alg: "ES256" };
