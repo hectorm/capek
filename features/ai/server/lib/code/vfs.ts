@@ -57,12 +57,12 @@ export class VirtualFileSystem {
   }
 
   private static workspaceBytesOf(node: VFSNode, path: string): number {
-    if (VirtualFileSystem.isFile(node)) {
-      return VirtualFileSystem.inWorkspace(path) ? fileBytes(path, node.content) : 0;
-    }
-    let bytes = 0;
-    for (const [name, child] of node.entries) {
-      bytes += VirtualFileSystem.workspaceBytesOf(child, `${path}/${name}`);
+    const content = VirtualFileSystem.isFile(node) ? node.content : "";
+    let bytes = VirtualFileSystem.inWorkspace(path) ? fileBytes(path, content) : 0;
+    if (VirtualFileSystem.isDir(node)) {
+      for (const [name, child] of node.entries) {
+        bytes += VirtualFileSystem.workspaceBytesOf(child, `${path}/${name}`);
+      }
     }
     return bytes;
   }
@@ -134,12 +134,13 @@ export class VirtualFileSystem {
   }
 
   public mkdir(path: string): boolean {
-    try {
-      this.ensureDirectoryExists(path);
-      return true;
-    } catch {
+    const node = this.getNode(path);
+    if (node && VirtualFileSystem.isFile(node)) {
       return false;
     }
+
+    this.ensureDirectoryExists(path);
+    return true;
   }
 
   public writeFile(path: string, content: string, options?: { readonly?: boolean }): boolean {
@@ -160,13 +161,14 @@ export class VirtualFileSystem {
       return false;
     }
 
+    const dir = this.ensureDirectoryExists(dirPath);
+
     const inWorkspace = VirtualFileSystem.inWorkspace(normalized);
     const growth = fileBytes(normalized, content) - (existingNode ? fileBytes(normalized, existingNode.content) : 0);
     if (inWorkspace) {
       this.assertWorkspaceSpace(growth);
     }
 
-    const dir = this.ensureDirectoryExists(dirPath);
     dir.entries.set(fileName, {
       type: "file",
       content,
@@ -213,7 +215,7 @@ export class VirtualFileSystem {
 
   public rmdir(path: string): boolean {
     const normalized = this.normalizePath(path);
-    if (normalized === "/") {
+    if (normalized === "/" || normalized === WORKSPACE_DIR) {
       return false;
     }
 
@@ -228,6 +230,7 @@ export class VirtualFileSystem {
     }
 
     info.parent.entries.delete(info.name);
+    this.workspaceBytes -= VirtualFileSystem.workspaceBytesOf(node, normalized);
     return true;
   }
 
@@ -407,12 +410,17 @@ export class VirtualFileSystem {
     const normalized = this.normalizePath(path);
     const parts = normalized.split("/").filter((p) => p !== "");
     let current: VFSDirNode = this.root;
+    let currentPath = "";
 
     for (const part of parts) {
+      currentPath += `/${part}`;
       let child = current.entries.get(part);
       if (!child) {
         child = VirtualFileSystem.createDir();
+        const growth = VirtualFileSystem.workspaceBytesOf(child, currentPath);
+        this.assertWorkspaceSpace(growth);
         current.entries.set(part, child);
+        this.workspaceBytes += growth;
       }
       if (VirtualFileSystem.isFile(child)) {
         throw new Error(`Path conflict: ${part} is a file`);

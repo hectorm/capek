@@ -131,6 +131,15 @@ describe("code interpreter", () => {
     // Files also take space for their names, even when they are empty
     const empty = await executeCode(`for (let i = 0; i < 10; i++) fs.writeFileSync("/workspace/" + i, "");`, limited);
     expect(empty.error).toContain("ENOSPC");
+
+    // So do directories, and the workspace cannot be replaced with a file that is not counted
+    const directories = await executeCode(`for (let i = 0; i < 10; i++) fs.mkdirSync("/workspace/" + i);`, limited);
+    expect(directories.error).toContain("ENOSPC");
+    const root = await executeCode(
+      `fs.rmSync("/workspace", { recursive: true, force: true }); fs.writeFileSync("/workspace", "x".repeat(5_000));`,
+      limited,
+    );
+    expect(root.error).toContain("EISDIR");
   });
 
   it("counts the size of the files in bytes", async () => {
