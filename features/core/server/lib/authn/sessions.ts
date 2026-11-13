@@ -8,20 +8,16 @@ import { useLogger } from "#layers/core/server/lib/logger";
 const config = useRuntimeConfig();
 const logger = useLogger();
 
-export interface LuciaOptions {
+export interface SessionsOptions {
   cookieName: string;
   durationSec: number;
 }
 
-export class Lucia {
-  /*
-   * Based on Lucia (https://lucia-auth.com)
-   */
-
+export class Sessions {
   public cookieName: string;
   public durationSec: number;
 
-  public constructor(options: LuciaOptions) {
+  public constructor(options: SessionsOptions) {
     this.cookieName = options.cookieName;
     this.durationSec = options.durationSec;
   }
@@ -102,7 +98,7 @@ export class Lucia {
       return { session: null, fresh: false };
     }
 
-    const session: Awaited<ReturnType<Lucia["createSession"]>> = {
+    const session: Awaited<ReturnType<Sessions["createSession"]>> = {
       id: result.id,
       token: result.token,
       userId: result.userId,
@@ -208,9 +204,9 @@ export class Lucia {
   }
 }
 
-let luciaInstance: Lucia | null = null;
+let sessionsInstance: Sessions | null = null;
 
-export const useLucia = (): Lucia => {
-  luciaInstance ??= new Lucia(config.session);
-  return luciaInstance;
+export const useSessions = (): Sessions => {
+  sessionsInstance ??= new Sessions(config.session);
+  return sessionsInstance;
 };

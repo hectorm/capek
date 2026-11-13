@@ -9,8 +9,8 @@ import {
 } from "h3";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
-import { useLucia } from "#layers/core/server/lib/authn/lucia";
 import { useOIDC } from "#layers/core/server/lib/authn/oidc";
+import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { getOrCreateUserFromOIDC, syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 
@@ -26,8 +26,8 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const lucia = useLucia();
   const oidc = useOIDC();
+  const sessions = useSessions();
   const callbackUrl = getRequestURL(event, { xForwardedProto: true, xForwardedHost: true });
   const callbackError = callbackUrl.searchParams.get("error");
   const callbackErrorDescription = callbackUrl.searchParams.get("error_description");
@@ -121,8 +121,8 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const session = await lucia.createSession(user.id, tokens.idTokenClaims.sid, tokens.idToken);
-  appendHeader(event, "Set-Cookie", lucia.createSessionCookie(session.token, session.expiresAt));
+  const session = await sessions.createSession(user.id, tokens.idTokenClaims.sid, tokens.idToken);
+  appendHeader(event, "Set-Cookie", sessions.createSessionCookie(session.token, session.expiresAt));
 
   const parsedState = oidc.parseState(storedState);
 

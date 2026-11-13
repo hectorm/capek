@@ -3,8 +3,8 @@ import { createError, defineEventHandler, readBody, sendNoContent } from "h3";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 import { z } from "zod/v4";
 
-import { useLucia } from "#layers/core/server/lib/authn/lucia";
 import { useOIDC } from "#layers/core/server/lib/authn/oidc";
+import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { useDb } from "#layers/core/server/lib/database";
 
@@ -29,8 +29,8 @@ export default defineEventHandler(async (event) => {
 
   // eslint-disable-next-line no-restricted-syntax
   const db = await useDb();
-  const lucia = useLucia();
   const oidc = useOIDC();
+  const sessions = useSessions();
 
   let payload: JWTPayload;
   try {
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
   // If logout token contains sid, invalidate all sessions with that sid
   if (payload.sid) {
     const sid = typeof payload.sid === "string" ? payload.sid : JSON.stringify(payload.sid);
-    await lucia.invalidateSessionsBySid(sid);
+    await sessions.invalidateSessionsBySid(sid);
     logger.info({ sid: payload.sid }, "Sessions invalidated by sid via backchannel logout");
 
     sendNoContent(event);
@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
       .executeTakeFirst();
 
     if (account) {
-      await lucia.invalidateAllSessions(account.userId);
+      await sessions.invalidateAllSessions(account.userId);
       logger.info({ userId: account.userId }, "User sessions invalidated via backchannel logout");
     }
 

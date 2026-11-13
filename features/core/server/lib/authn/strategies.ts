@@ -7,7 +7,7 @@ import { sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
 import type { User } from "#layers/core/shared/schema";
-import { useLucia } from "#layers/core/server/lib/authn/lucia";
+import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { getOrCreateUserFromProxy, syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { useDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -89,20 +89,20 @@ export class SingleUserStrategy implements AuthStrategy {
 
 export class OIDCStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
-    const lucia = useLucia();
+    const sessions = useSessions();
 
-    const token = getCookie(event, lucia.cookieName);
+    const token = getCookie(event, sessions.cookieName);
     if (!token) {
       return null;
     }
 
-    const { session, fresh } = await lucia.validateSession(token);
+    const { session, fresh } = await sessions.validateSession(token);
     if (!session) {
       return null;
     }
 
     if (fresh) {
-      appendHeader(event, "Set-Cookie", lucia.createSessionCookie(token, session.expiresAt));
+      appendHeader(event, "Set-Cookie", sessions.createSessionCookie(token, session.expiresAt));
     }
 
     const ctx = await getUserAuthContext(session.user.id);

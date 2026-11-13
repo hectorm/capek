@@ -1,8 +1,8 @@
 import { appendHeader, createError, defineEventHandler, getCookie, sendRedirect } from "h3";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
-import { useLucia } from "#layers/core/server/lib/authn/lucia";
 import { useOIDC } from "#layers/core/server/lib/authn/oidc";
+import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 
 const config = useRuntimeConfig();
@@ -18,17 +18,17 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const lucia = useLucia();
   const oidc = useOIDC();
-  const token = getCookie(event, lucia.cookieName);
+  const sessions = useSessions();
+  const token = getCookie(event, sessions.cookieName);
 
   if (token) {
-    appendHeader(event, "Set-Cookie", lucia.createSessionDeleteCookie());
+    appendHeader(event, "Set-Cookie", sessions.createSessionDeleteCookie());
 
-    const { session } = await lucia.validateSession(token);
+    const { session } = await sessions.validateSession(token);
 
     if (session) {
-      await lucia.invalidateSession(token);
+      await sessions.invalidateSession(token);
       logger.info({ userId: session.userId }, "User logged out");
 
       try {
