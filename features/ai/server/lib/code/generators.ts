@@ -38,6 +38,7 @@ export function createVFS(
     const toolExports: string[] = [];
 
     const toolIds = uniqueIds();
+    toolIds("index");
     for (const tool of server.tools) {
       const toolName = toolIds(tool.name);
       const toolPath = `/servers/${serverName}/${toolName}.js`;

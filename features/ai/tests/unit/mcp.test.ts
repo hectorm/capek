@@ -15,6 +15,7 @@ const tools = [
     },
   },
   { name: "screenshot", description: "Take a screenshot", inputSchema: { type: "object", properties: {} } },
+  { name: "index", description: "Index a file", inputSchema: { type: "object", properties: {} } },
 ];
 
 const url = "http://mcp.localhost";
@@ -188,7 +189,7 @@ describe("mcp", () => {
     expect(streams).toBe(1);
   });
 
-  it("builds modules that can be imported whatever the descriptions of their tools say", async () => {
+  it("builds modules that can be imported whatever the names and descriptions of their tools say", async () => {
     const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: false });
     await client.initialize();
     const listed = await client.listTools();
@@ -228,6 +229,6 @@ describe("mcp", () => {
       },
     );
     expect(execution.error).toBeNull();
-    expect(execution.result).toEqual(["$find_files", "$screenshot", "$glob"]);
+    expect(execution.result).toEqual(["$find_files", "$index_2", "$screenshot", "$glob"]);
   });
 });
