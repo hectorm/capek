@@ -88,6 +88,15 @@ describe("oidc user profile", () => {
     answerUserInfo(unverified);
     expect(await oidc.getUserProfile(unverified, "token")).toBeNull();
   });
+
+  it("takes the email in lowercase, as the users that are created by hand have it", async () => {
+    const profile = await oidc.getUserProfile(claims({ email: "Alice@Example.com" }), "token");
+    expect(profile?.email).toBe("alice@example.com");
+
+    answerUserInfo(claims({ email: "Alice@Example.com" }));
+    const fromUserInfo = await oidc.getUserProfile(claims({ email: undefined }), "token");
+    expect(fromUserInfo?.email).toBe("alice@example.com");
+  });
 });
 
 describe("oidc back-channel logout", () => {

@@ -265,7 +265,7 @@ export class OIDC {
       const picture: unknown = jmespath.search(idTokenClaims, this.pictureAttributePath);
       profile.preferred_username = typeof username === "string" ? username : undefined;
       profile.name = typeof name === "string" ? name : undefined;
-      profile.email = typeof email === "string" ? email : undefined;
+      profile.email = typeof email === "string" ? email.toLowerCase() : undefined;
       profile.picture = typeof picture === "string" ? picture : undefined;
       if (this.rolesAttributePath) {
         const roles: unknown = jmespath.search(idTokenClaims, this.rolesAttributePath);
@@ -309,7 +309,7 @@ export class OIDC {
           const picture: unknown = jmespath.search(userInfo, this.pictureAttributePath);
           profile.preferred_username ??= (typeof username === "string" ? username : undefined) ?? "";
           profile.name ??= (typeof name === "string" ? name : undefined) ?? "";
-          profile.email ??= (typeof email === "string" ? email : undefined) ?? "";
+          profile.email ??= (typeof email === "string" ? email.toLowerCase() : undefined) ?? "";
           profile.picture ??= typeof picture === "string" ? picture : undefined;
           if (this.rolesAttributePath) {
             const roles: unknown = jmespath.search(userInfo, this.rolesAttributePath);

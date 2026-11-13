@@ -145,7 +145,7 @@ export class ProxyStrategy implements AuthStrategy {
 
     const username = getUtf8Header(event, config.proxy.headerUsername);
     const fullname = getUtf8Header(event, config.proxy.headerFullname);
-    const email = getUtf8Header(event, config.proxy.headerEmail);
+    const email = getUtf8Header(event, config.proxy.headerEmail)?.toLowerCase();
 
     if (!username || !fullname || !email) {
       return null;
