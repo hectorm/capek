@@ -224,8 +224,14 @@ export const useChatStore = defineStore("ai.chat", () => {
       if (currentStream && currentStream !== stream) {
         return;
       }
-      messages.value.set(sessionId, result.messages);
-      messagesNextCursors.value.set(sessionId, result.nextCursor);
+      const msgs = messages.value.get(sessionId) ?? [];
+      const index = msgs.findIndex((m) => m.id === result.messages[0]?.id);
+      if (index > 0) {
+        messages.value.set(sessionId, [...msgs.slice(0, index), ...result.messages]);
+      } else {
+        messages.value.set(sessionId, result.messages);
+        messagesNextCursors.value.set(sessionId, result.nextCursor);
+      }
       triggerRef(messages);
     } catch (error) {
       throw new Error("Failed to fetch messages", { cause: error });
