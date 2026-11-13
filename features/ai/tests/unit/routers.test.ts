@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
+import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
@@ -148,6 +149,15 @@ describe("connection tests", () => {
     });
 
     expect(requests).toEqual(["GET /moved/models Bearer key", "POST /moved -"]);
+  });
+});
+
+describe("tool discoveries", () => {
+  it("are not repeated at once for the servers that gave no tools", async () => {
+    await expect(ensureToolsDiscovered(db, mcpServerId)).rejects.toThrow(/status 403/);
+    expect(await ensureToolsDiscovered(db, mcpServerId)).toEqual([]);
+
+    expect(requests).toEqual(["POST /mcp -"]);
   });
 });
 

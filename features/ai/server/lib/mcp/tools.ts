@@ -10,6 +10,11 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const DISCOVERY_TIMEOUT_MS = 10_000;
+const DISCOVERY_RETRY_MS = 60_000;
+
+const unavailable = new Map<string, { config: string; since: number }>();
+
 export interface MCPServerInfo {
   id: string;
   name: string;
@@ -38,13 +43,25 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
     return cached;
   }
 
+  const config = JSON.stringify([server.url, server.headers]);
+  const last = unavailable.get(mcpServerId);
+  if (last?.config === config && Date.now() - last.since < DISCOVERY_RETRY_MS) {
+    return cached;
+  }
+
   logger.info({ mcpServerId, serverName: server.name, url: server.url }, "Discovering tools from MCP server");
 
+  const client = new MCPClient({
+    name: server.name,
+    url: server.url,
+    headers: server.headers,
+    stateful: false,
+    timeoutMs: DISCOVERY_TIMEOUT_MS,
+  });
+  let tools: MCPTool[] = [];
   try {
-    const client = new MCPClient({ name: server.name, url: server.url, headers: server.headers, stateful: false });
     await client.initialize();
-    const tools = await client.listTools();
-    await client.terminate();
+    tools = await client.listTools();
 
     await db
       .updateTable("aiMcpServers")
@@ -59,5 +76,10 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
     throw new Error(
       `Failed to discover tools from MCP server: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
+  } finally {
+    await client.terminate();
+    if (tools.length === 0) {
+      unavailable.set(mcpServerId, { config, since: Date.now() });
+    }
   }
 }
