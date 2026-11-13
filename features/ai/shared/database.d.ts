@@ -10,6 +10,7 @@ import type {
   ChatMessagesTable,
   ChatSessionsTable,
   ChatSessionVfsTable,
+  ChatTablesTable,
   LlmProviderAccessTable,
   LlmProvidersTable,
   McpServerAccessTable,
@@ -24,6 +25,7 @@ declare module "#layers/core/shared/schema" {
     aiChatSessions: ChatSessionsTable;
     aiChatMessages: ChatMessagesTable;
     aiChatSessionVfs: ChatSessionVfsTable;
+    aiChatTables: ChatTablesTable;
     aiLlmProviders: LlmProvidersTable;
     aiLlmProviderAccess: LlmProviderAccessTable;
     aiMcpServers: McpServersTable;

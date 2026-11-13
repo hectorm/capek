@@ -73,6 +73,27 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   ////////////////////////////////
 
   await db.schema
+    .createTable("public.aiChatTables")
+    .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
+    .addColumn("sessionId", "uuid", (col) => col.references("public.aiChatSessions.id").onDelete("cascade").notNull())
+    .addColumn("messageId", "uuid", (col) => col.references("public.aiChatMessages.id").onDelete("cascade"))
+    .addColumn("data", sql`bytea`, (col) => col.notNull())
+    .addColumn("size", "integer", (col) => col.notNull())
+    .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
+    .execute();
+
+  await db.schema.createIndex("aiChatTablesSessionIdIdx").on("public.aiChatTables").column("sessionId").execute();
+
+  await db.schema
+    .createIndex("aiChatTablesMessageIdIdx")
+    .on("public.aiChatTables")
+    .column("messageId")
+    .where(sql.ref("messageId"), "is not", null)
+    .execute();
+
+  ////////////////////////////////
+
+  await db.schema
     .createTable("public.aiLlmProviders")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
     .addColumn("name", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull().unique())

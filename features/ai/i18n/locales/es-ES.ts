@@ -709,12 +709,36 @@ export default (): ReturnType<typeof enUS> => ({
             exit: "Salir de pantalla completa",
           },
         },
+        tableView: {
+          rows: "Filas: {total}",
+          filtered: "Filas: {shown} de {total}",
+          preview: "Primeras {shown} filas de {total}",
+          showAll: "Mostrar todas",
+          sort: "Ordenar por {column}",
+          filter: "Filtrar por {column}",
+          search: "Buscar",
+          export: {
+            label: "Descargar CSV",
+          },
+          fullscreen: {
+            enter: "Pantalla completa",
+            exit: "Salir de pantalla completa",
+          },
+          error: {
+            title: "Error",
+            description: "No se pudo cargar la tabla",
+          },
+        },
       },
     },
     tools: {
       charts: {
         label: "Gráficos",
         description: "Habilitar gráficos para este agente",
+      },
+      tables: {
+        label: "Tablas",
+        description: "Habilitar tablas para este agente",
       },
     },
   },

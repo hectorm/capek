@@ -199,15 +199,24 @@ export class MockLLMChatCompletionsServer {
     return this.response;
   }
 
-  // The first tool of the request is called with a query, or with a chart when it is the one that shows them
+  // The first tool of the request is called with a query, or with a chart or a table when it is the one that shows them
   private getToolArguments(request: OpenAICompletionRequest): string {
+    if (request.tools?.[0]?.function.name === "ai_table") {
+      return JSON.stringify({
+        name: "Mock table",
+        columns: ["name", "total"],
+        rows: Array.from({ length: 30 }, (_, index) => [`item ${String(index + 1)}`, index + 1]),
+      });
+    }
     if (request.tools?.[0]?.function.name === "ai_chart") {
       if (this.getLastUserMessageContent(request).includes("3D")) {
         return JSON.stringify({
+          name: "Mock chart",
           option: { grid3D: {}, xAxis3D: {}, yAxis3D: {}, zAxis3D: {}, series: [{ type: "bar3D", data: [[1, 2, 3]] }] },
         });
       }
       return JSON.stringify({
+        name: "Mock chart",
         option: { xAxis: { type: "category", data: ["a", "b"] }, yAxis: {}, series: [{ type: "bar", data: [1, 2] }] },
       });
     }

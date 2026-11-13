@@ -28,6 +28,7 @@ import ChartFrame from "#layers/ai/app/components/chat/ChartFrame.vue";
 import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
 import MessageContent from "#layers/ai/app/components/chat/MessageContent.vue";
 import LazyRenameModal from "#layers/ai/app/components/chat/RenameModal.vue";
+import TableView from "#layers/ai/app/components/chat/TableView.vue";
 import AgentSelect from "#layers/ai/app/components/ui/AgentSelect.vue";
 
 const i18n = useI18n();
@@ -429,7 +430,8 @@ definePageMeta({
               <UChatTool v-else-if="part.type === 'tool'" :text="part.name" icon="i-lucide-wrench">
                 <MessageContent :text="part.description" />
               </UChatTool>
-              <ChartFrame v-else :option="part.option" />
+              <ChartFrame v-else-if="part.type === 'chart'" :chart="part" />
+              <TableView v-else-if="part.type === 'table'" :table="part" />
             </template>
           </div>
         </template>

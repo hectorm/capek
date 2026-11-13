@@ -1,18 +1,20 @@
 import type { Kysely } from "kysely";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { ChatTablePart } from "#layers/ai/shared/chat";
 import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { FeatureToolProvider } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
+import { loadTable } from "#layers/ai/server/lib/tables";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import { closeDb, createAiTestDb, insertAgent } from "#layers/ai/tests/unit/helpers/db";
 import { streamOf } from "#layers/ai/tests/unit/helpers/llm";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
-// Tools that stand in for the ones of another feature, one telling what it does and another showing a chart
+// Tools that stand in for the ones of another feature, one telling what it does and others showing a chart or a table
 vi.mock("#layers/core/server/lib/tools", () => {
   const provider: FeatureToolProvider = {
     name: "notes",
@@ -52,7 +54,17 @@ vi.mock("#layers/core/server/lib/tools", () => {
             parameters: { type: "object", properties: { points: { type: "number" } } },
             execute: (args, context) => {
               const data = Array<number>(Number(args.points ?? 1)).fill(3);
-              context.show?.({ type: "chart", option: { series: [{ type: "bar", data }] } });
+              context.show?.({ type: "chart", name: "Notes", option: { series: [{ type: "bar", data }] } });
+              return Promise.resolve("Shown");
+            },
+          },
+          {
+            name: "notes_table",
+            description: "List the notes",
+            parameters: { type: "object", properties: { rows: { type: "number" } } },
+            execute: (args, context) => {
+              const rows = Array.from({ length: Number(args.rows) }, (_, index) => [`note ${String(index)}`]);
+              context.show?.({ type: "table", name: "Notes", columns: ["note"], rows });
               return Promise.resolve("Shown");
             },
           },
@@ -338,12 +350,45 @@ describe("agent executor", () => {
     fakeModel([answer(null, [chartNotes]), answer("There are 3 notes.")]);
     const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "Chart the notes.");
 
-    expect(parts).toEqual([{ type: "chart", option }]);
+    expect(parts).toEqual([{ type: "chart", name: "Notes", option }]);
     expect((await answers(sessionId)).flatMap((message) => message.items)).toMatchObject([
-      { type: "function_call", name: "notes_chart", parts: [{ type: "chart", option }] },
+      { type: "function_call", name: "notes_chart", parts: [{ type: "chart", name: "Notes", option }] },
       { type: "function_call_output", output: "Shown" },
       { type: "message", content: "There are 3 notes." },
     ]);
+  });
+
+  it("keeps the tables of the tool calls apart from the answer, which only has their first rows", async () => {
+    const sessionId = await createSession(hiddenToolCallsAgentId);
+    const listNotes = (rows: number) => {
+      return { id: "call-6", type: "function", function: { name: "notes_table", arguments: JSON.stringify({ rows }) } };
+    };
+
+    fakeModel([answer(null, [listNotes(30)]), answer("There are 30 notes.")]);
+    const { parts } = await chat(sessionId, hiddenToolCallsAgentId, "List the notes.");
+
+    const [part] = parts as ChatTablePart[];
+    expect(part).toMatchObject({ type: "table", name: "Notes", columns: ["note"], rowCount: 30 });
+    expect(part?.rows).toHaveLength(20);
+    expect((await answers(sessionId)).flatMap((message) => message.items)).toMatchObject([
+      { type: "function_call", name: "notes_table", parts: [part] },
+      { type: "function_call_output", output: "Shown" },
+      { type: "message", content: "There are 30 notes." },
+    ]);
+    const tableId = part?.id ?? "";
+    const notes = Array.from({ length: 30 }, (_, index) => [`note ${String(index)}`]);
+    expect(await loadTable(tableId, user)).toBe(JSON.stringify({ columns: ["note"], rows: notes }));
+
+    // The table goes with its answer
+    await db.deleteFrom("aiChatMessages").where("sessionId", "=", sessionId).where("role", "=", "assistant").execute();
+    expect(await loadTable(tableId, user)).toBeUndefined();
+
+    const requests = fakeModel([answer(null, [listNotes(5001)]), answer("There are too many notes.")]);
+    const tooMany = await chat(sessionId, hiddenToolCallsAgentId, "List every note.");
+
+    expect(tooMany.parts).toEqual([]);
+    expect(requests[1]?.messages.at(-1)?.content).toContain("A table cannot have more than 5000 rows");
+    expect(await db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute()).toEqual([]);
   });
 
   it("limits what the tool calls of an answer show in all", async () => {

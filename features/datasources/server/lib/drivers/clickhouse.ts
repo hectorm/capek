@@ -21,7 +21,7 @@ export class ClickhouseDriver implements DatasourceDriver {
     params: DatasourceConnectionParams,
     sql: string,
     settings: DatasourceQuerySettings,
-  ): Promise<unknown[]> {
+  ): Promise<Record<string, unknown>[]> {
     const config = ClickhouseDatasourceType.configSchema.parse(params.config);
 
     // The request outlasts the query, and errors are returned instead of logged

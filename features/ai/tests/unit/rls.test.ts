@@ -374,4 +374,19 @@ describe("rls chat ownership", () => {
       }),
     ).rejects.toThrow(/row-level security/);
   });
+
+  it("only shows the tables of a chat to its owner, who cannot write them", async () => {
+    const table = { sessionId, data: Buffer.from(""), size: 0 };
+    await db.insertInto("aiChatTables").values(table).execute();
+
+    const visibleTables = (userId: string) => {
+      return asUser({ id: userId, permissions }, (trx) => trx.selectFrom("aiChatTables").select(["id"]).execute());
+    };
+    expect(await visibleTables(alice)).toHaveLength(1);
+    expect(await visibleTables(bob)).toHaveLength(0);
+
+    await expect(
+      asUser({ id: alice, permissions }, (trx) => trx.insertInto("aiChatTables").values(table).execute()),
+    ).rejects.toThrow(/row-level security/);
+  });
 });

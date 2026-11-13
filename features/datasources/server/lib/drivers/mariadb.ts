@@ -22,7 +22,7 @@ export class MariaDBDriver implements DatasourceDriver {
     params: DatasourceConnectionParams,
     sql: string,
     settings: DatasourceQuerySettings,
-  ): Promise<unknown[]> {
+  ): Promise<Record<string, unknown>[]> {
     const config = MariaDBDatasourceType.configSchema.parse(params.config);
 
     const url = connectionUrl(config, URL_OPTIONS);

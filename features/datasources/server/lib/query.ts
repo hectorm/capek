@@ -1,33 +1,49 @@
 import type { TestResult } from "#layers/core/shared/types";
 import type { DatasourceConnectionParams, ServerDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { useLogger } from "#layers/core/server/lib/logger";
+import { TablePartMaxRows } from "#layers/core/shared/tools";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 
 const logger = useLogger();
+
+export const QUERY_MAX_ROWS = 100;
 
 export interface QuerySource extends DatasourceConnectionParams {
   id: string;
   type: string;
 }
 
-export const QUERY_MAX_ROWS = 100;
+interface QueryOptions {
+  shown?: boolean;
+  signal?: AbortSignal;
+}
 
-// Runs a query on a datasource and returns its first rows as JSON, telling whether it has more
-export async function executeQuery(source: QuerySource, sql: string, signal?: AbortSignal): Promise<string> {
+interface QueryResult {
+  rows: Record<string, unknown>[];
+  truncated: boolean;
+}
+
+// Runs a query on a datasource and returns its first rows, telling whether it has more
+export async function executeQuery(
+  source: QuerySource,
+  sql: string,
+  { shown = false, signal }: QueryOptions = {},
+): Promise<QueryResult> {
   const type = findDatasourceType(source.type);
   if (!type) {
     throw new Error(`Datasource type "${source.type}" is not supported`);
   }
 
+  const maxRows = shown ? TablePartMaxRows : QUERY_MAX_ROWS;
   try {
     const rows = await type.driver.execute(source, sql, {
-      maxRows: QUERY_MAX_ROWS + 1,
-      maxBytes: 1_000_000,
+      maxRows: maxRows + 1,
+      maxBytes: shown ? 5_000_000 : 1_000_000,
       statementTimeoutMs: 30_000,
       requestTimeoutMs: 10_000,
       signal,
     });
-    return JSON.stringify({ rows: rows.slice(0, QUERY_MAX_ROWS), truncated: rows.length > QUERY_MAX_ROWS });
+    return { rows: rows.slice(0, maxRows), truncated: rows.length > maxRows };
   } catch (error) {
     logger.warn({ sourceId: source.id, error }, "Datasource query failed");
     throw error;

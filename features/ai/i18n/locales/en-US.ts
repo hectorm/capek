@@ -707,12 +707,36 @@ export default () => ({
             exit: "Exit full screen",
           },
         },
+        tableView: {
+          rows: "Rows: {total}",
+          filtered: "Rows: {shown} of {total}",
+          preview: "First {shown} rows of {total}",
+          showAll: "Show all",
+          sort: "Sort by {column}",
+          filter: "Filter by {column}",
+          search: "Search",
+          export: {
+            label: "Download CSV",
+          },
+          fullscreen: {
+            enter: "Full screen",
+            exit: "Exit full screen",
+          },
+          error: {
+            title: "Error",
+            description: "Failed to load the table",
+          },
+        },
       },
     },
     tools: {
       charts: {
         label: "Charts",
         description: "Enable charts for this agent",
+      },
+      tables: {
+        label: "Tables",
+        description: "Enable tables for this agent",
       },
     },
   },

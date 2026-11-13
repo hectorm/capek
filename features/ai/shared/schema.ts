@@ -50,6 +50,21 @@ export type ChatSessionVfsUpdate = Updateable<ChatSessionVfsTable>;
 
 ////////////////////////////////
 
+export interface ChatTablesTable {
+  id: ColumnType<string, string | undefined, never>;
+  sessionId: ColumnType<string, string, never>;
+  messageId: string | null;
+  data: Buffer;
+  size: number;
+  createdAt: ColumnType<Date, never, never>;
+}
+
+export type ChatTable = Selectable<ChatTablesTable>;
+export type NewChatTable = Insertable<ChatTablesTable>;
+export type ChatTableUpdate = Updateable<ChatTablesTable>;
+
+////////////////////////////////
+
 export interface LlmProvidersTable {
   id: ColumnType<string, string | undefined, never>;
   name: string;

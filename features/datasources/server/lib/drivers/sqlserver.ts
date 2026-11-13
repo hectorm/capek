@@ -66,7 +66,7 @@ export class SqlServerDriver implements DatasourceDriver {
     params: DatasourceConnectionParams,
     sql: string,
     settings: DatasourceQuerySettings,
-  ): Promise<unknown[]> {
+  ): Promise<Record<string, unknown>[]> {
     const config = SqlServerDatasourceType.configSchema.parse(params.config);
 
     const { server, options } = this.parseConnectionString(config.connectionString);
@@ -116,7 +116,7 @@ export class SqlServerDriver implements DatasourceDriver {
 
       settings.signal?.addEventListener("abort", onAbort, { once: true });
       settings.signal?.throwIfAborted();
-      return await new Promise<unknown[]>((resolve, reject) => {
+      return await new Promise<Record<string, unknown>[]>((resolve, reject) => {
         const rows: Record<string, unknown>[] = [];
         let bytes = 0;
         let hasResultSet = false;

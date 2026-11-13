@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { ToolContext } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
+import type { ToolPart } from "#layers/core/shared/tools";
 import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { collectToolProviders } from "#layers/core/server/lib/tools/define";
@@ -122,6 +123,18 @@ describe("datasources", () => {
     const series = { datasource: "sales", sql: "SELECT generate_series(1, 101) AS id" };
     const rows = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
     expect(await tool?.execute(series, context)).toBe(JSON.stringify({ rows, truncated: true }));
+
+    const parts: ToolPart[] = [];
+    const show = (part: ToolPart) => parts.push(part);
+    expect(await tool?.execute({ ...series, show: true, name: "Series" }, { ...context, show })).toBe(
+      JSON.stringify({ shown: 101, truncated: false }),
+    );
+    expect(parts).toEqual([
+      { type: "table", name: "Series", columns: ["id"], rows: Array.from({ length: 101 }, (_, index) => [index + 1]) },
+    ]);
+    await expect(tool?.execute({ ...series, show: true }, { ...context, show })).rejects.toThrow(
+      "Missing required 'name' field",
+    );
 
     await expect(tool?.execute({ datasource: "sales", sql: "SELECT * FROM missing" }, context)).rejects.toThrow(
       /does not exist/,

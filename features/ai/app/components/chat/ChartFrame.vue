@@ -7,8 +7,10 @@ import { useI18n } from "vue-i18n";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 
+import type { ChatChartPart } from "#layers/ai/shared/chat";
+
 const props = defineProps<{
-  option: Record<string, unknown>;
+  chart: ChatChartPart;
 }>();
 
 const exportFormats = ["png", "svg"] as const;
@@ -43,7 +45,7 @@ const send = (message: Record<string, unknown>) => {
 };
 
 const draw = () => {
-  send({ type: "draw", option: props.option, dark: colorMode.value === "dark", locale: i18n.locale.value });
+  send({ type: "draw", option: props.chart.option, dark: colorMode.value === "dark", locale: i18n.locale.value });
 };
 
 const exportImage = (format: ExportFormat) => {
@@ -71,7 +73,7 @@ useEventListener("message", (event: FrameMessage) => {
     if (typeof url === "string" && url.startsWith("data:image/")) {
       const link = document.createElement("a");
       link.href = url;
-      link.download = `chart.${exportFormat}`;
+      link.download = `${props.chart.name}.${exportFormat}`;
       link.click();
     }
     exportFormat = undefined;
@@ -79,7 +81,7 @@ useEventListener("message", (event: FrameMessage) => {
 });
 
 const optionContent = computed(() => {
-  return JSON.stringify(props.option, (_key, value: unknown) => {
+  return JSON.stringify(props.chart.option, (_key, value: unknown) => {
     return typeof value === "object" && value !== null && !Array.isArray(value)
       ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
       : value;

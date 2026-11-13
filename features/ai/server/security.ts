@@ -176,6 +176,32 @@ export const aiSecurity: SecurityDefinition = {
         USING (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")});
     `,
 
+    // Chat Tables
+    ...protectTable("ai_chat_tables"),
+    `
+      CREATE POLICY ai_chat_tables_select ON public.ai_chat_tables
+        FOR SELECT
+        USING (
+          (SELECT security.can_any(ARRAY['ai_chat:read:all', 'ai_chat:list:all']))
+          OR ((SELECT security.can_any(ARRAY['ai_chat:read:own', 'ai_chat:list:own'])) AND ${isOwner(ChatResource, "ai_chat_tables.session_id")})
+        );
+    `,
+    `
+      CREATE POLICY ai_chat_tables_insert ON public.ai_chat_tables
+        FOR INSERT
+        WITH CHECK (
+          (SELECT security.can_any(ARRAY['ai_chat:create']))
+          AND ${isOwner(ChatResource, "ai_chat_tables.session_id")}
+          AND (SELECT security.is_trusted_write())
+        );
+    `,
+    `
+      CREATE POLICY ai_chat_tables_update ON public.ai_chat_tables
+        FOR UPDATE
+        USING (${isOwner(ChatResource, "ai_chat_tables.session_id")} AND (SELECT security.is_trusted_write()))
+        WITH CHECK (${isOwner(ChatResource, "ai_chat_tables.session_id")} AND (SELECT security.is_trusted_write()));
+    `,
+
     // LLM Providers
     ...sharedResourcePolicies(LlmProviderResource),
 

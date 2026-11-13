@@ -33,7 +33,7 @@ export class PostgresDriver implements DatasourceDriver {
     params: DatasourceConnectionParams,
     sql: string,
     settings: DatasourceQuerySettings,
-  ): Promise<unknown[]> {
+  ): Promise<Record<string, unknown>[]> {
     const config = PostgresDatasourceType.configSchema.parse(params.config);
 
     const url = connectionUrl(config, URL_OPTIONS);

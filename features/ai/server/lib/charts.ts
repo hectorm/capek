@@ -97,15 +97,22 @@ export const aiChartsToolProvider = defineToolProvider({
           parameters: {
             type: "object",
             properties: {
+              name: {
+                type: "string",
+                description: "The name of the chart, which its file takes when the user downloads it",
+              },
               option: {
                 type: "object",
                 description: "The Apache ECharts option of the chart",
               },
             },
-            required: ["option"],
+            required: ["name", "option"],
           },
           execute(args, context) {
-            const { option } = args;
+            const { name, option } = args;
+            if (typeof name !== "string" || !name.trim()) {
+              throw new Error("Missing required 'name' field");
+            }
             if (!isObject(option)) {
               throw new Error("Missing required 'option' field");
             }
@@ -115,7 +122,7 @@ export const aiChartsToolProvider = defineToolProvider({
             if (!context.show) {
               throw new Error("Charts cannot be shown here");
             }
-            context.show({ type: "chart", option });
+            context.show({ type: "chart", name, option });
 
             return Promise.resolve("The chart was shown to the user");
           },
@@ -128,6 +135,7 @@ export const aiChartsToolProvider = defineToolProvider({
         "IMPORTANT:",
         "- Put the data in the option, aggregated to what the chart shows.",
         "- Give the chart a title and name its axes and series, in the same language the user is using.",
+        "- Name the chart for what it shows, also in that language, the user downloads it as a file with that name.",
         "- Add a tooltip, and a legend when the chart has several series.",
         "- Do not set colors, backgrounds, fonts or sizes unless the user asks for them, the chart follows the theme of the application.",
         '- The option is JSON, so it cannot have functions. Where ECharts takes a formatter function, write a string template like `"{b}: {c}"`, or give `Intl.NumberFormat` options to format a number, like `"formatter": {"notation": "compact"}` in the labels of an axis or of a series.',

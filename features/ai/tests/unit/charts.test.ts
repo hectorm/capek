@@ -14,7 +14,7 @@ const chart = async (option: unknown, show?: (part: ToolPart) => void): Promise<
   if (!tool) {
     throw new Error("Chart tool not found");
   }
-  return tool.execute({ option }, { user, show });
+  return tool.execute({ name: "Notes", option }, { user, show });
 };
 
 describe("chart tool", () => {
@@ -27,7 +27,7 @@ describe("chart tool", () => {
     const parts: ToolPart[] = [];
 
     expect(await chart(option, (part) => parts.push(part))).toBe("The chart was shown to the user");
-    expect(parts).toEqual([{ type: "chart", option }]);
+    expect(parts).toEqual([{ type: "chart", name: "Notes", option }]);
 
     // The points of the series can also come from a dataset
     const dataset = {
@@ -38,8 +38,8 @@ describe("chart tool", () => {
     };
     await chart(dataset, (part) => parts.push(part));
     expect(parts).toEqual([
-      { type: "chart", option },
-      { type: "chart", option: dataset },
+      { type: "chart", name: "Notes", option },
+      { type: "chart", name: "Notes", option: dataset },
     ]);
   });
 

@@ -135,6 +135,19 @@ export default {
           },
         },
         {
+          name: "Mock specialist table agent",
+          description: "A specialist agent that shows tables",
+          instructions: "You are a helpful specialist agent used for testing.",
+          type: "specialist",
+          llmProvider: "Mock LLM Chat Completions",
+          model: "goody-2",
+          tools: { ai_tables: true },
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
           name: "Mock triage agent",
           description: "A triage agent for testing purposes",
           instructions: "You are a helpful triage agent used for testing.",

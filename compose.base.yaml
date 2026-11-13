@@ -96,6 +96,27 @@ services:
             roles: ["member"]
           - name: "hr"
             roles: ["member"]
+        datasources:
+          sources:
+            - name: "ClickHouse Playground"
+              description: "Public datasets of the ClickHouse Playground."
+              documentation: |
+                # ClickHouse Playground
+
+                Read-only ClickHouse server with public datasets.
+                Run `SHOW DATABASES` and `SHOW TABLES FROM <database>` to list its tables, and
+                `DESCRIBE TABLE <database>.<table>` to get the columns of one.
+                Some tables have billions of rows, so filter and aggregate them.
+              type: "clickhouse"
+              config:
+                connectionString: "https://play.clickhouse.com"
+                authType: "basic"
+                username: "explorer"
+              access:
+                editors:
+                  groups: ["administrators"]
+                users:
+                  groups: ["administrators"]
         ai:
           llmProviders:
             - name: "llama.cpp"
@@ -175,7 +196,8 @@ services:
             - name: "Smart assistant"
               description: "An agent that routes user requests to the appropriate specialist agent."
               instructions: >-
-                You are a smart assistant that helps users by routing their requests to the most appropriate specialist agent available.
+                You are a smart assistant that helps users by routing their requests to the most appropriate specialist
+                agent available.
                 Analyze the user request carefully and determine which specialist is best suited to handle it.
                 If multiple specialists could help, choose the one that is most relevant.
               type: "triage"
@@ -192,12 +214,18 @@ services:
               description: "A general-purpose assistant for a variety of tasks."
               instructions: >-
                 You are a helpful and knowledgeable assistant capable of handling a wide range of user requests.
-                Provide accurate and concise information, assist with problem-solving, and offer guidance on various topics as needed.
+                Provide accurate and concise information, assist with problem-solving, and offer guidance on various
+                topics as needed.
               type: "specialist"
               priority: 1
               llmProvider: "llama.cpp"
               model: "local"
-              tools: { ai_charts: true }
+              mcpServers: ["Playwright"]
+              skills: ["runBrowserScript"]
+              tools:
+                ai_charts: true
+                ai_tables: true
+                datasources: ["ClickHouse Playground"]
               access:
                 editors:
                   groups: ["administrators"]
@@ -215,7 +243,10 @@ services:
               model: "local"
               mcpServers: ["Playwright"]
               skills: ["runBrowserScript"]
-              tools: { ai_charts: true }
+              tools:
+                ai_charts: true
+                ai_tables: true
+                datasources: ["ClickHouse Playground"]
               codeInterpreter: true
               access:
                 editors:

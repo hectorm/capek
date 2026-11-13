@@ -8,7 +8,7 @@ import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
-import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import type { ChatMessagePart, ChatToolPart } from "#layers/ai/shared/chat";
 import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
@@ -39,6 +39,7 @@ import {
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
+import { attachParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, sanitize, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
@@ -572,17 +573,18 @@ export class AgentExecutor {
       });
     }
 
-    const parts: ToolPart[] = [];
+    const parts: ChatToolPart[] = [];
     let partsChars = this.partsChars;
     const show = (part: ToolPart): void => {
-      const chars = JSON.stringify(part).length;
+      const kept = keepPart(part);
+      const chars = JSON.stringify(kept).length;
       if (partsChars + chars > agent.maxToolPartsChars) {
         throw new Error(
           `The tool calls of an answer cannot show the user more than ${String(agent.maxToolPartsChars)} characters, reduce the data of what is shown`,
         );
       }
       partsChars += chars;
-      parts.push(part);
+      parts.push(kept);
     };
 
     const maxChars = Math.max(Math.min(agent.maxToolResponseChars, agent.maxContextChars - countChars(items)), 0);
@@ -593,6 +595,7 @@ export class AgentExecutor {
         signal: this.withTimeout(agent, signal),
         show,
       });
+      await saveSessionParts(parts, this.config.sessionId, this.config.user);
 
       const result = truncate(response, maxChars);
       if (result !== response) {
@@ -1182,6 +1185,9 @@ export class AgentExecutor {
             .where("id", "=", this.executionId)
             .execute();
         }
+
+        const parts = items.flatMap((item) => (item.type === "function_call" ? (item.parts ?? []) : []));
+        await attachParts(trx, parts, assistantMessage.id);
 
         await trx
           .updateTable("aiChatSessions")

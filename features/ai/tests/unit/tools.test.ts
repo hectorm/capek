@@ -161,6 +161,7 @@ describe("agent tool resources", () => {
   it("loads the tools of the providers switched on for the agent", async () => {
     expect(providers.map((provider) => [provider.name, provider.resource?.type])).toEqual([
       ["ai_charts", undefined],
+      ["ai_tables", undefined],
       ["notes", "ai_skill"],
       ["notes_profile", undefined],
     ]);

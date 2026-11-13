@@ -68,7 +68,7 @@ test.describe("Agent Chart", () => {
         page.waitForEvent("download"),
         page.getByRole("menuitem", { name: new RegExp(`${format} image`, "i") }).click(),
       ]);
-      expect(download.suggestedFilename()).toBe(`chart.${format}`);
+      expect(download.suggestedFilename()).toBe(`Mock chart.${format}`);
     }
   });
 

@@ -1,4 +1,5 @@
 import { aiChartsToolProvider } from "#layers/ai/server/lib/charts";
+import { aiTablesToolProvider } from "#layers/ai/server/lib/tables";
 import * as m0001_initial from "#layers/ai/server/migrations/0001_initial";
 import { aiSecurity } from "#layers/ai/server/security";
 import { aiSeed } from "#layers/ai/server/seed";
@@ -16,5 +17,5 @@ export default defineServerFeature({
   rolePermissions: AiRolePermissions,
   settings: aiSettings,
   seed: aiSeed,
-  tools: [aiChartsToolProvider],
+  tools: [aiChartsToolProvider, aiTablesToolProvider],
 });
