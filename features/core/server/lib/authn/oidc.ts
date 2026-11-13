@@ -60,6 +60,7 @@ export class OIDC {
   public configuredAs: AuthorizationServer;
   public discoveryCacheDurationSec: number;
   public discoveryCache = new Map<string, { as: AuthorizationServer; expiresAt: number }>();
+  public jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
   public scopes: string;
   public prompt: string;
@@ -384,8 +385,13 @@ export class OIDC {
       throw new Error("JWKS URI not available");
     }
 
-    const JWKS = createRemoteJWKSet(new URL(this.as.jwks_uri));
-    const { payload } = await jwtVerify(logoutToken, JWKS, {
+    let jwks = this.jwksCache.get(this.as.jwks_uri);
+    if (!jwks) {
+      jwks = createRemoteJWKSet(new URL(this.as.jwks_uri));
+      this.jwksCache.set(this.as.jwks_uri, jwks);
+    }
+
+    const { payload } = await jwtVerify(logoutToken, jwks, {
       issuer: this.as.issuer,
       audience: this.client.client_id,
       maxTokenAge: "2 minutes",
