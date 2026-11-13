@@ -31,7 +31,6 @@ services:
       NUXT_OIDC_TOKEN_ENDPOINT: "https://idp.internal/dex/token"
       NUXT_OIDC_USERINFO_ENDPOINT: "https://idp.internal/dex/userinfo"
       NUXT_OIDC_JWKS_URI: "https://idp.internal/dex/keys"
-      NUXT_OIDC_REDIRECT_URI: "https://capek.localhost/api/login/callback"
       NUXT_OIDC_CLIENT_ID: "capek"
       NUXT_OIDC_CLIENT_SECRET: "ourclientbythesewordsguarded"
       NUXT_OIDC_SCOPES: "openid email profile groups"
