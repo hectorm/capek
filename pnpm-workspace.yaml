@@ -1,13 +1,15 @@
 minimumReleaseAge: 10080
 trustPolicy: "no-downgrade"
-trustPolicyExclude:
-  - "semver@6.3.1" # TODO: update to 7.x when possible
 strictDepBuilds: true
 allowBuilds:
-  "@parcel/watcher": true
   "esbuild": true
   "sharp": true
   "unrs-resolver": true
   "vue-demi": true
-overrides:
-  "@types/parse-path": "-" # Deprecated
+permissions:
+  "@clickhouse/client":
+    skills: false
+  "@trpc/client":
+    skills: false
+  "@trpc/server":
+    skills: false
