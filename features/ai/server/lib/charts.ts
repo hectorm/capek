@@ -4,8 +4,84 @@ export const AI_CHART_TOOL = "ai_chart";
 
 export const TIME_FORMATTER_LEVELS = ["year", "month", "day", "hour", "minute", "second", "millisecond", "none"];
 
+const MAP_COMPONENTS = ["geo", "geo3D", "bmap"];
+const MAP_SERIES = ["map", "map3D"];
+
+const FUNCTION_PATTERN = /^\s*(function\b[^(]*\(|\([^)]*\)\s*=>|\w+\s*=>)/;
+
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const isSeries = (value: unknown): value is Record<string, unknown> & { type: string } => {
+  return isObject(value) && typeof value.type === "string";
+};
+
+const checkFormatter = (path: string, key: string, formatter: unknown, tooltip: boolean): void => {
+  const isValueFormatter = key === "valueFormatter";
+
+  if (isObject(formatter)) {
+    if (TIME_FORMATTER_LEVELS.some((level) => level in formatter)) {
+      return;
+    }
+    if (tooltip && !isValueFormatter) {
+      throw new Error(`'${path}' cannot be a number format, give it as the 'valueFormatter' of the tooltip`);
+    }
+    try {
+      new Intl.NumberFormat("en", formatter);
+    } catch (error) {
+      throw new Error(`'${path}' is not a number format: ${error instanceof Error ? error.message : ""}`);
+    }
+  } else if (typeof formatter === "string") {
+    if (isValueFormatter) {
+      throw new Error(`'${path}' cannot be text, give Intl.NumberFormat options like {"style": "percent"}`);
+    }
+    if (FUNCTION_PATTERN.test(formatter)) {
+      throw new Error(
+        `'${path}' cannot be a function, write a template or give Intl.NumberFormat options like {"style": "percent"}`,
+      );
+    }
+    if (tooltip && formatter.includes("{@")) {
+      throw new Error(
+        `'${path}' only has {a}, {b}, {c}, {d} and {e}, format the values of the tooltip with 'valueFormatter'`,
+      );
+    }
+  }
+};
+
+const checkFormatters = (value: unknown, path: string, parent: string): void => {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      checkFormatters(item, `${path}[${String(index)}]`, parent);
+    });
+  } else if (isObject(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      const itemPath = path ? `${path}.${key}` : key;
+      if (key === "formatter" || key === "valueFormatter") {
+        checkFormatter(itemPath, key, item, parent === "tooltip");
+      } else {
+        checkFormatters(item, itemPath, key);
+      }
+    }
+  }
+};
+
+// The browser draws the chart after the tool has answered, so what it could not draw is told here
+const checkOption = (option: Record<string, unknown>): void => {
+  const series: unknown[] = Array.isArray(option.series) ? option.series : [option.series];
+  if (series.length === 0 || !series.every(isSeries)) {
+    throw new Error("The option needs a 'series' array whose items have a 'type'");
+  }
+  if (option.dataset === undefined && !series.every((item) => Array.isArray(item.data) && item.data.length > 0)) {
+    throw new Error("Each series needs its points in 'data', unless the option has a 'dataset'");
+  }
+  if (
+    MAP_COMPONENTS.some((component) => component in option) ||
+    series.some((item) => MAP_SERIES.includes(item.type))
+  ) {
+    throw new Error("Maps cannot be drawn, show the data with another chart");
+  }
+  checkFormatters(option, "", "");
 };
 
 export const aiChartsToolProvider = defineToolProvider({
@@ -34,16 +110,7 @@ export const aiChartsToolProvider = defineToolProvider({
               throw new Error("Missing required 'option' field");
             }
 
-            const series: unknown[] = Array.isArray(option.series) ? option.series : [option.series];
-            if (series.length === 0 || !series.every((item) => isObject(item) && typeof item.type === "string")) {
-              throw new Error("The option needs a 'series' array whose items have a 'type'");
-            }
-            if (
-              option.dataset === undefined &&
-              !series.every((item) => isObject(item) && Array.isArray(item.data) && item.data.length > 0)
-            ) {
-              throw new Error("Each series needs its points in 'data', unless the option has a 'dataset'");
-            }
+            checkOption(option);
 
             if (!context.show) {
               throw new Error("Charts cannot be shown here");
@@ -59,7 +126,9 @@ export const aiChartsToolProvider = defineToolProvider({
         "",
         `You can show charts to the user via the \`${AI_CHART_TOOL}\` tool, which takes an Apache ECharts option.`,
         "IMPORTANT:",
-        '- The option is JSON, so it cannot have functions. Write formatters as string templates, like `"{b}: {c}"`.',
+        '- The option is JSON, so it cannot have functions. Write formatters as string templates, like `"{b}: {c}"`. The `formatter` of a tooltip only has `{a}`, `{b}`, `{c}`, `{d}` and `{e}`.',
+        '- To format numbers, give `Intl.NumberFormat` options where a function would go, like `"valueFormatter": {"style": "currency", "currency": "EUR"}` in a tooltip or `"formatter": {"notation": "compact"}` in the labels of an axis or of a series.',
+        "- Maps cannot be drawn, there is no `map` series nor `geo` component.",
         "- Put the data in the option, aggregated to what the chart shows.",
         "- Give the chart a title and name its axes and series, in the same language the user is using.",
         "- Add a tooltip, and a legend when the chart has several series.",

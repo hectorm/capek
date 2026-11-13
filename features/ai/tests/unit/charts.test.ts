@@ -59,4 +59,39 @@ describe("chart tool", () => {
 
     expect(parts).toEqual([]);
   });
+
+  it("rejects what would not be drawn as it is written, telling how to write it", async () => {
+    const bars = { xAxis: { type: "category", data: ["a"] }, yAxis: {}, series: [{ type: "bar", data: [1] }] };
+    const show = (): void => undefined;
+
+    await expect(chart({ series: [{ type: "map", map: "world", data: [{ name: "Spain" }] }] }, show)).rejects.toThrow(
+      /Maps cannot be drawn/,
+    );
+    await expect(chart({ ...bars, geo: { map: "world" } }, show)).rejects.toThrow(/Maps cannot be drawn/);
+    await expect(chart({ ...bars, tooltip: { valueFormatter: "{value} €" } }, show)).rejects.toThrow(
+      /'tooltip.valueFormatter' cannot be text, give Intl.NumberFormat options/,
+    );
+    await expect(
+      chart({ ...bars, yAxis: { axisLabel: { formatter: "(value) => value / 1000" } } }, show),
+    ).rejects.toThrow(/'yAxis.axisLabel.formatter' cannot be a function/);
+    await expect(chart({ ...bars, tooltip: { formatter: "{b}: {@share}%" } }, show)).rejects.toThrow(
+      /'tooltip.formatter' only has \{a\}/,
+    );
+    await expect(chart({ ...bars, tooltip: { valueFormatter: { style: "currency" } } }, show)).rejects.toThrow(
+      /'tooltip.valueFormatter' is not a number format/,
+    );
+    await expect(chart({ ...bars, tooltip: { formatter: { style: "percent" } } }, show)).rejects.toThrow(
+      /'tooltip.formatter' cannot be a number format, give it as the 'valueFormatter'/,
+    );
+
+    // Number formats, templates and the levels of a time axis are what a formatter can be
+    const formatted = {
+      ...bars,
+      tooltip: { formatter: "{b}: {c}", valueFormatter: { style: "currency", currency: "EUR" } },
+      xAxis: { type: "time", axisLabel: { formatter: { year: "{yyyy}", month: "{MMM}" } } },
+      yAxis: { axisLabel: { formatter: { notation: "compact" } } },
+      series: [{ type: "bar", data: [1], label: { formatter: "{b} => {@score}" } }],
+    };
+    expect(await chart(formatted, show)).toBe("The chart was shown to the user");
+  });
 });
