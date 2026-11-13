@@ -11,15 +11,18 @@ const logger = useLogger();
 export interface SessionsOptions {
   cookieName: string;
   durationSec: number;
+  maxDurationSec: number;
 }
 
 export class Sessions {
   public cookieName: string;
   public durationSec: number;
+  public maxDurationSec: number;
 
   public constructor(options: SessionsOptions) {
     this.cookieName = options.cookieName;
     this.durationSec = options.durationSec;
+    this.maxDurationSec = options.maxDurationSec;
   }
 
   public generateSessionToken(): string {
@@ -46,7 +49,7 @@ export class Sessions {
               userId,
               sid: sid ?? null,
               idToken: idToken ?? null,
-              expiresAt: new Date(now + this.durationSec * 1000),
+              expiresAt: new Date(now + Math.min(this.durationSec, this.maxDurationSec) * 1000),
             })
             .returning(["id", "token", "userId", "sid", "idToken", "createdAt", "expiresAt"])
             .executeTakeFirstOrThrow(),
@@ -125,9 +128,12 @@ export class Sessions {
       return { session: null, fresh: false };
     }
 
+    const refreshAt = session.expiresAt.getTime() - (this.durationSec / 2) * 1000;
+    const maxExpiresAt = session.createdAt.getTime() + this.maxDurationSec * 1000;
+
     let fresh = false;
-    if (now >= session.expiresAt.getTime() - (this.durationSec / 2) * 1000) {
-      session.expiresAt = new Date(now + this.durationSec * 1000);
+    if (now >= refreshAt && session.expiresAt.getTime() < maxExpiresAt) {
+      session.expiresAt = new Date(Math.min(now + this.durationSec * 1000, maxExpiresAt));
       const refreshed = await db
         .updateTable("sessions")
         .set({ expiresAt: session.expiresAt })
