@@ -5,6 +5,7 @@ import type { NitroApp } from "nitropack/types";
 import { defineNitroPlugin } from "nitropack/runtime/plugin";
 import { runTask } from "nitropack/runtime/task";
 
+import { closeDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { loadEncryptionKeys } from "#layers/core/server/lib/secrets";
 
@@ -47,9 +48,12 @@ export default defineNitroPlugin((nitroApp: NitroApp): void => {
       })();
 
   if (cluster.isPrimary) {
+    let released: Promise<void> | null = null;
     cluster.on("message", (worker, message: unknown) => {
       if (message === READY_MESSAGE) {
-        void ready.then(() => {
+        // Hand the database over to the workers
+        released ??= ready.then(closeDb);
+        void released.then(() => {
           if (worker.isConnected()) {
             worker.send(READY_MESSAGE);
           }
