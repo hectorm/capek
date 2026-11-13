@@ -60,12 +60,22 @@ export default withNuxt(
       },
     },
     rules: {
-      "capek/comment-width": ["error", { maxLength: 120 }],
-      "capek/wrapped-arrow-body": "error",
+      curly: ["error", "all"],
+      eqeqeq: ["error", "smart"],
+      "logical-assignment-operators": ["error", "always"],
       "no-console": [
         "error",
         {
           allow: ["trace", "debug", "info", "warn", "error"],
+        },
+      ],
+      "no-else-return": ["error", { allowElseIf: false }],
+      "no-implicit-coercion": "error",
+      "no-lonely-if": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: virtualModulePatterns,
         },
       ],
       "no-shadow": [
@@ -75,19 +85,6 @@ export default withNuxt(
           hoist: "all",
         },
       ],
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: virtualModulePatterns,
-        },
-      ],
-      "preserve-caught-error": ["off"],
-      curly: ["error", "all"],
-      eqeqeq: ["error", "smart"],
-      "logical-assignment-operators": ["error", "always"],
-      "no-else-return": ["error", { allowElseIf: false }],
-      "no-implicit-coercion": "error",
-      "no-lonely-if": "error",
       "no-useless-concat": "error",
       "no-useless-rename": "error",
       "object-shorthand": "error",
@@ -95,6 +92,16 @@ export default withNuxt(
       "prefer-arrow-callback": "error",
       "prefer-object-spread": "error",
       "prefer-template": "error",
+      "preserve-caught-error": "off",
+      "@typescript-eslint/consistent-type-exports": "error",
+      "@typescript-eslint/method-signature-style": "error",
+      "@typescript-eslint/no-empty-function": [
+        "error",
+        {
+          allow: ["private-constructors"],
+        },
+      ],
+      "@typescript-eslint/no-import-type-side-effects": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -103,15 +110,6 @@ export default withNuxt(
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "@typescript-eslint/no-empty-function": [
-        "error",
-        {
-          allow: ["private-constructors"],
-        },
-      ],
-      "@typescript-eslint/consistent-type-exports": "error",
-      "@typescript-eslint/method-signature-style": "error",
-      "@typescript-eslint/no-import-type-side-effects": "error",
       "@typescript-eslint/prefer-readonly": "error",
       "@typescript-eslint/switch-exhaustiveness-check": [
         "error",
@@ -119,12 +117,14 @@ export default withNuxt(
           considerDefaultExhaustiveForUnions: true,
         },
       ],
-      "vue/block-order": [
-        "error",
-        {
-          order: [["script", "template"], "style"],
-        },
-      ],
+      "better-tailwindcss/enforce-canonical-classes": "error",
+      "better-tailwindcss/enforce-consistent-important-position": "error",
+      "better-tailwindcss/no-concatenated-classes": "error",
+      "better-tailwindcss/no-conflicting-classes": "error",
+      "better-tailwindcss/no-deprecated-classes": "error",
+      "better-tailwindcss/no-unknown-classes": ["error", { ignore: ["markdown-body"] }],
+      "capek/comment-width": ["error", { maxLength: 120 }],
+      "capek/wrapped-arrow-body": "error",
       "vue/attributes-order": [
         "error",
         {
@@ -132,28 +132,28 @@ export default withNuxt(
           sortLineLength: true,
         },
       ],
-      "vue/no-undef-components": ["error"],
+      "vue/block-lang": ["error", { script: { lang: "ts" } }],
+      "vue/block-order": [
+        "error",
+        {
+          order: [["script", "template"], "style"],
+        },
+      ],
+      "vue/component-api-style": ["error", ["script-setup"]],
+      "vue/define-emits-declaration": ["error", "type-based"],
       "vue/define-macros-order": [
         "error",
         {
           order: ["defineProps", "defineEmits"],
         },
       ],
-      "vue/block-lang": ["error", { script: { lang: "ts" } }],
-      "vue/component-api-style": ["error", ["script-setup"]],
-      "vue/define-emits-declaration": ["error", "type-based"],
       "vue/define-props-declaration": ["error", "type-based"],
       "vue/html-button-has-type": "error",
+      "vue/no-undef-components": "error",
       "vue/no-unused-properties": "error",
       "vue/no-unused-refs": "error",
       "vue/no-useless-v-bind": "error",
       "vue/require-typed-ref": "error",
-      "better-tailwindcss/enforce-canonical-classes": "error",
-      "better-tailwindcss/enforce-consistent-important-position": "error",
-      "better-tailwindcss/no-concatenated-classes": "error",
-      "better-tailwindcss/no-conflicting-classes": "error",
-      "better-tailwindcss/no-deprecated-classes": "error",
-      "better-tailwindcss/no-unknown-classes": ["error", { ignore: ["markdown-body"] }],
     },
   },
   {
