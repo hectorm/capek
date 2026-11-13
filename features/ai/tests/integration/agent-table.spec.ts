@@ -32,7 +32,7 @@ test.describe("agent table", () => {
       page.waitForEvent("download"),
       message.getByRole("button", { name: /download csv/i }).click(),
     ]);
-    expect(download.suggestedFilename()).toBe("Mock table.csv");
+    expect(download.suggestedFilename()).toBe("mock-table.csv");
     const lines = Array.from({ length: 30 }, (_, index) => `item ${String(index + 1)},${String(index + 1)}`);
     expect(await readFile(await download.path(), "utf8")).toBe(`\uFEFF${["name,total", ...lines, ""].join("\r\n")}`);
   });

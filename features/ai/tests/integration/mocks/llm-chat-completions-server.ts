@@ -118,14 +118,14 @@ export class MockLLMChatCompletionsServer {
     switch (name) {
       case "ai_chart":
         return {
-          name: "Mock chart",
+          name: "mock-chart",
           option: message.includes("3D")
             ? { grid3D: {}, xAxis3D: {}, yAxis3D: {}, zAxis3D: {}, series: [{ type: "bar3D", data: [[1, 2, 3]] }] }
             : { xAxis: { type: "category", data: ["a", "b"] }, yAxis: {}, series: [{ type: "bar", data: [1, 2] }] },
         };
       case "ai_table":
         return {
-          name: "Mock table",
+          name: "mock-table",
           columns: ["name", "total"],
           rows: Array.from({ length: 30 }, (_, index) => [`item ${String(index + 1)}`, index + 1]),
         };
