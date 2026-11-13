@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import { describe, expect, it } from "vitest";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import { RLSViolationError } from "#layers/core/server/lib/database/errors";
 import {
   authorizedProcedure,
@@ -22,7 +23,7 @@ const router = createTRPCRouter({
 
 const logger = { warn: () => undefined } as unknown as Logger;
 const createCaller = createCallerFactory(router);
-const caller = createCaller({ logger, user: { id: crypto.randomUUID(), permissions: [] } });
+const caller = createCaller({ logger, user: { id: crypto.randomUUID(), permissions: [] } as unknown as AuthUser });
 
 describe("tRPC procedure", () => {
   it("reports the rows rejected by the policies as a lack of permissions", async () => {

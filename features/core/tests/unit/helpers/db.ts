@@ -1,11 +1,15 @@
 import type { Kysely, Transaction } from "kysely";
+import { z } from "zod/v4";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
+import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { Database } from "#layers/core/shared/schema";
 import coreFeature from "#layers/core/server/feature";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
+import { useLogger } from "#layers/core/server/lib/logger";
+import { createSeedContext } from "#layers/core/server/lib/seed";
 
 export { closeDb } from "#layers/core/server/lib/database";
 export { isSuperuser } from "#layers/core/server/lib/database/rls";
@@ -40,4 +44,19 @@ export const insertUsers = async (db: Kysely<Database>, users: Record<string, st
     return { id, username, fullname: username, email: `${username}@example.com` };
   });
   await db.insertInto("users").values(rows).execute();
+};
+
+// Runs the seed of a feature with its section of the configuration
+export const runSeed = async <S extends z.ZodRawShape>(
+  db: Kysely<Database>,
+  features: readonly ServerFeature[],
+  seed: SeedDefinition<S>,
+  config: unknown,
+): Promise<void> => {
+  const deferred: (() => Promise<void>)[] = [];
+  const ctx = createSeedContext(db, useLogger(), features, (fn) => deferred.push(fn));
+  await seed.run(z.object(seed.schema).parse(config), ctx);
+  for (const fn of deferred) {
+    await fn();
+  }
 };

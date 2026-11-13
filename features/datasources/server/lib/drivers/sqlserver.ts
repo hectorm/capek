@@ -44,7 +44,7 @@ const DATABASE_TOKEN_SCOPES = new Set([
   "https://database.cloudapi.de/.default",
 ]);
 
-const databaseCredential = (clientId: string): TokenCredential => {
+export const databaseCredential = (clientId: string): TokenCredential => {
   const credential = new ManagedIdentityCredential(clientId ? { clientId } : undefined);
   return {
     getToken: (scopes, options) => {

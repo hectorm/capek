@@ -3,11 +3,14 @@ import type { AddressInfo } from "node:net";
 
 import type { Kysely } from "kysely";
 import type { Logger } from "pino";
+import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
+import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chatMessage";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
@@ -27,12 +30,16 @@ const mallory = crypto.randomUUID();
 const llmProviderId = crypto.randomUUID();
 const mcpServerId = crypto.randomUUID();
 
-const router = createTRPCRouter({ llmProvider: llmProviderRouter, mcpServer: mcpServerRouter });
+const router = createTRPCRouter({
+  chatMessage: chatMessageRouter,
+  llmProvider: llmProviderRouter,
+  mcpServer: mcpServerRouter,
+});
 const logger = { warn: () => undefined, info: () => undefined, debug: () => undefined } as unknown as Logger;
 
 const as = (id: string, role: RoleName) => {
   const permissions = [...CoreRolePermissions[role], ...AiRolePermissions[role]];
-  return createCallerFactory(router)({ logger, user: { id, groups: [], permissions } });
+  return createCallerFactory(router)({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
 };
 
 beforeAll(async () => {
@@ -149,5 +156,48 @@ describe("access list", () => {
 
     expect(await member.llmProvider.listAccess({ llmProviderId })).toHaveLength(1);
     await expect(member.mcpServer.listAccess({ mcpServerId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("chat message", () => {
+  it("is deleted with the ones after it", async () => {
+    const createSession = async (): Promise<string> => {
+      const session = await db
+        .insertInto("aiChatSessions")
+        .values({ userId: alice, agentId: null, title: "" })
+        .returning(["id"])
+        .executeTakeFirstOrThrow();
+      return session.id;
+    };
+    const insertMessage = async (session: string, content: string, minute: number): Promise<string> => {
+      const createdAt = new Date(Date.UTC(2025, 0, 1, 0, minute));
+      const result = await sql<{ id: string }>`
+        INSERT INTO ai_chat_messages (session_id, role, content, created_at)
+        VALUES (${session}, 'user', ${content}, ${createdAt})
+        RETURNING id
+      `.execute(db);
+      return result.rows[0]?.id ?? "";
+    };
+    const contents = async (session: string): Promise<string[]> => {
+      const rows = await db
+        .selectFrom("aiChatMessages")
+        .select(["content"])
+        .where("sessionId", "=", session)
+        .orderBy("createdAt")
+        .execute();
+      return rows.map((row) => row.content);
+    };
+
+    const sessionId = await createSession();
+    const otherSessionId = await createSession();
+    await insertMessage(sessionId, "first", 1);
+    const second = await insertMessage(sessionId, "second", 2);
+    await insertMessage(sessionId, "third", 3);
+    await insertMessage(otherSessionId, "other", 4);
+
+    await as(alice, Roles.Member).chatMessage.delete({ id: second, sessionId });
+
+    expect(await contents(sessionId)).toEqual(["first"]);
+    expect(await contents(otherSessionId)).toEqual(["other"]);
   });
 });
