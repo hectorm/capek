@@ -100,7 +100,7 @@ watch(
         :style="{ 'scrollbar-width': 'thin' }"
         :aria-label="$t('layouts.default.sidebar.label')"
         :class="[collapsed ? 'max-w-16 min-w-16' : 'max-w-64 min-w-64']"
-        class="transition-width hidden flex-col overflow-x-hidden border-r border-default bg-elevated/25 duration-100 lg:flex"
+        class="hidden flex-col overflow-x-hidden border-r border-default bg-elevated/25 duration-100 lg:flex"
       >
         <div class="flex h-full flex-col" :class="[collapsed ? 'min-w-16' : 'min-w-64']">
           <ReuseMenu />

@@ -149,6 +149,11 @@ export default withNuxt(
       "vue/no-useless-v-bind": "error",
       "vue/require-typed-ref": "error",
       "better-tailwindcss/enforce-canonical-classes": "error",
+      "better-tailwindcss/enforce-consistent-important-position": "error",
+      "better-tailwindcss/no-concatenated-classes": "error",
+      "better-tailwindcss/no-conflicting-classes": "error",
+      "better-tailwindcss/no-deprecated-classes": "error",
+      "better-tailwindcss/no-unknown-classes": ["error", { ignore: ["markdown-body"] }],
     },
   },
   {
