@@ -1,4 +1,4 @@
-import { Buffer } from "node:buffer";
+import { Buffer, isUtf8 } from "node:buffer";
 import { timingSafeEqual } from "node:crypto";
 
 import type { H3Event } from "h3";
@@ -121,6 +121,12 @@ const proxyCache = new Map<string, ProxyCacheEntry>();
 
 const parseHeaderList = (value: string | undefined): string[] => (value ? value.split(/\s*[|;,]+\s*/) : []);
 
+const getUtf8Header = (event: H3Event, name: string): string | undefined => {
+  const value = getHeader(event, name);
+  const bytes = Buffer.from(value ?? "", "latin1");
+  return bytes.toString("latin1") === value && isUtf8(bytes) ? bytes.toString("utf8") : value;
+};
+
 export class ProxyStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
     const expectedSecret = config.proxy.secret;
@@ -137,18 +143,18 @@ export class ProxyStrategy implements AuthStrategy {
       return null;
     }
 
-    const username = getHeader(event, config.proxy.headerUsername);
-    const fullname = getHeader(event, config.proxy.headerFullname);
-    const email = getHeader(event, config.proxy.headerEmail);
+    const username = getUtf8Header(event, config.proxy.headerUsername);
+    const fullname = getUtf8Header(event, config.proxy.headerFullname);
+    const email = getUtf8Header(event, config.proxy.headerEmail);
 
     if (!username || !fullname || !email) {
       return null;
     }
 
-    const picture = getHeader(event, config.proxy.headerPicture) ?? null;
-    const headerRoles = parseHeaderList(getHeader(event, config.proxy.headerRoles));
+    const picture = getUtf8Header(event, config.proxy.headerPicture) ?? null;
+    const headerRoles = parseHeaderList(getUtf8Header(event, config.proxy.headerRoles));
     const roles = config.proxy.syncRoles ? (headerRoles.length > 0 ? headerRoles : [Roles.Member]) : null;
-    const groups = config.proxy.syncGroups ? parseHeaderList(getHeader(event, config.proxy.headerGroups)) : null;
+    const groups = config.proxy.syncGroups ? parseHeaderList(getUtf8Header(event, config.proxy.headerGroups)) : null;
 
     const ttlMs = config.proxy.cacheTtlSec * 1000;
     const cacheKey = ttlMs > 0 ? JSON.stringify([username, fullname, email, picture, roles, groups]) : null;
