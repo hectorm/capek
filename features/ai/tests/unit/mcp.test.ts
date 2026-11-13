@@ -169,6 +169,25 @@ describe("mcp", () => {
     expect(await expired.testConnection()).toMatchObject({ success: false });
   });
 
+  it("waits before opening again the stream of a server that asks for no delay", async () => {
+    let streams = 0;
+    vi.stubGlobal("fetch", (target: string, init: RequestInit) => {
+      if (init.method !== "GET") {
+        return respond(target, init);
+      }
+      streams++;
+      return Promise.resolve(new Response("retry: 0\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    });
+
+    const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: true });
+    await client.initialize();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await client.terminate();
+    vi.stubGlobal("fetch", respond);
+
+    expect(streams).toBe(1);
+  });
+
   it("builds modules that can be imported whatever the descriptions of their tools say", async () => {
     const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: false });
     await client.initialize();

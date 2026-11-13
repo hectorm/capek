@@ -25,6 +25,8 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
 const TOOLS_MAX = 1_000;
 const TOOLS_MAX_PAGES = 20;
+const SSE_RETRY_MIN_MS = 1_000;
+const SSE_RETRY_MAX_MS = 60_000;
 
 async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   let bytes = 0;
@@ -359,11 +361,12 @@ export class MCPClient {
       clearTimeout(this._sseReconnectTimeout);
     }
 
+    const retryMs = Math.min(Math.max(this._retryMs, SSE_RETRY_MIN_MS), SSE_RETRY_MAX_MS);
     this._sseReconnectTimeout = setTimeout(() => {
       if (!this._isTerminated) {
         this.startSseStream();
       }
-    }, this._retryMs);
+    }, retryMs);
   }
 
   public async initialize(signal?: AbortSignal): Promise<void> {
