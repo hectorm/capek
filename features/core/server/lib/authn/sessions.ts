@@ -185,7 +185,7 @@ export class Sessions {
   public createSessionCookie(token: string, expiresAt: Date): string {
     let cookie = `${this.cookieName}=${token}; Path=/; Expires=${expiresAt.toUTCString()}; HttpOnly; SameSite=Lax`;
     if (!import.meta.dev) {
-      cookie += "; Secure; Partitioned";
+      cookie += "; Secure";
     }
     return cookie;
   }
@@ -193,7 +193,7 @@ export class Sessions {
   public createSessionDeleteCookie(): string {
     let cookie = `${this.cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
     if (!import.meta.dev) {
-      cookie += "; Secure; Partitioned";
+      cookie += "; Secure";
     }
     return cookie;
   }

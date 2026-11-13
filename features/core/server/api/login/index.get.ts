@@ -48,7 +48,6 @@ export default defineEventHandler(async (event) => {
       httpOnly: true,
       sameSite: "lax" as const,
       secure: !import.meta.dev,
-      partitioned: !import.meta.dev,
     };
 
     setCookie(event, oidc.codeVerifierCookieName, codeVerifier, cookieOptions);
