@@ -15,6 +15,7 @@ import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { testConnection } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
+import { decryptSourceConfig, encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { DatasourceConfigSchema, DatasourceSecretsError } from "#layers/datasources/shared/datasource";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 
@@ -51,12 +52,12 @@ const parseConfig = (datasourceType: ServerDatasourceType, config: DatasourceCon
 const unredactConfig = (
   datasourceType: ServerDatasourceType,
   incoming: DatasourceConfig,
-  stored: { type: string; config: DatasourceConfig } | undefined,
+  stored: { type: string; config: string } | undefined,
 ): DatasourceConfig => {
   try {
     return datasourceType.definition.unredact(
       incoming,
-      stored?.type === datasourceType.definition.type ? stored.config : {},
+      stored?.type === datasourceType.definition.type ? decryptSourceConfig(stored.config) : {},
     );
   } catch (error) {
     if (error instanceof DatasourceSecretsError) {
@@ -67,8 +68,8 @@ const unredactConfig = (
 };
 
 // Hides the secrets of the configuration, which cannot be read back when its type is not supported
-const redactConfig = (source: { type: string; config: DatasourceConfig }): DatasourceConfig => {
-  return findDatasourceType(source.type)?.definition.redact(source.config) ?? {};
+const redactConfig = (source: { type: string; config: string }): DatasourceConfig => {
+  return findDatasourceType(source.type)?.definition.redact(decryptSourceConfig(source.config)) ?? {};
 };
 
 export const sourceRouter = createTRPCRouter({
@@ -162,7 +163,7 @@ export const sourceRouter = createTRPCRouter({
               description: input.description,
               documentation: input.documentation ?? null,
               type: input.type,
-              config: JSON.stringify(config),
+              config: encryptSourceConfig(config),
             })
             .execute();
 
@@ -220,7 +221,7 @@ export const sourceRouter = createTRPCRouter({
             .where("id", "=", id)
             .forUpdate()
             .executeTakeFirst();
-          const config = JSON.stringify(unredactConfig(datasourceType, incomingConfig, existing));
+          const config = encryptSourceConfig(unredactConfig(datasourceType, incomingConfig, existing));
 
           const source = await trx
             .updateTable("datasourcesSources")

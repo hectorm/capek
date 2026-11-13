@@ -1,7 +1,6 @@
 import type { ColumnType, Insertable, Selectable, Updateable } from "kysely";
 
 import type { ResourceAccessTable } from "#layers/core/shared/schema";
-import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
 
 export interface SourcesTable {
   id: ColumnType<string, string | undefined, never>;
@@ -9,7 +8,7 @@ export interface SourcesTable {
   description: string;
   documentation: string | null;
   type: string;
-  config: ColumnType<DatasourceConfig, string, string>;
+  config: string;
   createdAt: ColumnType<Date, never, never>;
   updatedAt: ColumnType<Date, never, Date>;
 }

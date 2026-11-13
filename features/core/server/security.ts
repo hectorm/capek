@@ -198,5 +198,8 @@ export const coreSecurity: SecurityDefinition = {
         FOR DELETE
         USING ((SELECT security.can_any(ARRAY['settings:delete:all'])));
     `,
+
+    // Encryption keys
+    ...protectTable("encryption_keys"),
   ],
 };

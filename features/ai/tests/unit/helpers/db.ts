@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { NewAgent, NewLlmProvider, NewSkill } from "#layers/ai/shared/schema";
 import type { Database } from "#layers/core/shared/schema";
 import aiFeature from "#layers/ai/server/feature";
+import { encryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { createTestDb } from "#layers/core/tests/unit/helpers/db";
 
 export { asUser, closeDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
@@ -12,7 +13,7 @@ export const createAiTestDb = (): Promise<Kysely<Database>> => createTestDb([aiF
 export const insertLlmProvider = async (
   db: Kysely<Database>,
   name: string,
-  values: Partial<NewLlmProvider> = {},
+  { apiKey = "hunter2", ...values }: Partial<Omit<NewLlmProvider, "headers">> = {},
 ): Promise<string> => {
   const row = await db
     .insertInto("aiLlmProviders")
@@ -21,8 +22,7 @@ export const insertLlmProvider = async (
       description: "",
       apiUrl: "http://llm.localhost/v1",
       apiType: "chat-completions",
-      apiKey: "hunter2",
-      headers: "[]",
+      ...encryptLlmProviderSecrets({ apiKey, headers: [] }),
       ...values,
     })
     .returning(["id"])

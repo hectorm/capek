@@ -159,4 +159,14 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
+
+  ////////////////////////////////
+
+  await db.schema
+    .createTable("public.encryptionKeys")
+    .addColumn("version", "integer", (col) => col.primaryKey())
+    .addColumn("wrappedKey", sql`text COLLATE "C"`, (col) => col.notNull())
+    .addColumn("mainKeyFingerprint", sql`varchar(43) COLLATE "C"`, (col) => col.notNull())
+    .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
+    .execute();
 };

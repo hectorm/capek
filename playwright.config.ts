@@ -89,6 +89,7 @@ export default defineConfig({
     env: {
       NITRO_CLUSTER_WORKERS: "1",
       NUXT_DATABASE_URL: `file://${process.env.PLAYWRIGHT_TMP_DIR}/pglite`,
+      NUXT_ENCRYPTION_KEY: "GIMAxGqsofiyEBw2fzuXw0IiTiDD5vKWDJzYS5FxCyM=",
       NUXT_AUTH_MODE: "single-user",
       NUXT_BRANDING_NAME: "Test",
       NUXT_SINGLE_USER_USERNAME: "admin",

@@ -2,6 +2,7 @@ import { sql } from "kysely";
 import { z } from "zod/v4";
 
 import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
+import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
@@ -96,8 +97,10 @@ export const aiSeed = defineSeed({
             description: llmProviderConfig.description,
             apiUrl: llmProviderConfig.apiUrl,
             apiType: llmProviderConfig.apiType,
-            apiKey: llmProviderConfig.apiKey,
-            headers: JSON.stringify(llmProviderConfig.headers ?? []),
+            ...encryptLlmProviderSecrets({
+              apiKey: llmProviderConfig.apiKey,
+              headers: llmProviderConfig.headers ?? [],
+            }),
           })
           .returning(["id", "name"])
           .executeTakeFirstOrThrow();
@@ -128,7 +131,7 @@ export const aiSeed = defineSeed({
             name: mcpConfig.name,
             description: mcpConfig.description,
             url: mcpConfig.url,
-            headers: JSON.stringify(mcpConfig.headers ?? []),
+            headers: encryptMcpServerHeaders(mcpConfig.headers ?? []),
             stateful: mcpConfig.stateful,
             toolCallTimeoutSec: mcpConfig.toolCallTimeoutSec ?? null,
             cachedTools: "[]",

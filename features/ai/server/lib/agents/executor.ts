@@ -41,6 +41,7 @@ import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
+import { decryptLlmProviderSecrets, decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { loadAgentToolsets, sanitize, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
@@ -974,6 +975,7 @@ export class AgentExecutor {
 
     return {
       ...agent,
+      ...decryptLlmProviderSecrets(agent),
       maxIterations: agent.maxIterations ?? AgentExecutorParameters.maxIterations.default,
       timeoutSec: agent.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
       maxContextChars: agent.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
@@ -1021,6 +1023,7 @@ export class AgentExecutor {
 
     return specialists.map((s) => ({
       ...s,
+      ...decryptLlmProviderSecrets(s),
       maxIterations: s.maxIterations ?? AgentExecutorParameters.maxIterations.default,
       timeoutSec: s.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
       maxContextChars: s.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
@@ -1060,6 +1063,7 @@ export class AgentExecutor {
       const parsed = z.array(MCPToolSchema).safeParse(s.cachedTools);
       return {
         ...s,
+        headers: decryptMcpServerHeaders(s.headers),
         cachedTools: parsed.success ? parsed.data : [],
       };
     });

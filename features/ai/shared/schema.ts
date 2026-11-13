@@ -4,7 +4,6 @@ import type { LlmItem } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
-import type { HttpHeader } from "#layers/core/shared/http";
 import type { ResourceAccessTable } from "#layers/core/shared/schema";
 
 export interface ChatSessionsTable {
@@ -72,7 +71,7 @@ export interface LlmProvidersTable {
   apiUrl: string;
   apiType: LlmProviderApiType;
   apiKey: string;
-  headers: ColumnType<HttpHeader[], string, string>;
+  headers: string;
   createdAt: ColumnType<Date, never, never>;
   updatedAt: ColumnType<Date, never, Date>;
 }
@@ -95,7 +94,7 @@ export interface McpServersTable {
   name: string;
   description: string;
   url: string;
-  headers: ColumnType<HttpHeader[], string, string>;
+  headers: string;
   stateful: boolean;
   toolCallTimeoutSec: number | null;
   cachedTools: ColumnType<MCPTool[], string, string>;

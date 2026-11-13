@@ -75,6 +75,8 @@ services:
     environment:
       NUXT_DATABASE_URL: "postgresql://capek:password@postgres:5432/capek"
       NUXT_DATABASE_MAX_CONNECTIONS: "20"
+      NUXT_ENCRYPTION_KEY: "${NUXT_ENCRYPTION_KEY:-GIMAxGqsofiyEBw2fzuXw0IiTiDD5vKWDJzYS5FxCyM=}"
+      NUXT_ENCRYPTION_PREVIOUS_KEY: "${NUXT_ENCRYPTION_PREVIOUS_KEY:-}"
       NUXT_AI_QUICK_CHATS: >-
         Give me a fun fact;
         What tools are available to you?;

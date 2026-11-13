@@ -5,6 +5,7 @@ import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { Database } from "#layers/core/shared/schema";
 import { MCPClient } from "#layers/ai/server/lib/mcp/client";
+import { decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
 import { useLogger } from "#layers/core/server/lib/logger";
 
@@ -43,7 +44,8 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
     return cached;
   }
 
-  const config = JSON.stringify([server.url, server.headers]);
+  const headers = decryptMcpServerHeaders(server.headers);
+  const config = JSON.stringify([server.url, headers]);
   const last = unavailable.get(mcpServerId);
   if (last?.config === config && Date.now() - last.since < DISCOVERY_RETRY_MS) {
     return cached;
@@ -54,7 +56,7 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
   const client = new MCPClient({
     name: server.name,
     url: server.url,
-    headers: server.headers,
+    headers,
     stateful: false,
     timeoutMs: DISCOVERY_TIMEOUT_MS,
   });

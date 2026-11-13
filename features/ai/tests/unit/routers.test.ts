@@ -10,6 +10,7 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
+import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chatMessage";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
@@ -67,7 +68,7 @@ beforeAll(async () => {
       name: "server",
       description: "",
       url: `${endpointUrl}/mcp`,
-      headers: JSON.stringify([]),
+      headers: encryptMcpServerHeaders([]),
       stateful: false,
       toolCallTimeoutSec: null,
       cachedTools: JSON.stringify([]),

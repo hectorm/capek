@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resources";
+import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -912,8 +913,7 @@ export const agentRouter = createTRPCRouter({
       const llmClient = new LlmClient({
         apiUrl: llmProvider.apiUrl,
         apiType: llmProvider.apiType,
-        apiKey: llmProvider.apiKey,
-        headers: llmProvider.headers,
+        ...decryptLlmProviderSecrets(llmProvider),
         model: input.model,
         streaming: input.streaming,
       });

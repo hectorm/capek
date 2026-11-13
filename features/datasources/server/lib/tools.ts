@@ -2,6 +2,7 @@ import { defineToolProvider } from "#layers/core/server/lib/tools/define";
 import { TablePartMaxRows } from "#layers/core/shared/tools";
 import { executeQuery, QUERY_MAX_ROWS } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
+import { decryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 
 export const DATASOURCES_QUERY_TOOL = "datasources_query";
 
@@ -11,12 +12,13 @@ export const datasourcesToolProvider = defineToolProvider({
   label: "datasources.tools.label",
   resource: SourceResource,
   async load(db, resourceIds) {
-    const sources = await db
+    const stored = await db
       .selectFrom("datasourcesSources")
       .select(["id", "name", "documentation", "type", "config"])
       .where("id", "in", resourceIds)
       .orderBy("name", "asc")
       .execute();
+    const sources = stored.map((source) => ({ ...source, config: decryptSourceConfig(source.config) }));
 
     if (sources.length === 0) {
       return { tools: [] };

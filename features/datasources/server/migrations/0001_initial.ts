@@ -15,7 +15,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("description", sql`text COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("documentation", sql`text COLLATE ${naturalCs}`)
     .addColumn("type", sql`varchar(100) COLLATE "C"`, (col) => col.notNull())
-    .addColumn("config", "jsonb", (col) => col.notNull())
+    .addColumn("config", sql`text COLLATE "C"`, (col) => col.notNull())
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();

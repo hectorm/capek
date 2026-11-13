@@ -5,24 +5,42 @@ import type { NitroApp } from "nitropack/types";
 import { defineNitroPlugin } from "nitropack/runtime/plugin";
 import { runTask } from "nitropack/runtime/task";
 
+import { useLogger } from "#layers/core/server/lib/logger";
+import { loadEncryptionKeys } from "#layers/core/server/lib/secrets";
+
 const READY_MESSAGE = "core:database-ready";
+
+const logger = useLogger();
+
+const loadKeys = async (): Promise<void> => {
+  try {
+    await loadEncryptionKeys();
+  } catch (error) {
+    logger.error({ error }, "Encryption keys could not be loaded");
+    process.exit(1);
+  }
+};
 
 export default defineNitroPlugin((nitroApp: NitroApp): void => {
   const ready = cluster.isWorker
-    ? new Promise<void>((resolve) => {
-        const onMessage = (message: unknown): void => {
-          if (message === READY_MESSAGE) {
-            process.off("message", onMessage);
-            resolve();
-          }
-        };
-        process.on("message", onMessage);
-        process.send?.(READY_MESSAGE);
-      })
+    ? (async (): Promise<void> => {
+        await new Promise<void>((resolve) => {
+          const onMessage = (message: unknown): void => {
+            if (message === READY_MESSAGE) {
+              process.off("message", onMessage);
+              resolve();
+            }
+          };
+          process.on("message", onMessage);
+          process.send?.(READY_MESSAGE);
+        });
+        await loadKeys();
+      })()
     : (async (): Promise<void> => {
         if (!(await runTask("database:migrate")).result) {
           process.exit(1);
         }
+        await loadKeys();
         if (!(await runTask("database:seed")).result) {
           process.exit(1);
         }

@@ -7,6 +7,7 @@ import type { Endpoint } from "#layers/core/server/lib/http";
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { MCPClient } from "#layers/ai/server/lib/mcp/client";
 import { McpServerResource } from "#layers/ai/server/lib/resources";
+import { decryptMcpServerHeaders, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { can } from "#layers/core/server/lib/authz/permissions";
@@ -23,6 +24,20 @@ interface WithRedactedValues {
   headers: HttpRedactedHeader[];
   [key: string]: unknown;
 }
+
+const redactSecrets = <T extends { headers: string }>(mcpServer: T) => {
+  return {
+    ...mcpServer,
+    headers: decryptMcpServerHeaders(mcpServer.headers).map((h) => ({
+      name: h.name,
+      value: HttpRedactedValue,
+    })),
+  } satisfies WithRedactedValues;
+};
+
+const storedEndpoint = (stored: { url: string; headers: string }): Endpoint => {
+  return { url: stored.url, headers: decryptMcpServerHeaders(stored.headers) };
+};
 
 export const mcpServerRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.McpServerReadAll, AiPermissions.McpServerReadOwn])
@@ -44,10 +59,7 @@ export const mcpServerRouter = createTRPCRouter({
         }
 
         ctx.logger.debug({ mcpServerId: input.id }, "MCP server retrieved");
-        return {
-          ...mcpServer,
-          headers: mcpServer.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-        } satisfies WithRedactedValues;
+        return redactSecrets(mcpServer);
       });
     }),
 
@@ -111,7 +123,7 @@ export const mcpServerRouter = createTRPCRouter({
               name: input.name,
               description: input.description,
               url: input.url,
-              headers: JSON.stringify(input.headers ?? []),
+              headers: encryptMcpServerHeaders(input.headers ?? []),
               stateful: input.stateful,
               toolCallTimeoutSec: input.toolCallTimeoutSec ?? null,
               cachedTools: "[]",
@@ -130,10 +142,7 @@ export const mcpServerRouter = createTRPCRouter({
             .executeTakeFirstOrThrow();
 
           ctx.logger.info({ mcpServerId }, "MCP server created");
-          return {
-            ...mcpServer,
-            headers: mcpServer.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-          } satisfies WithRedactedValues;
+          return redactSecrets(mcpServer);
         } catch (error) {
           if (isUniqueViolation(error)) {
             ctx.logger.warn({ name: input.name }, "MCP server name already exists");
@@ -171,7 +180,7 @@ export const mcpServerRouter = createTRPCRouter({
             .where("id", "=", id)
             .forUpdate()
             .executeTakeFirst();
-          const endpoint = unredactEndpoint({ url, headers }, existing);
+          const endpoint = unredactEndpoint({ url, headers }, existing ? storedEndpoint(existing) : undefined);
 
           // The tools are discovered again when the server may be another one
           const cachedTools = url !== undefined || headers !== undefined ? "[]" : undefined;
@@ -181,7 +190,7 @@ export const mcpServerRouter = createTRPCRouter({
             .set({
               ...updateData,
               url: endpoint.url,
-              headers: JSON.stringify(endpoint.headers),
+              headers: encryptMcpServerHeaders(endpoint.headers),
               cachedTools,
               updatedAt: new Date(),
             })
@@ -198,10 +207,7 @@ export const mcpServerRouter = createTRPCRouter({
           }
 
           ctx.logger.info({ mcpServerId: id }, "MCP server updated");
-          return {
-            ...mcpServer,
-            headers: mcpServer.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-          } satisfies WithRedactedValues;
+          return redactSecrets(mcpServer);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -294,7 +300,7 @@ export const mcpServerRouter = createTRPCRouter({
             message: "MCP server not found or you don't have permission to update it",
           });
         }
-        endpoint = unredactEndpoint(endpoint, stored);
+        endpoint = unredactEndpoint(endpoint, storedEndpoint(stored));
       } else if (!can(ctx.user, AiPermissions.McpServerCreate)) {
         throw new TRPCError({
           code: "FORBIDDEN",

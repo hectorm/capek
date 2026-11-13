@@ -7,6 +7,7 @@ import type { Endpoint } from "#layers/core/server/lib/http";
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
+import { decryptLlmProviderSecrets, encryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { can } from "#layers/core/server/lib/authz/permissions";
@@ -24,6 +25,19 @@ interface WithRedactedValues {
   headers: HttpRedactedHeader[];
   [key: string]: unknown;
 }
+
+const redactSecrets = <T extends { apiKey: string; headers: string }>(llmProvider: T) => {
+  const { headers } = decryptLlmProviderSecrets(llmProvider);
+  return {
+    ...llmProvider,
+    apiKey: HttpRedactedValue,
+    headers: headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
+  } satisfies WithRedactedValues;
+};
+
+const storedEndpoint = (stored: { url: string; apiKey: string; headers: string }): Endpoint => {
+  return { url: stored.url, ...decryptLlmProviderSecrets(stored) };
+};
 
 export const llmProviderRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.LlmProviderReadAll, AiPermissions.LlmProviderReadOwn])
@@ -45,11 +59,7 @@ export const llmProviderRouter = createTRPCRouter({
         }
 
         ctx.logger.debug({ llmProviderId: input.id }, "LLM provider retrieved");
-        return {
-          ...llmProvider,
-          apiKey: HttpRedactedValue,
-          headers: llmProvider.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-        } satisfies WithRedactedValues;
+        return redactSecrets(llmProvider);
       });
     }),
 
@@ -115,8 +125,7 @@ export const llmProviderRouter = createTRPCRouter({
               description: input.description,
               apiUrl: input.apiUrl,
               apiType: input.apiType,
-              apiKey: input.apiKey,
-              headers: JSON.stringify(input.headers ?? []),
+              ...encryptLlmProviderSecrets({ apiKey: input.apiKey, headers: input.headers ?? [] }),
             })
             .execute();
 
@@ -132,11 +141,7 @@ export const llmProviderRouter = createTRPCRouter({
             .executeTakeFirstOrThrow();
 
           ctx.logger.info({ llmProviderId }, "LLM provider created");
-          return {
-            ...llmProvider,
-            apiKey: HttpRedactedValue,
-            headers: llmProvider.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-          } satisfies WithRedactedValues;
+          return redactSecrets(llmProvider);
         } catch (error) {
           if (isUniqueViolation(error)) {
             ctx.logger.warn({ name: input.name }, "LLM provider name already exists");
@@ -173,15 +178,17 @@ export const llmProviderRouter = createTRPCRouter({
             .where("id", "=", id)
             .forUpdate()
             .executeTakeFirst();
-          const endpoint = unredactEndpoint({ url: apiUrl, apiKey, headers }, existing);
+          const endpoint = unredactEndpoint(
+            { url: apiUrl, apiKey, headers },
+            existing ? storedEndpoint(existing) : undefined,
+          );
 
           const llmProvider = await trx
             .updateTable("aiLlmProviders")
             .set({
               ...updateData,
               apiUrl: endpoint.url,
-              apiKey: endpoint.apiKey,
-              headers: JSON.stringify(endpoint.headers),
+              ...encryptLlmProviderSecrets({ apiKey: endpoint.apiKey, headers: endpoint.headers }),
               updatedAt: new Date(),
             })
             .where("id", "=", id)
@@ -197,11 +204,7 @@ export const llmProviderRouter = createTRPCRouter({
           }
 
           ctx.logger.info({ llmProviderId: id }, "LLM provider updated");
-          return {
-            ...llmProvider,
-            apiKey: HttpRedactedValue,
-            headers: llmProvider.headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
-          } satisfies WithRedactedValues;
+          return redactSecrets(llmProvider);
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
@@ -302,7 +305,7 @@ export const llmProviderRouter = createTRPCRouter({
             message: "LLM provider not found or you don't have permission to update it",
           });
         }
-        endpoint = unredactEndpoint(endpoint, stored);
+        endpoint = unredactEndpoint(endpoint, storedEndpoint(stored));
       } else if (!can(ctx.user, AiPermissions.LlmProviderCreate)) {
         throw new TRPCError({
           code: "FORBIDDEN",

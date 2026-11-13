@@ -196,6 +196,10 @@ export default defineNuxtConfig({
       durationSec: 7 * 24 * 60 * 60, // 7 days
       maxDurationSec: 30 * 24 * 60 * 60, // 30 days
     },
+    encryption: {
+      key: "",
+      previousKey: "",
+    },
     branding: {
       name: "Capek",
       logo: "",

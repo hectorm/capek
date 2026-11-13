@@ -144,6 +144,19 @@ export type SettingUpdate = Updateable<SettingsTable>;
 
 ////////////////////////////////
 
+export interface EncryptionKeysTable {
+  version: number;
+  wrappedKey: string;
+  mainKeyFingerprint: string;
+  createdAt: ColumnType<Date, never, never>;
+}
+
+export type EncryptionKey = Selectable<EncryptionKeysTable>;
+export type NewEncryptionKey = Insertable<EncryptionKeysTable>;
+export type EncryptionKeyUpdate = Updateable<EncryptionKeysTable>;
+
+////////////////////////////////
+
 // Access entries of a resource shared with users and groups, see `defineSharedResource()`
 export type ResourceAccessTable<K extends string> = {
   id: ColumnType<number, never, never>;
@@ -168,4 +181,5 @@ export interface Database {
   accounts: AccountsTable;
   sessions: SessionsTable;
   settings: SettingsTable;
+  encryptionKeys: EncryptionKeysTable;
 }

@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
+import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
@@ -239,7 +240,7 @@ export const chatSessionRouter = createTRPCRouter({
       const db = await useDb();
       const agentLlmConfig = await db
         .selectFrom("aiAgents")
-        .leftJoin("aiLlmProviders", "aiLlmProviders.id", "aiAgents.llmProviderId")
+        .innerJoin("aiLlmProviders", "aiLlmProviders.id", "aiAgents.llmProviderId")
         .select([
           "aiAgents.model",
           "aiAgents.summaryModel",
@@ -251,7 +252,7 @@ export const chatSessionRouter = createTRPCRouter({
         .where("aiAgents.id", "=", agentId)
         .executeTakeFirst();
 
-      if (!agentLlmConfig?.apiUrl) {
+      if (!agentLlmConfig) {
         ctx.logger.debug({ sessionId: input.id }, "No LLM provider configured, skipping auto-rename");
         return chatSession;
       }
@@ -259,8 +260,7 @@ export const chatSessionRouter = createTRPCRouter({
       const llmClient = new LlmClient({
         apiUrl: agentLlmConfig.apiUrl,
         apiType: agentLlmConfig.apiType,
-        apiKey: agentLlmConfig.apiKey ?? "",
-        headers: agentLlmConfig.headers ?? [],
+        ...decryptLlmProviderSecrets(agentLlmConfig),
         model: agentLlmConfig.model,
         summaryModel: agentLlmConfig.summaryModel,
       });

@@ -5,6 +5,7 @@ import type { Database } from "#layers/core/shared/schema";
 import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
 import aiFeature from "#layers/ai/server/feature";
 import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
+import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
   asUser,
@@ -199,11 +200,11 @@ describe("resource secret", () => {
       return asUser({ id: grace, permissions }, async (trx) => {
         const row = await trx
           .selectFrom("aiLlmProviders")
-          .select(["apiKey"])
+          .select(["apiKey", "headers"])
           .where("id", "=", llmProviderId)
           .forUpdate()
           .executeTakeFirst();
-        return row?.apiKey;
+        return row ? decryptLlmProviderSecrets(row).apiKey : undefined;
       });
     };
 

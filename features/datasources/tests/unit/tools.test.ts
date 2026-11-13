@@ -12,6 +12,7 @@ import { collectToolProviders } from "#layers/core/server/lib/tools/define";
 import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
 import { datasourceTypes, findDatasourceType } from "#layers/datasources/server/lib/drivers";
+import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { datasourcesToolProvider } from "#layers/datasources/server/lib/tools";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
@@ -47,7 +48,7 @@ beforeAll(async () => {
         description: "",
         documentation: "Table `orders(id, total)`",
         type: "postgres",
-        config: JSON.stringify({
+        config: encryptSourceConfig({
           connectionString: `postgres://${salesServer.getServerConn()}/postgres`,
           authType: "basic",
           username: "postgres",
@@ -60,7 +61,7 @@ beforeAll(async () => {
         description: "",
         documentation: null,
         type: "removed",
-        config: JSON.stringify({}),
+        config: encryptSourceConfig({}),
       },
     ])
     .execute();

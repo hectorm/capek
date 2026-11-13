@@ -1,8 +1,10 @@
 import { z } from "zod/v4";
 
+import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
 import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
+import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
 
 const seedSourceSchema = z.object({
@@ -44,7 +46,7 @@ export const datasourcesSeed = defineSeed({
           description: sourceConfig.description,
           documentation: sourceConfig.documentation ?? null,
           type: sourceConfig.type,
-          config: JSON.stringify(type.definition.configSchema.parse(sourceConfig.config)),
+          config: encryptSourceConfig(type.definition.configSchema.parse(sourceConfig.config) as DatasourceConfig),
         })
         .returning(["id", "name"])
         .executeTakeFirstOrThrow();

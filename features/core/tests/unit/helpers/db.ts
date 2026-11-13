@@ -9,6 +9,7 @@ import coreFeature from "#layers/core/server/feature";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { useLogger } from "#layers/core/server/lib/logger";
+import { loadEncryptionKeys } from "#layers/core/server/lib/secrets";
 import { createSeedContext } from "#layers/core/server/lib/seed";
 
 export { closeDb } from "#layers/core/server/lib/database";
@@ -17,6 +18,7 @@ export { isSuperuser } from "#layers/core/server/lib/database/rls";
 export const createTestDb = async (features: readonly ServerFeature[] = []): Promise<Kysely<Database>> => {
   const db = await useDb();
   await migrateToLatest(db, [coreFeature, ...features]);
+  await loadEncryptionKeys();
   return db;
 };
 

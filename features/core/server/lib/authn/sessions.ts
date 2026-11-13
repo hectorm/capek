@@ -4,9 +4,12 @@ import { useRuntimeConfig } from "nitropack/runtime/config";
 
 import { useDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
+import { useSecrets } from "#layers/core/server/lib/secrets";
 
 const config = useRuntimeConfig();
 const logger = useLogger();
+
+const ID_TOKEN_CONTEXT = "sessions.id_token";
 
 export interface SessionsOptions {
   cookieName: string;
@@ -48,7 +51,7 @@ export class Sessions {
               token: tokenHash,
               userId,
               sid: sid ?? null,
-              idToken: idToken ?? null,
+              idToken: idToken ? useSecrets().encrypt(idToken, ID_TOKEN_CONTEXT) : null,
               expiresAt: new Date(now + Math.min(this.durationSec, this.maxDurationSec) * 1000),
             })
             .returning(["id", "token", "userId", "sid", "idToken", "createdAt", "expiresAt"])
@@ -65,7 +68,7 @@ export class Sessions {
       });
 
     logger.info({ userId, sid }, "Session created");
-    return { ...result.session, token, user: result.user };
+    return { ...result.session, idToken: idToken ?? null, token, user: result.user };
   }
 
   public async validateSession(token: string) {
@@ -106,7 +109,7 @@ export class Sessions {
       token: result.token,
       userId: result.userId,
       sid: result.sid,
-      idToken: result.idToken,
+      idToken: result.idToken ? useSecrets().decrypt(result.idToken, ID_TOKEN_CONTEXT) : null,
       createdAt: result.createdAt,
       expiresAt: result.expiresAt,
       user: {

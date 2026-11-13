@@ -9,6 +9,7 @@ import { HttpRedactedValue } from "#layers/core/shared/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
+import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { sourceRouter } from "#layers/datasources/server/trpc/routers/source";
 import { DatasourcesRolePermissions } from "#layers/datasources/shared/rbac";
 
@@ -38,7 +39,7 @@ beforeAll(async () => {
       description: "",
       documentation: null,
       type: "postgres",
-      config: JSON.stringify(storedConfig),
+      config: encryptSourceConfig(storedConfig),
     })
     .execute();
   await db.insertInto("datasourcesSourceAccess").values({ sourceId, userId: mallory, role: "user" }).execute();
