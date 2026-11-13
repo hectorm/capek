@@ -137,6 +137,9 @@ export default defineEventHandler(async (event) => {
   event.node.res.on("close", () => {
     abortController.abort();
   });
+  if (event.node.res.closed) {
+    abortController.abort();
+  }
 
   const executor = new AgentExecutor({ sessionId, user, message, userMessageId, assistantMessageId });
 
