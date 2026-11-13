@@ -44,6 +44,10 @@ export default () => ({
         title: "Chat",
         description: "Chat session",
         untitled: "Untitled",
+        toolCalls: {
+          calls: "{count} calls",
+          tools: "{count} tool calls",
+        },
         errors: {
           timeout: "The answer took longer than the agent is allowed to",
           maxIterations: "The agent reached its maximum number of steps without finishing the answer",

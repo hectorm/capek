@@ -20,6 +20,7 @@ import { useAnswerError } from "#layers/ai/app/composables/answer-error";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
 import { copyToClipboard } from "#layers/core/app/utils/clipboard";
+import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -85,6 +86,41 @@ interface MessagePart {
   text?: string;
 }
 
+type ToolCallPart = Extract<ChatMessagePart, { type: "tool" }>;
+
+type DisplayedPart = Exclude<ChatMessagePart, { type: "tool" }> | { type: "tools"; calls: ToolCallPart[] };
+
+const groupToolCalls = (parts: ChatMessagePart[]): DisplayedPart[] => {
+  const grouped: DisplayedPart[] = [];
+  for (const part of parts) {
+    const last = grouped.at(-1);
+    if (part.type !== "tool") {
+      grouped.push(part);
+    } else if (last?.type === "tools") {
+      last.calls.push(part);
+    } else {
+      grouped.push({ type: "tools", calls: [part] });
+    }
+  }
+  return grouped;
+};
+
+const toolCallsText = (calls: ToolCallPart[]): string => {
+  const names = new Set(calls.map((call) => call.name));
+  if (names.size > 1) {
+    return i18n.t("ai.pages.chat.toolCalls.tools", { count: calls.length });
+  }
+  return calls[0]?.name ?? "";
+};
+
+const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
+  const names = new Set(calls.map((call) => call.name));
+  if (calls.length === 1 || names.size > 1) {
+    return undefined;
+  }
+  return i18n.t("ai.pages.chat.toolCalls.calls", { count: calls.length });
+};
+
 const title = computed(() => {
   return chatStore.currentSession?.title ?? i18n.t("ai.pages.chat.untitled");
 });
@@ -100,7 +136,7 @@ const uiMessages = computed(() => {
 });
 
 const messageParts = computed(() => {
-  return new Map(chatStore.currentMessages.map((msg) => [msg.id, msg.parts]));
+  return new Map(chatStore.currentMessages.map((msg) => [msg.id, groupToolCalls(msg.parts)]));
 });
 
 const userProps = computed(() => ({
@@ -427,8 +463,18 @@ definePageMeta({
           <div v-else class="flex flex-col gap-2">
             <template v-for="(part, index) in messageParts.get(message.id)" :key="index">
               <MessageContent v-if="part.type === 'text'" :text="part.text" />
-              <UChatTool v-else-if="part.type === 'tool'" :text="part.name" icon="i-lucide-wrench">
-                <MessageContent :text="part.description" />
+              <UChatTool
+                v-else-if="part.type === 'tools'"
+                icon="i-lucide-wrench"
+                :text="toolCallsText(part.calls)"
+                :suffix="toolCallsSuffix(part.calls)"
+              >
+                <MessageContent v-if="part.calls.length === 1" :text="part.calls[0]?.description ?? ''" />
+                <div v-else class="flex flex-col gap-2 ps-6">
+                  <UChatTool v-for="call in part.calls" :key="call.id" :text="call.name" icon="i-lucide-wrench">
+                    <MessageContent :text="call.description" />
+                  </UChatTool>
+                </div>
               </UChatTool>
               <ChartFrame v-else-if="part.type === 'chart'" :chart="part" />
               <TableView v-else-if="part.type === 'table'" :table="part" />

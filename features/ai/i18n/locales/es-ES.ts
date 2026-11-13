@@ -46,6 +46,10 @@ export default (): ReturnType<typeof enUS> => ({
         title: "Chat",
         description: "Sesión de chat",
         untitled: "Sin título",
+        toolCalls: {
+          calls: "{count} llamadas",
+          tools: "{count} llamadas a herramientas",
+        },
         errors: {
           timeout: "La respuesta ha tardado más de lo que se le permite al agente",
           maxIterations: "El agente ha alcanzado su número máximo de pasos sin terminar la respuesta",
