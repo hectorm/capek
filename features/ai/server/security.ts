@@ -201,6 +201,15 @@ export const aiSecurity: SecurityDefinition = {
         USING (${isOwner(ChatResource, "ai_chat_tables.session_id")} AND (SELECT security.is_trusted_write()))
         WITH CHECK (${isOwner(ChatResource, "ai_chat_tables.session_id")} AND (SELECT security.is_trusted_write()));
     `,
+    `
+      CREATE POLICY ai_chat_tables_delete ON public.ai_chat_tables
+        FOR DELETE
+        USING (
+          ai_chat_tables.message_id IS NULL
+          AND ${isOwner(ChatResource, "ai_chat_tables.session_id")}
+          AND (SELECT security.is_trusted_write())
+        );
+    `,
 
     // LLM Providers
     ...sharedResourcePolicies(LlmProviderResource),

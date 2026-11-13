@@ -39,7 +39,7 @@ import {
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
-import { attachParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
+import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, sanitize, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
@@ -228,6 +228,7 @@ export class AgentExecutor {
       if (!this.executionId) {
         await this.createExecution(agentId);
       }
+      await discardSessionParts(this.config.sessionId, this.config.user);
 
       const agent = await this.loadAgent(agentId);
 

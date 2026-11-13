@@ -391,6 +391,19 @@ describe("agent executor", () => {
     expect(await db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute()).toEqual([]);
   });
 
+  it("discards the tables of the answers that were not saved", async () => {
+    const sessionId = await createSession(agentId);
+    await db
+      .insertInto("aiChatTables")
+      .values({ sessionId, data: Buffer.from(""), size: 10 })
+      .execute();
+
+    fakeModel([answer("Hello.")]);
+    await chat(sessionId, agentId, "Hi");
+
+    expect(await db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute()).toEqual([]);
+  });
+
   it("limits what the tool calls of an answer show in all", async () => {
     const sessionId = await createSession(smallPartsAgentId);
     const chartManyNotes = (id: string) => {

@@ -81,6 +81,16 @@ export const saveSessionTables = async (tables: ChatTablePart[], sessionId: stri
   );
 };
 
+export const discardSessionTables = async (sessionId: string, user: AuthUser): Promise<void> => {
+  await withUserTransaction(
+    user,
+    async (trx) => {
+      await trx.deleteFrom("aiChatTables").where("sessionId", "=", sessionId).where("messageId", "is", null).execute();
+    },
+    { trustedWrites: true },
+  );
+};
+
 export const attachTables = async (db: Kysely<Database>, tables: ChatTablePart[], messageId: string): Promise<void> => {
   if (tables.length === 0) {
     return;
