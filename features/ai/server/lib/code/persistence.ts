@@ -11,6 +11,8 @@ const logger = useLogger();
 const deflateAsync = promisify(deflate);
 const inflateAsync = promisify(inflate);
 
+const stored = new WeakMap<VirtualFileSystem, string>();
+
 export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
   await withUserTransaction(user, async (trx) => {
     const row = await trx
@@ -32,20 +34,25 @@ export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
 
     logger.debug({ sessionId, fileCount: Object.keys(snapshot.files).length }, "Session workspace loaded");
   });
+  stored.set(vfs, JSON.stringify(vfs.getWorkspaceFiles()));
 }
 
 export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
   try {
     const snapshot = vfs.getWorkspaceFiles();
+    const json = JSON.stringify(snapshot);
+    if (json === stored.get(vfs)) {
+      return;
+    }
 
     if (Object.keys(snapshot.files).length === 0) {
       await withUserTransaction(user, async (trx) => {
         await trx.deleteFrom("aiChatSessionVfs").where("sessionId", "=", sessionId).execute();
       });
+      stored.set(vfs, json);
       return;
     }
 
-    const json = JSON.stringify(snapshot);
     const compressed = await deflateAsync(json);
 
     await withUserTransaction(user, async (trx) => {
@@ -64,6 +71,7 @@ export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
         })
         .execute();
     });
+    stored.set(vfs, json);
 
     logger.debug({ sessionId, fileCount: Object.keys(snapshot.files).length }, "Session workspace saved");
   } catch (error) {

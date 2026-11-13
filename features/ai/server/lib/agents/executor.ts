@@ -5,6 +5,7 @@ import superjson from "superjson";
 import { z } from "zod/v4";
 
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
+import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
@@ -623,6 +624,8 @@ export class AgentExecutor {
     skillBindings: SkillBinding[],
     toolsets: AgentToolset[],
   ): AgentTool {
+    let vfs: VirtualFileSystem | undefined;
+
     return {
       tool: {
         name: "execute_code",
@@ -657,9 +660,11 @@ export class AgentExecutor {
             "Executing code in interpreter",
           );
 
-          const vfs = createVFS(mcpServerBindings, skillBindings, toolsets);
-
-          await loadSessionWorkspace(vfs, this.config.sessionId, context.user);
+          if (!vfs) {
+            const created = createVFS(mcpServerBindings, skillBindings, toolsets);
+            await loadSessionWorkspace(created, this.config.sessionId, context.user);
+            vfs = created;
+          }
 
           const executionResult = await executeCode(args.code, {
             chatSessionId: this.config.sessionId,
