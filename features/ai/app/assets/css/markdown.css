@@ -9,7 +9,7 @@ html.dark {
 }
 
 .markdown-body {
-  @apply bg-transparent! font-sans!;
+  @apply bg-transparent! font-sans! whitespace-normal;
 
   & > :first-child > :first-child {
     @apply mt-0!;
