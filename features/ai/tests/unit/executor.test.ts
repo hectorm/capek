@@ -491,7 +491,7 @@ describe("agent executor", () => {
 
     const sent = requests[2]?.messages.filter((message) => message.role === "tool").map((message) => message.content);
     expect(sent).toEqual([
-      expect.stringContaining("showing first 300]") as string,
+      expect.stringContaining("showing first 254]") as string,
       "\n\n[Response truncated: 614 characters, showing first 0]",
     ]);
   });

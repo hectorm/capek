@@ -164,7 +164,6 @@ export class AgentExecutor {
   private readonly config: AgentExecutorConfig;
   private executionId: string | null = null;
   private iterationCount = 0;
-  private outputChars = 0;
   private partsChars = 0;
   private readonly startedAt: Date;
 
@@ -583,7 +582,7 @@ export class AgentExecutor {
       parts.push(part);
     };
 
-    const maxChars = Math.max(Math.min(agent.maxToolResponseChars, agent.maxContextChars - this.outputChars), 0);
+    const maxChars = Math.max(Math.min(agent.maxToolResponseChars, agent.maxContextChars - countChars(items)), 0);
 
     try {
       const response = await agentTool.tool.execute(args, {
@@ -596,7 +595,6 @@ export class AgentExecutor {
       if (result !== response) {
         logger.debug({ toolName, originalLength: response.length }, "Tool response truncated");
       }
-      this.outputChars += result.length;
 
       await this.saveToolCall(functionCall, agentTool, result, null);
 
@@ -612,7 +610,6 @@ export class AgentExecutor {
     } catch (error) {
       const errorMessage = truncate(error instanceof Error ? error.message : String(error), maxChars);
       logger.error({ toolName, executionId: this.executionId, error: errorMessage }, "Tool execution failed");
-      this.outputChars += errorMessage.length;
 
       await this.saveToolCall(functionCall, agentTool, null, errorMessage);
 
@@ -1097,6 +1094,8 @@ export class AgentExecutor {
 
     const result: LlmItem[][] = [];
 
+    // Half of the context is left for the answer and what its tools return
+    const maxChars = agent.maxContextChars / 2;
     let totalChars = 0;
     let cursor: PageCursor | undefined;
     do {
@@ -1117,11 +1116,11 @@ export class AgentExecutor {
         };
         let items = options.toolCalls && parsed.success && parsed.data.length > 0 ? parsed.data : [message];
         // An answer whose tool calls do not fit is kept as what it said
-        if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
+        if (result.length > 0 && totalChars + countChars(items) > maxChars) {
           items = [message];
         }
         // Always keep the newest message, even if it alone exceeds the budget
-        if (result.length > 0 && totalChars + countChars(items) > agent.maxContextChars) {
+        if (result.length > 0 && totalChars + countChars(items) > maxChars) {
           return result.reverse().flat();
         }
         result.push(items);
