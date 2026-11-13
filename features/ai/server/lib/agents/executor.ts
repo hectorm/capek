@@ -346,15 +346,17 @@ export class AgentExecutor {
     const db = await useDb();
     const mcpServers = await this.loadAgentMCPServers(agent.id);
 
-    for (const server of mcpServers) {
-      if (server.cachedTools.length === 0) {
-        try {
-          server.cachedTools = await ensureToolsDiscovered(db, server.id);
-        } catch (error) {
-          logger.error({ mcpServerId: server.id, serverName: server.name, error }, "Failed to discover MCP tools");
-        }
-      }
-    }
+    await Promise.all(
+      mcpServers
+        .filter((server) => server.cachedTools.length === 0)
+        .map(async (server) => {
+          try {
+            server.cachedTools = await ensureToolsDiscovered(db, server.id);
+          } catch (error) {
+            logger.error({ mcpServerId: server.id, serverName: server.name, error }, "Failed to discover MCP tools");
+          }
+        }),
+    );
 
     const mcpServerBindings: MCPServerBinding[] = mcpServers.map((s) => ({
       id: s.id,
