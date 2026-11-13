@@ -43,7 +43,7 @@ const send = (message: Record<string, unknown>) => {
 };
 
 const draw = () => {
-  send({ type: "draw", option: props.option, dark: colorMode.value === "dark" });
+  send({ type: "draw", option: props.option, dark: colorMode.value === "dark", locale: i18n.locale.value });
 };
 
 const exportImage = (format: ExportFormat) => {
@@ -86,7 +86,7 @@ const optionContent = computed(() => {
   });
 });
 
-watch([optionContent, () => colorMode.value], draw);
+watch([optionContent, () => colorMode.value, i18n.locale], draw);
 
 let observer: IntersectionObserver | undefined;
 

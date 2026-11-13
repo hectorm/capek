@@ -2,6 +2,8 @@ import { defineToolProvider } from "#layers/core/server/lib/tools/define";
 
 export const AI_CHART_TOOL = "ai_chart";
 
+export const TIME_FORMATTER_LEVELS = ["year", "month", "day", "hour", "minute", "second", "millisecond", "none"];
+
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 };

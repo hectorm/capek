@@ -2,6 +2,7 @@ import { version as glVersion } from "echarts-gl/package.json";
 import { version } from "echarts/package.json";
 import { defineEventHandler, setResponseHeaders } from "h3";
 
+import { TIME_FORMATTER_LEVELS } from "#layers/ai/server/lib/charts";
 import { composeCsp } from "#layers/core/server/lib/csp";
 
 const page = (nonce: string): string => `<!doctype html>
@@ -29,9 +30,40 @@ const page = (nonce: string): string => `<!doctype html>
       let option;
       let flat;
 
+      const timeLevels = ${JSON.stringify(TIME_FORMATTER_LEVELS)};
+      const withNumberFormats = (value, locale) => {
+        if (Array.isArray(value)) {
+          return value.map((item) => withNumberFormats(item, locale));
+        }
+        if (typeof value !== "object" || value === null) {
+          return value;
+        }
+        return Object.fromEntries(
+          Object.entries(value).map(([key, item]) => {
+            const isFormat =
+              (key === "formatter" || key === "valueFormatter") &&
+              typeof item === "object" &&
+              item !== null &&
+              !Array.isArray(item) &&
+              !timeLevels.some((level) => level in item);
+            if (!isFormat) {
+              return [key, withNumberFormats(item, locale)];
+            }
+            const format = new Intl.NumberFormat(locale, item);
+            return [
+              key,
+              (params) => {
+                const number = typeof params === "object" && params !== null ? params.value : params;
+                return typeof number === "number" ? format.format(number) : String(number ?? "");
+              },
+            ];
+          }),
+        );
+      };
+
       const draw = (message) => {
         theme = message.dark ? "dark" : null;
-        option = message.option;
+        option = withNumberFormats(message.option, message.locale);
         document.documentElement.style.colorScheme = message.dark ? "dark" : "light";
         try {
           chart?.dispose();
