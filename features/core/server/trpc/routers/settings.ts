@@ -9,7 +9,7 @@ import type {
 } from "#layers/core/server/lib/settings/define";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { withUserTransaction } from "#layers/core/server/lib/database";
-import { useSettingDefinitions } from "#layers/core/server/lib/settings";
+import { encodeSettingValue, useSettingDefinitions } from "#layers/core/server/lib/settings";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 import { SettingType } from "#layers/core/shared/settings";
@@ -135,7 +135,7 @@ export const settingsRouter = createTRPCRouter({
             .values(
               itemsToUpsert.map((item) => ({
                 key: item.key,
-                value: JSON.stringify(item.value),
+                value: JSON.stringify(encodeSettingValue(item.key, item.value)),
                 updatedAt: new Date(),
               })),
             )

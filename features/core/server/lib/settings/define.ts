@@ -23,7 +23,7 @@ export type SettingDefinition<V = unknown> =
         pattern?: string;
       };
     })
-  | (BaseSettingDefinition<V> & {
+  | (BaseSettingDefinition<V & string> & {
       type: typeof SettingType.StringSecret;
       config: {
         inputType: "password";
