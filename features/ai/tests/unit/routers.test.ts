@@ -48,8 +48,12 @@ beforeAll(async () => {
     requests.push(`${String(req.method)} ${String(req.url)} ${req.headers.authorization ?? "-"}`);
     if (req.url?.startsWith("/moved")) {
       res.writeHead(307, { Location: `${endpointUrl}${req.method === "GET" ? "/v1/models" : "/mcp"}` }).end();
+    } else if (req.url?.startsWith("/api")) {
+      res
+        .writeHead(404, { "Content-Type": "application/json" })
+        .end(JSON.stringify({ error: { message: "No such model" } }));
     } else {
-      res.writeHead(403).end(`denied ${"x".repeat(5000)}`);
+      res.writeHead(403).end("internal secret");
     }
   });
   await new Promise<void>((resolve) => endpoint.listen(0, "127.0.0.1", resolve));
@@ -105,22 +109,31 @@ describe("connection test", () => {
     expect(requests).toEqual([]);
   });
 
-  it("reports the start of a failed response to users who can create the resource", async () => {
+  it("reports the message of an API error", async () => {
     const creator = as(alice, Roles.Creator);
 
-    const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/v1`, apiKey: "typed-key" });
+    const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/api`, apiKey: "key" });
     expect(llmProvider).toEqual({
       success: false,
-      error: `AI service models request failed: denied ${"x".repeat(993)}…`,
+      error: "AI service models request failed: 404 Not Found: No such model",
     });
+
+    const mcpServer = await creator.mcpServer.testConnection({ url: `${endpointUrl}/api` });
+    expect(mcpServer).toEqual({ success: false, error: "MCP request failed: 404 Not Found: No such model" });
+
+    expect(requests).toEqual(["GET /api/models Bearer key", "POST /api -"]);
+  });
+
+  it("does not report the body of another service", async () => {
+    const creator = as(alice, Roles.Creator);
+
+    const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/v1`, apiKey: "key" });
+    expect(llmProvider).toEqual({ success: false, error: "AI service models request failed: 403 Forbidden" });
 
     const mcpServer = await creator.mcpServer.testConnection({ url: `${endpointUrl}/mcp` });
-    expect(mcpServer).toEqual({
-      success: false,
-      error: `MCP request failed with status 403: denied ${"x".repeat(993)}…`,
-    });
+    expect(mcpServer).toEqual({ success: false, error: "MCP request failed: 403 Forbidden" });
 
-    expect(requests).toEqual(["GET /v1/models Bearer typed-key", "POST /mcp -"]);
+    expect(requests).toEqual(["GET /v1/models Bearer key", "POST /mcp -"]);
   });
 
   it("does not follow redirects", async () => {
@@ -144,7 +157,7 @@ describe("connection test", () => {
 
 describe("tool discovery", () => {
   it("is not repeated at once for a server without tools", async () => {
-    await expect(ensureToolsDiscovered(db, mcpServerId)).rejects.toThrow(/status 403/);
+    await expect(ensureToolsDiscovered(db, mcpServerId)).rejects.toThrow(/403 Forbidden/);
     expect(await ensureToolsDiscovered(db, mcpServerId)).toEqual([]);
 
     expect(requests).toEqual(["POST /mcp -"]);

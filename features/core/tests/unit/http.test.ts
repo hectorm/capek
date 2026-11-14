@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Endpoint } from "#layers/core/server/lib/http";
-import { unredactEndpoint } from "#layers/core/server/lib/http";
+import { readErrorMessage, unredactEndpoint } from "#layers/core/server/lib/http";
 import { HttpRedactedValue } from "#layers/core/shared/http";
 
 const stored: Endpoint = {
@@ -64,5 +64,31 @@ describe("endpoint secret", () => {
       apiKey: "",
       headers: [{ name: "X-Token", value: "" }],
     });
+  });
+});
+
+describe("failed response", () => {
+  const describeFailure = (body: string, status: number) => readErrorMessage(new Response(body, { status }));
+
+  it("is described by the message of an API error", async () => {
+    const bodies = [
+      { error: { message: "No such model", type: "invalid_request_error" } },
+      { error: "No such model" },
+      { message: "No such model" },
+      { detail: "No such model" },
+    ];
+    for (const body of bodies) {
+      expect(await describeFailure(JSON.stringify(body), 404)).toBe("404 Not Found: No such model");
+    }
+
+    const long = JSON.stringify({ error: { message: "x".repeat(2000) } });
+    expect(await describeFailure(long, 400)).toBe(`400 Bad Request: ${"x".repeat(1000)}...`);
+  });
+
+  it("is described only by its status when the body is not an API error", async () => {
+    const bodies = ["", "internal secret", '{"token":"internal secret"}', '{"error":{"message":" "}}'];
+    for (const body of bodies) {
+      expect(await describeFailure(body, 403)).toBe("403 Forbidden");
+    }
   });
 });

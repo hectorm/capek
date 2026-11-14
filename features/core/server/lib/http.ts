@@ -1,4 +1,7 @@
+import { STATUS_CODES } from "node:http";
+
 import { TRPCError } from "@trpc/server";
+import { z } from "zod/v4";
 
 import type { HttpHeaders } from "#layers/core/shared/http";
 import { HttpRedactedValue } from "#layers/core/shared/http";
@@ -10,6 +13,15 @@ export interface Endpoint {
 }
 
 const ERROR_TEXT_MAX_CHARS = 1000;
+const ERROR_BODY_MAX_BYTES = 16_384;
+
+const ErrorMessageSchema = z.string().trim().min(1);
+const ApiErrorSchema = z.union([
+  z.object({ error: z.object({ message: ErrorMessageSchema }) }).transform((body) => body.error.message),
+  z.object({ error: ErrorMessageSchema }).transform((body) => body.error),
+  z.object({ message: ErrorMessageSchema }).transform((body) => body.message),
+  z.object({ detail: ErrorMessageSchema }).transform((body) => body.detail),
+]);
 
 // Requests an endpoint without following redirects
 export const fetchEndpoint = async (url: string | URL, init: RequestInit = {}): Promise<Response> => {
@@ -22,28 +34,39 @@ export const fetchEndpoint = async (url: string | URL, init: RequestInit = {}): 
   return response;
 };
 
-// Start of the body of a failed response
-export const readErrorText = async (response: Response): Promise<string> => {
-  if (!response.body) {
-    return "";
-  }
-
-  const reader = response.body.getReader();
+// Reads the first bytes of a body as text
+export const readBodyStart = async (body: AsyncIterable<Uint8Array> | null, maxBytes: number): Promise<string> => {
   const decoder = new TextDecoder();
   let text = "";
-  try {
-    while (text.length <= ERROR_TEXT_MAX_CHARS) {
-      const { done, value } = await reader.read();
-      if (done) {
-        return text;
-      }
-      text += decoder.decode(value, { stream: true });
+  let bytes = 0;
+  for await (const chunk of body ?? []) {
+    text += decoder.decode(chunk.subarray(0, maxBytes - bytes), { stream: true });
+    bytes += chunk.byteLength;
+    if (bytes >= maxBytes) {
+      break;
     }
-  } finally {
-    await reader.cancel().catch(() => undefined);
+  }
+  return text + decoder.decode();
+};
+
+// Describes a failed response without exposing bodies other than API errors
+export const readErrorMessage = async (response: Response): Promise<string> => {
+  const body = await readBodyStart(response.body, ERROR_BODY_MAX_BYTES);
+
+  let message: string | undefined;
+  try {
+    message = ApiErrorSchema.safeParse(JSON.parse(body)).data;
+  } catch {
+    // The body is not JSON
   }
 
-  return `${text.slice(0, ERROR_TEXT_MAX_CHARS).toWellFormed()}…`;
+  const status = `${String(response.status)} ${STATUS_CODES[response.status] ?? ""}`.trim();
+  if (!message) {
+    return status;
+  }
+  return message.length > ERROR_TEXT_MAX_CHARS
+    ? `${status}: ${message.slice(0, ERROR_TEXT_MAX_CHARS).toWellFormed()}...`
+    : `${status}: ${message}`;
 };
 
 // Completes what a client sends of an endpoint with the stored one, whose secrets are only taken for the same URL

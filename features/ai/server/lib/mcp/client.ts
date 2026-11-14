@@ -8,7 +8,7 @@ import type { TestResult } from "#layers/core/shared/types";
 import { AbortError, describeError } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { MCPCallToolResultSchema, MCPListToolsResultSchema, McpPingRequestSchema } from "#layers/ai/shared/mcp";
-import { fetchEndpoint, readErrorText } from "#layers/core/server/lib/http";
+import { fetchEndpoint, readErrorMessage } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -149,8 +149,7 @@ export class MCPClient {
         }
       }
 
-      const errorText = await readErrorText(response);
-      throw new Error(`MCP request failed with status ${String(response.status)}: ${errorText}`);
+      throw new Error(`MCP request failed: ${await readErrorMessage(response)}`);
     }
 
     const contentType = response.headers.get("content-type");

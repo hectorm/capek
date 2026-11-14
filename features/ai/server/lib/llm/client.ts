@@ -11,7 +11,7 @@ import {
 } from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
-import { fetchEndpoint, readErrorText } from "#layers/core/server/lib/http";
+import { fetchEndpoint, readErrorMessage } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -119,8 +119,7 @@ export class LlmClient {
     });
 
     if (!response.ok) {
-      const errorText = await readErrorText(response);
-      throw failure(errorText);
+      throw failure(await readErrorMessage(response));
     }
 
     if (stream) {
@@ -234,8 +233,7 @@ export class LlmClient {
     });
 
     if (!response.ok) {
-      const errorText = await readErrorText(response);
-      throw new Error(`AI service models request failed: ${errorText}`);
+      throw new Error(`AI service models request failed: ${await readErrorMessage(response)}`);
     }
 
     const rawData: unknown = await response.json();
