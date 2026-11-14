@@ -1,5 +1,6 @@
 import type { Migration } from "kysely/migration";
 
+import type { BodyLimits } from "#layers/core/server/lib/body-limit";
 import type { CspContribution } from "#layers/core/server/lib/csp";
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
@@ -20,6 +21,8 @@ export interface ServerFeature {
   seed?: SeedDefinition;
   // Sources added to the Content Security Policy, like the origins of the content that the feature embeds
   csp?: CspContribution;
+  // Limits of the request bodies of the routes that accept larger ones
+  bodyLimits?: BodyLimits;
   // Tools given to automated callers, like the agents of the AI feature
   tools?: readonly ToolProvider[];
 }

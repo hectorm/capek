@@ -1,8 +1,11 @@
 import { createError, defineEventHandler, getHeader } from "h3";
 
-const MAX_BODY_BYTES = 2 * 1024 * 1024;
+import { collectBodyLimits, resolveBodyLimit } from "#layers/core/server/lib/body-limit";
+import { getServerFeatures } from "#layers/core/server/lib/features";
 
-export default defineEventHandler((event) => {
+const limits = collectBodyLimits(getServerFeatures());
+
+export default defineEventHandler(async (event) => {
   if (getHeader(event, "Transfer-Encoding") !== undefined) {
     throw createError({
       statusCode: 411,
@@ -10,7 +13,7 @@ export default defineEventHandler((event) => {
     });
   }
 
-  if (Number(getHeader(event, "Content-Length")) > MAX_BODY_BYTES) {
+  if (Number(getHeader(event, "Content-Length")) > (await resolveBodyLimit(limits, event))) {
     throw createError({
       statusCode: 413,
       message: "Request body is too large",
