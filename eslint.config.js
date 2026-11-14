@@ -10,6 +10,7 @@ import tseslint from "typescript-eslint";
 import withNuxt from "./.nuxt/eslint.config.mjs";
 import selection from "./.nuxt/features/selection.json" with { type: "json" };
 import commentWidthRule from "./tools/eslint-rules/comment-width.js";
+import constantCaseRule from "./tools/eslint-rules/constant-case.js";
 import wrappedArrowBodyRule from "./tools/eslint-rules/wrapped-arrow-body.js";
 
 const virtualModulePatterns = [
@@ -37,6 +38,7 @@ export default withNuxt(
       local: {
         rules: {
           "comment-width": commentWidthRule,
+          "constant-case": constantCaseRule,
           "wrapped-arrow-body": wrappedArrowBodyRule,
         },
       },
@@ -130,6 +132,7 @@ export default withNuxt(
       "better-tailwindcss/no-deprecated-classes": "error",
       "better-tailwindcss/no-unknown-classes": ["error", { ignore: ["markdown-body"] }],
       "local/comment-width": ["error", { maxLength: 120 }],
+      "local/constant-case": "error",
       "local/wrapped-arrow-body": "error",
       "vue/attributes-order": [
         "error",

@@ -14,7 +14,7 @@ export const cellText = (value: unknown): string => {
 type CellKind = "number" | "time" | "text";
 type CellComparer = (a: unknown, b: unknown) => number;
 
-const cellKinds: CellKind[] = ["number", "time", "text"];
+const CELL_KINDS: CellKind[] = ["number", "time", "text"];
 
 const cellKind = (value: unknown): CellKind => {
   if (typeof value === "number") {
@@ -48,7 +48,7 @@ const cellComparers: Record<CellKind, CellComparer> = {
 export const compareCells: CellComparer = (a, b) => {
   const kind = cellKind(a);
   const otherKind = cellKind(b);
-  return kind === otherKind ? cellComparers[kind](a, b) : cellKinds.indexOf(kind) - cellKinds.indexOf(otherKind);
+  return kind === otherKind ? cellComparers[kind](a, b) : CELL_KINDS.indexOf(kind) - CELL_KINDS.indexOf(otherKind);
 };
 
 const toField = (value: unknown): string => {

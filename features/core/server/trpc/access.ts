@@ -7,7 +7,7 @@ import { listResourceAccess, listResources, syncResourceAccess } from "#layers/c
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { authorizedProcedure } from "#layers/core/server/trpc/init";
-import { principalAccessSchema } from "#layers/core/shared/rbac";
+import { PrincipalAccessSchema } from "#layers/core/shared/rbac";
 
 // Creates the procedures to list and replace the access entries of a shared resource
 export const sharedResourceAccessProcedures = <K extends string>(options: {
@@ -26,12 +26,12 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
   const idShape = { [idKey]: z.uuid() } as Record<K, z.ZodUUID>;
   const resourceIdOf = (input: object): string => (input as Record<K, string>)[idKey];
 
-  const listAccessInput = z.object(idShape).transform((input) => ({
+  const ListAccessInputSchema = z.object(idShape).transform((input) => ({
     resourceId: resourceIdOf(input),
   }));
 
-  const syncAccessInput = z
-    .object({ ...idShape, access: z.array(principalAccessSchema).max(1000) })
+  const SyncAccessInputSchema = z
+    .object({ ...idShape, access: z.array(PrincipalAccessSchema).max(1000) })
     .transform((input) => ({
       resourceId: resourceIdOf(input),
       access: (input as { access: PrincipalAccess[] }).access,
@@ -39,7 +39,7 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
 
   return {
     listAccess: authorizedProcedure(options.readPermissions)
-      .input(listAccessInput)
+      .input(ListAccessInputSchema)
       .query(async ({ ctx, input: { resourceId } }) => {
         return withUserTransaction(ctx.user, async (trx) => {
           const [found] = await listResources(trx, resource, { ids: [resourceId] });
@@ -58,7 +58,7 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
       }),
 
     syncAccess: authorizedProcedure(options.updatePermissions)
-      .input(syncAccessInput)
+      .input(SyncAccessInputSchema)
       .mutation(async ({ ctx, input: { resourceId, access } }) => {
         return withUserTransaction(ctx.user, async (trx) => {
           try {

@@ -6,16 +6,16 @@ export type CspSources = Readonly<Record<string, readonly string[]>>;
 // Sources that a feature adds to the policy, resolved on each request when they depend on its configuration
 export type CspContribution = CspSources | ((event: H3Event) => CspSources | Promise<CspSources>);
 
-const directivePattern = /^[a-z][a-z-]*$/;
+const DIRECTIVE_PATTERN = /^[a-z][a-z-]*$/;
 // A source cannot contain the characters that would start another source, directive or policy
-const sourcePattern = /^[^\s;,]+$/;
+const SOURCE_PATTERN = /^[^\s;,]+$/;
 
 export const assertCspSources = (sources: CspSources): void => {
   for (const [name, values] of Object.entries(sources)) {
-    if (!directivePattern.test(name)) {
+    if (!DIRECTIVE_PATTERN.test(name)) {
       throw new Error(`Invalid Content Security Policy directive "${name}"`);
     }
-    const invalid = values.find((value) => !sourcePattern.test(value));
+    const invalid = values.find((value) => !SOURCE_PATTERN.test(value));
     if (invalid !== undefined) {
       throw new Error(`Invalid Content Security Policy source "${invalid}"`);
     }

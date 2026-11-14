@@ -1,7 +1,7 @@
 import { useRequestHeaders } from "nuxt/app";
 
 // Very naive check but good enough for most cases
-const mobileRegex = /Mobile|Android|iP(hone|ad)/i;
+const MOBILE_PATTERN = /Mobile|Android|iP(hone|ad)/i;
 
 export const useDevice = () => {
   let isMobile = false;
@@ -13,7 +13,7 @@ export const useDevice = () => {
     if (secChUaMobile === "?1") {
       isMobile = true;
     } else {
-      isMobile = mobileRegex.test(userAgent ?? "");
+      isMobile = MOBILE_PATTERN.test(userAgent ?? "");
     }
   } else if ("navigator" in globalThis) {
     const nav = globalThis.navigator as { userAgentData?: { mobile: boolean } };
@@ -21,7 +21,7 @@ export const useDevice = () => {
     if ("userAgentData" in nav && nav.userAgentData) {
       isMobile = nav.userAgentData.mobile;
     } else {
-      isMobile = mobileRegex.test(userAgent);
+      isMobile = MOBILE_PATTERN.test(userAgent);
     }
   }
 

@@ -22,7 +22,7 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 
 const KEEPALIVE_MS = 15_000;
 
-const bodySchema = z.object({
+const BodySchema = z.object({
   sessionId: z.uuid(),
   message: z.string().trim().min(1).max(100000),
   userMessageId: z.uuid().optional(),
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const rawBody: unknown = await readBody(event);
-    const body = bodySchema.parse(rawBody);
+    const body = BodySchema.parse(rawBody);
     sessionId = body.sessionId;
     message = body.message;
     userMessageId = body.userMessageId;

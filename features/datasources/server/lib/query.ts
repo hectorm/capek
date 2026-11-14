@@ -1,7 +1,7 @@
 import type { TestResult } from "#layers/core/shared/types";
 import type { DatasourceConnectionParams, ServerDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { useLogger } from "#layers/core/server/lib/logger";
-import { TablePartMaxRows } from "#layers/core/shared/tools";
+import { TABLE_PART_MAX_ROWS } from "#layers/core/shared/tools";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 
 const logger = useLogger();
@@ -34,7 +34,7 @@ export const executeQuery = async (
     throw new Error(`Datasource type "${source.type}" is not supported`);
   }
 
-  const maxRows = shown ? TablePartMaxRows : QUERY_MAX_ROWS;
+  const maxRows = shown ? TABLE_PART_MAX_ROWS : QUERY_MAX_ROWS;
   try {
     const rows = await type.driver.execute(source, sql, {
       maxRows: maxRows + 1,

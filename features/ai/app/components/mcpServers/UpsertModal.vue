@@ -24,7 +24,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 import { MCPServerParameters, MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
@@ -79,7 +79,7 @@ const schema = z
   })
   .extend(MCPServerParametersSchema.shape)
   .superRefine((data, ctx) => {
-    if (mcpServer && data.url !== mcpServer.url && data.headers.some((h) => h.value === HttpRedactedValue)) {
+    if (mcpServer && data.url !== mcpServer.url && data.headers.some((h) => h.value === HTTP_REDACTED_VALUE)) {
       ctx.addIssue({ code: "custom", path: ["headers"], message: i18n.t("errors.secretRequired") });
     }
   });
@@ -248,7 +248,7 @@ const onTestConnection = async () => {
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
                 :placeholder="$t('ai.pages.studio.mcpServers.form.headers.namePlaceholder')"
-                @input="header.value === HttpRedactedValue && (header.value = '')"
+                @input="header.value === HTTP_REDACTED_VALUE && (header.value = '')"
               />
               <UInput
                 v-model="header.value"
@@ -260,7 +260,7 @@ const onTestConnection = async () => {
                 autocomplete="off"
                 :disabled="!canModify"
                 :placeholder="$t('ai.pages.studio.mcpServers.form.headers.valuePlaceholder')"
-                @input="header.value === HttpRedactedValue && (header.value = '')"
+                @input="header.value === HTTP_REDACTED_VALUE && (header.value = '')"
               />
               <UButton
                 v-if="canModify"

@@ -41,8 +41,8 @@ defineSlots<
   } & Record<`${string}-cell`, (props: { row: R }) => unknown>
 >();
 
-const actionsColumn = "actions";
-const columnPinning = { left: [], right: [actionsColumn] };
+const ACTIONS_COLUMN = "actions";
+const columnPinning = { left: [], right: [ACTIONS_COLUMN] };
 const sortingOptions = { manualSorting: true };
 
 const i18n = useI18n();
@@ -57,7 +57,7 @@ const tableColumns = computed<TableColumn<R>[]>(() => [
     meta: { class: column.class },
   })),
   {
-    id: actionsColumn,
+    id: ACTIONS_COLUMN,
     meta: { class: { th: "w-0 min-w-15 bg-default", td: "w-0 px-0 text-center bg-default bg-clip-content" } },
   },
 ]);
@@ -146,7 +146,7 @@ useInfiniteScroll(
         @filter="onFilter(column.id, $event)"
       />
     </template>
-    <template #[`${actionsColumn}-header`]>
+    <template #[`${ACTIONS_COLUMN}-header`]>
       <UButton
         v-if="canCreate"
         size="sm"
@@ -174,7 +174,7 @@ useInfiniteScroll(
         </template>
       </slot>
     </template>
-    <template #[`${actionsColumn}-cell`]="{ row }">
+    <template #[`${ACTIONS_COLUMN}-cell`]="{ row }">
       <UDropdownMenu v-if="rowActions(row.original).length > 0" :items="rowActions(row.original)">
         <UButton
           size="sm"

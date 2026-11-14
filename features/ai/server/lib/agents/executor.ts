@@ -125,7 +125,7 @@ const CONTEXT_MAX_MESSAGES = 2000;
 const EXECUTION_HEARTBEAT_MS = 30_000;
 const EXECUTION_STALE_MS = 4 * EXECUTION_HEARTBEAT_MS;
 
-const triageToolSchema = z.object({
+const TriageToolSchema = z.object({
   specialistId: z.string(),
   routingReason: z.string(),
 });
@@ -333,7 +333,7 @@ export class AgentExecutor {
     } catch {
       throw new Error("Triage agent returned invalid JSON for tool arguments");
     }
-    const args = triageToolSchema.parse(rawArgs);
+    const args = TriageToolSchema.parse(rawArgs);
 
     const specialist = specialists.find((s) => s.id === args.specialistId);
     if (!specialist) {

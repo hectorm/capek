@@ -18,11 +18,11 @@ export const HttpHeadersSchema = z.array(HttpHeaderSchema).max(50);
 
 export type HttpHeaders = z.infer<typeof HttpHeadersSchema>;
 
-export const HttpRedactedValue = "__REDACTED__" as const;
+export const HTTP_REDACTED_VALUE = "__REDACTED__" as const;
 
 export const HttpRedactedHeaderSchema = z.object({
   ...HttpHeaderSchema.shape,
-  value: z.literal(HttpRedactedValue),
+  value: z.literal(HTTP_REDACTED_VALUE),
 });
 
 export type HttpRedactedHeader = z.infer<typeof HttpRedactedHeaderSchema>;

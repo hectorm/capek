@@ -8,40 +8,40 @@ import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
-import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
+import { defineSeed, SeedAccessSchema } from "#layers/core/server/lib/seed";
 import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/tools/define";
 import { HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
-const seedLLMProviderSchema = z.object({
+const SeedLLMProviderSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).trim().default(""),
   apiUrl: HttpUrlSchema,
   apiType: LlmProviderApiTypeSchema.default("chat-completions"),
   apiKey: z.string().max(1000).trim().default(""),
   headers: HttpHeadersSchema.optional(),
-  access: seedAccessSchema,
+  access: SeedAccessSchema,
 });
 
-const seedMCPServerSchema = z
+const SeedMCPServerSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).trim().default(""),
     url: HttpUrlSchema,
     headers: HttpHeadersSchema.optional(),
     stateful: z.boolean().default(false),
-    access: seedAccessSchema,
+    access: SeedAccessSchema,
   })
   .extend(MCPServerParametersSchema.shape);
 
-const seedSkillSchema = z.object({
+const SeedSkillSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).trim().default(""),
   documentation: z.string().max(100000).trim().optional(),
   code: z.string().max(100000).optional(),
-  access: seedAccessSchema,
+  access: SeedAccessSchema,
 });
 
-const seedAgentSchema = z
+const SeedAgentSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
     description: z.string().max(500).trim().default(""),
@@ -65,16 +65,16 @@ const seedAgentSchema = z
     codeInterpreter: z.boolean().default(false),
     showToolCalls: z.boolean().default(true),
     streaming: z.boolean().default(true),
-    access: seedAccessSchema,
+    access: SeedAccessSchema,
   })
   .extend(AgentExecutorParametersSchema.shape);
 
 export const aiSeed = defineSeed({
   schema: {
-    llmProviders: z.array(seedLLMProviderSchema).max(1000).default([]),
-    mcpServers: z.array(seedMCPServerSchema).max(1000).default([]),
-    skills: z.array(seedSkillSchema).max(1000).default([]),
-    agents: z.array(seedAgentSchema).max(1000).default([]),
+    llmProviders: z.array(SeedLLMProviderSchema).max(1000).default([]),
+    mcpServers: z.array(SeedMCPServerSchema).max(1000).default([]),
+    skills: z.array(SeedSkillSchema).max(1000).default([]),
+    agents: z.array(SeedAgentSchema).max(1000).default([]),
   },
   async run(config, { db, logger, features, grantAccess, defer }) {
     // Seed LLM providers (idempotent by name)

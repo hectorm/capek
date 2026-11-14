@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { defineSeed } from "#layers/core/server/lib/seed";
 
-const seedUserSchema = z.object({
+const SeedUserSchema = z.object({
   username: z.string().trim().min(1).max(255),
   fullname: z.string().trim().min(1).max(255),
   email: z.email({ pattern: z.regexes.unicodeEmail }).max(255).trim().toLowerCase(),
@@ -10,7 +10,7 @@ const seedUserSchema = z.object({
   groups: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
 });
 
-const seedGroupSchema = z.object({
+const SeedGroupSchema = z.object({
   name: z.string().trim().min(1).max(255),
   description: z.string().max(1000).trim().default(""),
   roles: z.array(z.string().trim().min(1).max(255).toLowerCase()).max(255).default([]),
@@ -18,8 +18,8 @@ const seedGroupSchema = z.object({
 
 export const coreSeed = defineSeed({
   schema: {
-    users: z.array(seedUserSchema).max(10000).default([]),
-    groups: z.array(seedGroupSchema).max(10000).default([]),
+    users: z.array(SeedUserSchema).max(10000).default([]),
+    groups: z.array(SeedGroupSchema).max(10000).default([]),
   },
   async run(config, { db, logger }) {
     // Seed users (idempotent by username)

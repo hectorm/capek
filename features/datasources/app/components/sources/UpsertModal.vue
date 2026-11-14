@@ -20,7 +20,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
@@ -96,7 +96,7 @@ const schema = z
 
     if (datasource && data.config.connectionString !== datasource.config.connectionString) {
       for (const [key, value] of Object.entries(data.config)) {
-        if (value === HttpRedactedValue) {
+        if (value === HTTP_REDACTED_VALUE) {
           ctx.addIssue({ code: "custom", path: ["config", key], message: i18n.t("errors.secretRequired") });
         }
       }
@@ -324,7 +324,7 @@ const onTestConnection = async () => {
               type="password"
               :disabled="!canModify"
               :placeholder="$t('datasources.pages.studio.datasources.form.password.placeholder')"
-              @input="password === HttpRedactedValue && (password = '')"
+              @input="password === HTTP_REDACTED_VALUE && (password = '')"
             />
           </UFormField>
         </template>
@@ -363,7 +363,7 @@ const onTestConnection = async () => {
               type="password"
               :disabled="!canModify"
               :placeholder="$t('datasources.pages.studio.datasources.form.azureClientSecret.placeholder')"
-              @input="azureClientSecret === HttpRedactedValue && (azureClientSecret = '')"
+              @input="azureClientSecret === HTTP_REDACTED_VALUE && (azureClientSecret = '')"
             />
           </UFormField>
         </template>

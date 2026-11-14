@@ -18,7 +18,7 @@ const tools = [
   { name: "index", description: "Index a file", inputSchema: { type: "object", properties: {} } },
 ];
 
-const url = "http://mcp.localhost";
+const SERVER_URL = "http://mcp.localhost";
 
 let finishSlowCall: () => void = () => undefined;
 
@@ -98,7 +98,7 @@ describe("MCP client", () => {
     const manager = MCPManager.getInstance();
     const chatSessionId = crypto.randomUUID();
     const call = (toolName: string): Promise<string> => {
-      return manager.callTool("test", `${url}/mcp`, [], toolName, {}, chatSessionId, false, 5);
+      return manager.callTool("test", `${SERVER_URL}/mcp`, [], toolName, {}, chatSessionId, false, 5);
     };
 
     expect(await call("screenshot")).toBe(
@@ -119,8 +119,8 @@ describe("MCP client", () => {
       return respond(target, init);
     });
 
-    await manager.callTool("test", `${url}/mcp`, [], "count", {}, chatSessionId, false, 5);
-    await manager.callTool("test", `${url}/rotated`, [], "count", {}, chatSessionId, false, 5);
+    await manager.callTool("test", `${SERVER_URL}/mcp`, [], "count", {}, chatSessionId, false, 5);
+    await manager.callTool("test", `${SERVER_URL}/rotated`, [], "count", {}, chatSessionId, false, 5);
     expect(paths.at(-1)).toBe("/rotated");
 
     vi.stubGlobal("fetch", respond);
@@ -132,7 +132,7 @@ describe("MCP client", () => {
     const chatSessionId = crypto.randomUUID();
 
     const previousSlowCall = finishSlowCall;
-    const call = manager.callTool("test", `${url}/mcp`, [], "slow", {}, chatSessionId, false, 5);
+    const call = manager.callTool("test", `${SERVER_URL}/mcp`, [], "slow", {}, chatSessionId, false, 5);
     await vi.waitFor(() => {
       expect(finishSlowCall).not.toBe(previousSlowCall);
     });
@@ -147,12 +147,18 @@ describe("MCP client", () => {
   it("times out on a server that never responds", async () => {
     const started = Date.now();
 
-    const other = new MCPClient({ name: "other", url: `${url}/other`, headers: [], stateful: false, timeoutMs: 300 });
+    const other = new MCPClient({
+      name: "other",
+      url: `${SERVER_URL}/other`,
+      headers: [],
+      stateful: false,
+      timeoutMs: 300,
+    });
     expect(await other.testConnection()).toMatchObject({ success: false });
 
     const silent = new MCPClient({
       name: "silent",
-      url: `${url}/silent`,
+      url: `${SERVER_URL}/silent`,
       headers: [],
       stateful: false,
       timeoutMs: 300,
@@ -163,10 +169,10 @@ describe("MCP client", () => {
   });
 
   it("gives up on a server that keeps failing to list its tools", async () => {
-    const endless = new MCPClient({ name: "endless", url: `${url}/endless`, headers: [], stateful: false });
+    const endless = new MCPClient({ name: "endless", url: `${SERVER_URL}/endless`, headers: [], stateful: false });
     expect(await endless.testConnection()).toEqual({ success: false, error: "The MCP server lists too many tools" });
 
-    const expired = new MCPClient({ name: "expired", url: `${url}/expired`, headers: [], stateful: false });
+    const expired = new MCPClient({ name: "expired", url: `${SERVER_URL}/expired`, headers: [], stateful: false });
     expect(await expired.testConnection()).toMatchObject({ success: false });
   });
 
@@ -180,7 +186,7 @@ describe("MCP client", () => {
       return Promise.resolve(new Response("retry: 0\n\n", { headers: { "Content-Type": "text/event-stream" } }));
     });
 
-    const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: true });
+    const client = new MCPClient({ name: "test", url: `${SERVER_URL}/mcp`, headers: [], stateful: true });
     await client.initialize();
     await new Promise((resolve) => setTimeout(resolve, 200));
     await client.terminate();
@@ -190,14 +196,14 @@ describe("MCP client", () => {
   });
 
   it("builds importable modules whatever the names and descriptions of the tools", async () => {
-    const client = new MCPClient({ name: "test", url: `${url}/mcp`, headers: [], stateful: false });
+    const client = new MCPClient({ name: "test", url: `${SERVER_URL}/mcp`, headers: [], stateful: false });
     await client.initialize();
     const listed = await client.listTools();
 
     const binding = {
       id: "1",
       name: "test",
-      url,
+      url: SERVER_URL,
       headers: [],
       stateful: false,
       toolCallTimeoutSec: null,

@@ -35,7 +35,7 @@ vi.mock("#layers/core/server/lib/features", async () => {
 
 let db: Kysely<Database>;
 
-const key = "test.token" as SettingKey;
+const SETTING_KEY = "test.token" as SettingKey;
 const logger = { debug: () => undefined, info: () => undefined, warn: () => undefined } as unknown as Logger;
 const admin = createCallerFactory(settingsRouter)({
   logger,
@@ -52,11 +52,15 @@ afterAll(async () => {
 
 describe("secret setting", () => {
   it("is stored encrypted and only read by the server", async () => {
-    await admin.upsert([{ key, value: "hunter2" }]);
+    await admin.upsert([{ key: SETTING_KEY, value: "hunter2" }]);
 
-    const stored = await db.selectFrom("settings").select("value").where("key", "=", key).executeTakeFirstOrThrow();
+    const stored = await db
+      .selectFrom("settings")
+      .select("value")
+      .where("key", "=", SETTING_KEY)
+      .executeTakeFirstOrThrow();
     expect(JSON.stringify(stored.value)).not.toContain("hunter2");
-    expect(await getSetting(key)).toBe("hunter2");
-    expect((await admin.list())[key]).toMatchObject({ value: null, isOverridden: true });
+    expect(await getSetting(SETTING_KEY)).toBe("hunter2");
+    expect((await admin.list())[SETTING_KEY]).toMatchObject({ value: null, isOverridden: true });
   });
 });

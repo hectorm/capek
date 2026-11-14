@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 
 export const DatasourceAuthTypes = ["basic", "azure-service-principal", "azure-managed-identity", "none"] as const;
 export type DatasourceAuthType = (typeof DatasourceAuthTypes)[number];
@@ -93,9 +93,9 @@ export const defineUrlDatasourceType = (def: {
     ...def,
     authTypes: ["basic", "none"],
     configSchema: UrlDatasourceConfigSchema,
-    redact: (parsed) => (parsed.authType === "basic" ? { ...parsed, password: HttpRedactedValue } : parsed),
+    redact: (parsed) => (parsed.authType === "basic" ? { ...parsed, password: HTTP_REDACTED_VALUE } : parsed),
     unredact: (incoming, stored) => {
-      if (incoming.authType !== "basic" || incoming.password !== HttpRedactedValue) {
+      if (incoming.authType !== "basic" || incoming.password !== HTTP_REDACTED_VALUE) {
         return incoming;
       }
       return { ...incoming, password: stored?.authType === "basic" ? stored.password : "" };

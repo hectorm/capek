@@ -8,16 +8,16 @@ import type { PrincipalAccess } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 
-const seedPrincipalsSchema = z.object({
+const SeedPrincipalsSchema = z.object({
   users: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
   groups: z.array(z.string().trim().min(1).max(255)).max(255).default([]),
 });
 
-export const seedAccessSchema = z
-  .object({ editors: seedPrincipalsSchema.prefault({}), users: seedPrincipalsSchema.prefault({}) })
+export const SeedAccessSchema = z
+  .object({ editors: SeedPrincipalsSchema.prefault({}), users: SeedPrincipalsSchema.prefault({}) })
   .prefault({});
 
-export type SeedAccess = z.output<typeof seedAccessSchema>;
+export type SeedAccess = z.output<typeof SeedAccessSchema>;
 
 export interface SeedContext {
   db: Kysely<Database>;

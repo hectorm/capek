@@ -1,5 +1,5 @@
 import { defineToolProvider } from "#layers/core/server/lib/tools/define";
-import { TablePartMaxRows } from "#layers/core/shared/tools";
+import { TABLE_PART_MAX_ROWS } from "#layers/core/shared/tools";
 import { executeQuery, QUERY_MAX_ROWS } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
 import { decryptSourceConfig } from "#layers/datasources/server/lib/secrets";
@@ -31,7 +31,7 @@ export const datasourcesToolProvider = defineToolProvider({
           description: [
             "Execute a read-only SQL query on a datasource.",
             `Returns a JSON object with up to ${String(QUERY_MAX_ROWS)} \`rows\`, and \`truncated\` set when there are more.`,
-            `With \`show\` and a \`name\`, up to ${String(TablePartMaxRows)} rows are shown to the user as a table and only their number is returned as \`shown\`.`,
+            `With \`show\` and a \`name\`, up to ${String(TABLE_PART_MAX_ROWS)} rows are shown to the user as a table and only their number is returned as \`shown\`.`,
             "Available datasources:",
             ...sources.map((source) => `- "${source.name}" (${source.type})`),
           ].join("\n"),
@@ -108,7 +108,7 @@ export const datasourcesToolProvider = defineToolProvider({
         "IMPORTANT:",
         "- Always call the tool to run queries, never include raw SQL in your response without executing it first.",
         `- You get at most ${String(QUERY_MAX_ROWS)} rows of a query, aggregate and filter in SQL rather than over those rows.`,
-        `- To give rows to the user, run the query with \`show\` and a \`name\` for their table instead of writing them in your response, the user gets a table of up to ${String(TablePartMaxRows)} rows to sort, filter and download as a file with that name.`,
+        `- To give rows to the user, run the query with \`show\` and a \`name\` for their table instead of writing them in your response, the user gets a table of up to ${String(TABLE_PART_MAX_ROWS)} rows to sort, filter and download as a file with that name.`,
         "- The user sees the table where the tool is called, so do not repeat its rows in your response.",
         "- Always respond in the same language the user is using.",
         "",

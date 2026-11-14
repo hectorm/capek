@@ -115,10 +115,10 @@ export interface GroupPrincipal {
 export type Principal = UserPrincipal | GroupPrincipal;
 
 // Access entry of a shared resource, as received by the `syncAccess` procedures
-export const principalAccessSchema = z.object({
+export const PrincipalAccessSchema = z.object({
   id: z.uuid(),
   type: z.enum(["user", "group"]),
   role: z.enum(["editor", "user"]),
 });
 
-export type PrincipalAccess = z.infer<typeof principalAccessSchema>;
+export type PrincipalAccess = z.infer<typeof PrincipalAccessSchema>;

@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import type { HttpHeaders } from "#layers/core/shared/http";
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 
 export interface Endpoint {
   url: string;
@@ -74,7 +74,7 @@ export const unredactEndpoint = (incoming: Partial<Endpoint>, stored: Endpoint |
   // Stored secrets that the endpoint keeps
   let kept = 0;
   const unredact = (value: string | undefined, storedValue: string | undefined): string => {
-    if (value !== undefined && value !== HttpRedactedValue) {
+    if (value !== undefined && value !== HTTP_REDACTED_VALUE) {
       return value;
     }
     kept += storedValue ? 1 : 0;
@@ -84,7 +84,7 @@ export const unredactEndpoint = (incoming: Partial<Endpoint>, stored: Endpoint |
   const url = incoming.url ?? stored?.url ?? "";
   const apiKey = unredact(incoming.apiKey, stored?.apiKey);
   // Headers that were not sent are the stored ones, all left hidden
-  const hidden = stored?.headers.map((h) => ({ ...h, value: HttpRedactedValue })) ?? [];
+  const hidden = stored?.headers.map((h) => ({ ...h, value: HTTP_REDACTED_VALUE })) ?? [];
   const headers = (incoming.headers ?? hidden).map((h) => {
     return { ...h, value: unredact(h.value, stored?.headers.find((s) => s.name === h.name)?.value) };
   });

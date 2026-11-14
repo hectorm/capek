@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-export const TablePartMaxRows = 5000;
+export const TABLE_PART_MAX_ROWS = 5000;
 
 export const ChartPartSchema = z.object({
   type: z.literal("chart"),

@@ -21,7 +21,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
@@ -79,10 +79,10 @@ const schema = z
       return;
     }
     const message = i18n.t("errors.secretRequired");
-    if (data.apiKey === HttpRedactedValue) {
+    if (data.apiKey === HTTP_REDACTED_VALUE) {
       ctx.addIssue({ code: "custom", path: ["apiKey"], message });
     }
-    if (data.headers.some((header) => header.value === HttpRedactedValue)) {
+    if (data.headers.some((header) => header.value === HTTP_REDACTED_VALUE)) {
       ctx.addIssue({ code: "custom", path: ["headers"], message });
     }
   });
@@ -247,7 +247,7 @@ const onTestConnection = async () => {
             type="password"
             :disabled="!canModify"
             :placeholder="$t(`ai.pages.studio.llmProviders.form.apiKey.placeholder`)"
-            @input="state.apiKey === HttpRedactedValue && (state.apiKey = '')"
+            @input="state.apiKey === HTTP_REDACTED_VALUE && (state.apiKey = '')"
           />
         </UFormField>
         <UFormField name="headers" :label="$t('ai.pages.studio.llmProviders.form.headers.label')">
@@ -264,7 +264,7 @@ const onTestConnection = async () => {
                 :disabled="!canModify"
                 pattern="[a-zA-Z0-9!#$%&'*+\-.^_`\|~]+"
                 :placeholder="$t('ai.pages.studio.llmProviders.form.headers.namePlaceholder')"
-                @input="header.value === HttpRedactedValue && (header.value = '')"
+                @input="header.value === HTTP_REDACTED_VALUE && (header.value = '')"
               />
               <UInput
                 v-model="header.value"
@@ -276,7 +276,7 @@ const onTestConnection = async () => {
                 autocomplete="off"
                 :disabled="!canModify"
                 :placeholder="$t('ai.pages.studio.llmProviders.form.headers.valuePlaceholder')"
-                @input="header.value === HttpRedactedValue && (header.value = '')"
+                @input="header.value === HTTP_REDACTED_VALUE && (header.value = '')"
               />
               <UButton
                 v-if="canModify"

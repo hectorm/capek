@@ -1,24 +1,24 @@
 import { z } from "zod/v4";
 
 import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
-import { defineSeed, seedAccessSchema } from "#layers/core/server/lib/seed";
+import { defineSeed, SeedAccessSchema } from "#layers/core/server/lib/seed";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
 import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
 
-const seedSourceSchema = z.object({
+const SeedSourceSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).trim().default(""),
   documentation: z.string().max(100000).trim().optional(),
   type: z.string().min(1).max(100),
   config: DatasourceConfigSchema,
-  access: seedAccessSchema,
+  access: SeedAccessSchema,
 });
 
 export const datasourcesSeed = defineSeed({
   schema: {
-    sources: z.array(seedSourceSchema).max(1000).default([]),
+    sources: z.array(SeedSourceSchema).max(1000).default([]),
   },
   async run(config, { db, logger, grantAccess }) {
     // Seed datasources (idempotent by name)

@@ -12,7 +12,7 @@ import type { Database } from "#layers/core/shared/schema";
 import type { TablePart } from "#layers/core/shared/tools";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { defineToolProvider } from "#layers/core/server/lib/tools/define";
-import { TablePartMaxRows, TablePartSchema } from "#layers/core/shared/tools";
+import { TABLE_PART_MAX_ROWS, TablePartSchema } from "#layers/core/shared/tools";
 
 export const AI_TABLE_TOOL = "ai_table";
 
@@ -26,8 +26,8 @@ const inflateAsync = promisify(inflate);
 const tableData = new WeakMap<ChatTablePart, string>();
 
 export const keepTable = ({ name, columns, rows }: TablePart): ChatTablePart => {
-  if (rows.length > TablePartMaxRows) {
-    throw new Error(`A table cannot have more than ${String(TablePartMaxRows)} rows, show fewer of them`);
+  if (rows.length > TABLE_PART_MAX_ROWS) {
+    throw new Error(`A table cannot have more than ${String(TABLE_PART_MAX_ROWS)} rows, show fewer of them`);
   }
 
   const data = JSON.stringify({ columns, rows });
@@ -178,7 +178,7 @@ export const aiTablesToolProvider = defineToolProvider({
         "- Give each row as an array with the value of each column, in the order of the columns.",
         "- Name the columns in the same language the user is using.",
         "- Name the table for what it has, also in that language, the user downloads it as a file with that name.",
-        `- A table cannot have more than ${String(TablePartMaxRows)} rows.`,
+        `- A table cannot have more than ${String(TABLE_PART_MAX_ROWS)} rows.`,
         "- The user sees the table where the tool is called, so do not repeat its rows in your response.",
       ].join("\n"),
     });

@@ -18,7 +18,7 @@ import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pag
 import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
 interface WithRedactedValues {
   apiKey: HttpRedactedHeader["value"];
@@ -30,8 +30,8 @@ const redactSecrets = <T extends { apiKey: string; headers: string }>(llmProvide
   const { headers } = decryptLlmProviderSecrets(llmProvider);
   return {
     ...llmProvider,
-    apiKey: HttpRedactedValue,
-    headers: headers.map((h) => ({ name: h.name, value: HttpRedactedValue })),
+    apiKey: HTTP_REDACTED_VALUE,
+    headers: headers.map((h) => ({ name: h.name, value: HTTP_REDACTED_VALUE })),
   } satisfies WithRedactedValues;
 };
 

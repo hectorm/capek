@@ -7,7 +7,7 @@ import { SettingType } from "#layers/core/shared/settings";
 
 const settingsCache = new Map<string, { value: unknown; expiresAt: number }>();
 // Low enough to not have to deal with invalidation, high enough to not hammer the DB on bursts
-const settingsCacheTtl = 1000;
+const SETTINGS_CACHE_TTL_MS = 1000;
 
 // Setting definition along with the name of the feature that defines it
 export type FeatureSettingDefinition = SettingDefinition & { feature: string };
@@ -60,7 +60,7 @@ export const getSetting = async <K extends SettingKey>(key: K): Promise<SettingV
   }
   const value = definition.schema.parse(rawValue);
 
-  settingsCache.set(key, { value, expiresAt: now + settingsCacheTtl });
+  settingsCache.set(key, { value, expiresAt: now + SETTINGS_CACHE_TTL_MS });
 
   return value as SettingValueMap[K];
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Endpoint } from "#layers/core/server/lib/http";
 import { readErrorMessage, unredactEndpoint } from "#layers/core/server/lib/http";
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 
 const stored: Endpoint = {
   url: "https://api.example.com/v1",
@@ -10,12 +10,12 @@ const stored: Endpoint = {
   headers: [{ name: "X-Token", value: "stored-token" }],
 };
 
-const hiddenHeaders = [{ name: "X-Token", value: HttpRedactedValue }];
+const hiddenHeaders = [{ name: "X-Token", value: HTTP_REDACTED_VALUE }];
 
 describe("endpoint secret", () => {
   it("is taken from the stored endpoint when missing or hidden", () => {
     expect(unredactEndpoint({}, stored)).toEqual(stored);
-    expect(unredactEndpoint({ url: stored.url, apiKey: HttpRedactedValue, headers: hiddenHeaders }, stored)).toEqual(
+    expect(unredactEndpoint({ url: stored.url, apiKey: HTTP_REDACTED_VALUE, headers: hiddenHeaders }, stored)).toEqual(
       stored,
     );
     expect(unredactEndpoint({ apiKey: "typed-key", headers: [] }, stored)).toEqual({
@@ -32,7 +32,7 @@ describe("endpoint secret", () => {
       { url },
       { url, apiKey: "typed-key" },
       { url, apiKey: "typed-key", headers: hiddenHeaders },
-      { url, apiKey: HttpRedactedValue, headers: [] },
+      { url, apiKey: HTTP_REDACTED_VALUE, headers: [] },
     ];
     for (const sent of sentWithStoredSecrets) {
       expect(() => unredactEndpoint(sent, stored)).toThrow(/have to be entered again/);
@@ -59,7 +59,7 @@ describe("endpoint secret", () => {
   it("is left empty when hidden and not stored", () => {
     const url = "https://other.example/v1";
 
-    expect(unredactEndpoint({ url, apiKey: HttpRedactedValue, headers: hiddenHeaders }, undefined)).toEqual({
+    expect(unredactEndpoint({ url, apiKey: HTTP_REDACTED_VALUE, headers: hiddenHeaders }, undefined)).toEqual({
       url,
       apiKey: "",
       headers: [{ name: "X-Token", value: "" }],

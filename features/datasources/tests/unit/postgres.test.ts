@@ -3,7 +3,7 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DatasourceQuerySettings } from "#layers/datasources/server/lib/drivers";
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { PostgresDriver } from "#layers/datasources/server/lib/drivers/postgres";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
 
@@ -43,7 +43,7 @@ describe("PostgreSQL datasource", () => {
   };
 
   it("hides the stored password", () => {
-    expect(PostgresDatasourceType.redact(config()).password).toBe(HttpRedactedValue);
+    expect(PostgresDatasourceType.redact(config()).password).toBe(HTTP_REDACTED_VALUE);
   });
 
   it("only restores the hidden password for the same server", () => {

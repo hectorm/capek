@@ -8,7 +8,7 @@ interface FrameLibrary {
   files: { storage: string; key: string }[];
 }
 
-const libraries = new Map<string, FrameLibrary>([
+const LIBRARIES = new Map<string, FrameLibrary>([
   [
     "echarts",
     {
@@ -23,7 +23,7 @@ const libraries = new Map<string, FrameLibrary>([
 
 export default defineEventHandler(async (event) => {
   const name = getRouterParam(event, "name") ?? "";
-  const library = libraries.get(name);
+  const library = LIBRARIES.get(name);
   if (!library) {
     throw createError({
       statusCode: 404,

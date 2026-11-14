@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { defineDatasourceType } from "#layers/datasources/shared/datasource";
 
 export const SqlServerDatasourceType = defineDatasourceType({
@@ -35,9 +35,9 @@ export const SqlServerDatasourceType = defineDatasourceType({
   redact: (p) => {
     switch (p.authType) {
       case "basic":
-        return { ...p, password: HttpRedactedValue };
+        return { ...p, password: HTTP_REDACTED_VALUE };
       case "azure-service-principal":
-        return { ...p, azureClientSecret: HttpRedactedValue };
+        return { ...p, azureClientSecret: HTTP_REDACTED_VALUE };
       case "azure-managed-identity":
       case "none":
         return p;
@@ -46,12 +46,12 @@ export const SqlServerDatasourceType = defineDatasourceType({
   unredact: (i, s) => {
     switch (i.authType) {
       case "basic":
-        if (i.password !== HttpRedactedValue) {
+        if (i.password !== HTTP_REDACTED_VALUE) {
           return i;
         }
         return { ...i, password: s?.authType === "basic" ? s.password : "" };
       case "azure-service-principal":
-        if (i.azureClientSecret !== HttpRedactedValue) {
+        if (i.azureClientSecret !== HTTP_REDACTED_VALUE) {
           return i;
         }
         return {

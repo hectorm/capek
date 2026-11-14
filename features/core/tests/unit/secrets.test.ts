@@ -9,7 +9,7 @@ import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 let db: Kysely<Database>;
 
 const oldKey = (runtimeConfig.encryption as { key: string }).key;
-const newKey = "6dD6GxQNdmVfr+G9B6Q9oh5P9I3mL6B8mU3zQ1l6UcA=";
+const NEW_KEY = "6dD6GxQNdmVfr+G9B6Q9oh5P9I3mL6B8mU3zQ1l6UcA=";
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -36,14 +36,14 @@ describe("secret encryption", () => {
   it("rotates the main key without encrypting the values again", async () => {
     const value = (await loadSecrets(db, { key: oldKey, previousKey: "" })).encrypt("hunter2", "table.column");
 
-    await expect(loadSecrets(db, { key: newKey, previousKey: "" })).rejects.toThrow(
+    await expect(loadSecrets(db, { key: NEW_KEY, previousKey: "" })).rejects.toThrow(
       "Neither NUXT_ENCRYPTION_KEY nor NUXT_ENCRYPTION_PREVIOUS_KEY",
     );
 
-    const rotated = await loadSecrets(db, { key: newKey, previousKey: oldKey });
+    const rotated = await loadSecrets(db, { key: NEW_KEY, previousKey: oldKey });
     expect(rotated.decrypt(value, "table.column")).toBe("hunter2");
 
-    const withoutOldKey = await loadSecrets(db, { key: newKey, previousKey: "" });
+    const withoutOldKey = await loadSecrets(db, { key: NEW_KEY, previousKey: "" });
     expect(withoutOldKey.decrypt(value, "table.column")).toBe("hunter2");
   });
 
@@ -51,7 +51,7 @@ describe("secret encryption", () => {
     await expect(loadSecrets(db, { key: "changeme", previousKey: "" })).rejects.toThrow(
       "NUXT_ENCRYPTION_KEY has to be a key of 32 bytes in base64",
     );
-    await expect(loadSecrets(db, { key: newKey, previousKey: ` ${oldKey}` })).rejects.toThrow(
+    await expect(loadSecrets(db, { key: NEW_KEY, previousKey: ` ${oldKey}` })).rejects.toThrow(
       "NUXT_ENCRYPTION_PREVIOUS_KEY has to be a key of 32 bytes in base64",
     );
   });

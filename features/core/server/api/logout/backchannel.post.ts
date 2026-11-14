@@ -10,7 +10,7 @@ import { useDb } from "#layers/core/server/lib/database";
 
 const config = useRuntimeConfig();
 
-const bodySchema = z.object({
+const BodySchema = z.object({
   logout_token: z.string().max(10000),
 });
 
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
   let payload: JWTPayload;
   try {
     const rawBody: unknown = await readBody(event);
-    const body = bodySchema.parse(rawBody);
+    const body = BodySchema.parse(rawBody);
     payload = await oidc.validateBackchannelLogoutToken(body.logout_token);
   } catch (error) {
     logger.warn({ error }, "Invalid backchannel logout token");

@@ -18,7 +18,7 @@ import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pag
 import { unredactEndpoint } from "#layers/core/server/lib/http";
 import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
 interface WithRedactedValues {
   headers: HttpRedactedHeader[];
@@ -30,7 +30,7 @@ const redactSecrets = <T extends { headers: string }>(mcpServer: T) => {
     ...mcpServer,
     headers: decryptMcpServerHeaders(mcpServer.headers).map((h) => ({
       name: h.name,
-      value: HttpRedactedValue,
+      value: HTTP_REDACTED_VALUE,
     })),
   } satisfies WithRedactedValues;
 };

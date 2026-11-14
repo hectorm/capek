@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { HttpRedactedValue } from "#layers/core/shared/http";
+import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
@@ -63,6 +63,6 @@ describe("connection test", () => {
 describe("datasource", () => {
   it("is read without its password", async () => {
     const source = await member.source.read({ id: sourceId });
-    expect(source.config).toMatchObject({ username: "postgres", password: HttpRedactedValue });
+    expect(source.config).toMatchObject({ username: "postgres", password: HTTP_REDACTED_VALUE });
   });
 });

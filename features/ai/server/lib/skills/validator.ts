@@ -101,7 +101,7 @@ export const validateSkillSyntax = async (code: string): Promise<ValidationResul
   }
 };
 
-const typeMap: Record<string, string> = {
+const TYPE_MAP: Record<string, string> = {
   string: "string",
   number: "number",
   boolean: "boolean",
@@ -113,13 +113,13 @@ const parseJSDocType = (typeStr: string): { type: string; items?: { type: string
 
   const bracketArrayMatch = /^(\w+)\[\]$/.exec(normalized);
   if (bracketArrayMatch?.[1]) {
-    const itemType = typeMap[bracketArrayMatch[1]] ?? "string";
+    const itemType = TYPE_MAP[bracketArrayMatch[1]] ?? "string";
     return { type: "array", items: { type: itemType } };
   }
 
   const genericArrayMatch = /^array<(\w+)>$/.exec(normalized);
   if (genericArrayMatch?.[1]) {
-    const itemType = typeMap[genericArrayMatch[1]] ?? "string";
+    const itemType = TYPE_MAP[genericArrayMatch[1]] ?? "string";
     return { type: "array", items: { type: itemType } };
   }
 
@@ -130,7 +130,7 @@ const parseJSDocType = (typeStr: string): { type: string; items?: { type: string
     }
   }
 
-  return { type: typeMap[normalized] ?? "object" };
+  return { type: TYPE_MAP[normalized] ?? "object" };
 };
 
 const parseParameter = (tag: {

@@ -5,9 +5,9 @@ import { z } from "zod/v4";
 
 import { getSetting } from "#layers/core/server/lib/settings";
 
-const typeSchema = z.enum(["logo", "icon"]);
+const TypeSchema = z.enum(["logo", "icon"]);
 
-const allowedMimeTypes = new Set([
+const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/webp",
   "image/jpeg",
@@ -19,7 +19,7 @@ const allowedMimeTypes = new Set([
 
 export default defineEventHandler(async (event) => {
   const typeParam = getRouterParam(event, "type");
-  const type = typeSchema.safeParse(typeParam);
+  const type = TypeSchema.safeParse(typeParam);
   if (!type.success) {
     throw createError({
       statusCode: 404,
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  if (!allowedMimeTypes.has(mimeType)) {
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
     throw createError({
       statusCode: 400,
       message: "Invalid image type",

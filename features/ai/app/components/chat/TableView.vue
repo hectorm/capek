@@ -19,7 +19,7 @@ const props = defineProps<{
   table: ChatTablePart;
 }>();
 
-const rowHeight = 37;
+const ROW_HEIGHT = 37;
 
 const i18n = useI18n();
 const toast = useToast();
@@ -124,7 +124,7 @@ onBeforeUnmount(releaseCsv);
       :columns="columns"
       :loading="loading"
       :ui="{ th: 'py-1', td: 'py-2' }"
-      :virtualize="{ estimateSize: rowHeight }"
+      :virtualize="{ estimateSize: ROW_HEIGHT }"
       :class="isFullscreen ? 'min-h-0 flex-1' : 'max-h-96'"
     >
       <template v-for="(name, index) in table.columns" :key="index" #[`${index}-header`]>
