@@ -37,7 +37,7 @@ const onFilterEnter = (event: KeyboardEvent): void => {
 </script>
 
 <template>
-  <UFieldGroup role="group" :aria-label="label" class="-mx-2.5 flex w-full flex-row">
+  <UFieldGroup size="sm" role="group" :aria-label="label" class="-mx-2.5 flex w-full flex-row">
     <UButton
       v-if="column.sortable"
       class="flex-1"

@@ -128,6 +128,7 @@ useInfiniteScroll(
     :loading="table.loading.value"
     :column-pinning="columnPinning"
     :sorting-options="sortingOptions"
+    :ui="{ th: 'px-3 py-1.5', td: 'px-3 py-1.5' }"
   >
     <template v-for="column in columns" :key="column.id" #[`${column.id}-header`]>
       <ResourceTableHeader
@@ -141,6 +142,7 @@ useInfiniteScroll(
     <template #[`${actionsColumn}-header`]>
       <UButton
         v-if="canCreate"
+        size="sm"
         color="neutral"
         variant="ghost"
         icon="i-lucide-plus"
@@ -168,6 +170,7 @@ useInfiniteScroll(
     <template #[`${actionsColumn}-cell`]="{ row }">
       <UDropdownMenu v-if="rowActions(row.original).length > 0" :items="rowActions(row.original)">
         <UButton
+          size="sm"
           color="neutral"
           variant="ghost"
           icon="i-lucide-ellipsis-vertical"
@@ -177,7 +180,7 @@ useInfiniteScroll(
     </template>
     <template v-if="table.loadMoreFailed.value" #body-bottom>
       <tr>
-        <td :colspan="tableColumns.length" class="p-4 text-center text-sm text-muted">
+        <td :colspan="tableColumns.length" class="px-3 py-1.5 text-center text-sm text-muted">
           {{ $t("components.resourceTable.loadError") }}
           <UButton
             size="sm"
