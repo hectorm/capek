@@ -9,6 +9,7 @@ import {
 } from "h3";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
+import { runUserSyncHooks } from "#layers/core/server/lib/authn/hooks";
 import { useOIDC } from "#layers/core/server/lib/authn/oidc";
 import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
@@ -115,6 +116,8 @@ export default defineEventHandler(async (event) => {
     if (config.oidc.syncGroups && Array.isArray(profile.groups)) {
       await syncUserGroups(user.id, profile.groups);
     }
+
+    await runUserSyncHooks(user, tokens.idTokenClaims);
   } catch (error) {
     logger.error({ error }, "User creation or update failed");
     throw createError({

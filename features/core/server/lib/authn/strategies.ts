@@ -7,6 +7,7 @@ import { sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
 import type { User } from "#layers/core/shared/schema";
+import { runUserSyncHooks } from "#layers/core/server/lib/authn/hooks";
 import { useSessions } from "#layers/core/server/lib/authn/sessions";
 import { getOrCreateUserFromProxy, syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { useDb } from "#layers/core/server/lib/database";
@@ -177,6 +178,8 @@ export class ProxyStrategy implements AuthStrategy {
       if (groups !== null) {
         await syncUserGroups(user.id, groups);
       }
+
+      await runUserSyncHooks(user, {});
 
       const ctx = await getUserAuthContext(user.id);
       const authUser: AuthUser = { ...user, ...ctx };
