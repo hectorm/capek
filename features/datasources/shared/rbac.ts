@@ -35,7 +35,6 @@ export const DatasourcesRolePermissions = {
   [Roles.Auditor]: [
     DatasourcesPermissions.SourceReadAll,
     DatasourcesPermissions.SourceListAll,
-    DatasourcesPermissions.SourceCreate,
     DatasourcesPermissions.SourceUpdateOwn,
     DatasourcesPermissions.SourceDeleteOwn,
     DatasourcesPermissions.SourceUseOwn,

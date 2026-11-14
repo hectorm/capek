@@ -125,28 +125,24 @@ export const AiRolePermissions = {
 
     AiPermissions.AgentReadAll,
     AiPermissions.AgentListAll,
-    AiPermissions.AgentCreate,
     AiPermissions.AgentUpdateOwn,
     AiPermissions.AgentDeleteOwn,
     AiPermissions.AgentUseOwn,
 
     AiPermissions.LlmProviderReadAll,
     AiPermissions.LlmProviderListAll,
-    AiPermissions.LlmProviderCreate,
     AiPermissions.LlmProviderUpdateOwn,
     AiPermissions.LlmProviderDeleteOwn,
     AiPermissions.LlmProviderUseOwn,
 
     AiPermissions.McpServerReadAll,
     AiPermissions.McpServerListAll,
-    AiPermissions.McpServerCreate,
     AiPermissions.McpServerUpdateOwn,
     AiPermissions.McpServerDeleteOwn,
     AiPermissions.McpServerUseOwn,
 
     AiPermissions.SkillReadAll,
     AiPermissions.SkillListAll,
-    AiPermissions.SkillCreate,
     AiPermissions.SkillUpdateOwn,
     AiPermissions.SkillDeleteOwn,
     AiPermissions.SkillUseOwn,

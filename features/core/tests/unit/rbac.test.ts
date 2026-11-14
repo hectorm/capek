@@ -7,4 +7,10 @@ describe("RBAC", () => {
     const granted = CoreRolePermissions[Roles.Member].filter((name) => /:(all|create)$/.test(name));
     expect(granted).toEqual([]);
   });
+
+  it("only gives auditors more reading than members", () => {
+    const member: readonly string[] = CoreRolePermissions[Roles.Member];
+    const extra = CoreRolePermissions[Roles.Auditor].filter((name) => !member.includes(name));
+    expect(extra.filter((name) => !/:(read|list):all$/.test(name))).toEqual([]);
+  });
 });
