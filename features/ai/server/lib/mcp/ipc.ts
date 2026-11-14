@@ -62,6 +62,9 @@ export class MCPIPCClient {
     if (!process.send) {
       throw new Error("IPC not available: process.send is undefined");
     }
+    if (signal?.aborted) {
+      throw new AbortError();
+    }
 
     const requestId = randomUUID();
     const fullRequest: MCPIPCRequest = { ...request, requestId };
@@ -84,11 +87,6 @@ export class MCPIPCClient {
           sendFn({ type: "cancelToolCall", requestId } satisfies MCPIPCRequest);
           reject(new AbortError());
         };
-
-        if (signal.aborted) {
-          abortListener();
-          return;
-        }
 
         signal.addEventListener("abort", abortListener);
       }
