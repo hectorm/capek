@@ -131,17 +131,19 @@ useInfiniteScroll(
         @click="handleNewChat"
       />
     </div>
-    <div ref="sessionsContainer" class="flex-1 overflow-y-auto p-2">
-      <UNavigationMenu :items="items" :collapsed="collapsed" orientation="vertical" :ui="{ link: 'overflow-hidden' }">
+    <div ref="sessionsContainer" :data-collapsed="collapsed" class="group/sessions flex-1 overflow-y-auto p-2">
+      <UNavigationMenu
+        :items="items"
+        orientation="vertical"
+        :ui="{ link: 'overflow-hidden', label: 'group-data-[collapsed=true]/sessions:hidden' }"
+      >
         <template #chat="{ item }">
-          <UTooltip
-            :text="item.label"
-            :delay-duration="collapsed ? 0 : 500"
-            :content="{ side: 'right', sideOffset: 24 }"
-          >
-            <NuxtLink v-if="!collapsed" :to="item.to" class="group/item flex w-full items-center justify-center">
-              <span class="truncate">{{ item.label }}</span>
-              <div class="ms-auto -mr-1.25 flex opacity-0 transition-opacity group-hover/item:opacity-100">
+          <UTooltip :text="item.label" :delay-duration="300" :content="{ side: 'right', sideOffset: 24 }">
+            <NuxtLink :to="item.to" class="group/item flex w-full items-center justify-center">
+              <span class="truncate group-data-[collapsed=true]/sessions:hidden">{{ item.label }}</span>
+              <div
+                class="ms-auto -mr-1.25 flex opacity-0 transition-opacity group-hover/item:opacity-100 group-data-[collapsed=true]/sessions:hidden"
+              >
                 <UButton
                   size="xs"
                   tabindex="-1"
@@ -153,9 +155,10 @@ useInfiniteScroll(
                   @click.stop.prevent="() => void openChatDeleteModal(item.id)"
                 />
               </div>
-            </NuxtLink>
-            <NuxtLink v-else :to="item.to" class="flex w-full items-center justify-center">
-              <span class="truncate first-letter:uppercase" :class="{ 'bg-elevated': route.path === item.to }">
+              <span
+                :class="{ 'bg-elevated': route.path === item.to }"
+                class="hidden truncate group-data-[collapsed=true]/sessions:inline first-letter:uppercase"
+              >
                 {{ item.label.substring(0, 3).toLowerCase() }}
               </span>
             </NuxtLink>
