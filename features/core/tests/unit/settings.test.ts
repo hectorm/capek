@@ -19,6 +19,14 @@ vi.mock("#layers/core/server/lib/features", async () => {
       {
         name: "test",
         settings: {
+          "test.name": {
+            type: SettingType.String,
+            category: "test",
+            isPublic: true,
+            getDefault: () => "",
+            schema: z.string().max(100),
+            config: { inputType: "text", minLength: 0, maxLength: 100 },
+          },
           "test.token": {
             type: SettingType.StringSecret,
             category: "test",
@@ -50,8 +58,27 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("secret setting", () => {
-  it("is stored encrypted and only read by the server", async () => {
+describe("setting", () => {
+  it("is read through a transaction without sharing what the transaction changes", async () => {
+    const key = "test.name" as SettingKey;
+    expect(await getSetting(key)).toBe("");
+
+    let changed: unknown;
+    const rollback = db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto("settings")
+        .values({ key, value: JSON.stringify("Changed") })
+        .execute();
+      changed = await getSetting(key, trx);
+      throw new Error("Rolled back");
+    });
+
+    await expect(rollback).rejects.toThrow("Rolled back");
+    expect(changed).toBe("Changed");
+    expect(await getSetting(key)).toBe("");
+  });
+
+  it("is stored encrypted and only read by the server when it is a secret", async () => {
     await admin.upsert([{ key: SETTING_KEY, value: "hunter2" }]);
 
     const stored = await db

@@ -1,4 +1,7 @@
+import type { Kysely } from "kysely";
+
 import type { SettingDefinition, SettingKey, SettingValueMap } from "#layers/core/server/lib/settings/define";
+import type { Database } from "#layers/core/shared/schema";
 import { useDb } from "#layers/core/server/lib/database";
 import { getServerFeatures } from "#layers/core/server/lib/features";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
@@ -39,9 +42,9 @@ export const encodeSettingValue = <V>(key: string, value: V): V | string => {
     : value;
 };
 
-export const getSetting = async <K extends SettingKey>(key: K): Promise<SettingValueMap[K]> => {
+export const getSetting = async <K extends SettingKey>(key: K, db?: Kysely<Database>): Promise<SettingValueMap[K]> => {
   const now = Date.now();
-  const cached = settingsCache.get(key);
+  const cached = db ? undefined : settingsCache.get(key);
   if (cached && cached.expiresAt > now) {
     return cached.value as SettingValueMap[K];
   }
@@ -51,8 +54,8 @@ export const getSetting = async <K extends SettingKey>(key: K): Promise<SettingV
     throw new Error(`Unknown setting "${key}"`);
   }
 
-  const db = await useDb();
-  const setting = await db.selectFrom("settings").select("value").where("key", "=", key).executeTakeFirst();
+  const connection = db ?? (await useDb());
+  const setting = await connection.selectFrom("settings").select("value").where("key", "=", key).executeTakeFirst();
 
   let rawValue = setting?.value ?? definition.getDefault();
   if (typeof setting?.value === "string" && definition.type === SettingType.StringSecret) {
@@ -60,7 +63,9 @@ export const getSetting = async <K extends SettingKey>(key: K): Promise<SettingV
   }
   const value = definition.schema.parse(rawValue);
 
-  settingsCache.set(key, { value, expiresAt: now + SETTINGS_CACHE_TTL_MS });
+  if (!db) {
+    settingsCache.set(key, { value, expiresAt: now + SETTINGS_CACHE_TTL_MS });
+  }
 
   return value as SettingValueMap[K];
 };
