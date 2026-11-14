@@ -18,14 +18,6 @@ interface StreamState {
   status: string;
 }
 
-interface SearchQuery {
-  search?: string | string[];
-  searchBy?: "title";
-  order?: "asc" | "desc";
-  orderBy?: "title" | "updatedAt" | "createdAt";
-  limit?: number;
-}
-
 export class ChatAnswerError extends Error {
   public readonly reason: ChatStreamError;
 
@@ -50,7 +42,6 @@ export const useChatStore = defineStore("ai.chat", () => {
   const isLoadingMessages = ref<boolean>(false);
   const isCreatingSession = ref<boolean>(false);
   const sessionsNextCursor = ref<RouterOutputs["ai"]["chatSession"]["search"]["nextCursor"]>(undefined);
-  const sessionsQuery = ref<SearchQuery>({});
 
   const findSession = (sessionId: string): ChatSession | undefined => {
     return (
@@ -87,24 +78,8 @@ export const useChatStore = defineStore("ai.chat", () => {
       const result = await $trpc.ai.chatSession.search.query({});
       sessions.value = result.sessions;
       sessionsNextCursor.value = result.nextCursor;
-      sessionsQuery.value = {};
     } catch (error) {
       throw new Error("Failed to fetch chat sessions", { cause: error });
-    } finally {
-      isLoadingSessions.value = false;
-    }
-  };
-
-  const searchSessions = async (query: SearchQuery): Promise<void> => {
-    isLoadingSessions.value = true;
-
-    try {
-      const result = await $trpc.ai.chatSession.search.query(query);
-      sessions.value = result.sessions;
-      sessionsNextCursor.value = result.nextCursor;
-      sessionsQuery.value = query;
-    } catch (error) {
-      throw new Error("Failed to search chat sessions", { cause: error });
     } finally {
       isLoadingSessions.value = false;
     }
@@ -118,10 +93,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     isLoadingSessions.value = true;
 
     try {
-      const result = await $trpc.ai.chatSession.search.query({
-        ...sessionsQuery.value,
-        cursor: sessionsNextCursor.value,
-      });
+      const result = await $trpc.ai.chatSession.search.query({ cursor: sessionsNextCursor.value });
       sessions.value = sessions.value.concat(result.sessions);
       sessionsNextCursor.value = result.nextCursor;
     } catch (error) {
@@ -632,7 +604,6 @@ export const useChatStore = defineStore("ai.chat", () => {
     isCreatingSession,
     hasMoreSessions,
     fetchSessions,
-    searchSessions,
     loadMoreSessions,
     createSession,
     updateSession,
