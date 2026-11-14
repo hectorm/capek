@@ -58,7 +58,7 @@ const tableColumns = computed<TableColumn<R>[]>(() => [
   })),
   {
     id: actionsColumn,
-    meta: { class: { th: "w-0 min-w-15", td: "w-0 px-0 text-center bg-clip-content" } },
+    meta: { class: { th: "w-0 min-w-15 bg-default", td: "w-0 px-0 text-center bg-default bg-clip-content" } },
   },
 ]);
 
