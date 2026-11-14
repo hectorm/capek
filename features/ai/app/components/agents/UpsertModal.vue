@@ -125,6 +125,7 @@ preload(currentAccess);
 
 const state = reactive<
   Partial<AgentCreateOrUpdateInput> & {
+    id?: string;
     editors: string[];
     users: string[];
     type?: "triage" | "specialist";
@@ -351,6 +352,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
       agent = result;
       agentId = result.id;
+      state.id = result.id;
     }
 
     const access = fromPrincipalIds(event.data);

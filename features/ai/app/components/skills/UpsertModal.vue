@@ -157,6 +157,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
       skill = result;
       skillId = result.id;
+      state.id = result.id;
     }
 
     const access = fromPrincipalIds(event.data);

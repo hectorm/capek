@@ -111,6 +111,7 @@ preload(currentAccess);
 
 const state = reactive<
   Partial<McpServerCreateOrUpdateInput> & {
+    id?: string;
     headers: HttpHeader[];
     stateful: boolean;
     editors: string[];
@@ -177,6 +178,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
       mcpServer = result;
       mcpServerId = result.id;
+      state.id = result.id;
     }
 
     const access = fromPrincipalIds(event.data);

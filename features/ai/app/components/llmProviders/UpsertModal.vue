@@ -114,6 +114,7 @@ preload(currentAccess);
 
 const state = reactive<
   Partial<LlmProviderCreateOrUpdateInput> & {
+    id?: string;
     headers: HttpHeader[];
     editors: string[];
     users: string[];
@@ -171,6 +172,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
       llmProvider = result;
       llmProviderId = result.id;
+      state.id = result.id;
     }
 
     const access = fromPrincipalIds(event.data);

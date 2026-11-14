@@ -215,6 +215,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       });
       datasource = result;
       datasourceId = result.id;
+      state.id = result.id;
     }
 
     const access = fromPrincipalIds(event.data);
