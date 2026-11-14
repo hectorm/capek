@@ -15,9 +15,10 @@ defineProps<{
 }>();
 
 const i18n = useI18n();
-const locale = computed(() => locales[i18n.locale.value].ui);
 
 const dev = import.meta.dev;
+
+const locale = computed(() => locales[i18n.locale.value].ui);
 
 useHeadSafe(
   computed(() => ({
@@ -38,10 +39,10 @@ useSeoMeta({
     <div class="flex h-screen flex-col items-center justify-between gap-8 overflow-auto px-4 py-8">
       <div class="flex w-full flex-1 flex-col items-center justify-center gap-4">
         <h1 class="text-6xl font-bold text-primary">
-          {{ error.statusCode }}
+          {{ error.status }}
         </h1>
         <h2 class="text-4xl">
-          {{ i18n.t(`pages.error.message.${error.statusCode}`, {}, i18n.t("pages.error.message.500")) }}
+          {{ i18n.t(`pages.error.message.${error.status}`, {}, i18n.t("pages.error.message.500")) }}
         </h2>
         <UButton to="/" size="xl" class="mt-5" variant="soft" color="primary" icon="i-lucide-arrow-left">
           {{ i18n.t("pages.error.back") }}
