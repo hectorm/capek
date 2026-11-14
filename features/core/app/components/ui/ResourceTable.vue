@@ -34,7 +34,12 @@ const emit = defineEmits<{
   delete: [row: R];
 }>();
 
-defineSlots<Record<`${string}-cell`, (props: { row: R }) => unknown>>();
+defineSlots<
+  {
+    // Content of the table without rows, "filtered" when a filter of the columns removed them
+    empty?: (props: { filtered: boolean }) => unknown;
+  } & Record<`${string}-cell`, (props: { row: R }) => unknown>
+>();
 
 const actionsColumn = "actions";
 const columnPinning = { left: [], right: [actionsColumn] };
@@ -62,6 +67,8 @@ const sorting = computed(() => {
   const { orderBy, order } = props.table.query.value;
   return orderBy ? [{ id: orderBy, desc: order === "desc" }] : [];
 });
+
+const filtered = computed(() => Boolean(props.table.query.value.search?.length));
 
 // Remounts the table when the locale changes, since it does not render its headers and cells again
 const tableKey = computed(() => i18n.locale.value);
@@ -194,6 +201,13 @@ useInfiniteScroll(
         </td>
       </tr>
     </template>
-    <template #empty>&nbsp;</template>
+    <template #empty>
+      <template v-if="!table.loading.value">
+        <slot name="empty" :filtered="filtered">
+          {{ filtered ? $t("components.resourceTable.noMatches") : $t("components.resourceTable.empty") }}
+        </slot>
+      </template>
+      <template v-else>&nbsp;</template>
+    </template>
   </UTable>
 </template>
