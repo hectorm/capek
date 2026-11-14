@@ -1,6 +1,7 @@
 import eslint from "@eslint/js";
 import prettierConfig from "eslint-config-prettier";
 import pluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
+import { getDefaultSelectors } from "eslint-plugin-better-tailwindcss/defaults";
 import pluginVue from "eslint-plugin-vue";
 import { globalIgnores } from "eslint/config";
 import globals from "globals";
@@ -57,6 +58,10 @@ export default withNuxt(
       features: selection.enabled,
       "better-tailwindcss": {
         entryPoint: "./features/core/app/assets/css/main.css",
+        selectors: [
+          ...getDefaultSelectors(),
+          { kind: "attribute", name: "^v-bind:ui$", match: [{ type: "objectValues" }] },
+        ],
       },
     },
     rules: {
