@@ -53,7 +53,7 @@ useSeoMeta({
 <template>
   <UApp :locale="locale" :toaster="toaster">
     <NuxtRouteAnnouncer />
-    <NuxtLoadingIndicator />
+    <NuxtLoadingIndicator color="var(--ui-primary)" />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
