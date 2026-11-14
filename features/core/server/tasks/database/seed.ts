@@ -19,7 +19,7 @@ const config = useRuntimeConfig();
 const logger = useLogger();
 
 // Substitutes ${VAR}, ${VAR:-default} and ${VAR-default} with environment variables, and $$ with a literal $
-function expandEnvVars(content: string): string {
+const expandEnvVars = (content: string): string => {
   return content
     .replace(/\$\$/g, "\x00")
     .replace(
@@ -29,7 +29,7 @@ function expandEnvVars(content: string): string {
       },
     )
     .replace(/\x00/g, "$"); // eslint-disable-line no-control-regex
-}
+};
 
 export default defineTask({
   meta: {

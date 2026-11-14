@@ -24,11 +24,11 @@ export interface SkillBinding {
   code: string | null;
 }
 
-export function createVFS(
+export const createVFS = (
   servers: MCPServerBinding[],
   skills: SkillBinding[],
   toolsets: AgentToolset[] = [],
-): VirtualFileSystem {
+): VirtualFileSystem => {
   const vfs = new VirtualFileSystem();
 
   const serverExports: string[] = [];
@@ -102,9 +102,9 @@ export function createVFS(
   }
 
   return vfs;
-}
+};
 
-function generateFeatureToolModule(tool: Tool): string {
+const generateFeatureToolModule = (tool: Tool): string => {
   const jsdoc = generateJSDoc(tool.name, tool.description, tool.parameters);
   return [
     jsdoc,
@@ -113,9 +113,9 @@ function generateFeatureToolModule(tool: Tool): string {
     "  try { return JSON.parse(result); } catch { return result; }",
     "}",
   ].join("\n");
-}
+};
 
-function generateToolModule(serverName: string, tool: MCPTool): string {
+const generateToolModule = (serverName: string, tool: MCPTool): string => {
   const jsdoc = generateJSDoc(tool.name, tool.description ?? "", tool.inputSchema);
   return [
     jsdoc,
@@ -124,9 +124,9 @@ function generateToolModule(serverName: string, tool: MCPTool): string {
     "  try { return JSON.parse(result); } catch { return result; }",
     "}",
   ].join("\n");
-}
+};
 
-function generateSkillMarkdown(skill: SkillBinding, skillName: string): string {
+const generateSkillMarkdown = (skill: SkillBinding, skillName: string): string => {
   const lines: string[] = [];
 
   lines.push("---");
@@ -154,17 +154,17 @@ function generateSkillMarkdown(skill: SkillBinding, skillName: string): string {
   }
 
   return lines.join("\n");
-}
+};
 
-function sanitizeId(name: string): string {
+const sanitizeId = (name: string): string => {
   let id = name.replace(/[^a-zA-Z0-9_]/g, "_");
   if (id.length === 0) {
     id = "_unnamed";
   }
   return id;
-}
+};
 
-export function uniqueIds(maxLength = Infinity): (name: string) => string {
+export const uniqueIds = (maxLength = Infinity): ((name: string) => string) => {
   const used = new Set<string>();
   return (name) => {
     const base = sanitizeId(name);
@@ -176,7 +176,7 @@ export function uniqueIds(maxLength = Infinity): (name: string) => string {
     used.add(id);
     return id;
   };
-}
+};
 
 interface ToolInputSchema {
   type: "object";
@@ -184,17 +184,17 @@ interface ToolInputSchema {
   required?: string[];
 }
 
-function escapeJSDoc(text: string): string {
+const escapeJSDoc = (text: string): string => {
   return text.replace(/\/\*/g, "/ *").replace(/\*\//g, "* /");
-}
+};
 
-function briefComment(description: string | undefined, name: string): string {
+const briefComment = (description: string | undefined, name: string): string => {
   const firstLine = description?.split("\n")[0]?.slice(0, 100);
   const brief = firstLine === undefined || firstLine === "" ? name : firstLine;
   return `/** ${escapeJSDoc(brief)} */`;
-}
+};
 
-function generateJSDoc(name: string, description: string, schema: ToolInputSchema): string {
+const generateJSDoc = (name: string, description: string, schema: ToolInputSchema): string => {
   const lines: string[] = [];
 
   if (description) {
@@ -233,7 +233,7 @@ function generateJSDoc(name: string, description: string, schema: ToolInputSchem
   lines.push("@returns {*} Tool result");
 
   return ["/**", ...lines.map((line) => ` * ${escapeJSDoc(line)}`.trimEnd()), " */"].join("\n");
-}
+};
 
 interface PropInfo {
   type: string;
@@ -242,7 +242,7 @@ interface PropInfo {
   defaultValue: unknown;
 }
 
-function extractPropInfo(schema: unknown): PropInfo {
+const extractPropInfo = (schema: unknown): PropInfo => {
   if (!schema || typeof schema !== "object") {
     return { type: "*", description: null, enumValues: null, defaultValue: undefined };
   }
@@ -254,9 +254,9 @@ function extractPropInfo(schema: unknown): PropInfo {
     enumValues: Array.isArray(s.enum) ? s.enum.filter((v): v is string => typeof v === "string") : null,
     defaultValue: s.default,
   };
-}
+};
 
-function schemaToType(s: Record<string, unknown>): string {
+const schemaToType = (s: Record<string, unknown>): string => {
   if (Array.isArray(s.enum) && s.enum.length <= 5) {
     return s.enum.map((v) => (typeof v === "string" ? `"${v}"` : String(v))).join("|");
   }
@@ -299,9 +299,9 @@ function schemaToType(s: Record<string, unknown>): string {
   }
 
   return "*";
-}
+};
 
-function wrapText(text: string, maxWidth: number): string[] {
+const wrapText = (text: string, maxWidth: number): string[] => {
   const lines: string[] = [];
   for (const para of text.split(/\n\n+/)) {
     const normalized = para.replace(/\s+/g, " ").trim();
@@ -325,4 +325,4 @@ function wrapText(text: string, maxWidth: number): string[] {
     }
   }
   return lines;
-}
+};

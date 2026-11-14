@@ -24,11 +24,11 @@ interface QueryResult {
 }
 
 // Runs a query on a datasource and returns its first rows, telling whether it has more
-export async function executeQuery(
+export const executeQuery = async (
   source: QuerySource,
   sql: string,
   { shown = false, signal }: QueryOptions = {},
-): Promise<QueryResult> {
+): Promise<QueryResult> => {
   const type = findDatasourceType(source.type);
   if (!type) {
     throw new Error(`Datasource type "${source.type}" is not supported`);
@@ -48,12 +48,12 @@ export async function executeQuery(
     logger.warn({ sourceId: source.id, error }, "Datasource query failed");
     throw error;
   }
-}
+};
 
-export async function testConnection(
+export const testConnection = async (
   type: ServerDatasourceType,
   params: DatasourceConnectionParams,
-): Promise<TestResult> {
+): Promise<TestResult> => {
   try {
     await type.driver.execute(params, type.driver.validationQuery, {
       statementTimeoutMs: 5_000,
@@ -66,4 +66,4 @@ export async function testConnection(
     logger.warn({ type: type.definition.type, error: message }, "Datasource test failed");
     return { success: false, error: message };
   }
-}
+};

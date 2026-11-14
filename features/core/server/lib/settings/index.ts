@@ -39,7 +39,7 @@ export const encodeSettingValue = <V>(key: string, value: V): V | string => {
     : value;
 };
 
-export async function getSetting<K extends SettingKey>(key: K): Promise<SettingValueMap[K]> {
+export const getSetting = async <K extends SettingKey>(key: K): Promise<SettingValueMap[K]> => {
   const now = Date.now();
   const cached = settingsCache.get(key);
   if (cached && cached.expiresAt > now) {
@@ -63,4 +63,4 @@ export async function getSetting<K extends SettingKey>(key: K): Promise<SettingV
   settingsCache.set(key, { value, expiresAt: now + settingsCacheTtl });
 
   return value as SettingValueMap[K];
-}
+};

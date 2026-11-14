@@ -13,7 +13,11 @@ const inflateAsync = promisify(inflate);
 
 const stored = new WeakMap<VirtualFileSystem, string>();
 
-export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
+export const loadSessionWorkspace = async (
+  vfs: VirtualFileSystem,
+  sessionId: string,
+  user: AuthUser,
+): Promise<void> => {
   await withUserTransaction(user, async (trx) => {
     const row = await trx
       .selectFrom("aiChatSessionVfs")
@@ -35,9 +39,13 @@ export async function loadSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
     logger.debug({ sessionId, fileCount: Object.keys(snapshot.files).length }, "Session workspace loaded");
   });
   stored.set(vfs, JSON.stringify(vfs.getWorkspaceFiles()));
-}
+};
 
-export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: string, user: AuthUser): Promise<void> {
+export const saveSessionWorkspace = async (
+  vfs: VirtualFileSystem,
+  sessionId: string,
+  user: AuthUser,
+): Promise<void> => {
   try {
     const snapshot = vfs.getWorkspaceFiles();
     const json = JSON.stringify(snapshot);
@@ -77,4 +85,4 @@ export async function saveSessionWorkspace(vfs: VirtualFileSystem, sessionId: st
   } catch (error) {
     logger.warn({ sessionId, error }, "Failed to save session workspace, continuing without persistence");
   }
-}
+};

@@ -130,15 +130,15 @@ const execute = async (): Promise<unknown> => {
   });
 };
 
-function extractError(context: QuickJSContext, handle: QuickJSHandle): string {
+const extractError = (context: QuickJSContext, handle: QuickJSHandle): string => {
   const errorObj = context.dump(handle) as Record<string, unknown> | string | null;
   if (typeof errorObj === "object" && errorObj && "message" in errorObj) {
     return String(errorObj.message);
   }
   return typeof errorObj === "string" ? errorObj : "Unknown error";
-}
+};
 
-function setupModuleLoader(runtime: QuickJSAsyncRuntime): void {
+const setupModuleLoader = (runtime: QuickJSAsyncRuntime): void => {
   runtime.setModuleLoader(
     (modulePath: string) => {
       const content = vfs.readFile(modulePath);
@@ -151,9 +151,9 @@ function setupModuleLoader(runtime: QuickJSAsyncRuntime): void {
       return vfs.normalizePath(requestedName.startsWith("/") ? requestedName : `${baseModulePath}/../${requestedName}`);
     },
   );
-}
+};
 
-function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope): void {
+const setupConsoleAPI = (context: QuickJSAsyncContext, scope: Scope): void => {
   const consoleObj = scope.manage(context.newObject());
   const levels = ["log", "warn", "error", "debug", "info"] as const;
 
@@ -180,9 +180,9 @@ function setupConsoleAPI(context: QuickJSAsyncContext, scope: Scope): void {
     context.setProp(consoleObj, level, fn);
   }
   context.setProp(context.global, "console", consoleObj);
-}
+};
 
-function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Promise<void>[]): void {
+const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Promise<void>[]): void => {
   const fsObj = scope.manage(context.newObject());
   const promisesObj = scope.manage(context.newObject());
 
@@ -369,15 +369,15 @@ function setupFsAPI(context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
   context.setProp(context.global, "fs", fsObj);
   context.setProp(context.global, "globalThis", context.global);
   context.setProp(context.global, "global", context.global);
-}
+};
 
-function setupHostCall(
+const setupHostCall = (
   context: QuickJSAsyncContext,
   scope: Scope,
   name: string,
   hostFunction: SandboxHostFunction,
   pendingCalls: Promise<void>[],
-): void {
+): void => {
   const hostFn = scope.manage(
     context.newFunction(name, (...handles) => {
       if (pendingHostCallChars > input.maxMemoryBytes) {
@@ -410,9 +410,9 @@ function setupHostCall(
     }),
   );
   context.setProp(context.global, name, hostFn);
-}
+};
 
-function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHandle {
+const marshallToQuickJS = (context: QuickJSContext, value: unknown): QuickJSHandle => {
   if (value === null) {
     return context.null;
   }
@@ -466,9 +466,9 @@ function marshallToQuickJS(context: QuickJSContext, value: unknown): QuickJSHand
   }
 
   return context.undefined;
-}
+};
 
-function marshallFromQuickJS(context: QuickJSContext, handle: QuickJSHandle): unknown {
+const marshallFromQuickJS = (context: QuickJSContext, handle: QuickJSHandle): unknown => {
   const type = context.typeof(handle);
 
   if (type === "undefined") {
@@ -485,7 +485,7 @@ function marshallFromQuickJS(context: QuickJSContext, handle: QuickJSHandle): un
   }
 
   return context.dump(handle);
-}
+};
 
 const main = async (): Promise<void> => {
   let result: unknown = null;

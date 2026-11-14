@@ -104,13 +104,13 @@ const releaseSandbox = (): void => {
 type AsyncWASMModule = Awaited<ReturnType<typeof newQuickJSAsyncWASMModuleFromVariant>>;
 let cachedModulePromise: Promise<AsyncWASMModule> | null = null;
 
-export async function getQuickJSModule(): Promise<AsyncWASMModule> {
+export const getQuickJSModule = async (): Promise<AsyncWASMModule> => {
   cachedModulePromise ??= (async () => {
     const variant = await import("@jitl/quickjs-wasmfile-release-asyncify");
     return newQuickJSAsyncWASMModuleFromVariant(variant.default);
   })();
   return cachedModulePromise;
-}
+};
 
 type SandboxDone = Extract<SandboxMessage, { type: "done" }>;
 
@@ -206,7 +206,7 @@ const parseArgs = (name: string, argsJson: string | undefined): Record<string, u
   }
 };
 
-export async function executeCode(code: string, options: ExecuteCodeOptions): Promise<ExecutionResult> {
+export const executeCode = async (code: string, options: ExecuteCodeOptions): Promise<ExecutionResult> => {
   const startTime = Date.now();
   const mcpCallLogs: MCPCallLog[] = [];
   const toolCallLogs: ToolCallLog[] = [];
@@ -328,4 +328,4 @@ export async function executeCode(code: string, options: ExecuteCodeOptions): Pr
   }
 
   return { ...outcome, mcpCallLogs, toolCallLogs, executionMs: Date.now() - startTime };
-}
+};

@@ -26,7 +26,7 @@ export interface MCPServerInfo {
   cachedTools: MCPTool[];
 }
 
-export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: string): Promise<MCPTool[]> {
+export const ensureToolsDiscovered = async (db: Kysely<Database>, mcpServerId: string): Promise<MCPTool[]> => {
   const server = await db
     .selectFrom("aiMcpServers")
     .select(["id", "name", "url", "headers", "stateful", "cachedTools"])
@@ -84,4 +84,4 @@ export async function ensureToolsDiscovered(db: Kysely<Database>, mcpServerId: s
       unavailable.set(mcpServerId, { config, since: Date.now() });
     }
   }
-}
+};

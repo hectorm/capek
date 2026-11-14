@@ -67,6 +67,7 @@ export default withNuxt(
     rules: {
       curly: ["error", "all"],
       eqeqeq: ["error", "smart"],
+      "func-style": ["error", "expression"],
       "logical-assignment-operators": ["error", "always"],
       "no-console": [
         "error",

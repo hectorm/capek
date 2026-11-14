@@ -20,7 +20,7 @@ interface SkillParseResult {
   parameters: OpenAIFunctionParameters;
 }
 
-export function parseSkillParameters(code: string): SkillParseResult | null {
+export const parseSkillParameters = (code: string): SkillParseResult | null => {
   const parsed = parse(code);
 
   const firstBlock = parsed.at(0);
@@ -43,9 +43,9 @@ export function parseSkillParameters(code: string): SkillParseResult | null {
     description,
     parameters,
   };
-}
+};
 
-export function validateSkillJSDoc(code: string): ValidationResult {
+export const validateSkillJSDoc = (code: string): ValidationResult => {
   const result = parseSkillParameters(code);
 
   if (!result) {
@@ -63,9 +63,9 @@ export function validateSkillJSDoc(code: string): ValidationResult {
   }
 
   return { valid: true };
-}
+};
 
-export async function validateSkillSyntax(code: string): Promise<ValidationResult> {
+export const validateSkillSyntax = async (code: string): Promise<ValidationResult> => {
   try {
     const quickJS = await getQuickJSModule();
     const runtime = quickJS.newRuntime();
@@ -99,7 +99,7 @@ export async function validateSkillSyntax(code: string): Promise<ValidationResul
     logger.error({ error }, "Skill syntax validation error");
     return { valid: false, error: "Syntax validation failed" };
   }
-}
+};
 
 const typeMap: Record<string, string> = {
   string: "string",
@@ -108,7 +108,7 @@ const typeMap: Record<string, string> = {
   object: "object",
 };
 
-function parseJSDocType(typeStr: string): { type: string; items?: { type: string }; enum?: string[] } {
+const parseJSDocType = (typeStr: string): { type: string; items?: { type: string }; enum?: string[] } => {
   const normalized = typeStr.trim().toLowerCase();
 
   const bracketArrayMatch = /^(\w+)\[\]$/.exec(normalized);
@@ -131,14 +131,14 @@ function parseJSDocType(typeStr: string): { type: string; items?: { type: string
   }
 
   return { type: typeMap[normalized] ?? "object" };
-}
+};
 
-function parseParameter(tag: {
+const parseParameter = (tag: {
   name: string;
   type: string;
   description: string;
   optional: boolean;
-}): ParsedParameter | null {
+}): ParsedParameter | null => {
   const { name, type, description, optional } = tag;
 
   const match = /^\[?params\.(.+?)\]?$/.exec(name) ?? /^\[?params\.(.+)\]$/.exec(name);
@@ -155,9 +155,9 @@ function parseParameter(tag: {
     description: description.replace(/^-\s*/, ""),
     required: !optional,
   };
-}
+};
 
-function buildNestedSchema(params: ParsedParameter[]): OpenAIFunctionParameters {
+const buildNestedSchema = (params: ParsedParameter[]): OpenAIFunctionParameters => {
   const properties: Record<string, Record<string, unknown>> = {};
   const required: string[] = [];
 
@@ -220,4 +220,4 @@ function buildNestedSchema(params: ParsedParameter[]): OpenAIFunctionParameters 
     properties,
     ...(required.length > 0 ? { required } : {}),
   };
-}
+};

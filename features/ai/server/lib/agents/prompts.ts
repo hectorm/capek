@@ -1,7 +1,7 @@
-export function buildTriagePrompt(
+export const buildTriagePrompt = (
   instructions: string,
   specialists: { id: string; name: string; description: string }[],
-): string {
+): string => {
   return [
     instructions,
     "",
@@ -11,20 +11,20 @@ export function buildTriagePrompt(
     'You must analyze the user\'s request and select the most appropriate specialist using the "route_to_specialist" tool.',
     "Never answer the user yourself, even when the conversation already has the answer, the specialist does.",
   ].join("\n");
-}
+};
 
-export function buildSkillToolsPrompt(): string {
+export const buildSkillToolsPrompt = (): string => {
   return [
     "## Available skills",
     "",
     "Tools prefixed with `skill_` are pre-built, tested operations designed to simplify common tasks.",
     "**Prefer skill tools over other tools when they can accomplish the task.**",
   ].join("\n");
-}
+};
 
-export function buildToolsetsPrompt(
+export const buildToolsetsPrompt = (
   toolsets: { instructions?: string; documents?: Readonly<Record<string, string>> }[],
-): string {
+): string => {
   return toolsets
     .flatMap((toolset) => [
       ...(toolset.instructions ? [toolset.instructions] : []),
@@ -33,9 +33,9 @@ export function buildToolsetsPrompt(
       ),
     ])
     .join("\n\n");
-}
+};
 
-export function buildCodeInterpreterPrompt(options: { toolProviders?: string[] } = {}): string {
+export const buildCodeInterpreterPrompt = (options: { toolProviders?: string[] } = {}): string => {
   const toolProviders = options.toolProviders ?? [];
   const tools = toolProviders.length > 0;
 
@@ -122,4 +122,4 @@ export function buildCodeInterpreterPrompt(options: { toolProviders?: string[] }
     "- **Modularize**: save complex logic to `/workspace/` to keep the context clean.",
     "- **Avoid auto-execution**: reusable files should only define exports, never run code at top-level.",
   ].join("\n");
-}
+};

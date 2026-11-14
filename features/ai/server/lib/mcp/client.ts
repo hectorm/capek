@@ -28,7 +28,7 @@ const TOOLS_MAX_PAGES = 20;
 const SSE_RETRY_MIN_MS = 1_000;
 const SSE_RETRY_MAX_MS = 60_000;
 
-async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+const readBody = async function* (body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   let bytes = 0;
   for await (const chunk of body) {
     bytes += chunk.byteLength;
@@ -37,7 +37,7 @@ async function* readBody(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8
     }
     yield chunk;
   }
-}
+};
 
 interface RequestParams {
   signal: AbortSignal;

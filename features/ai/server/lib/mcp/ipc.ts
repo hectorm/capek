@@ -114,7 +114,7 @@ export class MCPIPCClient {
   }
 }
 
-export function setupMCPIPCHandler(): void {
+export const setupMCPIPCHandler = (): void => {
   if (!cluster.isPrimary) {
     return;
   }
@@ -204,4 +204,4 @@ export function setupMCPIPCHandler(): void {
       }
     })();
   });
-}
+};

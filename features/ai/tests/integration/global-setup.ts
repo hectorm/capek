@@ -1,7 +1,7 @@
 import { MockLLMChatCompletionsServer } from "./mocks/llm-chat-completions-server";
 import { MockMCPServer } from "./mocks/mcp-server";
 
-async function globalSetup(): Promise<() => Promise<void>> {
+const globalSetup = async (): Promise<() => Promise<void>> => {
   const llmServer = new MockLLMChatCompletionsServer({ port: 51235 });
   const mcpServer = new MockMCPServer({ port: 51238 });
   await Promise.all([llmServer.start(), mcpServer.start()]);
@@ -9,6 +9,6 @@ async function globalSetup(): Promise<() => Promise<void>> {
   return async () => {
     await Promise.all([llmServer.stop(), mcpServer.stop()]);
   };
-}
+};
 
 export default globalSetup;
