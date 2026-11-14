@@ -24,14 +24,9 @@ export const useUserStore = defineStore("user", () => {
     }
   };
 
-  const clear = (): void => {
-    user.value = null;
-  };
-
   return {
     user,
     loading,
     fetch,
-    clear,
   };
 });

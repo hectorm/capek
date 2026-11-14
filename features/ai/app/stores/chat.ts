@@ -541,28 +541,6 @@ export const useChatStore = defineStore("ai.chat", () => {
     return true;
   };
 
-  const abortAllStreams = (): void => {
-    for (const [sessionId] of activeStreams.value) {
-      abortStream(sessionId);
-    }
-  };
-
-  function $reset(): void {
-    abortAllStreams();
-    sessions.value = [];
-    openedSession.value = null;
-    currentSessionId.value = null;
-    messages.value = new Map();
-    messagesNextCursors.value = new Map();
-    activeStreams.value = new Map();
-    unsentMessageIds.clear();
-    isLoadingSessions.value = false;
-    isLoadingMessages.value = false;
-    isCreatingSession.value = false;
-    sessionsNextCursor.value = undefined;
-    sessionsQuery.value = {};
-  }
-
   const handleStreamResponse = async (
     body: ReadableStream<Uint8Array>,
     options: {
@@ -671,7 +649,5 @@ export const useChatStore = defineStore("ai.chat", () => {
     editMessage,
     getStream,
     abortStream,
-    abortAllStreams,
-    $reset,
   };
 });

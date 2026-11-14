@@ -34,16 +34,11 @@ export const useSettingsStore = defineStore("settings", () => {
     await fetch();
   };
 
-  const clear = (): void => {
-    settings.value = null;
-  };
-
   return {
     settings,
     loading,
     fetch,
     get,
     set,
-    clear,
   };
 });
