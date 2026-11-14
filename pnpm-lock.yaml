@@ -247,9 +247,6 @@ importers:
       jose:
         specifier: ~6.2.15
         version: 6.2.15
-      jsdom:
-        specifier: ~31.0.0
-        version: 31.0.0(@noble/hashes@2.4.0)
       json-rpc-2.0:
         specifier: ~1.8.1
         version: 1.8.1
@@ -335,9 +332,6 @@ importers:
       '@types/jmespath':
         specifier: ~0.15.2
         version: 0.15.2
-      '@types/jsdom':
-        specifier: ~30.0.0
-        version: 30.0.0
       '@types/node':
         specifier: ~26.6.6
         version: 26.6.6
@@ -359,6 +353,9 @@ importers:
       globals:
         specifier: ~17.14.0
         version: 17.14.0
+      jsdom:
+        specifier: ~31.0.0
+        version: 31.0.0(@noble/hashes@2.4.0)
       npm-run-all2:
         specifier: ~9.0.4
         version: 9.0.4
@@ -2943,9 +2940,6 @@ packages:
   '@types/jmespath@0.15.2':
     resolution: {integrity: sha512-pegh49FtNsC389Flyo9y8AfkVIZn9MMPE9yJrO9svhq6Fks2MwymULWjZqySuxmctd3ZH4/n7Mr98D+1Qo5vGA==}
 
-  '@types/jsdom@30.0.0':
-    resolution: {integrity: sha512-uAHGxujGE0cDaKGdK28zgDotFtNA7MKq5DXl8LrfdxdCI8VHcg15oJz+amHTChPNI5JpgEPQWc2xFdrw3em/nQ==}
-
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
@@ -2960,9 +2954,6 @@ packages:
 
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
-
-  '@types/tough-cookie@4.0.5':
-    resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -6250,9 +6241,6 @@ packages:
         optional: true
       unplugin:
         optional: true
-
-  undici-types@8.12.4:
-    resolution: {integrity: sha512-GNCQH3MbVGB8OAVAoTiLH8pu4wx5Ni3DWKpnBzGj3WDsi8EwmK0aOVBooNEt+g5YL1eHPxcS9XUTouwFU6j1kQ==}
 
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
@@ -9664,13 +9652,6 @@ snapshots:
 
   '@types/jmespath@0.15.2': {}
 
-  '@types/jsdom@30.0.0':
-    dependencies:
-      '@types/node': 26.6.6
-      '@types/tough-cookie': 4.0.5
-      parse5: 8.1.0
-      undici-types: 8.12.4
-
   '@types/json-schema@7.0.15': {}
 
   '@types/node@26.6.6':
@@ -9688,8 +9669,6 @@ snapshots:
       '@types/node': 26.6.6
 
   '@types/resolve@1.20.2': {}
-
-  '@types/tough-cookie@4.0.5': {}
 
   '@types/trusted-types@2.0.7':
     optional: true
@@ -13307,8 +13286,6 @@ snapshots:
       oxc-parser: 0.141.0
       rolldown: 1.2.16
       unplugin: 3.7.0(esbuild@0.28.2)(rolldown@1.2.16)(rollup@4.68.0)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  undici-types@8.12.4: {}
 
   undici-types@8.9.0: {}
 

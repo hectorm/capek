@@ -25,26 +25,6 @@ export default defineNuxtConfig({
     optimizeDeps: {
       include: ["marked", "dompurify"],
     },
-    plugins: [
-      {
-        // Stub jsdom module on client side
-        name: "jsdom-stub-plugin",
-        enforce: "pre",
-        resolveId(source, importer, options) {
-          return source === "jsdom" && !options.ssr && importer !== "\0virtual:jsdom-stub"
-            ? "\0virtual:jsdom-stub"
-            : null;
-        },
-        load(id) {
-          return id === "\0virtual:jsdom-stub"
-            ? {
-                moduleType: "js",
-                code: `export const JSDOM = class { constructor() { throw new Error("Stub module"); } };`,
-              }
-            : null;
-        },
-      },
-    ],
   },
   nitro: {
     experimental: {
