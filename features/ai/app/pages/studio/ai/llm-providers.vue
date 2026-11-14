@@ -52,6 +52,8 @@ const columns: ResourceTableColumn<SearchInput>[] = [
   },
 ];
 
+const deletePermissions = [AiPermissions.LlmProviderDeleteAll, AiPermissions.LlmProviderDeleteOwn];
+
 const canUpdate = (): boolean => {
   return canAny([
     AiPermissions.LlmProviderReadAll,
@@ -60,8 +62,6 @@ const canUpdate = (): boolean => {
     AiPermissions.LlmProviderUpdateOwn,
   ]);
 };
-
-const deletePermissions = [AiPermissions.LlmProviderDeleteAll, AiPermissions.LlmProviderDeleteOwn];
 
 const canDelete = (): boolean => {
   return canAny(deletePermissions);

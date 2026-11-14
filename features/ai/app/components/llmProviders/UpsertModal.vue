@@ -45,6 +45,10 @@ const { notify } = useResourceToast("ai.pages.studio.llmProviders");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 const userStore = useUserStore();
+const { testing, test } = useFormTest({
+  success: i18n.t("ai.pages.studio.llmProviders.form.testConnection.success"),
+  error: i18n.t("ai.pages.studio.llmProviders.form.testConnection.error"),
+});
 
 let [llmProvider, currentAccess] = await Promise.all([
   props.id ? $trpc.ai.llmProvider.read.query({ id: props.id }) : Promise.resolve(null),
@@ -164,11 +168,6 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
 const onCancel = () => {
   emit("close", { llmProvider: null });
 };
-
-const { testing, test } = useFormTest({
-  success: i18n.t("ai.pages.studio.llmProviders.form.testConnection.success"),
-  error: i18n.t("ai.pages.studio.llmProviders.form.testConnection.error"),
-});
 
 const onTestConnection = async () => {
   if (!state.apiUrl) {

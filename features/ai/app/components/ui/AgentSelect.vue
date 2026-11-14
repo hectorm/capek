@@ -26,12 +26,20 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const agentStore = useAgentStore();
 
+const selectedAgentCookie = useCookie<string | null>("selected_agent", {
+  maxAge: 365 * 24 * 60 * 60,
+  sameSite: "lax",
+  watch: true,
+});
+
 const icons: Record<InvocableAgent["type"], string> = {
   triage: "i-lucide-workflow",
   specialist: "i-lucide-bot",
 };
 
 const selectedAgent = ref<InvocableAgent>();
+
+const selectedAgentIcon = computed(() => icons[selectedAgent.value?.type ?? "specialist"]);
 
 const searchAgents = async (query?: string) => {
   const agents = await agentStore.search(query);
@@ -46,14 +54,6 @@ const getAgentIcon = (id: string) => {
 const getAgentDescription = (id: string) => {
   return agentStore.get(id)?.description;
 };
-
-const selectedAgentCookie = useCookie<string | null>("selected_agent", {
-  maxAge: 365 * 24 * 60 * 60,
-  sameSite: "lax",
-  watch: true,
-});
-
-const selectedAgentIcon = computed(() => icons[selectedAgent.value?.type ?? "specialist"]);
 
 watch(
   () => agentStore.isLoaded,

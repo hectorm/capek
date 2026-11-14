@@ -45,6 +45,10 @@ const { notify } = useResourceToast("datasources.pages.studio.datasources");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 const userStore = useUserStore();
+const { testing, test } = useFormTest({
+  success: i18n.t("datasources.pages.studio.datasources.form.testConnection.success"),
+  error: i18n.t("datasources.pages.studio.datasources.form.testConnection.error"),
+});
 
 let [datasource, currentAccess] = await Promise.all([
   props.id ? $trpc.datasources.source.read.query({ id: props.id }) : Promise.resolve(null),
@@ -129,13 +133,13 @@ const state = reactive<
   ...toPrincipalIds(currentAccess),
 });
 
-// Undefined when the type of the datasource is no longer supported
-const definition = computed(() => DatasourceTypes.find((type) => type.type === state.type));
-
 const typeOptions = DatasourceTypes.map((type) => ({
   label: type.label,
   value: type.type,
 }));
+
+// Undefined when the type of the datasource is no longer supported
+const definition = computed(() => DatasourceTypes.find((type) => type.type === state.type));
 
 const authTypeOptions = computed(() => {
   return (definition.value?.authTypes ?? []).map((t) => ({
@@ -158,16 +162,6 @@ const password = useConfigField<string>("password", "");
 const azureTenantId = useConfigField<string>("azureTenantId", "");
 const azureClientId = useConfigField<string>("azureClientId", "");
 const azureClientSecret = useConfigField<string>("azureClientSecret", "");
-
-watch(
-  () => state.type,
-  () => {
-    const allowed = definition.value?.authTypes ?? [];
-    if (!allowed.includes(authType.value)) {
-      authType.value = allowed[0] ?? "none";
-    }
-  },
-);
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
@@ -211,11 +205,6 @@ const onCancel = () => {
   emit("close", { datasource: null });
 };
 
-const { testing, test } = useFormTest({
-  success: i18n.t("datasources.pages.studio.datasources.form.testConnection.success"),
-  error: i18n.t("datasources.pages.studio.datasources.form.testConnection.error"),
-});
-
 const onTestConnection = async () => {
   await test(
     $trpc.datasources.source.testConnection.mutate({
@@ -225,6 +214,16 @@ const onTestConnection = async () => {
     }),
   );
 };
+
+watch(
+  () => state.type,
+  () => {
+    const allowed = definition.value?.authTypes ?? [];
+    if (!allowed.includes(authType.value)) {
+      authType.value = allowed[0] ?? "none";
+    }
+  },
+);
 </script>
 
 <template>

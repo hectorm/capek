@@ -19,17 +19,18 @@ const route = useRoute();
 
 const i18n = useI18n();
 const settingsStore = useSettingsStore();
-const locale = computed(() => locales[i18n.locale.value].ui);
-
-z.config(locales[i18n.locale.value].zod());
-
 const { isMobile } = useDevice();
-provideSSRWidth(isMobile ? breakpointsTailwind.md : breakpointsTailwind.lg);
 
 const toaster: ToasterProps = {
   position: "top-right",
   duration: 2000,
 };
+
+const locale = computed(() => locales[i18n.locale.value].ui);
+
+z.config(locales[i18n.locale.value].zod());
+
+provideSSRWidth(isMobile ? breakpointsTailwind.md : breakpointsTailwind.lg);
 
 useHeadSafe(
   computed(() => ({

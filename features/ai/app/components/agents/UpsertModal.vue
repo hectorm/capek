@@ -50,6 +50,10 @@ const { notify } = useResourceToast("ai.pages.studio.agents");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 const userStore = useUserStore();
+const { testing, test } = useFormTest({
+  success: i18n.t("ai.pages.studio.agents.form.testModel.success"),
+  error: i18n.t("ai.pages.studio.agents.form.testModel.error"),
+});
 
 let [agent, currentAccess, currentMcpServers, currentSkills, currentSpecialists] = await Promise.all([
   props.id ? $trpc.ai.agent.read.query({ id: props.id }) : Promise.resolve(null),
@@ -145,6 +149,18 @@ const state = reactive<
   maxToolPartsChars: agent?.maxToolPartsChars,
 });
 
+const typeOptions = [
+  { value: "specialist", label: i18n.t("ai.pages.studio.agents.form.type.specialist") },
+  { value: "triage", label: i18n.t("ai.pages.studio.agents.form.type.triage") },
+];
+
+const reasoningEffortOptions = ["none", "low", "medium", "high", "xhigh"];
+
+const advancedSettingsEntries = Object.entries(AgentExecutorParameters) as [
+  keyof typeof AgentExecutorParameters,
+  (typeof AgentExecutorParameters)[keyof typeof AgentExecutorParameters],
+][];
+
 const selectedLlmProviderId = computed({
   get: () => state.llmProviderId ?? undefined,
   set: (value: string | undefined) => {
@@ -152,12 +168,14 @@ const selectedLlmProviderId = computed({
   },
 });
 
-const typeOptions = [
-  { value: "specialist", label: i18n.t("ai.pages.studio.agents.form.type.specialist") },
-  { value: "triage", label: i18n.t("ai.pages.studio.agents.form.type.triage") },
-];
+const advancedSettingsItems = computed<AccordionItem[]>(() => [
+  {
+    label: i18n.t("ai.pages.studio.agents.form.advancedSettings.label"),
+    slot: "advanced" as const,
+  },
+]);
 
-const reasoningEffortOptions = ["none", "low", "medium", "high", "xhigh"];
+const advancedSettingsCount = computed(() => advancedSettingsEntries.filter(([key]) => state[key] != null).length);
 
 const llmProviderLabels = new Map<string, string>();
 if (agent?.llmProviderId && agent.llmProviderName) {
@@ -243,29 +261,6 @@ const searchSpecialists = async (query?: string) => {
 const getSpecialistLabel = (id: string) => {
   return specialistLabels.get(id) ?? id;
 };
-
-const advancedSettingsEntries = Object.entries(AgentExecutorParameters) as [
-  keyof typeof AgentExecutorParameters,
-  (typeof AgentExecutorParameters)[keyof typeof AgentExecutorParameters],
-][];
-
-const advancedSettingsItems = computed<AccordionItem[]>(() => [
-  {
-    label: i18n.t("ai.pages.studio.agents.form.advancedSettings.label"),
-    slot: "advanced" as const,
-  },
-]);
-
-const advancedSettingsCount = computed(() => advancedSettingsEntries.filter(([key]) => state[key] != null).length);
-
-watch(
-  () => (state as { type?: string }).type,
-  (newType) => {
-    if (newType === "specialist") {
-      state.specialists = [];
-    }
-  },
-);
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
@@ -359,11 +354,6 @@ const onCancel = () => {
   emit("close", { agent: null });
 };
 
-const { testing, test } = useFormTest({
-  success: i18n.t("ai.pages.studio.agents.form.testModel.success"),
-  error: i18n.t("ai.pages.studio.agents.form.testModel.error"),
-});
-
 const onTestModel = async () => {
   if (!state.llmProviderId || !state.model) {
     return;
@@ -383,6 +373,15 @@ const onTestModel = async () => {
     }),
   );
 };
+
+watch(
+  () => (state as { type?: string }).type,
+  (newType) => {
+    if (newType === "specialist") {
+      state.specialists = [];
+    }
+  },
+);
 </script>
 
 <template>

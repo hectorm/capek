@@ -32,6 +32,15 @@ import LazyRenameModal from "#layers/ai/app/components/chat/RenameModal.vue";
 import TableView from "#layers/ai/app/components/chat/TableView.vue";
 import AgentSelect from "#layers/ai/app/components/ui/AgentSelect.vue";
 
+interface MessagePart {
+  type: string;
+  text?: string;
+}
+
+type ToolCallPart = Extract<ChatMessagePart, { type: "tool" }>;
+
+type DisplayedPart = Exclude<ChatMessagePart, { type: "tool" }> | { type: "tools"; calls: ToolCallPart[] };
+
 const i18n = useI18n();
 const route = useRoute("ai-chat-id");
 const agentStore = useAgentStore();
@@ -80,46 +89,6 @@ const selectedAgent = computed({
     })();
   },
 });
-
-interface MessagePart {
-  type: string;
-  text?: string;
-}
-
-type ToolCallPart = Extract<ChatMessagePart, { type: "tool" }>;
-
-type DisplayedPart = Exclude<ChatMessagePart, { type: "tool" }> | { type: "tools"; calls: ToolCallPart[] };
-
-const groupToolCalls = (parts: ChatMessagePart[]): DisplayedPart[] => {
-  const grouped: DisplayedPart[] = [];
-  for (const part of parts) {
-    const last = grouped.at(-1);
-    if (part.type !== "tool") {
-      grouped.push(part);
-    } else if (last?.type === "tools") {
-      last.calls.push(part);
-    } else {
-      grouped.push({ type: "tools", calls: [part] });
-    }
-  }
-  return grouped;
-};
-
-const toolCallsText = (calls: ToolCallPart[]): string => {
-  const names = new Set(calls.map((call) => call.name));
-  if (names.size > 1) {
-    return i18n.t("ai.pages.chat.toolCalls.tools", { count: calls.length });
-  }
-  return calls[0]?.name ?? "";
-};
-
-const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
-  const names = new Set(calls.map((call) => call.name));
-  if (calls.length === 1 || names.size > 1) {
-    return undefined;
-  }
-  return i18n.t("ai.pages.chat.toolCalls.calls", { count: calls.length });
-};
 
 const title = computed(() => {
   return chatStore.currentSession?.title ?? i18n.t("ai.pages.chat.untitled");
@@ -201,6 +170,37 @@ const actionItems = computed(() => [
     onSelect: handleDeleteSession,
   },
 ]);
+
+const groupToolCalls = (parts: ChatMessagePart[]): DisplayedPart[] => {
+  const grouped: DisplayedPart[] = [];
+  for (const part of parts) {
+    const last = grouped.at(-1);
+    if (part.type !== "tool") {
+      grouped.push(part);
+    } else if (last?.type === "tools") {
+      last.calls.push(part);
+    } else {
+      grouped.push({ type: "tools", calls: [part] });
+    }
+  }
+  return grouped;
+};
+
+const toolCallsText = (calls: ToolCallPart[]): string => {
+  const names = new Set(calls.map((call) => call.name));
+  if (names.size > 1) {
+    return i18n.t("ai.pages.chat.toolCalls.tools", { count: calls.length });
+  }
+  return calls[0]?.name ?? "";
+};
+
+const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
+  const names = new Set(calls.map((call) => call.name));
+  if (calls.length === 1 || names.size > 1) {
+    return undefined;
+  }
+  return i18n.t("ai.pages.chat.toolCalls.calls", { count: calls.length });
+};
 
 const loadSession = async () => {
   showsLastMessages.value = false;
@@ -388,15 +388,6 @@ useInfiniteScroll(
   },
 );
 
-onMounted(async () => {
-  await loadSession();
-  window.addEventListener("beforeunload", handleBeforeUnload);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("beforeunload", handleBeforeUnload);
-});
-
 watch(
   () => route.params.id,
   async (newId, oldId) => {
@@ -405,6 +396,15 @@ watch(
     }
   },
 );
+
+onMounted(async () => {
+  await loadSession();
+  window.addEventListener("beforeunload", handleBeforeUnload);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("beforeunload", handleBeforeUnload);
+});
 
 useSeoMeta({
   title,

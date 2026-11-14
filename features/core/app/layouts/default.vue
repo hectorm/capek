@@ -21,6 +21,8 @@ import UserMenu from "#layers/core/app/components/ui/UserMenu.vue";
 const i18n = useI18n();
 const route = useRoute();
 
+const { layoutSetups, navigation, sidebarSections } = useAppFeatures();
+
 const [DefineMenu, ReuseMenu] = createReusableTemplate();
 
 const breakpoints = useBreakpoints(breakpointsTailwind);
@@ -36,18 +38,8 @@ const open = computed({
   get: () => (lgAndLarger.value ? sidebarOpen.value : slideoverOpen.value),
   set: (value) => ((lgAndLarger.value ? sidebarOpen : slideoverOpen).value = value),
 });
-const toggle = (): void => {
-  open.value = !open.value;
-};
-provide(sidebarKey, { open: readonly(open), toggle });
 
 const collapsed = computed(() => lgAndLarger.value && !open.value);
-
-const { layoutSetups, navigation, sidebarSections } = useAppFeatures();
-
-for (const setup of layoutSetups) {
-  setup();
-}
 
 const navigationItems = computed<NavigationMenuItem[]>(() => {
   return navigation.value.map((item) => ({
@@ -57,6 +49,15 @@ const navigationItems = computed<NavigationMenuItem[]>(() => {
     exact: item.exact,
   }));
 });
+
+const toggle = (): void => {
+  open.value = !open.value;
+};
+provide(sidebarKey, { open: readonly(open), toggle });
+
+for (const setup of layoutSetups) {
+  setup();
+}
 
 watch(
   () => route.path,

@@ -49,6 +49,10 @@ const { notify } = useResourceToast("ai.pages.studio.mcpServers");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 const userStore = useUserStore();
+const { testing, test } = useFormTest({
+  success: i18n.t("ai.pages.studio.mcpServers.form.testConnection.success"),
+  error: i18n.t("ai.pages.studio.mcpServers.form.testConnection.error"),
+});
 
 let [mcpServer, currentAccess] = await Promise.all([
   props.id ? $trpc.ai.mcpServer.read.query({ id: props.id }) : Promise.resolve(null),
@@ -170,11 +174,6 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
 const onCancel = () => {
   emit("close", { mcpServer: null });
 };
-
-const { testing, test } = useFormTest({
-  success: i18n.t("ai.pages.studio.mcpServers.form.testConnection.success"),
-  error: i18n.t("ai.pages.studio.mcpServers.form.testConnection.error"),
-});
 
 const onTestConnection = async () => {
   if (!state.url) {

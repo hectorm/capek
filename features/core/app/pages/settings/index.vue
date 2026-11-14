@@ -41,11 +41,6 @@ const settingList = computed<SettingDefinition[]>(() => {
   return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }));
 });
 
-// Translations of a setting are part of the messages of the feature that defines it
-const fieldKey = (setting: SettingDefinition, name: string): string => {
-  return featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
-};
-
 // Categories are scoped to the feature that defines them
 const categoryList = computed(() => {
   const categoryMap = new Map<string, { label: string; settings: SettingDefinition[] }>();
@@ -60,6 +55,11 @@ const categoryList = computed(() => {
   }
   return Array.from(categoryMap.entries()).map(([id, category]) => ({ id, ...category }));
 });
+
+// Translations of a setting are part of the messages of the feature that defines it
+const fieldKey = (setting: SettingDefinition, name: string): string => {
+  return featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
+};
 
 const updateSettingValue = (setting: SettingDefinition, value: SettingValue): void => {
   formValues.value[setting.key] = value;

@@ -10,16 +10,18 @@ import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 import type { ChatChartPart } from "#layers/ai/shared/chat";
 import { loadFrameLibrary } from "#layers/ai/app/utils/frame-libraries";
 
+type FrameMessage = MessageEvent<{ type?: string; message?: string; formats?: unknown; url?: unknown }>;
+
 const props = defineProps<{
   chart: ChatChartPart;
 }>();
 
+const i18n = useI18n();
+const { $colorMode: colorMode } = useNuxtApp();
+
 const exportFormats = ["png", "svg"] as const;
 
 type ExportFormat = (typeof exportFormats)[number];
-
-const i18n = useI18n();
-const { $colorMode: colorMode } = useNuxtApp();
 
 const container = useTemplateRef<HTMLDivElement>("container");
 const frame = useTemplateRef<HTMLIFrameElement>("frame");
@@ -31,6 +33,7 @@ const failed = ref<boolean>(false);
 const formats = ref<ExportFormat[]>([]);
 
 let exportFormat: ExportFormat | undefined;
+let observer: IntersectionObserver | undefined;
 
 const exportItems = computed(() => {
   return formats.value.map((format) => ({
@@ -39,6 +42,14 @@ const exportItems = computed(() => {
       exportImage(format);
     },
   }));
+});
+
+const optionContent = computed(() => {
+  return JSON.stringify(props.chart.option, (_key, value: unknown) => {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : value;
+  });
 });
 
 const send = (message: Record<string, unknown>) => {
@@ -53,8 +64,6 @@ const exportImage = (format: ExportFormat) => {
   exportFormat = format;
   send({ type: "export", format });
 };
-
-type FrameMessage = MessageEvent<{ type?: string; message?: string; formats?: unknown; url?: unknown }>;
 
 useEventListener("message", (event: FrameMessage) => {
   if (!event.source || event.source !== frame.value?.contentWindow) {
@@ -90,17 +99,7 @@ useEventListener("message", (event: FrameMessage) => {
   }
 });
 
-const optionContent = computed(() => {
-  return JSON.stringify(props.chart.option, (_key, value: unknown) => {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
-      : value;
-  });
-});
-
 watch([optionContent, () => colorMode.value, i18n.locale], draw);
-
-let observer: IntersectionObserver | undefined;
 
 onMounted(() => {
   observer = new IntersectionObserver(

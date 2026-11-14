@@ -34,10 +34,21 @@ const props = withDefaults(
 
 const emit = defineEmits<(e: "update:modelValue", value: ModelValue<TMultiple>) => void>();
 
+const attrs = useAttrs();
+
 const search = ref<string>();
 const items = shallowRef<Item[]>([]);
 const loading = ref<boolean>(false);
 const timer = ref<ReturnType<typeof setTimeout> | null>(null);
+
+const internalModelValue = computed({
+  get: () => {
+    return props.modelValue;
+  },
+  set: (value: ModelValue<TMultiple>) => {
+    emit("update:modelValue", value);
+  },
+});
 
 const getSelectedValues = (): string[] => {
   if (!props.modelValue) {
@@ -93,16 +104,6 @@ watch(search, (value) => {
   }
   timer.value = setTimeout(() => void doSearch(value), 500);
 });
-
-const internalModelValue = computed({
-  get: () => {
-    return props.modelValue;
-  },
-  set: (value: ModelValue<TMultiple>) => {
-    emit("update:modelValue", value);
-  },
-});
-const attrs = useAttrs();
 </script>
 
 <template>

@@ -30,6 +30,11 @@ const sidebar = inject(sidebarKey);
 const input = ref<string>("");
 const selectedAgent = ref<string | null>(null);
 
+const quickChats = computed(() => {
+  const prompts = settingsStore.get("ai.quickChats")?.value ?? [];
+  return prompts.map((label) => ({ label, icon: "i-lucide-message-square" }));
+});
+
 const handleCreateChat = async (prompt: string) => {
   if (!prompt.trim() || chatStore.isCreatingSession) {
     return;
@@ -67,11 +72,6 @@ const handleSubmit = async (e: Event) => {
   }
   await handleCreateChat(input.value);
 };
-
-const quickChats = computed(() => {
-  const prompts = settingsStore.get("ai.quickChats")?.value ?? [];
-  return prompts.map((label) => ({ label, icon: "i-lucide-message-square" }));
-});
 
 definePageMeta({
   title: "ai.pages.welcome.title",

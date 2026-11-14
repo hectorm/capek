@@ -25,10 +25,6 @@ const overlay = useOverlay();
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
 
-const getTypeLabel = (type: string): string => {
-  return DatasourceTypes.find((candidate) => candidate.type === type)?.label ?? type;
-};
-
 const table = await useResourceTable({
   key: "datasources.source.search",
   query: { limit: 100, orderBy: "name", order: "asc" },
@@ -59,6 +55,12 @@ const columns: ResourceTableColumn<SearchInput>[] = [
   },
 ];
 
+const deletePermissions = [DatasourcesPermissions.SourceDeleteAll, DatasourcesPermissions.SourceDeleteOwn];
+
+const getTypeLabel = (type: string): string => {
+  return DatasourceTypes.find((candidate) => candidate.type === type)?.label ?? type;
+};
+
 const canUpdate = (): boolean => {
   return canAny([
     DatasourcesPermissions.SourceReadAll,
@@ -67,8 +69,6 @@ const canUpdate = (): boolean => {
     DatasourcesPermissions.SourceUpdateOwn,
   ]);
 };
-
-const deletePermissions = [DatasourcesPermissions.SourceDeleteAll, DatasourcesPermissions.SourceDeleteOwn];
 
 const canDelete = (): boolean => {
   return canAny(deletePermissions);

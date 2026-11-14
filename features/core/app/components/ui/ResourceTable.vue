@@ -41,11 +41,11 @@ defineSlots<
   } & Record<`${string}-cell`, (props: { row: R }) => unknown>
 >();
 
+const i18n = useI18n();
+
 const ACTIONS_COLUMN = "actions";
 const columnPinning = { left: [], right: [ACTIONS_COLUMN] };
 const sortingOptions = { manualSorting: true };
-
-const i18n = useI18n();
 
 const tableComponent = useTemplateRef<ComponentPublicInstance>("tableComponent");
 

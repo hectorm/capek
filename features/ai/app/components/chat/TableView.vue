@@ -19,11 +19,11 @@ const props = defineProps<{
   table: ChatTablePart;
 }>();
 
-const ROW_HEIGHT = 37;
-
 const i18n = useI18n();
 const toast = useToast();
 const { $trpc } = useNuxtApp();
+
+const ROW_HEIGHT = 37;
 
 const container = useTemplateRef<HTMLDivElement>("container");
 

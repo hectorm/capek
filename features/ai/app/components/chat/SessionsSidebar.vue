@@ -33,6 +33,8 @@ const chatStore = useChatStore();
 
 const { groupedSessions } = useChatUI(computed(() => chatStore.sessions));
 
+const sessionsContainer = useTemplateRef<HTMLElement>("sessionsContainer");
+
 const items = computed(() => {
   return groupedSessions.value.flatMap((g) => {
     return [
@@ -83,8 +85,6 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
     });
   }
 };
-
-const sessionsContainer = useTemplateRef<HTMLElement>("sessionsContainer");
 
 useInfiniteScroll(
   sessionsContainer,
