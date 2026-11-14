@@ -20,6 +20,7 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
+import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
@@ -35,6 +36,7 @@ const overlay = useOverlay();
 const toast = useToast();
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
+const agentStore = useAgentStore();
 
 const upsertModal = overlay.create(LazyUpsertModal);
 const deleteModal = overlay.create(ConfirmDeleteModal);
@@ -175,11 +177,20 @@ const getDropdownActions = (agent: Agent): DropdownMenuItem[] => {
   return actions;
 };
 
+const refreshChatAgents = (): void => {
+  if (canAny([AiPermissions.AgentUseAll, AiPermissions.AgentUseOwn])) {
+    agentStore.fetch().catch((error: unknown) => {
+      console.warn("Failed to refresh the agents of the chat pages", error);
+    });
+  }
+};
+
 const handleCreateModal = async (): Promise<void> => {
   const instance = upsertModal.open({});
   const modalResult = (await instance.result) as { agent: Agent | null; error: Error | null };
   if (modalResult.agent) {
     agents.value = agents.value.toSpliced(0, 0, modalResult.agent);
+    refreshChatAgents();
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.agents.table.actions.create.success.title"),
@@ -203,6 +214,7 @@ const handleUpdateModal = async (agent: Agent): Promise<void> => {
     if (i >= 0) {
       agents.value = agents.value.toSpliced(i, 1, updatedAgent);
     }
+    refreshChatAgents();
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.agents.table.actions.update.success.title"),
@@ -239,6 +251,7 @@ const handleDeleteModal = async (agent: Agent): Promise<void> => {
     if (i >= 0) {
       agents.value = agents.value.toSpliced(i, 1);
     }
+    refreshChatAgents();
     toast.add({
       color: "success",
       title: i18n.t("ai.pages.studio.agents.table.actions.delete.success.title"),
