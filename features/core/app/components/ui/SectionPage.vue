@@ -45,6 +45,7 @@ const menu = computed<NavigationMenuItem[]>(() => {
         orientation="horizontal"
         highlight-color="primary"
         class="border-b border-default px-4"
+        :ui="{ root: 'shrink-0 overflow-x-auto scrollbar-none', list: 'shrink-0', item: 'shrink-0' }"
       />
       <NuxtPage />
     </main>
