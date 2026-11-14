@@ -1,8 +1,11 @@
-import type { Principal, PrincipalAccess, PrincipalRole } from "#layers/core/shared/rbac";
+import type { Principal, PrincipalAccess, PrincipalRole, UserPrincipal } from "#layers/core/shared/rbac";
 
-// IDs of the principals holding a role, in the "<type>:<id>" format of the search fields
-export const toPrincipalIds = (access: Principal[], role: PrincipalRole): string[] => {
-  return access.filter((a) => a.role === role).map((a) => `${a.type}:${a.id}`);
+// IDs of the editors and users of a resource, in the "<type>:<id>" format of the search fields
+export const toPrincipalIds = (access: Principal[]): { editors: string[]; users: string[] } => {
+  const withRole = (role: PrincipalRole): string[] => {
+    return access.filter((a) => a.role === role).map((a) => `${a.type}:${a.id}`);
+  };
+  return { editors: withRole("editor"), users: withRole("user") };
 };
 
 export const fromPrincipalIds = (selection: { editors: string[]; users: string[] }): PrincipalAccess[] => {
@@ -13,5 +16,18 @@ export const fromPrincipalIds = (selection: { editors: string[]; users: string[]
   return [
     ...selection.editors.map((compositeId) => toAccess(compositeId, "editor")),
     ...selection.users.map((compositeId) => toAccess(compositeId, "user")),
+  ];
+};
+
+// IDs of the editors of a resource, which the ":own" permission checks take as its owners
+export const toOwnerIds = (access: Principal[]): string[] => {
+  return access.filter((a) => a.role === "editor").map((a) => a.id);
+};
+
+export const creatorAccess = (user: Pick<UserPrincipal, "id" | "username" | "email">): Principal[] => {
+  const { id, username, email } = user;
+  return [
+    { id, type: "user", role: "editor", username, email },
+    { id, type: "user", role: "user", username, email },
   ];
 };

@@ -12,21 +12,20 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USelect from "@nuxt/ui/components/Select.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { DatasourceAuthType, DatasourceConfig } from "#layers/datasources/shared/datasource";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
-import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
-import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
+import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { HttpRedactedValue } from "#layers/core/shared/http";
 import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
-import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
+import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 
 type DatasourceGetOutput = RouterOutputs["datasources"]["source"]["read"];
 type DatasourceCreateInput = RouterInputs["datasources"]["source"]["create"];
@@ -34,18 +33,17 @@ type DatasourceUpdateInput = RouterInputs["datasources"]["source"]["update"];
 type DatasourceCreateOrUpdateInput = DatasourceCreateInput | DatasourceUpdateInput;
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ datasource: DatasourceGetOutput | null; error: Error | null }];
+  close: [{ datasource: DatasourceGetOutput | null }];
 }>();
 
 const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("datasources.pages.studio.datasources");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
-const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
 let [datasource, currentAccess] = await Promise.all([
@@ -54,30 +52,17 @@ let [datasource, currentAccess] = await Promise.all([
 ]);
 
 if (!props.id && userStore.user) {
-  currentAccess = [
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "editor" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "user" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-  ];
+  currentAccess = creatorAccess(userStore.user);
 }
 
 const canModify = computed(() => {
   if (!props.id) {
     return can(DatasourcesPermissions.SourceCreate);
   }
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([DatasourcesPermissions.SourceUpdateAll, DatasourcesPermissions.SourceUpdateOwn], principalIds);
+  return canAny(
+    [DatasourcesPermissions.SourceUpdateAll, DatasourcesPermissions.SourceUpdateOwn],
+    toOwnerIds(currentAccess),
+  );
 });
 
 // The configuration is validated with the schema of the selected type of datasource
@@ -120,11 +105,6 @@ const schema = z
 
 type Schema = z.infer<typeof schema>;
 
-const editorIds = toPrincipalIds(currentAccess, "editor");
-const userIds = toPrincipalIds(currentAccess, "user");
-
-preload(currentAccess);
-
 const initialType = datasource?.type ?? DatasourceTypes[0]?.type ?? "";
 const storedConfig = datasource?.config ?? {};
 const initialAuthType =
@@ -146,8 +126,7 @@ const state = reactive<
   documentation: datasource?.documentation ?? undefined,
   type: initialType,
   config: { ...storedConfig, authType: initialAuthType },
-  editors: editorIds,
-  users: userIds,
+  ...toPrincipalIds(currentAccess),
 });
 
 // Undefined when the type of the datasource is no longer supported
@@ -221,19 +200,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const access = fromPrincipalIds(event.data);
     await $trpc.datasources.source.syncAccess.mutate({ sourceId: datasourceId, access });
 
-    emit("close", { datasource, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { datasource });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`datasources.pages.studio.datasources.table.actions.${action}.error.title`),
-      description: i18n.t(`datasources.pages.studio.datasources.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { datasource: null, error: null });
+  emit("close", { datasource: null });
 };
 
 const { testing, test } = useFormTest({
@@ -406,30 +381,12 @@ const onTestConnection = async () => {
             />
           </UFormField>
         </template>
-        <UFormField name="editors" :label="$t('datasources.pages.studio.datasources.form.editors.label')">
-          <SearchMenu
-            v-model="state.editors"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('datasources.pages.studio.datasources.form.editors.placeholder')"
-          />
-        </UFormField>
-        <UFormField name="users" :label="$t('datasources.pages.studio.datasources.form.users.label')">
-          <SearchMenu
-            v-model="state.users"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('datasources.pages.studio.datasources.form.users.placeholder')"
-          />
-        </UFormField>
+        <AccessFields
+          v-model:users="state.users"
+          v-model:editors="state.editors"
+          :disabled="!canModify"
+          :access="currentAccess"
+        />
         <div class="flex justify-end gap-2">
           <UButton
             type="button"
@@ -450,7 +407,14 @@ const onTestConnection = async () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("datasources.pages.studio.datasources.form.cancel") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t(`datasources.pages.studio.datasources.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>

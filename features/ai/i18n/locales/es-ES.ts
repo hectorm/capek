@@ -130,48 +130,41 @@ export default (): ReturnType<typeof enUS> => ({
           description: "Gestionar agentes de IA",
           tab: "Agentes",
           table: {
-            filter: "Filtrar",
-            search: "Buscar",
-            sort: "Ordenar",
             name: "Nombre",
             description: "Descripción",
             type: "Tipo",
             model: "Modelo",
             priority: "Prioridad",
-            actions: {
-              title: "Acciones",
-              create: {
-                label: "Crear",
-                success: {
-                  title: "Éxito",
-                  description: "Agente creado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al crear el agente",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Éxito",
+                description: "Agente creado correctamente",
               },
-              update: {
-                label: "Editar",
-                success: {
-                  title: "Éxito",
-                  description: "Agente actualizado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al actualizar el agente",
-                },
+              error: {
+                title: "Error",
+                description: "Error al crear el agente",
               },
-              delete: {
-                label: "Eliminar",
-                success: {
-                  title: "Éxito",
-                  description: "Agente eliminado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al eliminar el agente",
-                },
+            },
+            update: {
+              success: {
+                title: "Éxito",
+                description: "Agente actualizado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al actualizar el agente",
+              },
+            },
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Agente eliminado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar el agente",
               },
             },
           },
@@ -185,7 +178,7 @@ export default (): ReturnType<typeof enUS> => ({
           },
           delete: {
             title: "Eliminar agente",
-            description: "Confirmar eliminación permanente de este agente",
+            description: "Confirmar la eliminación permanente de este agente",
             confirm: '¿Está seguro de que desea eliminar el agente "{name}"?',
           },
           form: {
@@ -208,14 +201,6 @@ export default (): ReturnType<typeof enUS> => ({
             priority: {
               label: "Prioridad",
               hint: "Los agentes con mayor prioridad se listan primero",
-            },
-            editors: {
-              label: "Editores",
-              placeholder: "Buscar usuarios y grupos",
-            },
-            users: {
-              label: "Usuarios",
-              placeholder: "Buscar usuarios y grupos",
             },
             type: {
               label: "Tipo",
@@ -322,7 +307,6 @@ export default (): ReturnType<typeof enUS> => ({
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
-            delete: "Eliminar",
           },
         },
         llmProviders: {
@@ -330,46 +314,39 @@ export default (): ReturnType<typeof enUS> => ({
           description: "Gestionar proveedores LLM",
           tab: "Proveedores LLM",
           table: {
-            filter: "Filtrar",
-            search: "Buscar",
-            sort: "Ordenar",
             name: "Nombre",
             description: "Descripción",
             apiUrl: "URL de API",
-            actions: {
-              title: "Acciones",
-              create: {
-                label: "Crear",
-                success: {
-                  title: "Éxito",
-                  description: "Proveedor LLM creado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al crear el proveedor LLM",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Éxito",
+                description: "Proveedor LLM creado correctamente",
               },
-              update: {
-                label: "Editar",
-                success: {
-                  title: "Éxito",
-                  description: "Proveedor LLM actualizado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al actualizar el proveedor LLM",
-                },
+              error: {
+                title: "Error",
+                description: "Error al crear el proveedor LLM",
               },
-              delete: {
-                label: "Eliminar",
-                success: {
-                  title: "Éxito",
-                  description: "Proveedor LLM eliminado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al eliminar el proveedor LLM",
-                },
+            },
+            update: {
+              success: {
+                title: "Éxito",
+                description: "Proveedor LLM actualizado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al actualizar el proveedor LLM",
+              },
+            },
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Proveedor LLM eliminado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar el proveedor LLM",
               },
             },
           },
@@ -416,14 +393,6 @@ export default (): ReturnType<typeof enUS> => ({
               add: "Añadir cabecera",
               remove: "Eliminar cabecera",
             },
-            editors: {
-              label: "Editores",
-              placeholder: "Buscar usuarios y grupos",
-            },
-            users: {
-              label: "Usuarios",
-              placeholder: "Buscar usuarios y grupos",
-            },
             testConnection: {
               label: "Probar conexión",
               testing: "Probando...",
@@ -433,7 +402,6 @@ export default (): ReturnType<typeof enUS> => ({
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
-            delete: "Eliminar",
           },
         },
         mcpServers: {
@@ -441,46 +409,39 @@ export default (): ReturnType<typeof enUS> => ({
           description: "Gestionar servidores MCP",
           tab: "Servidores MCP",
           table: {
-            filter: "Filtrar",
-            search: "Buscar",
-            sort: "Ordenar",
             name: "Nombre",
             description: "Descripción",
             url: "URL",
-            actions: {
-              title: "Acciones",
-              create: {
-                label: "Crear",
-                success: {
-                  title: "Éxito",
-                  description: "Servidor MCP creado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al crear el servidor MCP",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Éxito",
+                description: "Servidor MCP creado correctamente",
               },
-              update: {
-                label: "Editar",
-                success: {
-                  title: "Éxito",
-                  description: "Servidor MCP actualizado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al actualizar el servidor MCP",
-                },
+              error: {
+                title: "Error",
+                description: "Error al crear el servidor MCP",
               },
-              delete: {
-                label: "Eliminar",
-                success: {
-                  title: "Éxito",
-                  description: "Servidor MCP eliminado correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al eliminar el servidor MCP",
-                },
+            },
+            update: {
+              success: {
+                title: "Éxito",
+                description: "Servidor MCP actualizado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al actualizar el servidor MCP",
+              },
+            },
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Servidor MCP eliminado correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar el servidor MCP",
               },
             },
           },
@@ -530,14 +491,6 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Tiempo de espera de llamada a herramienta (segundos)",
               hint: "Tiempo máximo en segundos para esperar una respuesta de llamada a herramienta",
             },
-            editors: {
-              label: "Editores",
-              placeholder: "Buscar usuarios y grupos",
-            },
-            users: {
-              label: "Usuarios",
-              placeholder: "Buscar usuarios y grupos",
-            },
             testConnection: {
               label: "Probar conexión",
               testing: "Probando...",
@@ -547,7 +500,6 @@ export default (): ReturnType<typeof enUS> => ({
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
-            delete: "Eliminar",
           },
         },
         skills: {
@@ -555,45 +507,38 @@ export default (): ReturnType<typeof enUS> => ({
           description: "Gestionar habilidades para agentes",
           tab: "Habilidades",
           table: {
-            filter: "Filtrar",
-            search: "Buscar",
-            sort: "Ordenar",
             name: "Nombre",
             description: "Descripción",
-            actions: {
-              title: "Acciones",
-              create: {
-                label: "Crear",
-                success: {
-                  title: "Éxito",
-                  description: "Habilidad creada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al crear la habilidad",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Éxito",
+                description: "Habilidad creada correctamente",
               },
-              update: {
-                label: "Editar",
-                success: {
-                  title: "Éxito",
-                  description: "Habilidad actualizada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al actualizar la habilidad",
-                },
+              error: {
+                title: "Error",
+                description: "Error al crear la habilidad",
               },
-              delete: {
-                label: "Eliminar",
-                success: {
-                  title: "Éxito",
-                  description: "Habilidad eliminada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al eliminar la habilidad",
-                },
+            },
+            update: {
+              success: {
+                title: "Éxito",
+                description: "Habilidad actualizada correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al actualizar la habilidad",
+              },
+            },
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Habilidad eliminada correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar la habilidad",
               },
             },
           },
@@ -634,18 +579,9 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Código",
               placeholder: "Introduce el código JavaScript",
             },
-            editors: {
-              label: "Editores",
-              placeholder: "Buscar usuarios y grupos",
-            },
-            users: {
-              label: "Usuarios",
-              placeholder: "Buscar usuarios y grupos",
-            },
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
-            delete: "Eliminar",
           },
         },
       },

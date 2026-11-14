@@ -48,6 +48,14 @@ Except in core, everything that can collide with other features starts with the 
 
 The build or the startup fails when a name does not follow this rule, except for Pinia stores and browser storage keys.
 
+## Resource pages
+
+The pages that list a resource to create, edit and delete it are built with `useResourceTable()` and `ResourceTable`, their dialogs with `AccessFields` and `useResourceToast()`, and the deletion with `ConfirmDeleteModal`.
+
+They read the messages of the resource under one prefix (`ai.pages.studio.agents`): `table.<column>`, `actions.<create|update|delete>.<success|error>.<title|description>` and `delete.<title|description|confirm>`.
+
+The `key` of a table and of `usePayloadData()` is unique to what it loads (`ai.agent.search`), since the pages that use the same key share its data.
+
 ## Database
 
 Each feature owns its database changes:

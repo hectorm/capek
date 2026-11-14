@@ -18,17 +18,17 @@ import UModal from "@nuxt/ui/components/Modal.vue";
 import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
-import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
-import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { AgentExecutorParameters, AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
+import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import NumberParameterField from "#layers/core/app/components/ui/NumberParameterField.vue";
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 
@@ -38,18 +38,17 @@ type AgentUpdateInput = RouterInputs["ai"]["agent"]["update"];
 type AgentCreateOrUpdateInput = AgentCreateInput | AgentUpdateInput;
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ agent: AgentGetOutput | null; error: Error | null }];
+  close: [{ agent: AgentGetOutput | null }];
 }>();
 
 const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("ai.pages.studio.agents");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
-const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
 let [agent, currentAccess, currentMcpServers, currentSkills, currentSpecialists] = await Promise.all([
@@ -66,30 +65,14 @@ const [toolProviders, currentToolResources] = await Promise.all([
 ]);
 
 if (!props.id && userStore.user) {
-  currentAccess = [
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "editor" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "user" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-  ];
+  currentAccess = creatorAccess(userStore.user);
 }
 
 const canModify = computed(() => {
   if (!props.id) {
     return can(AiPermissions.AgentCreate);
   }
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn], principalIds);
+  return canAny([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn], toOwnerIds(currentAccess));
 });
 
 const schema = z
@@ -118,11 +101,6 @@ const schema = z
 
 type Schema = z.infer<typeof schema>;
 
-const editorIds = toPrincipalIds(currentAccess, "editor");
-const userIds = toPrincipalIds(currentAccess, "user");
-
-preload(currentAccess);
-
 const state = reactive<
   Partial<AgentCreateOrUpdateInput> & {
     id?: string;
@@ -143,8 +121,7 @@ const state = reactive<
   instructions: agent?.instructions,
   greetingMessage: agent?.greetingMessage,
   priority: agent?.priority ?? 0,
-  editors: editorIds,
-  users: userIds,
+  ...toPrincipalIds(currentAccess),
   type: agent?.type ?? "specialist",
   specialists: currentSpecialists.map((s) => s.id),
   llmProviderId: agent?.llmProviderId ?? null,
@@ -371,19 +348,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       $trpc.ai.agent.syncAccess.mutate({ agentId, access }),
     ]);
 
-    emit("close", { agent, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { agent });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`ai.pages.studio.agents.table.actions.${action}.error.title`),
-      description: i18n.t(`ai.pages.studio.agents.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { agent: null, error: null });
+  emit("close", { agent: null });
 };
 
 const { testing, test } = useFormTest({
@@ -473,30 +446,12 @@ const onTestModel = async () => {
         >
           <UInputNumber v-model="state.priority" :max="1000" :min="-1000" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField name="editors" :label="$t('ai.pages.studio.agents.form.editors.label')">
-          <SearchMenu
-            v-model="state.editors"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.agents.form.editors.placeholder')"
-          />
-        </UFormField>
-        <UFormField name="users" :label="$t('ai.pages.studio.agents.form.users.label')">
-          <SearchMenu
-            v-model="state.users"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.agents.form.users.placeholder')"
-          />
-        </UFormField>
+        <AccessFields
+          v-model:users="state.users"
+          v-model:editors="state.editors"
+          :disabled="!canModify"
+          :access="currentAccess"
+        />
         <UFormField v-if="!props.id" required name="type" :label="$t('ai.pages.studio.agents.form.type.label')">
           <URadioGroup
             v-model="state.type"
@@ -710,7 +665,14 @@ const onTestModel = async () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.agents.form.cancel") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t(`ai.pages.studio.agents.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>

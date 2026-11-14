@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive } from "vue";
-import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
@@ -11,16 +10,15 @@ import UFormField from "@nuxt/ui/components/FormField.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
-import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
-import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
-import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
+import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 
 type SkillGetOutput = RouterOutputs["ai"]["skill"]["read"];
 type SkillCreateInput = RouterInputs["ai"]["skill"]["create"];
@@ -28,18 +26,16 @@ type SkillUpdateInput = RouterInputs["ai"]["skill"]["update"];
 type SkillCreateOrUpdateInput = SkillCreateInput | SkillUpdateInput;
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ skill: SkillGetOutput | null; error: Error | null }];
+  close: [{ skill: SkillGetOutput | null }];
 }>();
 
-const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("ai.pages.studio.skills");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
-const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
 let [skill, currentAccess] = await Promise.all([
@@ -48,30 +44,14 @@ let [skill, currentAccess] = await Promise.all([
 ]);
 
 if (!props.id && userStore.user) {
-  currentAccess = [
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "editor" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "user" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-  ];
+  currentAccess = creatorAccess(userStore.user);
 }
 
 const canModify = computed(() => {
   if (!props.id) {
     return can(AiPermissions.SkillCreate);
   }
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([AiPermissions.SkillUpdateAll, AiPermissions.SkillUpdateOwn], principalIds);
+  return canAny([AiPermissions.SkillUpdateAll, AiPermissions.SkillUpdateOwn], toOwnerIds(currentAccess));
 });
 
 const schema = z.object({
@@ -85,11 +65,6 @@ const schema = z.object({
 });
 
 type Schema = z.infer<typeof schema>;
-
-const editorIds = toPrincipalIds(currentAccess, "editor");
-const userIds = toPrincipalIds(currentAccess, "user");
-
-preload(currentAccess);
 
 const defaultCode = [
   "// Import MCP tools from available servers",
@@ -130,8 +105,7 @@ const state = reactive<
   description: skill?.description,
   documentation: skill?.documentation ?? undefined,
   code: skill?.code ?? (props.id ? undefined : defaultCode),
-  editors: editorIds,
-  users: userIds,
+  ...toPrincipalIds(currentAccess),
 });
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
@@ -163,19 +137,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const access = fromPrincipalIds(event.data);
     await $trpc.ai.skill.syncAccess.mutate({ skillId, access });
 
-    emit("close", { skill, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { skill });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`ai.pages.studio.skills.table.actions.${action}.error.title`),
-      description: i18n.t(`ai.pages.studio.skills.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { skill: null, error: null });
+  emit("close", { skill: null });
 };
 </script>
 
@@ -235,35 +205,24 @@ const onCancel = () => {
             :placeholder="$t('ai.pages.studio.skills.form.code.placeholder')"
           />
         </UFormField>
-        <UFormField name="editors" :label="$t('ai.pages.studio.skills.form.editors.label')">
-          <SearchMenu
-            v-model="state.editors"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.skills.form.editors.placeholder')"
-          />
-        </UFormField>
-        <UFormField name="users" :label="$t('ai.pages.studio.skills.form.users.label')">
-          <SearchMenu
-            v-model="state.users"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.skills.form.users.placeholder')"
-          />
-        </UFormField>
+        <AccessFields
+          v-model:users="state.users"
+          v-model:editors="state.editors"
+          :disabled="!canModify"
+          :access="currentAccess"
+        />
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.skills.form.cancel") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t(`ai.pages.studio.skills.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>

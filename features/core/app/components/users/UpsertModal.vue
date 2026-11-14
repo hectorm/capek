@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive, ref } from "vue";
-import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
@@ -11,10 +10,10 @@ import UFormField from "@nuxt/ui/components/FormField.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
@@ -26,15 +25,14 @@ type UserCreateOrUpdateInput = UserCreateInput | UserUpdateInput;
 type RoleListOutput = RouterOutputs["role"]["list"];
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ user: UserReadOutput | null; error: Error | null }];
+  close: [{ user: UserReadOutput | null }];
 }>();
 
-const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("pages.settings.users");
 const { $trpc } = useNuxtApp();
 const { can } = usePermissions();
 
@@ -91,19 +89,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         groups: event.data.groups,
       });
     }
-    emit("close", { user: user.value, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { user: user.value });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`pages.settings.users.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.settings.users.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { user: null, error: null });
+  emit("close", { user: null });
 };
 </script>
 
@@ -160,7 +154,14 @@ const onCancel = () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("components.users.upsertModal.form.cancel.label") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t("components.users.upsertModal.form.save.label") }}
           </UButton>
         </div>

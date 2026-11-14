@@ -111,50 +111,48 @@ export default (): ReturnType<typeof enUS> => ({
         description: "Gestionar usuarios y asignar roles",
         tab: "Usuarios",
         table: {
-          filter: "Filtrar",
-          search: "Buscar",
-          sort: "Ordenar",
           username: "Usuario",
           fullname: "Nombre completo",
           email: "Email",
           roles: "Roles",
           groups: "Grupos",
-          actions: {
-            title: "Acciones",
-            create: {
-              label: "Crear",
-              success: {
-                title: "Éxito",
-                description: "Usuario creado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al crear el usuario",
-              },
+        },
+        actions: {
+          create: {
+            success: {
+              title: "Éxito",
+              description: "Usuario creado correctamente",
             },
-            update: {
-              label: "Editar",
-              success: {
-                title: "Éxito",
-                description: "Usuario actualizado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al actualizar el usuario",
-              },
-            },
-            delete: {
-              label: "Eliminar",
-              success: {
-                title: "Éxito",
-                description: "Usuario eliminado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al eliminar el usuario",
-              },
+            error: {
+              title: "Error",
+              description: "Error al crear el usuario",
             },
           },
+          update: {
+            success: {
+              title: "Éxito",
+              description: "Usuario actualizado correctamente",
+            },
+            error: {
+              title: "Error",
+              description: "Error al actualizar el usuario",
+            },
+          },
+          delete: {
+            success: {
+              title: "Éxito",
+              description: "Usuario eliminado correctamente",
+            },
+            error: {
+              title: "Error",
+              description: "Error al eliminar el usuario",
+            },
+          },
+        },
+        delete: {
+          title: "Eliminar usuario",
+          description: "Confirmar la eliminación permanente de este usuario",
+          confirm: '¿Está seguro de que desea eliminar al usuario "{name}"?',
         },
       },
       groups: {
@@ -162,48 +160,46 @@ export default (): ReturnType<typeof enUS> => ({
         description: "Gestionar grupos y asignar roles",
         tab: "Grupos",
         table: {
-          filter: "Filtrar",
-          search: "Buscar",
-          sort: "Ordenar",
           name: "Nombre",
           description: "Descripción",
           roles: "Roles",
-          actions: {
-            title: "Acciones",
-            create: {
-              label: "Crear",
-              success: {
-                title: "Éxito",
-                description: "Grupo creado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al crear el grupo",
-              },
+        },
+        actions: {
+          create: {
+            success: {
+              title: "Éxito",
+              description: "Grupo creado correctamente",
             },
-            update: {
-              label: "Editar",
-              success: {
-                title: "Éxito",
-                description: "Grupo actualizado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al actualizar el grupo",
-              },
-            },
-            delete: {
-              label: "Eliminar",
-              success: {
-                title: "Éxito",
-                description: "Grupo eliminado correctamente",
-              },
-              error: {
-                title: "Error",
-                description: "Error al eliminar el grupo",
-              },
+            error: {
+              title: "Error",
+              description: "Error al crear el grupo",
             },
           },
+          update: {
+            success: {
+              title: "Éxito",
+              description: "Grupo actualizado correctamente",
+            },
+            error: {
+              title: "Error",
+              description: "Error al actualizar el grupo",
+            },
+          },
+          delete: {
+            success: {
+              title: "Éxito",
+              description: "Grupo eliminado correctamente",
+            },
+            error: {
+              title: "Error",
+              description: "Error al eliminar el grupo",
+            },
+          },
+        },
+        delete: {
+          title: "Eliminar grupo",
+          description: "Confirmar la eliminación permanente de este grupo",
+          confirm: '¿Está seguro de que desea eliminar el grupo "{name}"?',
         },
       },
     },
@@ -224,6 +220,31 @@ export default (): ReturnType<typeof enUS> => ({
     },
   },
   components: {
+    accessFields: {
+      editors: {
+        label: "Editores",
+        placeholder: "Buscar usuarios y grupos",
+      },
+      users: {
+        label: "Usuarios",
+        placeholder: "Buscar usuarios y grupos",
+      },
+    },
+    confirmDeleteModal: {
+      cancel: "Cancelar",
+      delete: "Eliminar",
+    },
+    resourceTable: {
+      actions: "Acciones",
+      create: "Crear",
+      delete: "Eliminar",
+      filter: "Filtrar por {column}",
+      loadError: "No se pudieron cargar las siguientes filas",
+      retry: "Reintentar",
+      search: "Buscar",
+      sort: "Ordenar por {column}",
+      update: "Editar",
+    },
     userMenu: {
       anonymous: {
         label: "Anónimo",
@@ -286,19 +307,6 @@ export default (): ReturnType<typeof enUS> => ({
           },
         },
       },
-      deleteModal: {
-        title: "Eliminar usuario",
-        description: "Confirme la eliminación permanente de este usuario",
-        form: {
-          message: '¿Está seguro de que desea eliminar al usuario "{username}"?',
-          delete: {
-            label: "Eliminar",
-          },
-          cancel: {
-            label: "Cancelar",
-          },
-        },
-      },
     },
     groups: {
       upsertModal: {
@@ -322,19 +330,6 @@ export default (): ReturnType<typeof enUS> => ({
           },
           save: {
             label: "Guardar",
-          },
-          cancel: {
-            label: "Cancelar",
-          },
-        },
-      },
-      deleteModal: {
-        title: "Eliminar grupo",
-        description: "Confirme la eliminación permanente de este grupo",
-        form: {
-          message: '¿Está seguro de que desea eliminar el grupo "{name}"?',
-          delete: {
-            label: "Eliminar",
           },
           cancel: {
             label: "Cancelar",

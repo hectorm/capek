@@ -9,46 +9,39 @@ export default (): ReturnType<typeof enUS> => ({
           description: "Gestionar fuentes de datos",
           tab: "Fuentes de datos",
           table: {
-            filter: "Filtrar",
-            search: "Buscar",
-            sort: "Ordenar",
             name: "Nombre",
             description: "Descripción",
             type: "Tipo",
-            actions: {
-              title: "Acciones",
-              create: {
-                label: "Crear",
-                success: {
-                  title: "Éxito",
-                  description: "Fuente de datos creada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al crear la fuente de datos",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Éxito",
+                description: "Fuente de datos creada correctamente",
               },
-              update: {
-                label: "Editar",
-                success: {
-                  title: "Éxito",
-                  description: "Fuente de datos actualizada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al actualizar la fuente de datos",
-                },
+              error: {
+                title: "Error",
+                description: "Error al crear la fuente de datos",
               },
-              delete: {
-                label: "Eliminar",
-                success: {
-                  title: "Éxito",
-                  description: "Fuente de datos eliminada correctamente",
-                },
-                error: {
-                  title: "Error",
-                  description: "Error al eliminar la fuente de datos",
-                },
+            },
+            update: {
+              success: {
+                title: "Éxito",
+                description: "Fuente de datos actualizada correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al actualizar la fuente de datos",
+              },
+            },
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Fuente de datos eliminada correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar la fuente de datos",
               },
             },
           },
@@ -117,14 +110,6 @@ export default (): ReturnType<typeof enUS> => ({
               label: "Client secret",
               placeholder: "Introduce el client secret de Microsoft Entra ID",
             },
-            editors: {
-              label: "Editores",
-              placeholder: "Buscar usuarios y grupos",
-            },
-            users: {
-              label: "Usuarios",
-              placeholder: "Buscar usuarios y grupos",
-            },
             testConnection: {
               label: "Probar conexión",
               testing: "Probando...",
@@ -134,7 +119,6 @@ export default (): ReturnType<typeof enUS> => ({
             cancel: "Cancelar",
             create: "Crear",
             save: "Guardar",
-            delete: "Eliminar",
           },
         },
       },

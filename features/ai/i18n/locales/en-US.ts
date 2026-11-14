@@ -128,48 +128,41 @@ export default () => ({
           description: "Manage AI agents",
           tab: "Agents",
           table: {
-            filter: "Filter",
-            search: "Search",
-            sort: "Sort",
             name: "Name",
             description: "Description",
             type: "Type",
             model: "Model",
             priority: "Priority",
-            actions: {
-              title: "Actions",
-              create: {
-                label: "Create",
-                success: {
-                  title: "Success",
-                  description: "Agent created successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to create agent",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Success",
+                description: "Agent created successfully",
               },
-              update: {
-                label: "Edit",
-                success: {
-                  title: "Success",
-                  description: "Agent updated successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to update agent",
-                },
+              error: {
+                title: "Error",
+                description: "Failed to create agent",
               },
-              delete: {
-                label: "Delete",
-                success: {
-                  title: "Success",
-                  description: "Agent deleted successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to delete agent",
-                },
+            },
+            update: {
+              success: {
+                title: "Success",
+                description: "Agent updated successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to update agent",
+              },
+            },
+            delete: {
+              success: {
+                title: "Success",
+                description: "Agent deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete agent",
               },
             },
           },
@@ -183,7 +176,7 @@ export default () => ({
           },
           delete: {
             title: "Delete agent",
-            description: "Confirm permanent removal of this agent",
+            description: "Confirm the permanent removal of this agent",
             confirm: 'Are you sure you want to delete the agent "{name}"?',
           },
           form: {
@@ -206,14 +199,6 @@ export default () => ({
             priority: {
               label: "Priority",
               hint: "Agents with a higher priority are listed first",
-            },
-            editors: {
-              label: "Editors",
-              placeholder: "Search users and groups",
-            },
-            users: {
-              label: "Users",
-              placeholder: "Search users and groups",
             },
             type: {
               label: "Type",
@@ -320,7 +305,6 @@ export default () => ({
             cancel: "Cancel",
             create: "Create",
             save: "Save",
-            delete: "Delete",
           },
         },
         llmProviders: {
@@ -328,46 +312,39 @@ export default () => ({
           description: "Manage LLM providers",
           tab: "LLM providers",
           table: {
-            filter: "Filter",
-            search: "Search",
-            sort: "Sort",
             name: "Name",
             description: "Description",
             apiUrl: "API URL",
-            actions: {
-              title: "Actions",
-              create: {
-                label: "Create",
-                success: {
-                  title: "Success",
-                  description: "LLM provider created successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to create LLM provider",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Success",
+                description: "LLM provider created successfully",
               },
-              update: {
-                label: "Edit",
-                success: {
-                  title: "Success",
-                  description: "LLM provider updated successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to update LLM provider",
-                },
+              error: {
+                title: "Error",
+                description: "Failed to create LLM provider",
               },
-              delete: {
-                label: "Delete",
-                success: {
-                  title: "Success",
-                  description: "LLM provider deleted successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to delete LLM provider",
-                },
+            },
+            update: {
+              success: {
+                title: "Success",
+                description: "LLM provider updated successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to update LLM provider",
+              },
+            },
+            delete: {
+              success: {
+                title: "Success",
+                description: "LLM provider deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete LLM provider",
               },
             },
           },
@@ -381,7 +358,7 @@ export default () => ({
           },
           delete: {
             title: "Delete LLM provider",
-            description: "Confirm permanent removal of this LLM provider",
+            description: "Confirm the permanent removal of this LLM provider",
             confirm: 'Are you sure you want to delete the LLM provider "{name}"?',
           },
           form: {
@@ -414,14 +391,6 @@ export default () => ({
               add: "Add header",
               remove: "Remove header",
             },
-            editors: {
-              label: "Editors",
-              placeholder: "Search users and groups",
-            },
-            users: {
-              label: "Users",
-              placeholder: "Search users and groups",
-            },
             testConnection: {
               label: "Test connection",
               testing: "Testing...",
@@ -431,7 +400,6 @@ export default () => ({
             cancel: "Cancel",
             create: "Create",
             save: "Save",
-            delete: "Delete",
           },
         },
         mcpServers: {
@@ -439,46 +407,39 @@ export default () => ({
           description: "Manage MCP servers",
           tab: "MCP servers",
           table: {
-            filter: "Filter",
-            search: "Search",
-            sort: "Sort",
             name: "Name",
             description: "Description",
             url: "URL",
-            actions: {
-              title: "Actions",
-              create: {
-                label: "Create",
-                success: {
-                  title: "Success",
-                  description: "MCP server created successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to create MCP server",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Success",
+                description: "MCP server created successfully",
               },
-              update: {
-                label: "Edit",
-                success: {
-                  title: "Success",
-                  description: "MCP server updated successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to update MCP server",
-                },
+              error: {
+                title: "Error",
+                description: "Failed to create MCP server",
               },
-              delete: {
-                label: "Delete",
-                success: {
-                  title: "Success",
-                  description: "MCP server deleted successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to delete MCP server",
-                },
+            },
+            update: {
+              success: {
+                title: "Success",
+                description: "MCP server updated successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to update MCP server",
+              },
+            },
+            delete: {
+              success: {
+                title: "Success",
+                description: "MCP server deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete MCP server",
               },
             },
           },
@@ -492,7 +453,7 @@ export default () => ({
           },
           delete: {
             title: "Delete MCP server",
-            description: "Confirm permanent removal of this MCP server",
+            description: "Confirm the permanent removal of this MCP server",
             confirm: 'Are you sure you want to delete the MCP server "{name}"?',
           },
           form: {
@@ -528,14 +489,6 @@ export default () => ({
               label: "Tool call timeout",
               hint: "Maximum time in seconds to wait for a tool call response",
             },
-            editors: {
-              label: "Editors",
-              placeholder: "Search users and groups",
-            },
-            users: {
-              label: "Users",
-              placeholder: "Search users and groups",
-            },
             testConnection: {
               label: "Test connection",
               testing: "Testing...",
@@ -545,7 +498,6 @@ export default () => ({
             cancel: "Cancel",
             create: "Create",
             save: "Save",
-            delete: "Delete",
           },
         },
         skills: {
@@ -553,45 +505,38 @@ export default () => ({
           description: "Manage skills for agents",
           tab: "Skills",
           table: {
-            filter: "Filter",
-            search: "Search",
-            sort: "Sort",
             name: "Name",
             description: "Description",
-            actions: {
-              title: "Actions",
-              create: {
-                label: "Create",
-                success: {
-                  title: "Success",
-                  description: "Skill created successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to create skill",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Success",
+                description: "Skill created successfully",
               },
-              update: {
-                label: "Edit",
-                success: {
-                  title: "Success",
-                  description: "Skill updated successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to update skill",
-                },
+              error: {
+                title: "Error",
+                description: "Failed to create skill",
               },
-              delete: {
-                label: "Delete",
-                success: {
-                  title: "Success",
-                  description: "Skill deleted successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to delete skill",
-                },
+            },
+            update: {
+              success: {
+                title: "Success",
+                description: "Skill updated successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to update skill",
+              },
+            },
+            delete: {
+              success: {
+                title: "Success",
+                description: "Skill deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete skill",
               },
             },
           },
@@ -605,7 +550,7 @@ export default () => ({
           },
           delete: {
             title: "Delete skill",
-            description: "Confirm permanent removal of this skill",
+            description: "Confirm the permanent removal of this skill",
             confirm: 'Are you sure you want to delete the skill "{name}"?',
           },
           form: {
@@ -632,18 +577,9 @@ export default () => ({
               label: "Code",
               placeholder: "Enter JavaScript code",
             },
-            editors: {
-              label: "Editors",
-              placeholder: "Search users and groups",
-            },
-            users: {
-              label: "Users",
-              placeholder: "Search users and groups",
-            },
             cancel: "Cancel",
             create: "Create",
             save: "Save",
-            delete: "Delete",
           },
         },
       },

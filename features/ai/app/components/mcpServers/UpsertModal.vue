@@ -16,21 +16,20 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
-import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
-import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
 import { MCPServerParameters, MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
+import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import NumberParameterField from "#layers/core/app/components/ui/NumberParameterField.vue";
-import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 
 type McpServerGetOutput = RouterOutputs["ai"]["mcpServer"]["read"];
 type McpServerCreateInput = RouterInputs["ai"]["mcpServer"]["create"];
@@ -38,18 +37,17 @@ type McpServerUpdateInput = RouterInputs["ai"]["mcpServer"]["update"];
 type McpServerCreateOrUpdateInput = McpServerCreateInput | McpServerUpdateInput;
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ mcpServer: McpServerGetOutput | null; error: Error | null }];
+  close: [{ mcpServer: McpServerGetOutput | null }];
 }>();
 
 const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("ai.pages.studio.mcpServers");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
-const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
 let [mcpServer, currentAccess] = await Promise.all([
@@ -58,30 +56,14 @@ let [mcpServer, currentAccess] = await Promise.all([
 ]);
 
 if (!props.id && userStore.user) {
-  currentAccess = [
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "editor" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "user" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-  ];
+  currentAccess = creatorAccess(userStore.user);
 }
 
 const canModify = computed(() => {
   if (!props.id) {
     return can(AiPermissions.McpServerCreate);
   }
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([AiPermissions.McpServerUpdateAll, AiPermissions.McpServerUpdateOwn], principalIds);
+  return canAny([AiPermissions.McpServerUpdateAll, AiPermissions.McpServerUpdateOwn], toOwnerIds(currentAccess));
 });
 
 const schema = z
@@ -104,11 +86,6 @@ const schema = z
 
 type Schema = z.infer<typeof schema>;
 
-const editorIds = toPrincipalIds(currentAccess, "editor");
-const userIds = toPrincipalIds(currentAccess, "user");
-
-preload(currentAccess);
-
 const state = reactive<
   Partial<McpServerCreateOrUpdateInput> & {
     id?: string;
@@ -125,8 +102,7 @@ const state = reactive<
   headers: mcpServer?.headers ?? [],
   stateful: mcpServer?.stateful ?? false,
   toolCallTimeoutSec: mcpServer?.toolCallTimeoutSec,
-  editors: editorIds,
-  users: userIds,
+  ...toPrincipalIds(currentAccess),
 });
 
 const advancedSettingsEntries = Object.entries(MCPServerParameters) as [
@@ -184,19 +160,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const access = fromPrincipalIds(event.data);
     await $trpc.ai.mcpServer.syncAccess.mutate({ mcpServerId, access });
 
-    emit("close", { mcpServer, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { mcpServer });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`ai.pages.studio.mcpServers.table.actions.${action}.error.title`),
-      description: i18n.t(`ai.pages.studio.mcpServers.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { mcpServer: null, error: null });
+  emit("close", { mcpServer: null });
 };
 
 const { testing, test } = useFormTest({
@@ -319,30 +291,12 @@ const onTestConnection = async () => {
             :description="$t('ai.pages.studio.mcpServers.form.stateful.description')"
           />
         </UFormField>
-        <UFormField name="editors" :label="$t('ai.pages.studio.mcpServers.form.editors.label')">
-          <SearchMenu
-            v-model="state.editors"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.mcpServers.form.editors.placeholder')"
-          />
-        </UFormField>
-        <UFormField name="users" :label="$t('ai.pages.studio.mcpServers.form.users.label')">
-          <SearchMenu
-            v-model="state.users"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.mcpServers.form.users.placeholder')"
-          />
-        </UFormField>
+        <AccessFields
+          v-model:users="state.users"
+          v-model:editors="state.editors"
+          :disabled="!canModify"
+          :access="currentAccess"
+        />
         <UAccordion :ui="{ trigger: 'pt-0' }" :items="advancedSettingsItems">
           <template #leading>
             <UIcon class="size-5" name="i-lucide-settings-2" />
@@ -400,7 +354,14 @@ const onTestConnection = async () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.mcpServers.form.cancel") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t(`ai.pages.studio.mcpServers.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>

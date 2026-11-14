@@ -13,20 +13,19 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
-import { usePrincipalSearch } from "#layers/core/app/composables/principal-search";
-import { fromPrincipalIds, toPrincipalIds } from "#layers/core/app/utils/access";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { HttpHeadersSchema, HttpRedactedValue, HttpUrlSchema } from "#layers/core/shared/http";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
-import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
+import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 
 type LlmProviderGetOutput = RouterOutputs["ai"]["llmProvider"]["read"];
 type LlmProviderCreateInput = RouterInputs["ai"]["llmProvider"]["create"];
@@ -34,18 +33,17 @@ type LlmProviderUpdateInput = RouterInputs["ai"]["llmProvider"]["update"];
 type LlmProviderCreateOrUpdateInput = LlmProviderCreateInput | LlmProviderUpdateInput;
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ llmProvider: LlmProviderGetOutput | null; error: Error | null }];
+  close: [{ llmProvider: LlmProviderGetOutput | null }];
 }>();
 
 const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("ai.pages.studio.llmProviders");
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
-const { search, getLabel, getIcon, preload } = usePrincipalSearch();
 const userStore = useUserStore();
 
 let [llmProvider, currentAccess] = await Promise.all([
@@ -54,30 +52,14 @@ let [llmProvider, currentAccess] = await Promise.all([
 ]);
 
 if (!props.id && userStore.user) {
-  currentAccess = [
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "editor" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-    {
-      id: userStore.user.id,
-      type: "user" as const,
-      role: "user" as const,
-      username: userStore.user.username,
-      email: userStore.user.email,
-    },
-  ];
+  currentAccess = creatorAccess(userStore.user);
 }
 
 const canModify = computed(() => {
   if (!props.id) {
     return can(AiPermissions.LlmProviderCreate);
   }
-  const principalIds = currentAccess.filter((a) => a.role === "editor").map((a) => a.id);
-  return canAny([AiPermissions.LlmProviderUpdateAll, AiPermissions.LlmProviderUpdateOwn], principalIds);
+  return canAny([AiPermissions.LlmProviderUpdateAll, AiPermissions.LlmProviderUpdateOwn], toOwnerIds(currentAccess));
 });
 
 const schema = z
@@ -107,11 +89,6 @@ const schema = z
 
 type Schema = z.infer<typeof schema>;
 
-const editorIds = toPrincipalIds(currentAccess, "editor");
-const userIds = toPrincipalIds(currentAccess, "user");
-
-preload(currentAccess);
-
 const state = reactive<
   Partial<LlmProviderCreateOrUpdateInput> & {
     id?: string;
@@ -127,8 +104,7 @@ const state = reactive<
   apiType: llmProvider?.apiType ?? "chat-completions",
   apiKey: llmProvider?.apiKey,
   headers: llmProvider?.headers ?? [],
-  editors: editorIds,
-  users: userIds,
+  ...toPrincipalIds(currentAccess),
 });
 
 const apiTypeOptions = [
@@ -178,19 +154,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     const access = fromPrincipalIds(event.data);
     await $trpc.ai.llmProvider.syncAccess.mutate({ llmProviderId, access });
 
-    emit("close", { llmProvider, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { llmProvider });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`ai.pages.studio.llmProviders.table.actions.${action}.error.title`),
-      description: i18n.t(`ai.pages.studio.llmProviders.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { llmProvider: null, error: null });
+  emit("close", { llmProvider: null });
 };
 
 const { testing, test } = useFormTest({
@@ -328,30 +300,12 @@ const onTestConnection = async () => {
             </UFieldGroup>
           </div>
         </UFormField>
-        <UFormField name="editors" :label="$t('ai.pages.studio.llmProviders.form.editors.label')">
-          <SearchMenu
-            v-model="state.editors"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.llmProviders.form.editors.placeholder')"
-          />
-        </UFormField>
-        <UFormField name="users" :label="$t('ai.pages.studio.llmProviders.form.users.label')">
-          <SearchMenu
-            v-model="state.users"
-            multiple
-            class="w-full"
-            :icon-fn="getIcon"
-            :search-fn="search"
-            :label-fn="getLabel"
-            :disabled="!canModify"
-            :placeholder="$t('ai.pages.studio.llmProviders.form.users.placeholder')"
-          />
-        </UFormField>
+        <AccessFields
+          v-model:users="state.users"
+          v-model:editors="state.editors"
+          :disabled="!canModify"
+          :access="currentAccess"
+        />
         <div class="flex justify-end gap-2">
           <UButton
             type="button"
@@ -372,7 +326,14 @@ const onTestConnection = async () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.pages.studio.llmProviders.form.cancel") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t(`ai.pages.studio.llmProviders.form.${props.id ? "save" : "create"}`) }}
           </UButton>
         </div>

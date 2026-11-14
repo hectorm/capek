@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive, ref } from "vue";
-import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
@@ -12,10 +11,10 @@ import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 import USelectMenu from "@nuxt/ui/components/SelectMenu.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
+import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 type GroupReadOutput = RouterOutputs["group"]["read"];
@@ -25,15 +24,14 @@ type GroupCreateOrUpdateInput = GroupCreateInput | GroupUpdateInput;
 type RoleListOutput = RouterOutputs["role"]["list"];
 
 const props = defineProps<{
-  id?: string | null;
+  id?: string;
 }>();
 
 const emit = defineEmits<{
-  close: [{ group: GroupReadOutput | null; error: Error | null }];
+  close: [{ group: GroupReadOutput | null }];
 }>();
 
-const i18n = useI18n();
-const toast = useToast();
+const { notify } = useResourceToast("pages.settings.groups");
 const { $trpc } = useNuxtApp();
 const { can } = usePermissions();
 
@@ -82,19 +80,15 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         roles: event.data.roles,
       });
     }
-    emit("close", { group: group.value, error: null });
+    notify(props.id ? "update" : "create", "success");
+    emit("close", { group: group.value });
   } catch {
-    const action = props.id ? "update" : "create";
-    toast.add({
-      color: "error",
-      title: i18n.t(`pages.settings.groups.table.actions.${action}.error.title`),
-      description: i18n.t(`pages.settings.groups.table.actions.${action}.error.description`),
-    });
+    notify(props.id ? "update" : "create", "error");
   }
 };
 
 const onCancel = () => {
-  emit("close", { group: null, error: null });
+  emit("close", { group: null });
 };
 </script>
 
@@ -133,7 +127,14 @@ const onCancel = () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("components.groups.upsertModal.form.cancel.label") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save" :disabled="!canModify">
+          <UButton
+            loading-auto
+            type="submit"
+            color="primary"
+            variant="solid"
+            icon="i-lucide-save"
+            :disabled="!canModify"
+          >
             {{ $t("components.groups.upsertModal.form.save.label") }}
           </UButton>
         </div>

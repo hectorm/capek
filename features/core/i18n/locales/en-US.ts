@@ -109,50 +109,48 @@ export default () => ({
         description: "Manage users and assign roles",
         tab: "Users",
         table: {
-          filter: "Filter",
-          search: "Search",
-          sort: "Sort",
           username: "Username",
           fullname: "Full name",
           email: "Email",
           roles: "Roles",
           groups: "Groups",
-          actions: {
-            title: "Actions",
-            create: {
-              label: "Create",
-              success: {
-                title: "Success",
-                description: "User created successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to create user",
-              },
+        },
+        actions: {
+          create: {
+            success: {
+              title: "Success",
+              description: "User created successfully",
             },
-            update: {
-              label: "Edit",
-              success: {
-                title: "Success",
-                description: "User updated successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to update user",
-              },
-            },
-            delete: {
-              label: "Delete",
-              success: {
-                title: "Success",
-                description: "User deleted successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to delete user",
-              },
+            error: {
+              title: "Error",
+              description: "Failed to create user",
             },
           },
+          update: {
+            success: {
+              title: "Success",
+              description: "User updated successfully",
+            },
+            error: {
+              title: "Error",
+              description: "Failed to update user",
+            },
+          },
+          delete: {
+            success: {
+              title: "Success",
+              description: "User deleted successfully",
+            },
+            error: {
+              title: "Error",
+              description: "Failed to delete user",
+            },
+          },
+        },
+        delete: {
+          title: "Delete user",
+          description: "Confirm the permanent removal of this user",
+          confirm: 'Are you sure you want to delete the user "{name}"?',
         },
       },
       groups: {
@@ -160,48 +158,46 @@ export default () => ({
         description: "Manage groups and assign roles",
         tab: "Groups",
         table: {
-          filter: "Filter",
-          search: "Search",
-          sort: "Sort",
           name: "Name",
           description: "Description",
           roles: "Roles",
-          actions: {
-            title: "Actions",
-            create: {
-              label: "Create",
-              success: {
-                title: "Success",
-                description: "Group created successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to create group",
-              },
+        },
+        actions: {
+          create: {
+            success: {
+              title: "Success",
+              description: "Group created successfully",
             },
-            update: {
-              label: "Edit",
-              success: {
-                title: "Success",
-                description: "Group updated successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to update group",
-              },
-            },
-            delete: {
-              label: "Delete",
-              success: {
-                title: "Success",
-                description: "Group deleted successfully",
-              },
-              error: {
-                title: "Error",
-                description: "Failed to delete group",
-              },
+            error: {
+              title: "Error",
+              description: "Failed to create group",
             },
           },
+          update: {
+            success: {
+              title: "Success",
+              description: "Group updated successfully",
+            },
+            error: {
+              title: "Error",
+              description: "Failed to update group",
+            },
+          },
+          delete: {
+            success: {
+              title: "Success",
+              description: "Group deleted successfully",
+            },
+            error: {
+              title: "Error",
+              description: "Failed to delete group",
+            },
+          },
+        },
+        delete: {
+          title: "Delete group",
+          description: "Confirm the permanent removal of this group",
+          confirm: 'Are you sure you want to delete the group "{name}"?',
         },
       },
     },
@@ -222,6 +218,31 @@ export default () => ({
     },
   },
   components: {
+    accessFields: {
+      editors: {
+        label: "Editors",
+        placeholder: "Search users and groups",
+      },
+      users: {
+        label: "Users",
+        placeholder: "Search users and groups",
+      },
+    },
+    confirmDeleteModal: {
+      cancel: "Cancel",
+      delete: "Delete",
+    },
+    resourceTable: {
+      actions: "Actions",
+      create: "Create",
+      delete: "Delete",
+      filter: "Filter by {column}",
+      loadError: "The next rows could not be loaded",
+      retry: "Retry",
+      search: "Search",
+      sort: "Sort by {column}",
+      update: "Edit",
+    },
     userMenu: {
       anonymous: {
         label: "Anonymous",
@@ -284,19 +305,6 @@ export default () => ({
           },
         },
       },
-      deleteModal: {
-        title: "Delete user",
-        description: "Confirm the permanent removal of this user",
-        form: {
-          message: 'Are you sure you want to delete the user "{username}"?',
-          delete: {
-            label: "Delete",
-          },
-          cancel: {
-            label: "Cancel",
-          },
-        },
-      },
     },
     groups: {
       upsertModal: {
@@ -320,19 +328,6 @@ export default () => ({
           },
           save: {
             label: "Save",
-          },
-          cancel: {
-            label: "Cancel",
-          },
-        },
-      },
-      deleteModal: {
-        title: "Delete group",
-        description: "Confirm the permanent removal of this group",
-        form: {
-          message: 'Are you sure you want to delete the group "{name}"?',
-          delete: {
-            label: "Delete",
           },
           cancel: {
             label: "Cancel",

@@ -7,46 +7,39 @@ export default () => ({
           description: "Manage datasources",
           tab: "Datasources",
           table: {
-            filter: "Filter",
-            search: "Search",
-            sort: "Sort",
             name: "Name",
             description: "Description",
             type: "Type",
-            actions: {
-              title: "Actions",
-              create: {
-                label: "Create",
-                success: {
-                  title: "Success",
-                  description: "Datasource created successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to create datasource",
-                },
+          },
+          actions: {
+            create: {
+              success: {
+                title: "Success",
+                description: "Datasource created successfully",
               },
-              update: {
-                label: "Edit",
-                success: {
-                  title: "Success",
-                  description: "Datasource updated successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to update datasource",
-                },
+              error: {
+                title: "Error",
+                description: "Failed to create datasource",
               },
-              delete: {
-                label: "Delete",
-                success: {
-                  title: "Success",
-                  description: "Datasource deleted successfully",
-                },
-                error: {
-                  title: "Error",
-                  description: "Failed to delete datasource",
-                },
+            },
+            update: {
+              success: {
+                title: "Success",
+                description: "Datasource updated successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to update datasource",
+              },
+            },
+            delete: {
+              success: {
+                title: "Success",
+                description: "Datasource deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete datasource",
               },
             },
           },
@@ -60,7 +53,7 @@ export default () => ({
           },
           delete: {
             title: "Delete datasource",
-            description: "Confirm permanent removal of this datasource",
+            description: "Confirm the permanent removal of this datasource",
             confirm: 'Are you sure you want to delete the datasource "{name}"?',
           },
           form: {
@@ -115,14 +108,6 @@ export default () => ({
               label: "Client secret",
               placeholder: "Enter Microsoft Entra ID client secret",
             },
-            editors: {
-              label: "Editors",
-              placeholder: "Search users and groups",
-            },
-            users: {
-              label: "Users",
-              placeholder: "Search users and groups",
-            },
             testConnection: {
               label: "Test connection",
               testing: "Testing...",
@@ -132,7 +117,6 @@ export default () => ({
             cancel: "Cancel",
             create: "Create",
             save: "Save",
-            delete: "Delete",
           },
         },
       },
