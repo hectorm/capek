@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
 import { storeToRefs } from "pinia";
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
@@ -24,6 +24,8 @@ const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
 const { userMenu } = useAppFeatures();
+
+const picture = ref<string>();
 
 const items = computed<DropdownMenuItem[]>(() => {
   const menuItems: DropdownMenuItem[] = [];
@@ -99,6 +101,17 @@ const items = computed<DropdownMenuItem[]>(() => {
 
   return menuItems;
 });
+
+onMounted(() => {
+  const src = user.value?.picture;
+  if (src) {
+    const image = new Image();
+    image.onload = () => {
+      picture.value = src;
+    };
+    image.src = src;
+  }
+});
 </script>
 
 <template>
@@ -115,9 +128,9 @@ const items = computed<DropdownMenuItem[]>(() => {
       class="data-[state=open]:bg-elevated"
       :ui="{ trailingIcon: 'text-dimmed' }"
       :icon="user ? undefined : 'i-lucide-circle-user'"
-      :avatar="user ? { alt: user.fullname, size: '2xs' } : undefined"
       :trailing-icon="collapsed ? undefined : 'i-lucide-chevrons-up-down'"
       :aria-label="user?.fullname ?? i18n.t('components.userMenu.anonymous.label')"
+      :avatar="user ? { src: picture, alt: user.fullname, size: '2xs' } : undefined"
       :label="collapsed ? undefined : (user?.fullname ?? i18n.t('components.userMenu.anonymous.label'))"
     />
     <template #chip-leading="{ item }">

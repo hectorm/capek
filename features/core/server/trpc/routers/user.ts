@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
+import { userPicturePath } from "#layers/core/server/lib/authn/picture";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
@@ -67,7 +68,7 @@ export const userRouter = createTRPCRouter({
         username: ctx.user.username,
         fullname: ctx.user.fullname,
         email: ctx.user.email,
-        picture: ctx.user.picture,
+        picture: userPicturePath(ctx.user.picture),
         groups: ctx.user.groups,
         permissions: ctx.user.permissions,
         canLogOut: config.authMode === AuthModes.OIDC,
