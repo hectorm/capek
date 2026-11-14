@@ -10,18 +10,18 @@ import { NuxtLayout, NuxtLoadingIndicator, NuxtPage, NuxtRouteAnnouncer } from "
 
 import type { ToasterProps } from "@nuxt/ui";
 import UApp from "@nuxt/ui/components/App.vue";
-import * as locales from "@nuxt/ui/locale";
 
 import { useDevice } from "#layers/core/app/composables/device";
 import { useSettingsStore } from "#layers/core/app/stores/settings";
+import { locales } from "#layers/core/app/utils/locales";
 
 const route = useRoute();
 
 const i18n = useI18n();
 const settingsStore = useSettingsStore();
-const locale = computed(() => locales[i18n.locale.value]);
+const locale = computed(() => locales[i18n.locale.value].ui);
 
-z.config((i18n.locale.value in z.locales ? z.locales[i18n.locale.value] : z.locales.en)());
+z.config(locales[i18n.locale.value].zod());
 
 const { isMobile } = useDevice();
 provideSSRWidth(isMobile ? breakpointsTailwind.md : breakpointsTailwind.lg);

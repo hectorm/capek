@@ -7,14 +7,15 @@ import { useI18n } from "vue-i18n";
 import UApp from "@nuxt/ui/components/App.vue";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
-import * as locales from "@nuxt/ui/locale";
+
+import { locales } from "#layers/core/app/utils/locales";
 
 defineProps<{
   error: NuxtError;
 }>();
 
 const i18n = useI18n();
-const locale = computed(() => locales[i18n.locale.value]);
+const locale = computed(() => locales[i18n.locale.value].ui);
 
 const dev = import.meta.dev;
 

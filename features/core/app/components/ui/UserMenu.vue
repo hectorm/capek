@@ -11,6 +11,7 @@ import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { locales } from "#layers/core/app/utils/locales";
 
 defineProps<{
   collapsed?: boolean;
@@ -50,9 +51,8 @@ const items = computed<DropdownMenuItem[]>(() => {
       checked: i18n.locale.value === l.code,
       onSelect(e: Event) {
         e.preventDefault();
-        const code = l.code as keyof typeof z.locales;
-        void i18n.setLocale(code as Parameters<typeof i18n.setLocale>[0]);
-        z.config((code in z.locales ? z.locales[code] : z.locales.en)());
+        void i18n.setLocale(l.code);
+        z.config(locales[l.code].zod());
       },
     })),
   });
