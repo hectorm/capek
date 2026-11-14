@@ -127,7 +127,7 @@ export class MockLLMChatCompletionsServer {
         return {
           name: "mock-table",
           columns: ["name", "total"],
-          rows: Array.from({ length: 30 }, (_, index) => [`item ${String(index + 1)}`, index + 1]),
+          rows: Array.from({ length: 150 }, (_, index) => [`item ${String(index + 1)}`, index + 1]),
         };
       case "execute_code":
         return { code: CODE, reasoning: "Testing" };

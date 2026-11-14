@@ -374,19 +374,19 @@ describe("agent executor", () => {
   it("stores the tables of the tool calls apart from the answer", async () => {
     const chat = await createChat({ showToolCalls: false });
 
-    fakeModel([answer(null, [listNotes(30)]), answer("There are 30 notes.")]);
+    fakeModel([answer(null, [listNotes(150)]), answer("There are 150 notes.")]);
     const { parts } = await send(chat, "List the notes.");
 
     const [part] = parts as ChatTablePart[];
-    expect(part).toMatchObject({ type: "table", name: "Notes", columns: ["note"], rowCount: 30 });
-    expect(part?.rows).toHaveLength(20);
+    expect(part).toMatchObject({ type: "table", name: "Notes", columns: ["note"], rowCount: 150 });
+    expect(part?.rows).toHaveLength(100);
     expect((await answers(chat)).flatMap((message) => message.items)).toMatchObject([
       { type: "function_call", name: "notes_table", parts: [part] },
       { type: "function_call_output", output: "Shown" },
-      { type: "message", content: "There are 30 notes." },
+      { type: "message", content: "There are 150 notes." },
     ]);
     const tableId = part?.id ?? "";
-    const notes = Array.from({ length: 30 }, (_, index) => [`note ${String(index)}`]);
+    const notes = Array.from({ length: 150 }, (_, index) => [`note ${String(index)}`]);
     expect(await loadTable(tableId, admin)).toBe(JSON.stringify({ columns: ["note"], rows: notes }));
 
     // The table goes with its answer

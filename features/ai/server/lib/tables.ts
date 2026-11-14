@@ -16,7 +16,7 @@ import { TablePartMaxRows, TablePartSchema } from "#layers/core/shared/tools";
 
 export const AI_TABLE_TOOL = "ai_table";
 
-const PREVIEW_ROWS = 20;
+const PREVIEW_ROWS = 100;
 const TABLE_MAX_CHARS = 5_000_000;
 const SESSION_TABLES_MAX_CHARS = 50_000_000;
 
