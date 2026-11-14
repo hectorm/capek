@@ -31,7 +31,7 @@ Everything else is merged by Nuxt as usual: pages, layouts, components, plugins,
 Tests also live in each layer:
 
 - `tests/unit/`: Vitest tests, run as a project named after the layer (`pnpm test:unit --project <name>`).
-- `tests/integration/`: Playwright tests, run against the whole application (`pnpm test:chromium features/<name>`). The default export of `setup.ts` provides the seed data and environment variables they need, merged with the ones of other layers, and `global-setup.ts` can start mock services.
+- `tests/integration/`: Playwright tests, run against the whole application (`pnpm test:chromium features/<name>`). The default export of `setup.ts` provides the seed data, environment variables and request headers they need, merged with the ones of other layers, and `global-setup.ts` can start mock services.
 
 ## Naming
 

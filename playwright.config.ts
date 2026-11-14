@@ -16,6 +16,7 @@ process.env.PLAYWRIGHT_TMP_DIR ??= mkdtempSync(join(tmpdir(), "playwright-tmp-")
 interface IntegrationSetup {
   seed?: Record<string, unknown>;
   env?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 const integrationDirs = selection.enabled
@@ -47,6 +48,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 const seed = setups.reduce<Record<string, unknown>>((merged, setup) => mergeSeed(merged, setup.seed ?? {}), {});
+const headers = Object.fromEntries(setups.flatMap((setup) => Object.entries(setup.headers ?? {})));
 
 export default defineConfig({
   testDir: "./features/",
@@ -63,6 +65,7 @@ export default defineConfig({
     baseURL: "http://localhost:51234",
     headless: true,
     trace: "on-first-retry",
+    extraHTTPHeaders: headers,
     screenshot: "only-on-failure",
     video: "on-first-retry",
   },
