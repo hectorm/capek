@@ -395,7 +395,10 @@ export const useChatStore = defineStore("ai.chat", () => {
         return;
       }
 
-      await fetchMessages(sessionId);
+      await fetchMessages(sessionId).catch(() => {
+        messages.value.set(sessionId, currentMsgs);
+        triggerRef(messages);
+      });
 
       const updatedMsgs = messages.value.get(sessionId) ?? [];
       const lastUserMsg = updatedMsgs.findLast((m) => m.role === "user");
