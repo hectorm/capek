@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 
 import { NuxtPage } from "#components";
 
@@ -17,11 +18,18 @@ const props = defineProps<{
 }>();
 
 const i18n = useI18n();
+const route = useRoute();
 
 const sidebar = inject(sidebarKey);
 
 const menu = computed<NavigationMenuItem[]>(() => {
-  return props.tabs.map((tab) => ({ label: i18n.t(tab.label), icon: tab.icon, to: tab.to, exact: tab.exact }));
+  return props.tabs.map((tab) => ({
+    label: i18n.t(tab.label),
+    icon: tab.icon,
+    to: tab.to,
+    exact: tab.exact,
+    active: tab.match?.(route.path),
+  }));
 });
 </script>
 

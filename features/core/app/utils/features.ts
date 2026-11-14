@@ -9,6 +9,8 @@ export interface AppMenuItem {
   to: string;
   // Only match the exact route when highlighting the active item
   exact?: boolean;
+  // Decide the paths that highlight the item
+  match?: (path: string) => boolean;
   // Show the item only to users holding any of these permissions
   permissions?: PermissionName[];
   // Tabs of the section, the item links to the first one the user can access and is hidden if there is none

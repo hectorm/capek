@@ -47,6 +47,7 @@ const navigationItems = computed<NavigationMenuItem[]>(() => {
     icon: item.icon,
     to: item.to,
     exact: item.exact,
+    active: item.match?.(route.path),
   }));
 });
 
