@@ -309,7 +309,10 @@ export const useChatStore = defineStore("ai.chat", () => {
 
     const onStreamComplete = () => {
       void fetchMessages(sessionId);
-      void fetchSessions();
+      const session = findSession(sessionId);
+      if (session) {
+        sessions.value = [{ ...session, updatedAt: new Date() }, ...sessions.value.filter((s) => s.id !== sessionId)];
+      }
       if (shouldAutoRename) {
         autoRenameSession(sessionId).catch((error: unknown) => {
           console.warn("Failed to auto-rename chat session", error);
