@@ -8,6 +8,7 @@ import UButton from "@nuxt/ui/components/Button.vue";
 import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 
 import type { ChatChartPart } from "#layers/ai/shared/chat";
+import { loadFrameLibrary } from "#layers/ai/app/utils/frame-libraries";
 
 const props = defineProps<{
   chart: ChatChartPart;
@@ -61,7 +62,16 @@ useEventListener("message", (event: FrameMessage) => {
   }
 
   if (event.data.type === "ready") {
-    draw();
+    loadFrameLibrary("echarts").then(
+      (source) => {
+        send({ type: "library", source });
+        draw();
+      },
+      (error: unknown) => {
+        console.error("Failed to load ECharts", error);
+        failed.value = true;
+      },
+    );
   } else if (event.data.type === "error") {
     console.error("Failed to draw chart", event.data.message);
     failed.value = true;

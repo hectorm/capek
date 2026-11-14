@@ -1,5 +1,3 @@
-import { version as glVersion } from "echarts-gl/package.json";
-import { version } from "echarts/package.json";
 import { defineEventHandler, setResponseHeaders } from "h3";
 
 import { TIME_FORMATTER_LEVELS } from "#layers/ai/server/lib/charts";
@@ -23,7 +21,6 @@ const page = (nonce: string): string => `<!doctype html>
   </head>
   <body>
     <div id="chart"></div>
-    <script nonce="${nonce}" src="/api/ai/chart/echarts?v=${version}-${glVersion}"></script>
     <script nonce="${nonce}">
       let chart;
       let theme;
@@ -98,7 +95,9 @@ const page = (nonce: string): string => `<!doctype html>
 
       addEventListener("message", (event) => {
         if (event.source !== parent) return;
-        if (event.data.type === "draw") {
+        if (event.data.type === "library") {
+          (0, eval)(event.data.source);
+        } else if (event.data.type === "draw" && typeof echarts !== "undefined") {
           draw(event.data);
         } else if (event.data.type === "export" && chart) {
           parent.postMessage({ type: "export", url: exportImage(event.data.format) }, "*");
