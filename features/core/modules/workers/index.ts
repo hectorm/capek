@@ -7,6 +7,7 @@ import ts from "typescript";
 interface BundlerContext {
   addWatchFile: (file: string) => void;
   emitFile: (file: { type: "asset"; fileName: string; source: string }) => string;
+  resolve: (source: string, importer: string) => Promise<unknown>;
 }
 
 // Emits the worker threads of the server as they are, since bundling them could start another server in the thread
@@ -19,8 +20,9 @@ export default defineNuxtModule({
 
     const workerThreadsPlugin = {
       name: "worker-threads-plugin",
-      transform(this: BundlerContext, code: string, id: string): { code: string; map: null } | null {
+      async transform(this: BundlerContext, code: string, id: string): Promise<{ code: string; map: null } | null> {
         const emitted = new Set<string>();
+        const packages: { name: string; importer: string }[] = [];
 
         const emit = (path: string): string => {
           const fileName = `workers/${relative(featuresDir, path)}`;
@@ -42,6 +44,8 @@ export default defineNuxtModule({
               emit(resolve(dirname(path), imported));
             } else if (!/^(node:|@?[a-z])/.test(imported)) {
               throw new Error(`"${path}" runs in a worker thread, where "${imported}" cannot be imported`);
+            } else if (!imported.startsWith("node:")) {
+              packages.push({ name: imported, importer: path });
             }
           }
 
@@ -56,6 +60,13 @@ export default defineNuxtModule({
             return `${start}./${emit(resolve(dirname(id), worker))}${end}`;
           },
         );
+
+        for (const { name, importer } of packages) {
+          if (!(await this.resolve(name, importer))) {
+            throw new Error(`"${importer}" imports "${name}", which cannot be resolved`);
+          }
+        }
+
         return pointed === code ? null : { code: pointed, map: null };
       },
     };
