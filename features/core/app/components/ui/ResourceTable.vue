@@ -58,7 +58,7 @@ const tableColumns = computed<TableColumn<R>[]>(() => [
   })),
   {
     id: ACTIONS_COLUMN,
-    meta: { class: { th: "w-0 min-w-15 bg-default", td: "w-0 px-0 text-center bg-default bg-clip-content" } },
+    meta: { class: { th: "w-0 min-w-15 bg-default", td: "w-0 px-0 py-1 text-center bg-default bg-clip-content" } },
   },
 ]);
 
@@ -134,8 +134,8 @@ useInfiniteScroll(
     :data="table.rows.value"
     :loading="table.loading.value"
     :column-pinning="columnPinning"
+    :ui="{ th: 'py-1', td: 'py-2' }"
     :sorting-options="sortingOptions"
-    :ui="{ th: 'px-3 py-1.5', td: 'px-3 py-1.5' }"
   >
     <template v-for="column in columns" :key="column.id" #[`${column.id}-header`]>
       <ResourceTableHeader
@@ -149,7 +149,6 @@ useInfiniteScroll(
     <template #[`${ACTIONS_COLUMN}-header`]>
       <UButton
         v-if="canCreate"
-        size="sm"
         color="neutral"
         variant="ghost"
         icon="i-lucide-plus"
@@ -187,7 +186,7 @@ useInfiniteScroll(
     </template>
     <template v-if="table.loadMoreFailed.value" #body-bottom>
       <tr>
-        <td :colspan="tableColumns.length" class="px-3 py-1.5 text-center text-sm text-muted">
+        <td :colspan="tableColumns.length" class="px-4 py-2 text-center text-sm text-muted">
           {{ $t("components.resourceTable.loadError") }}
           <UButton
             size="sm"
