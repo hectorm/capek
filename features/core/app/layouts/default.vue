@@ -87,7 +87,7 @@ watch(
           <AppLogo class="h-8" :collapsed="collapsed" />
         </NuxtLink>
       </div>
-      <div v-if="navigationItems.length > 0" class="border-b border-default p-2">
+      <div v-if="navigationItems.length > 0" class="border-b border-default px-3 py-2">
         <UNavigationMenu
           tooltip
           :collapsed="collapsed"
