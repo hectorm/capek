@@ -71,7 +71,7 @@ watch(
 <template>
   <div class="flex h-screen flex-row">
     <DefineMenu>
-      <div class="flex flex-row gap-2 p-4">
+      <div class="flex flex-row items-center gap-2 p-4">
         <UButton
           v-if="!lgAndLarger"
           square
@@ -86,12 +86,21 @@ watch(
         </NuxtLink>
       </div>
       <div v-if="navigationItems.length > 0" class="border-b border-default p-2">
-        <UNavigationMenu :collapsed="collapsed" orientation="vertical" :items="navigationItems" />
+        <UNavigationMenu
+          tooltip
+          :collapsed="collapsed"
+          orientation="vertical"
+          :items="navigationItems"
+          :ui="{ link: collapsed ? 'justify-center' : undefined }"
+        />
       </div>
       <div class="flex min-h-0 flex-1 flex-col">
         <component :is="section.component" v-for="(section, i) in sidebarSections" :key="i" :collapsed="collapsed" />
       </div>
-      <div class="flex flex-col items-stretch gap-1 border-t border-default px-3.5 py-2">
+      <div
+        :class="collapsed ? 'items-center' : 'items-stretch'"
+        class="flex flex-col gap-1 border-t border-default px-3.5 py-2"
+      >
         <UserMenu class="p-2" :collapsed="collapsed" />
       </div>
     </DefineMenu>
@@ -100,9 +109,9 @@ watch(
         :style="{ 'scrollbar-width': 'thin' }"
         :aria-label="$t('layouts.default.sidebar.label')"
         :class="[collapsed ? 'max-w-16 min-w-16' : 'max-w-64 min-w-64']"
-        class="hidden flex-col overflow-x-hidden border-r border-default bg-elevated/25 duration-100 lg:flex"
+        class="hidden flex-col overflow-x-hidden border-r border-default bg-elevated/25 transition-[min-width,max-width] duration-200 ease-out motion-reduce:transition-none lg:flex"
       >
-        <div class="flex h-full flex-col" :class="[collapsed ? 'min-w-16' : 'min-w-64']">
+        <div class="flex h-full flex-col" :class="[collapsed ? 'w-16' : 'w-64']">
           <ReuseMenu />
         </div>
       </aside>

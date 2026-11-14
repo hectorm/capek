@@ -114,8 +114,10 @@ const items = computed<DropdownMenuItem[]>(() => {
       :square="collapsed"
       class="data-[state=open]:bg-elevated"
       :ui="{ trailingIcon: 'text-dimmed' }"
+      :icon="user ? undefined : 'i-lucide-circle-user'"
+      :avatar="user ? { alt: user.fullname, size: '2xs' } : undefined"
+      :trailing-icon="collapsed ? undefined : 'i-lucide-chevrons-up-down'"
       :aria-label="user?.fullname ?? i18n.t('components.userMenu.anonymous.label')"
-      :trailing-icon="collapsed ? 'i-lucide-circle-user' : 'i-lucide-chevrons-up-down'"
       :label="collapsed ? undefined : (user?.fullname ?? i18n.t('components.userMenu.anonymous.label'))"
     />
     <template #chip-leading="{ item }">
