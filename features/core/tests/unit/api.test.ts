@@ -160,9 +160,9 @@ describe("OIDC logout", () => {
   it("ends the session of the user", async () => {
     const session = await useSessions().createSession(alice);
 
-    const response = await request("/api/logout", { headers: { Cookie: `session=${session.token}` } });
+    const response = await request("/api/logout", { headers: { Cookie: `__Host-session=${session.token}` } });
     expect(response.headers.get("location")).toBe("/");
-    expect(response.headers.get("set-cookie")).toContain("session=; Path=/; Max-Age=0");
+    expect(response.headers.get("set-cookie")).toContain("__Host-session=; Path=/; Max-Age=0");
     expect(await sessionIds()).toEqual([]);
   });
 

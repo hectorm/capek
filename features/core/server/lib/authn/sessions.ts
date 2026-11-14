@@ -23,7 +23,7 @@ export class Sessions {
   public maxDurationSec: number;
 
   public constructor(options: SessionsOptions) {
-    this.cookieName = options.cookieName;
+    this.cookieName = (import.meta.dev ? "" : "__Host-") + options.cookieName;
     this.durationSec = options.durationSec;
     this.maxDurationSec = options.maxDurationSec;
   }

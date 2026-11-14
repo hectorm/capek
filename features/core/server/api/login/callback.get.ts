@@ -52,9 +52,10 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  deleteCookie(event, oidc.codeVerifierCookieName);
-  deleteCookie(event, oidc.stateCookieName);
-  deleteCookie(event, oidc.nonceCookieName);
+  const cookieOptions = { path: "/", secure: !import.meta.dev };
+  deleteCookie(event, oidc.codeVerifierCookieName, cookieOptions);
+  deleteCookie(event, oidc.stateCookieName, cookieOptions);
+  deleteCookie(event, oidc.nonceCookieName, cookieOptions);
 
   let tokens;
   try {

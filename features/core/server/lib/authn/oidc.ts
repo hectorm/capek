@@ -121,9 +121,10 @@ export class OIDC {
     this.groupsAttributePath = options.groupsAttributePath;
     this.allowedPath = options.allowedPath;
 
-    this.codeVerifierCookieName = options.codeVerifierCookieName;
-    this.stateCookieName = options.stateCookieName;
-    this.nonceCookieName = options.nonceCookieName;
+    const cookiePrefix = import.meta.dev ? "" : "__Host-";
+    this.codeVerifierCookieName = cookiePrefix + options.codeVerifierCookieName;
+    this.stateCookieName = cookiePrefix + options.stateCookieName;
+    this.nonceCookieName = cookiePrefix + options.nonceCookieName;
 
     this.httpRequestOptions = {};
   }
