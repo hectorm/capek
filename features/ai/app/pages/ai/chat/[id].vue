@@ -141,6 +141,7 @@ const messageParts = computed(() => {
 
 const userProps = computed(() => ({
   avatar: { icon: "i-lucide-user" },
+  ui: { actions: "has-focus-visible:opacity-100" },
   actions:
     chatStatus.value === "ready"
       ? [
@@ -165,6 +166,7 @@ const userProps = computed(() => ({
 
 const assistantProps = computed(() => ({
   avatar: { icon: "i-lucide-bot" },
+  ui: { actions: "has-focus-visible:opacity-100" },
   actions:
     chatStatus.value === "ready"
       ? [
