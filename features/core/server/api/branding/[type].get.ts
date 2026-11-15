@@ -7,6 +7,8 @@ import { getSetting } from "#layers/core/server/lib/settings";
 
 const TypeSchema = z.enum(["logo", "icon"]);
 
+const PUBLIC_IMAGE_PATTERN = /^\/[\w-][\w./-]*\.(?:svg|png|webp|jpe?g|avif|gif|jxl)$/;
+
 const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/webp",
@@ -27,12 +29,15 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const dataUri = await getSetting(`branding.${type.data}`);
-  if (!dataUri) {
+  const image = await getSetting(`branding.${type.data}`);
+  if (!image) {
     return sendRedirect(event, `/${type.data}.svg`, 302);
   }
+  if (PUBLIC_IMAGE_PATTERN.test(image)) {
+    return sendRedirect(event, image, 302);
+  }
 
-  const dataUriMatch = /^data:([^;]+);base64,(.+)$/.exec(dataUri);
+  const dataUriMatch = /^data:([^;]+);base64,(.+)$/.exec(image);
   if (!dataUriMatch) {
     throw createError({
       statusCode: 500,
