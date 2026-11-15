@@ -12,7 +12,7 @@ Capek is a self-hosted conversational AI platform.
 - Multi-user support with RBAC and Row Level Security (RLS).
 - Single-user, OpenID Connect (OIDC) and proxy authentication modes.
 - Agent orchestration with triage and specialist patterns.
-- OpenAI-compatible LLM provider integration.
+- Support for the OpenAI Chat Completions, Open Responses and Anthropic Messages APIs.
 - MCP server integration.
 - Skills with a sandboxed code interpreter.
 - Datasource integration (ClickHouse, MariaDB, PostgreSQL and SQL Server).
