@@ -13,6 +13,19 @@ export default defineNuxtConfig({
     "@pinia/nuxt",
     "@vueuse/nuxt",
   ],
+  app: {
+    head: {
+      link: [
+        {
+          rel: "preload",
+          as: "font",
+          type: "font/woff2",
+          href: "/fonts/inter/inter-latin-opsz-normal.woff2",
+          crossorigin: "anonymous",
+        },
+      ],
+    },
+  },
   colorMode: {
     storage: "localStorage",
     storageKey: "color_mode",
