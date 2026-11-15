@@ -25,9 +25,9 @@ Capek is a self-hosted conversational AI platform.
 <figure>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./resources/screenshots/chat-dark.png">
-    <img alt="Chat UI showing a conversation" width="1024" src="./resources/screenshots/chat-light.png">
+    <img alt="Chat UI showing a temperature anomaly analysis with a table and a chart" width="1024" src="./resources/screenshots/chat-light.png">
   </picture>
-  <figcaption><em>Running locally with llama.cpp (gpt-oss-120b) and a Playwright skill.</em></figcaption>
+  <figcaption><em>Running with gpt-6.1-terra and the ClickHouse Playground.</em></figcaption>
 </figure>
 
 ## Tech stack
