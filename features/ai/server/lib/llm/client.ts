@@ -171,7 +171,7 @@ export class LlmClient {
         stream: false,
         max_output_tokens: 256,
       };
-      const completion = (await this.completion(request, undefined)) as LlmResponse;
+      const completion = (await this.completion(request, AbortSignal.timeout(10_000))) as LlmResponse;
       summary = completion.output.find((item) => item.type === "message")?.content.trim() ?? null;
     } catch (error) {
       logger.warn({ error }, "Summary generation failed, using truncated prompt");
