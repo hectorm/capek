@@ -153,7 +153,9 @@ const readStreamResponse = async (
     const headers = new Headers(options.headers);
     headers.set("Accept", "text/event-stream");
     headers.set("Last-Event-ID", lastEventId);
-    const resumed = await send(url, { method: "GET", headers, signal });
+    const resumed = await send(url, { method: "GET", headers, signal }).catch((error: unknown) => {
+      throw new Error(`The MCP server did not resume its stream: ${describeError(error)}`);
+    });
     stream = await readStream(resumed.body, id);
     lastEventId = stream.lastEventId ?? lastEventId;
   }

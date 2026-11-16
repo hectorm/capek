@@ -100,7 +100,7 @@ const respond = (target: string, init: RequestInit): Promise<Response> => {
       return Promise.resolve(events("retry: 0\n\n"));
     }
     const body = interrupted.get(headers.get("Last-Event-ID") ?? "");
-    return Promise.resolve(body ? stream(body) : new Response(null, { status: 405 }));
+    return Promise.resolve(body ? stream(body) : new Response(null, { status: pathname === "/session" ? 404 : 405 }));
   }
   if (pathname === "/expired") {
     return Promise.resolve(new Response(null, { status: 404, headers: { "Mcp-Session-Id": "expired" } }));
@@ -194,6 +194,9 @@ const respond = (target: string, init: RequestInit): Promise<Response> => {
     const eventId = `event-${String(message.id)}`;
     interrupted.set(eventId, answer({ content: [{ type: "text", text: "resumed" }] }));
     return Promise.resolve(events(`id: ${eventId}\ndata:\n\nretry: 0\n\n`));
+  }
+  if (message.params?.name === "lose") {
+    return Promise.resolve(events("id: lost\ndata:\n\nretry: 0\n\n"));
   }
   if (message.params?.name === "slow") {
     return new Promise((resolve) => {
@@ -423,6 +426,13 @@ describe("legacy MCP connection", () => {
 
     expect(await client.callTool(tool("interrupt"), {})).toMatchObject({ content: [{ text: "resumed" }] });
     expect(sent("Last-Event-ID").at(-1)).toMatch(/^\/mcp GET event-\d+$/);
+  });
+
+  it("does not call a tool again when its stream cannot be resumed", async () => {
+    const client = await connect(server("session"));
+
+    await expect(client.callTool(tool("lose"), {})).rejects.toThrow("did not resume its stream");
+    expect(requests.filter(({ method }) => method === "tools/call")).toHaveLength(1);
   });
 
   it("waits before reopening the stream of a server that asks for no delay", async () => {
