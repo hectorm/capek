@@ -88,6 +88,13 @@ describe("PostgreSQL datasource", () => {
   it("returns every column and the dates as text", async () => {
     const rows = await run("SELECT 1 AS id, 2 AS id, 3, DATE '2024-01-01' AS day, TIMESTAMP '2024-01-01 10:00' AS at");
     expect(rows).toEqual([{ id: 1, column2: 2, "?column?": 3, day: "2024-01-01", at: "2024-01-01 10:00:00" }]);
+
+    expect(await run("SELECT 111 AS column2, 222 AS column2, 333 AS column3")).toEqual([
+      { column2: 111, column2_2: 222, column3: 333 },
+    ]);
+    expect(await run("SELECT 1 AS id, 2 AS id, 3 AS column2, 4 AS column2_2")).toEqual([
+      { id: 1, column2_3: 2, column2: 3, column2_2: 4 },
+    ]);
   });
 
   it("runs the statements that are not queries", async () => {

@@ -14,11 +14,18 @@ export const connectionUrl = (config: UrlDatasourceConfig, options: ReadonlySet<
 };
 
 export const toRow = (names: readonly string[], values: readonly unknown[]): Record<string, unknown> => {
+  const reserved = new Set(names);
   const used = new Set<string>();
   return Object.fromEntries(
     values.map((value, i) => {
-      const given = names[i];
-      const name = given && !used.has(given) ? given : `column${String(i + 1)}`;
+      let name = names[i];
+      if (!name || used.has(name)) {
+        const base = `column${String(i + 1)}`;
+        name = base;
+        for (let suffix = 2; reserved.has(name) || used.has(name); suffix++) {
+          name = `${base}_${String(suffix)}`;
+        }
+      }
       used.add(name);
       return [name, value];
     }),
