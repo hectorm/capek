@@ -247,9 +247,6 @@ importers:
       jose:
         specifier: ~6.2.15
         version: 6.2.15
-      json-rpc-2.0:
-        specifier: ~1.8.1
-        version: 1.8.1
       kysely:
         specifier: ~0.29.8
         version: 0.29.8
@@ -4789,9 +4786,6 @@ packages:
   json-parse-even-better-errors@6.0.0:
     resolution: {integrity: sha512-2/8adwnK1/+Fdjyts4r6wSpfANWw8zdNhU9U/Llk59c6O+DjSisPWPykwoL8gZmocP9Dy64S7oie2g+Mia123A==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
-
-  json-rpc-2.0@1.8.1:
-    resolution: {integrity: sha512-BmN42JKn6FI36pcMMzHCXQhpKNEfbeqgSIcUYHKnifq0/4Ey6PDinovwUOgajT7NsgUtpWdDXaCWlpI4LHXN3g==}
 
   json-schema-to-typescript-lite@15.0.0:
     resolution: {integrity: sha512-5mMORSQm9oTLyjM4mWnyNBi2T042Fhg1/0gCIB6X8U/LVpM2A+Nmj2yEyArqVouDmFThDxpEXcnTgSrjkGJRFA==}
@@ -11580,8 +11574,6 @@ snapshots:
   jsesc@3.1.0: {}
 
   json-parse-even-better-errors@6.0.0: {}
-
-  json-rpc-2.0@1.8.1: {}
 
   json-schema-to-typescript-lite@15.0.0:
     dependencies:

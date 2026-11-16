@@ -132,6 +132,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("stateful", "boolean", (col) => col.defaultTo(sql`false`).notNull())
     .addColumn("toolCallTimeoutSec", "integer")
     .addColumn("cachedTools", "jsonb", (col) => col.defaultTo(sql`'[]'::jsonb`).notNull())
+    .addColumn("cachedToolsExpiresAt", "timestamptz")
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();

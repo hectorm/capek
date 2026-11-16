@@ -21,6 +21,14 @@ export default {
             users: { users: ["admin"] },
           },
         },
+        {
+          name: "Mock legacy MCP",
+          url: "http://localhost:51239/mcp",
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
       ],
       skills: [
         {
@@ -78,7 +86,7 @@ export default {
           type: "specialist",
           llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
-          mcpServers: ["Mock MCP"],
+          mcpServers: ["Mock legacy MCP"],
           skills: ["rot13"],
           access: {
             editors: { users: ["admin"] },

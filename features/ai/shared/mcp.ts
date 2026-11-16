@@ -38,6 +38,7 @@ export type MCPTool = z.infer<typeof MCPToolSchema>;
 export const MCPListToolsResultSchema = z.object({
   tools: z.array(MCPToolSchema),
   nextCursor: z.string().nullish(),
+  ttlMs: z.number().nullish(),
 });
 
 export type MCPListToolsResult = z.infer<typeof MCPListToolsResultSchema>;

@@ -1,10 +1,10 @@
 import cluster from "node:cluster";
 import { clearTimeout, setTimeout } from "node:timers";
 
-import type { MCPCallToolResult } from "#layers/ai/shared/mcp";
-import type { HttpHeader } from "#layers/core/shared/http";
+import type { MCPConnection, MCPServer } from "#layers/ai/server/lib/mcp/connection";
+import type { MCPCallToolResult, MCPTool } from "#layers/ai/shared/mcp";
 import { AbortError, TimeoutError } from "#layers/ai/server/lib/errors";
-import { MCPClient } from "#layers/ai/server/lib/mcp/client";
+import { connect } from "#layers/ai/server/lib/mcp/client";
 import { MCPIPCClient } from "#layers/ai/server/lib/mcp/ipc";
 import { MCPServerParameters } from "#layers/ai/shared/mcp";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -31,16 +31,20 @@ const mcpResultText = (result: MCPCallToolResult): string => {
   return texts.join("\n");
 };
 
-const terminateClient = async (serverName: string, client: Promise<MCPClient>): Promise<void> => {
+const closeClient = async (serverName: string, client: Promise<MCPConnection>): Promise<void> => {
   try {
-    await (await client).terminate();
+    await (await client).close();
   } catch (error) {
-    logger.warn({ error, serverName }, "Failed to terminate MCP client");
+    logger.warn({ error, serverName }, "Failed to close MCP client");
   }
 };
 
+export interface MCPToolServer extends MCPServer {
+  toolCallTimeoutSec: number | null;
+}
+
 interface MCPSession {
-  clients: Map<string, { config: string; client: Promise<MCPClient> }>;
+  clients: Map<string, { config: string; client: Promise<MCPConnection> }>;
   calls: number;
   lastUsedAt: number;
 }
@@ -61,44 +65,36 @@ export class MCPManager {
   }
 
   public async getOrCreateClient(
-    serverName: string,
-    serverUrl: string,
-    serverHeaders: HttpHeader[],
+    { name, url, headers, stateful }: MCPServer,
     chatSessionId: string,
-    stateful: boolean,
-  ): Promise<MCPClient> {
+  ): Promise<MCPConnection> {
     if (cluster.isWorker) {
       throw new Error("Method not available in worker processes");
     }
 
     const session = this.sessions.get(chatSessionId) ?? {
-      clients: new Map<string, { config: string; client: Promise<MCPClient> }>(),
+      clients: new Map<string, { config: string; client: Promise<MCPConnection> }>(),
       calls: 0,
       lastUsedAt: 0,
     };
     session.lastUsedAt = Date.now();
     this.sessions.set(chatSessionId, session);
 
-    const config = JSON.stringify([serverUrl, serverHeaders, stateful]);
-    const existing = session.clients.get(serverName);
+    const config = JSON.stringify([url, headers, stateful]);
+    const existing = session.clients.get(name);
     if (existing?.config === config) {
       return existing.client;
     }
     if (existing) {
-      void terminateClient(serverName, existing.client);
+      void closeClient(name, existing.client);
     }
 
-    const client = (async () => {
-      const created = new MCPClient({ name: serverName, url: serverUrl, headers: serverHeaders, stateful });
-      await created.initialize();
-      logger.debug({ serverName, chatSessionId, sessionId: created.sessionId }, "MCP client created for chat session");
-      return created;
-    })();
-    session.clients.set(serverName, { config, client });
+    const client = connect({ name, url, headers, stateful });
+    session.clients.set(name, { config, client });
 
     client.catch(() => {
-      if (session.clients.get(serverName)?.client === client) {
-        session.clients.delete(serverName);
+      if (session.clients.get(name)?.client === client) {
+        session.clients.delete(name);
       }
     });
 
@@ -119,7 +115,7 @@ export class MCPManager {
     this.sessions.delete(chatSessionId);
 
     await Promise.all(
-      Array.from(session.clients.entries()).map(([serverName, { client }]) => terminateClient(serverName, client)),
+      Array.from(session.clients.entries()).map(([serverName, { client }]) => closeClient(serverName, client)),
     );
 
     logger.debug({ chatSessionId, clientCount: session.clients.size }, "MCP session cleaned up");
@@ -140,38 +136,31 @@ export class MCPManager {
   }
 
   public async callTool(
-    serverName: string,
-    serverUrl: string,
-    serverHeaders: HttpHeader[],
-    toolName: string,
+    server: MCPToolServer,
+    tool: MCPTool,
     args: Record<string, unknown>,
     chatSessionId: string,
-    stateful: boolean,
-    timeoutSec: number | null,
     signal?: AbortSignal,
   ): Promise<string> {
-    const callTimeoutMs = (timeoutSec ?? MCPServerParameters.toolCallTimeoutSec.default) * 1000;
+    const callTimeoutMs = (server.toolCallTimeoutSec ?? MCPServerParameters.toolCallTimeoutSec.default) * 1000;
 
     if (cluster.isWorker && MCPManager.ipcClient) {
       const ipcTimeoutMs = callTimeoutMs + 1000;
+      const { name, url, headers, stateful, toolCallTimeoutSec } = server;
       return (await MCPManager.ipcClient.send(
         {
           type: "callTool",
-          serverName,
-          serverUrl,
-          serverHeaders,
-          toolName,
+          server: { name, url, headers, stateful, toolCallTimeoutSec },
+          tool,
           args,
           chatSessionId,
-          stateful,
-          timeoutSec,
         },
         ipcTimeoutMs,
         signal,
       )) as string;
     }
 
-    const client = this.getOrCreateClient(serverName, serverUrl, serverHeaders, chatSessionId, stateful);
+    const client = this.getOrCreateClient(server, chatSessionId);
     const session = this.sessions.get(chatSessionId);
     if (session) {
       session.calls++;
@@ -219,7 +208,7 @@ export class MCPManager {
       }, callTimeoutMs);
 
       client
-        .then((created) => created.callTool(toolName, args, { signal, timeoutMs: callTimeoutMs }))
+        .then((created) => created.callTool(tool, args, { signal, timeoutMs: callTimeoutMs }))
         .then(
           (callResult) => {
             settle(() => {

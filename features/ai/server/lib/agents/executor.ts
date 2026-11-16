@@ -38,7 +38,7 @@ import {
 } from "#layers/ai/server/lib/errors";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
-import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
+import { ensureToolsDiscovered, hasFreshTools } from "#layers/ai/server/lib/mcp/tools";
 import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets, decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
@@ -351,7 +351,7 @@ export class AgentExecutor {
 
     await Promise.all(
       mcpServers
-        .filter((server) => server.cachedTools.length === 0)
+        .filter((server) => !hasFreshTools(server))
         .map(async (server) => {
           try {
             server.cachedTools = await ensureToolsDiscovered(db, server.id);
@@ -764,17 +764,7 @@ export class AgentExecutor {
         parameters: { ...mcpTool.inputSchema, properties: mcpTool.inputSchema.properties ?? {} },
         execute: (args, context) => {
           const mcpManager = MCPManager.getInstance();
-          return mcpManager.callTool(
-            server.name,
-            server.url,
-            server.headers,
-            mcpTool.name,
-            args,
-            this.config.sessionId,
-            server.stateful,
-            server.toolCallTimeoutSec,
-            context.signal,
-          );
+          return mcpManager.callTool(server, mcpTool, args, this.config.sessionId, context.signal);
         },
       },
     }));
@@ -1054,6 +1044,7 @@ export class AgentExecutor {
         "aiMcpServers.stateful",
         "aiMcpServers.toolCallTimeoutSec",
         "aiMcpServers.cachedTools",
+        "aiMcpServers.cachedToolsExpiresAt",
       ])
       .where("aiAgentMcpServers.agentId", "=", agentId)
       .execute();

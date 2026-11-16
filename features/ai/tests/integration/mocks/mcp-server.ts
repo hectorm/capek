@@ -2,6 +2,7 @@ import http from "node:http";
 
 export interface MockMCPServerOptions {
   port: number;
+  modern?: boolean;
 }
 
 interface JSONRPCRequest {
@@ -14,18 +15,22 @@ interface JSONRPCRequest {
 interface JSONRPCResponse {
   jsonrpc: string;
   id: string | number;
-  result?: unknown;
+  result?: object;
   error?: { code: number; message: string };
 }
+
+const MODERN_VERSION = "2026-07-28";
 
 export class MockMCPServer {
   private server: http.Server | null = null;
   private readonly port: number;
+  private readonly modern: boolean;
   private readonly sessions = new Set<string>();
   private sessionCounter = 0;
 
   public constructor(options: MockMCPServerOptions) {
     this.port = options.port;
+    this.modern = options.modern ?? true;
   }
 
   public async start(): Promise<void> {
@@ -102,6 +107,15 @@ export class MockMCPServer {
       return;
     }
 
+    const meta = request.params?._meta as Record<string, unknown> | undefined;
+    if (this.modern && meta?.["io.modelcontextprotocol/protocolVersion"] !== undefined) {
+      const { result, ...reply } =
+        request.method === "server/discover" ? this.handleDiscover(request) : this.processMethod(request);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result ? { ...reply, result: { resultType: "complete", ...result } } : reply));
+      return;
+    }
+
     let sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (request.method === "initialize") {
@@ -147,6 +161,19 @@ export class MockMCPServer {
           error: { code: -32601, message: "Method not found" },
         };
     }
+  }
+
+  private handleDiscover(request: JSONRPCRequest): JSONRPCResponse {
+    return {
+      jsonrpc: "2.0",
+      id: request.id,
+      result: {
+        supportedVersions: [MODERN_VERSION],
+        capabilities: {
+          tools: { listChanged: false },
+        },
+      },
+    };
   }
 
   private handleInitialize(request: JSONRPCRequest): JSONRPCResponse {

@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import process from "node:process";
 import { clearTimeout, setTimeout } from "node:timers";
 
-import type { HttpHeader } from "#layers/core/shared/http";
+import type { MCPToolServer } from "#layers/ai/server/lib/mcp/manager";
+import type { MCPTool } from "#layers/ai/shared/mcp";
 import { AbortError } from "#layers/ai/server/lib/errors";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -13,14 +14,10 @@ const logger = useLogger();
 export interface MCPIPCRequest {
   type: "callTool" | "cancelToolCall" | "cleanupSession" | "cleanupIdleSessions";
   requestId: string;
-  serverName?: string;
-  serverUrl?: string;
-  serverHeaders?: HttpHeader[];
-  toolName?: string;
+  server?: MCPToolServer;
+  tool?: MCPTool;
   args?: Record<string, unknown>;
   chatSessionId?: string;
-  stateful?: boolean;
-  timeoutSec?: number | null;
 }
 
 export interface MCPIPCResponse {
@@ -135,14 +132,10 @@ export const setupMCPIPCHandler = (): void => {
         switch (request.type) {
           case "callTool": {
             if (
-              request.serverName === undefined ||
-              request.serverUrl === undefined ||
-              request.serverHeaders === undefined ||
-              request.toolName === undefined ||
+              request.server === undefined ||
+              request.tool === undefined ||
               request.args === undefined ||
-              request.chatSessionId === undefined ||
-              request.stateful === undefined ||
-              request.timeoutSec === undefined
+              request.chatSessionId === undefined
             ) {
               throw new Error("Missing required arguments for callTool request");
             }
@@ -150,14 +143,10 @@ export const setupMCPIPCHandler = (): void => {
             activeToolCalls.set(request.requestId, abortController);
             try {
               data = await manager.callTool(
-                request.serverName,
-                request.serverUrl,
-                request.serverHeaders,
-                request.toolName,
+                request.server,
+                request.tool,
                 request.args,
                 request.chatSessionId,
-                request.stateful,
-                request.timeoutSec,
                 abortController.signal,
               );
             } finally {

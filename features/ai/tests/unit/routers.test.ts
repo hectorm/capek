@@ -6,6 +6,7 @@ import type { Logger } from "pino";
 import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
@@ -25,6 +26,8 @@ let db: Kysely<Database>;
 let endpoint: http.Server;
 let endpointUrl: string;
 const requests: string[] = [];
+
+let toolList: { tools: MCPTool[]; ttlMs?: number } | null = null;
 
 const alice = crypto.randomUUID();
 const mallory = crypto.randomUUID();
@@ -48,6 +51,16 @@ beforeAll(async () => {
     requests.push(`${String(req.method)} ${String(req.url)} ${req.headers.authorization ?? "-"}`);
     if (req.url?.startsWith("/moved")) {
       res.writeHead(307, { Location: `${endpointUrl}${req.method === "GET" ? "/v1/models" : "/mcp"}` }).end();
+    } else if (req.url?.startsWith("/tools")) {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        const { id, method } = JSON.parse(Buffer.concat(chunks).toString()) as { id: number; method: string };
+        const result = method === "server/discover" ? { supportedVersions: ["2026-07-28"] } : toolList;
+        res
+          .writeHead(toolList ? 200 : 500, { "Content-Type": "application/json" })
+          .end(JSON.stringify({ jsonrpc: "2.0", id, result }));
+      });
     } else if (req.url?.startsWith("/api")) {
       res
         .writeHead(404, { "Content-Type": "application/json" })
@@ -121,7 +134,7 @@ describe("connection test", () => {
     const mcpServer = await creator.mcpServer.testConnection({ url: `${endpointUrl}/api` });
     expect(mcpServer).toEqual({ success: false, error: "MCP request failed: 404 Not Found: No such model" });
 
-    expect(requests).toEqual(["GET /api/models Bearer key", "POST /api -"]);
+    expect(requests).toEqual(["GET /api/models Bearer key", "POST /api -", "POST /api -"]);
   });
 
   it("does not report the body of another service", async () => {
@@ -161,6 +174,54 @@ describe("tool discovery", () => {
     expect(await ensureToolsDiscovered(db, mcpServerId)).toEqual([]);
 
     expect(requests).toEqual(["POST /mcp -"]);
+  });
+
+  it("is repeated when the time to keep the tools of a server is over", async () => {
+    const id = crypto.randomUUID();
+    await db
+      .insertInto("aiMcpServers")
+      .values({
+        id,
+        name: "tools",
+        description: "",
+        url: `${endpointUrl}/tools`,
+        headers: encryptMcpServerHeaders([]),
+        stateful: false,
+        toolCallTimeoutSec: null,
+        cachedTools: JSON.stringify([]),
+      })
+      .execute();
+    const expire = async (): Promise<void> => {
+      await db
+        .updateTable("aiMcpServers")
+        .set({ cachedToolsExpiresAt: new Date(0) })
+        .where("id", "=", id)
+        .execute();
+    };
+    const search: MCPTool = { name: "search", inputSchema: { type: "object" } };
+    const read: MCPTool = { name: "read", inputSchema: { type: "object" } };
+
+    toolList = { tools: [search], ttlMs: 60 * 60 * 1000 };
+    expect(await ensureToolsDiscovered(db, id)).toEqual([search]);
+    toolList = { tools: [search, read] };
+    expect(await ensureToolsDiscovered(db, id)).toEqual([search]);
+    expect(requests).toEqual(["POST /tools -", "POST /tools -"]);
+
+    await expire();
+    expect(await ensureToolsDiscovered(db, id)).toEqual([search, read]);
+    expect(requests).toHaveLength(4);
+
+    const { cachedToolsExpiresAt } = await db
+      .selectFrom("aiMcpServers")
+      .select(["cachedToolsExpiresAt"])
+      .where("id", "=", id)
+      .executeTakeFirstOrThrow();
+    expect((cachedToolsExpiresAt?.getTime() ?? 0) - Date.now()).toBeGreaterThan(50_000);
+    expect((cachedToolsExpiresAt?.getTime() ?? 0) - Date.now()).toBeLessThanOrEqual(60_000);
+
+    await expire();
+    toolList = null;
+    expect(await ensureToolsDiscovered(db, id)).toEqual([search, read]);
   });
 });
 

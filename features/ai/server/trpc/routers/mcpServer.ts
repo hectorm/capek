@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 
 import type { Endpoint } from "#layers/core/server/lib/http";
 import type { HttpRedactedHeader } from "#layers/core/shared/http";
-import { MCPClient } from "#layers/ai/server/lib/mcp/client";
+import { testConnection } from "#layers/ai/server/lib/mcp/client";
 import { McpServerResource } from "#layers/ai/server/lib/resources";
 import { decryptMcpServerHeaders, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
@@ -308,14 +308,12 @@ export const mcpServerRouter = createTRPCRouter({
         });
       }
 
-      const mcpClient = new MCPClient({
+      return testConnection({
         name: endpoint.url,
         url: endpoint.url,
         headers: endpoint.headers,
         stateful: false,
         timeoutMs: 10_000,
       });
-
-      return mcpClient.testConnection();
     }),
 });

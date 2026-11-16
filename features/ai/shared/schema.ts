@@ -98,6 +98,7 @@ export interface McpServersTable {
   stateful: boolean;
   toolCallTimeoutSec: number | null;
   cachedTools: ColumnType<MCPTool[], string, string>;
+  cachedToolsExpiresAt: ColumnType<Date | null, Date | null | undefined, Date | null>;
   createdAt: ColumnType<Date, never, never>;
   updatedAt: ColumnType<Date, never, Date>;
 }

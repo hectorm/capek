@@ -225,20 +225,14 @@ export const executeCode = async (code: string, options: ExecuteCodeOptions): Pr
     if (!server) {
       throw new Error(`MCP server not found: ${serverName}`);
     }
+    const tool = server.tools.find((t) => t.name === toolName);
+    if (!tool) {
+      throw new Error(`MCP tool not found: ${toolName}`);
+    }
 
     const callStart = Date.now();
     try {
-      const output = await MCPManager.getInstance().callTool(
-        server.name,
-        server.url,
-        server.headers,
-        toolName,
-        args,
-        options.chatSessionId,
-        server.stateful,
-        server.toolCallTimeoutSec,
-        signal,
-      );
+      const output = await MCPManager.getInstance().callTool(server, tool, args, options.chatSessionId, signal);
       mcpCallLogs.push({
         serverName,
         toolName,
