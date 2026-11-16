@@ -1,5 +1,7 @@
+import cluster from "node:cluster";
 import fs from "node:fs";
 import path from "node:path";
+import process from "node:process";
 
 import type { Dialect, Transaction } from "kysely";
 import { CamelCasePlugin, Kysely, PGliteDialect, PostgresDialect, sql } from "kysely";
@@ -24,9 +26,28 @@ let connIsSuperuser = false;
 // Configure pg to parse JSONB as JSON objects
 pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val) as unknown);
 
+export const HANDOVER_MESSAGE = "core:database-handover";
+
+const waitForHandover = (): Promise<void> => {
+  return new Promise((resolve) => {
+    const onMessage = (message: unknown): void => {
+      if (message === HANDOVER_MESSAGE) {
+        process.off("message", onMessage);
+        resolve();
+      }
+    };
+    process.on("message", onMessage);
+    process.send?.(HANDOVER_MESSAGE);
+  });
+};
+
 export const useDb = async (): Promise<Kysely<Database>> => {
   // Calls that arrive while the database is being set up share it, and a failed setup is tried again
   db ??= (async () => {
+    if (cluster.isWorker) {
+      await waitForHandover();
+    }
+
     let dialect: Dialect;
 
     if (usingPGlite) {
@@ -123,6 +144,20 @@ export const closeDb = async (): Promise<void> => {
 
     logger.info("Database connection closed");
   }
+};
+
+export const setupDbHandover = (ready: Promise<void>): void => {
+  let released: Promise<void> | null = null;
+  cluster.on("message", (worker, message: unknown) => {
+    if (message === HANDOVER_MESSAGE) {
+      released ??= ready.then(closeDb);
+      void released.then(() => {
+        if (worker.isConnected()) {
+          worker.send(HANDOVER_MESSAGE);
+        }
+      });
+    }
+  });
 };
 
 export interface UserTransactionOptions {
