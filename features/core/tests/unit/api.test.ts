@@ -70,7 +70,7 @@ beforeAll(async () => {
       userinfoEndpoint: "",
       endSessionEndpoint: "",
       jwksUri: `${baseUrl}/jwks`,
-      clientId: "capek",
+      clientId: "client",
       clientSecret: "secret",
       scopes: "openid",
       prompt: "",
@@ -175,7 +175,7 @@ describe("OIDC logout", () => {
       return new SignJWT({ sid: "sid-1", events: { "http://schemas.openid.net/event/backchannel-logout": {} } })
         .setProtectedHeader({ alg: "ES256", kid: "key" })
         .setIssuer("https://idp.localhost")
-        .setAudience("capek")
+        .setAudience("client")
         .setIssuedAt()
         .setJti(crypto.randomUUID())
         .sign(key);

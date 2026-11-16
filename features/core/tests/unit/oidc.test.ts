@@ -12,7 +12,7 @@ const oidc = new OIDC({
   tokenEndpoint: "https://idp.localhost/token",
   userinfoEndpoint: "https://idp.localhost/userinfo",
   jwksUri: "https://idp.localhost/jwks",
-  clientId: "capek",
+  clientId: "client",
   clientSecret: "secret",
   scopes: "openid profile email",
   prompt: "select_account",
@@ -109,7 +109,7 @@ describe("OIDC back-channel logout", () => {
       return new SignJWT({ sid: "session", events: { "http://schemas.openid.net/event/backchannel-logout": {} } })
         .setProtectedHeader({ alg: "ES256", kid: "key" })
         .setIssuer("https://idp.localhost")
-        .setAudience("capek")
+        .setAudience("client")
         .setIssuedAt()
         .setJti(crypto.randomUUID())
         .sign(key);

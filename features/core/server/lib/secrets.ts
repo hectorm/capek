@@ -13,6 +13,7 @@ const logger = useLogger();
 const FORMAT = "v1";
 const KEY_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 const DATA_KEY_CONTEXT = "encryption_keys.wrapped_key";
+const FINGERPRINT_CONTEXT = "encryption_keys.main_key_fingerprint";
 const DEVELOPMENT_KEY = "GIMAxGqsofiyEBw2fzuXw0IiTiDD5vKWDJzYS5FxCyM=";
 
 export interface Secrets {
@@ -46,7 +47,7 @@ const mainKey = (variable: string, value: string): Buffer => {
 };
 
 const fingerprint = (key: Buffer): string => {
-  return createHmac("sha256", key).update("capek encryption key").digest("base64url");
+  return createHmac("sha256", key).update(FINGERPRINT_CONTEXT).digest("base64url");
 };
 
 interface MainKeys {
