@@ -87,7 +87,7 @@ docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="..." loca
 
 ### Selecting features
 
-Builds include all features by default. The `FEATURES` environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is always included. For example, to build only the core platform:
+Builds include all features by default, except the [optional ones](./features/README.md#layers). The `FEATURES` environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is always included. For example, to build only the core platform:
 
 ```sh
 FEATURES=core pnpm build

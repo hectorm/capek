@@ -1,34 +1,10 @@
-import { existsSync, readdirSync } from "node:fs";
 import process from "node:process";
 
 import { defineNuxtConfig } from "nuxt/config";
 
-if (existsSync(new URL("./layers/", import.meta.url))) {
-  throw new Error(`Feature layers must be placed in "features/" instead of "layers/"`);
-}
+import { findEnabledFeatures } from "./features/core/modules/features/selection.ts";
 
-const availableFeatures = [
-  ...readdirSync(new URL("./features/", import.meta.url), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== "core")
-    .map((entry) => entry.name)
-    .toSorted(),
-  "core",
-];
-
-const requestedFeatures = (process.env.FEATURES ?? "")
-  .split(",")
-  .map((name) => name.trim())
-  .filter((name) => name.length > 0);
-
-const unknownFeature = requestedFeatures.find((name) => !availableFeatures.includes(name));
-if (unknownFeature !== undefined) {
-  throw new Error(`Unknown feature "${unknownFeature}" in FEATURES`);
-}
-
-const enabledFeatures =
-  requestedFeatures.length > 0
-    ? availableFeatures.filter((name) => name === "core" || requestedFeatures.includes(name))
-    : availableFeatures;
+const enabledFeatures = await findEnabledFeatures(new URL("./", import.meta.url), process.env.FEATURES);
 
 const featurePaths = (...paths: string[]): string[] => {
   return enabledFeatures.flatMap((name) => paths.map((path) => `../features/${name}/${path}`));

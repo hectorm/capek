@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { orderFeatures } from "#layers/core/modules/features/order";
+import { selectFeatures } from "#layers/core/modules/features/selection";
 import coreFeature from "#layers/core/server/feature";
 import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
@@ -24,6 +25,17 @@ describe("feature registry", () => {
         { name: "b", dependsOn: ["a"] },
       ]);
     }).toThrow(/Circular feature dependency: a -> b -> a/);
+  });
+
+  it("leaves the optional features out of the builds that do not ask for them", () => {
+    const features = [
+      { name: "files", optional: false },
+      { name: "reports", optional: true },
+      { name: "core", optional: true },
+    ];
+    expect(selectFeatures(features)).toEqual(["files", "core"]);
+    expect(selectFeatures(features, " reports, ")).toEqual(["reports", "core"]);
+    expect(() => selectFeatures(features, "files,charts")).toThrow(/Unknown feature "charts" in FEATURES/);
   });
 
   it("rejects duplicated feature names before migrating", async () => {

@@ -8,7 +8,7 @@ Each directory is a [Nuxt layer](https://nuxt.com/docs/guide/going-further/layer
 
 ## Layers
 
-Every directory in `features/` is a feature. Features are set up after the ones listed in the `$meta.dependsOn` option of their `nuxt.config.ts`, which have to be part of the build.
+Every directory in `features/` is a feature. Features are set up after the ones listed in the `$meta.dependsOn` option of their `nuxt.config.ts`, which have to be part of the build. A feature with the `$meta.optional` option is only part of the builds that select it.
 
 They are kept out of the `layers/` directory, which Nuxt registers automatically, so that each build only includes the [selected ones](../README.md#selecting-features). Type checking, linting and tests follow the same selection.
 
