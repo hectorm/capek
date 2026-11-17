@@ -1,11 +1,19 @@
+import { lookup } from "node:dns";
+import type { LookupFunction } from "node:net";
+
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DatasourceQuerySettings } from "#layers/datasources/server/lib/drivers";
 import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import { PostgresDriver } from "#layers/datasources/server/lib/drivers/postgres";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
+
+vi.mock("node:dns", () => ({ lookup: vi.fn() }));
+
+const resolveDns = vi.mocked(lookup as LookupFunction);
 
 let pglite: PGlite;
 let server: PGLiteSocketServer;
@@ -23,6 +31,11 @@ beforeAll(async () => {
   server = new PGLiteSocketServer({ db: pglite, host: "127.0.0.1", port: 0 });
   await server.start();
   connectionString = `postgres://${server.getServerConn()}/postgres`;
+  Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
+});
+
+afterEach(() => {
+  resolveDns.mockReset();
 });
 
 afterAll(async () => {
@@ -56,6 +69,14 @@ describe("PostgreSQL datasource", () => {
       password: "postgres",
     });
     expect(PostgresDatasourceType.unredact(moved, {}).password).toBe("");
+  });
+
+  it("does not connect to a private host that is not allowed", async () => {
+    resolveDns.mockImplementation((_hostname, _options, callback) => {
+      callback(null, [{ address: "10.91.146.119", family: 4 }]);
+    });
+    const internal = { connectionString: "postgres://db.internal/sales", authType: "none" };
+    await expect(driver.execute({ config: internal }, "SELECT 1", settings)).rejects.toThrow("private IP address");
   });
 
   it("limits the rows of every query", async () => {

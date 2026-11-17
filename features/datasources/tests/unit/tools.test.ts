@@ -10,6 +10,7 @@ import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { collectToolProviders } from "#layers/core/server/lib/tools/define";
 import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import datasourcesFeature from "#layers/datasources/server/feature";
 import { datasourceTypes, findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
@@ -35,6 +36,7 @@ beforeAll(async () => {
   );
   salesServer = new PGLiteSocketServer({ db: salesDb, host: "127.0.0.1", port: 0 });
   await salesServer.start();
+  Object.assign(runtimeConfig, { allowedPrivateHosts: salesServer.getServerConn() });
 
   db = await createTestDb([datasourcesFeature]);
 

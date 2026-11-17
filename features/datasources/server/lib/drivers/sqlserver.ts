@@ -1,16 +1,20 @@
 import { Buffer } from "node:buffer";
+import { once } from "node:events";
+import type { Socket } from "node:net";
 
 import type { TokenCredential } from "@azure/identity";
 import type { ConnectionAuthentication, ConnectionOptions } from "tedious";
 import { ManagedIdentityCredential } from "@azure/identity";
 import { parse } from "@tediousjs/connection-string";
 import { Connection, Request } from "tedious";
+import { instanceLookup } from "tedious/lib/instance-lookup.js";
 
 import type {
   DatasourceConnectionParams,
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { allowedHost, allowedSocket, HostNotAllowedError } from "#layers/core/server/lib/network";
 import { toRow } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { SqlServerDatasourceType } from "#layers/datasources/shared/definitions/sqlserver";
@@ -43,6 +47,9 @@ const DATABASE_TOKEN_SCOPES = new Set([
   "https://database.chinacloudapi.cn/.default",
   "https://database.cloudapi.de/.default",
 ]);
+
+const BROWSER_PORT = "1434";
+const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
 
 const managedIdentities = new Map<string, ManagedIdentityCredential>();
 
@@ -101,6 +108,41 @@ export class SqlServerDriver implements DatasourceDriver {
     if (settings.maxBytes) {
       options.textsize = 2 * settings.maxBytes;
     }
+    if (options.instanceName !== undefined && !options.port) {
+      const connectTimeout = options.connectTimeout ?? DEFAULT_CONNECT_TIMEOUT_MS;
+      const deadline = AbortSignal.timeout(connectTimeout);
+      const signal = settings.signal ? AbortSignal.any([settings.signal, deadline]) : deadline;
+      const { lookup } = allowedHost(server, BROWSER_PORT);
+      const { instanceName } = options;
+      const aborted = once(signal, "abort").then(() => Promise.reject(signal.reason as Error));
+      const lookedUp = instanceLookup({
+        server,
+        instanceName,
+        timeout: connectTimeout,
+        signal,
+        lookup: lookup as Parameters<typeof instanceLookup>[0]["lookup"],
+      });
+      options.port = await Promise.race([lookedUp, aborted]).catch((error: unknown) => {
+        settings.signal?.throwIfAborted();
+        if (error instanceof HostNotAllowedError) {
+          throw error;
+        }
+        throw new Error(`The instance "${instanceName}" of "${server}" could not be found`, { cause: error });
+      });
+      delete options.instanceName;
+    }
+    options.connector = (async (
+      { host, port }: { host: string; port: number },
+      _lookup: unknown,
+      signal: AbortSignal,
+    ) => {
+      const socket = allowedSocket(host, port).connect();
+      await once(socket, "connect", { signal }).catch((error: unknown) => {
+        socket.destroy();
+        throw error;
+      });
+      return socket;
+    }) as () => Promise<Socket>;
 
     const connection = new Connection({ server, authentication, options });
     const onAbort = (): void => {
@@ -241,9 +283,6 @@ export class SqlServerDriver implements DatasourceDriver {
           break;
         case "trustservercertificate":
           target.options.trustServerCertificate = this.toBoolean(value);
-          break;
-        case "multisubnetfailover":
-          target.options.multiSubnetFailover = this.toBoolean(value);
           break;
         case "packet size":
           target.options.packetSize = this.toNumber(value);

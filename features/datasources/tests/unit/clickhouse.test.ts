@@ -1,10 +1,16 @@
+import { lookup } from "node:dns";
 import http from "node:http";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, LookupFunction } from "node:net";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DatasourceQuerySettings } from "#layers/datasources/server/lib/drivers";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import { ClickhouseDriver } from "#layers/datasources/server/lib/drivers/clickhouse";
+
+vi.mock("node:dns", () => ({ lookup: vi.fn() }));
+
+const resolveDns = vi.mocked(lookup as LookupFunction);
 
 type Respond = (res: http.ServerResponse, query: string, url: URL) => void;
 
@@ -38,6 +44,11 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   connectionString = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/default`;
+  Object.assign(runtimeConfig, { allowedPrivateHosts: new URL(connectionString).host });
+});
+
+afterEach(() => {
+  resolveDns.mockReset();
 });
 
 afterAll(async () => {
@@ -48,6 +59,14 @@ describe("ClickHouse driver", () => {
   const run = (): Promise<unknown[]> => {
     return driver.execute({ config: { connectionString, authType: "none" } }, "SELECT 1", settings);
   };
+
+  it("does not connect to a private host that is not allowed", async () => {
+    resolveDns.mockImplementation((_hostname, _options, callback) => {
+      callback(null, [{ address: "10.91.146.119", family: 4 }]);
+    });
+    const config = { connectionString: "http://db.internal:8123/default", authType: "none" };
+    await expect(driver.execute({ config }, "SELECT 1", settings)).rejects.toThrow("private IP address");
+  });
 
   it("returns the rows of ClickHouse", async () => {
     respond = (res) => {

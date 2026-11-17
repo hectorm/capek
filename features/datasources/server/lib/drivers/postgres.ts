@@ -7,10 +7,12 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
+import { pinnedSockets } from "#layers/core/server/lib/network";
 import { connectionUrl, toRow } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
 
+const DEFAULT_PORT = 5432;
 const URL_OPTIONS = new Set(["ssl", "sslmode", "application_name", "options"]);
 
 const SYNTAX_ERROR = "42601";
@@ -41,6 +43,7 @@ export class PostgresDriver implements DatasourceDriver {
       connectionString: url.toString(),
       connectionTimeoutMillis: settings.requestTimeoutMs,
       types,
+      stream: pinnedSockets(url.hostname, Number(url.port || DEFAULT_PORT)),
     };
     const client = new pg.Client(clientConfig);
 

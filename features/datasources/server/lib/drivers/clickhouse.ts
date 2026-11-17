@@ -1,4 +1,5 @@
-import { STATUS_CODES } from "node:http";
+import { Agent as HttpAgent, STATUS_CODES } from "node:http";
+import { Agent as HttpsAgent } from "node:https";
 
 import type { ClickHouseClient, ClickHouseSettings } from "@clickhouse/client";
 import { ClickHouseError, ClickHouseLogLevel, createClient, parseError } from "@clickhouse/client";
@@ -9,6 +10,7 @@ import type {
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
 import { readBodyStart } from "#layers/core/server/lib/http";
+import { allowedHost } from "#layers/core/server/lib/network";
 import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { ClickhouseDatasourceType } from "#layers/datasources/shared/definitions/clickhouse";
@@ -30,9 +32,14 @@ export class ClickhouseDriver implements DatasourceDriver {
   ): Promise<Record<string, unknown>[]> {
     const config = ClickhouseDatasourceType.configSchema.parse(params.config);
 
+    const url = connectionUrl(config, URL_OPTIONS);
+    const https = url.protocol === "https:";
+    const host = allowedHost(url.hostname, url.port || (https ? "443" : "80"));
+
     // The request outlasts the query, and errors are returned instead of logged
     const client = createClient({
-      url: connectionUrl(config, URL_OPTIONS),
+      url,
+      http_agent: new (https ? HttpsAgent : HttpAgent)({ keepAlive: true, lookup: host.lookup }),
       request_timeout: settings.requestTimeoutMs && settings.requestTimeoutMs + (settings.statementTimeoutMs ?? 0),
       log: { level: ClickHouseLogLevel.OFF },
     });
