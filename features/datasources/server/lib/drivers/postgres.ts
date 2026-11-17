@@ -60,7 +60,9 @@ export class PostgresDriver implements DatasourceDriver {
       }
     };
     const onAbort = (): void => {
-      void cancel();
+      if (pid !== undefined) {
+        void cancel();
+      }
       // The query would otherwise wait for a server that does not answer
       client.connection.stream.destroy();
     };
@@ -69,6 +71,7 @@ export class PostgresDriver implements DatasourceDriver {
 
     try {
       settings.signal?.throwIfAborted();
+      settings.signal?.addEventListener("abort", onAbort, { once: true });
       await client.connect();
 
       const { maxBytes } = settings;
@@ -85,8 +88,6 @@ export class PostgresDriver implements DatasourceDriver {
       if (settings.signal) {
         const backend = await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
         pid = backend.rows[0]?.pid;
-        settings.signal.addEventListener("abort", onAbort, { once: true });
-        settings.signal.throwIfAborted();
       }
       await client.query("BEGIN TRANSACTION READ ONLY");
       if (settings.statementTimeoutMs) {
@@ -135,6 +136,9 @@ export class PostgresDriver implements DatasourceDriver {
         await client.query("ROLLBACK TO SAVEPOINT datasource_limit");
         return await run(statement);
       }
+    } catch (error) {
+      settings.signal?.throwIfAborted();
+      throw error;
     } finally {
       settings.signal?.removeEventListener("abort", onAbort);
       await client.end().catch(() => undefined);

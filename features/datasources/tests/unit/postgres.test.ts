@@ -1,5 +1,7 @@
 import { lookup } from "node:dns";
-import type { LookupFunction } from "node:net";
+import { once } from "node:events";
+import { createServer } from "node:net";
+import type { AddressInfo, LookupFunction, Socket } from "node:net";
 
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
@@ -77,6 +79,25 @@ describe("PostgreSQL datasource", () => {
     });
     const internal = { connectionString: "postgres://db.internal/sales", authType: "none" };
     await expect(driver.execute({ config: internal }, "SELECT 1", settings)).rejects.toThrow("private IP address");
+  });
+
+  it("stops connecting when its signal aborts", async () => {
+    const stalled = createServer((client) => client.on("error", () => undefined));
+    await new Promise<void>((resolve) => stalled.listen(0, "127.0.0.1", resolve));
+    const host = `127.0.0.1:${String((stalled.address() as AddressInfo).port)}`;
+    Object.assign(runtimeConfig, { allowedPrivateHosts: `${server.getServerConn()}, ${host}` });
+
+    const controller = new AbortController();
+    const stopped = new Error("stopped");
+    const connection = { ...config(), connectionString: `postgres://${host}/postgres` };
+    const query = driver.execute({ config: connection }, "SELECT 1", { ...settings, signal: controller.signal });
+    const [socket] = (await once(stalled, "connection")) as [Socket];
+    controller.abort(stopped);
+    await expect(query).rejects.toBe(stopped);
+
+    socket.destroy();
+    stalled.close();
+    Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
   });
 
   it("limits the rows of every query", async () => {
