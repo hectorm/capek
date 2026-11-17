@@ -49,13 +49,14 @@ export class MariaDBDriver implements DatasourceDriver {
     }
 
     let connection: mariadb.Connection | undefined;
+    let stop: (() => void) | undefined;
     let timeout: AbortSignal | undefined;
-    const onAbort = (): void => connection?.destroy();
+    const onAbort = (): void => stop?.();
     try {
       settings.signal?.throwIfAborted();
       const { collation, ...options } = mariadb.defaultOptions(url.toString()) as ParsedOptions;
       const sockets = pinnedSockets(options.host, options.port);
-      connection = await mariadb.createConnection({
+      const connectionConfig: mariadb.ConnectionConfig = {
         ...options,
         collation: collation?.name,
         permitRedirect: false,
@@ -66,7 +67,27 @@ export class MariaDBDriver implements DatasourceDriver {
             callback(error as Error);
           }
         },
+      };
+      let opened = false;
+      connection = await mariadb.createConnection({
+        ...connectionConfig,
+        stream: (callback) => {
+          if (opened) {
+            callback(new Error("The query is killed through another connection"));
+            return;
+          }
+          opened = true;
+          connectionConfig.stream?.(callback);
+        },
       });
+      const { threadId } = connection;
+      stop = () => {
+        connection?.destroy();
+        void mariadb
+          .createConnection({ ...connectionConfig, socketTimeout: settings.requestTimeoutMs })
+          .then((killer) => killer.query(`KILL ${String(threadId)}`).finally(() => killer.end()))
+          .catch(() => undefined);
+      };
       settings.signal?.addEventListener("abort", onAbort, { once: true });
       settings.signal?.throwIfAborted();
       if (settings.statementTimeoutMs) {
@@ -97,19 +118,20 @@ export class MariaDBDriver implements DatasourceDriver {
           continue;
         }
         if (settings.maxRows && rows.length >= settings.maxRows) {
-          connection.destroy();
+          stop();
           break;
         }
         const serializable = this.toSerializable(toRow(columns, values as unknown[]));
         rows.push(serializable);
         bytes += Buffer.byteLength(JSON.stringify(serializable));
         if (settings.maxBytes && bytes > settings.maxBytes) {
-          connection.destroy();
+          stop();
           throw new ResultTooLargeError(settings.maxBytes);
         }
       }
       return rows;
     } catch (error) {
+      settings.signal?.throwIfAborted();
       if (timeout?.aborted) {
         throw new Error("The query took longer than the time it is allowed to run");
       }

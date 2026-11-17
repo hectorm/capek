@@ -1,4 +1,5 @@
 import { lookup } from "node:dns";
+import { Readable } from "node:stream";
 import type { LookupFunction } from "node:net";
 import type { Duplex } from "node:stream";
 
@@ -48,22 +49,70 @@ describe("MariaDB driver", () => {
     }
   });
 
-  it("opens a new socket for each connection, like the one that kills a query", async () => {
+  it("fails with the reason of its signal", async () => {
+    const signal = AbortSignal.abort();
+    const config = {
+      connectionString: "mariadb://db.example.com/sales",
+      authType: "basic",
+      username: "analyst",
+      password: "secret",
+    };
+    await expect(new MariaDBDriver().execute({ config }, "SELECT 1", { signal })).rejects.toBe(signal.reason);
+  });
+
+  it("does not let destroy open its connection to kill a query, which does not verify certificates", async () => {
     vi.mocked(mariadb.createConnection).mockRejectedValue(new Error("offline"));
     resolveDns.mockImplementation(() => undefined);
     const config = { connectionString: "mariadb://db.example.com/sales", authType: "none" };
     await expect(new MariaDBDriver().execute({ config }, "SELECT 1", {})).rejects.toThrow("offline");
 
     const { stream } = vi.mocked(mariadb.createConnection).mock.lastCall?.[0] as mariadb.ConnectionConfig;
-    const sockets: Duplex[] = [];
+    const opened: { error?: Error; socket?: Duplex }[] = [];
     for (let i = 0; i < 2; i++) {
-      stream?.((_error, socket) => {
-        if (socket) {
-          sockets.push(socket);
-        }
-      });
+      stream?.((error, socket) => opened.push({ error, socket }));
     }
-    expect(sockets[0]).not.toBe(sockets[1]);
-    sockets.forEach((socket) => socket.destroy());
+    expect(opened[0]?.socket).toBeDefined();
+    expect(opened[1]?.error?.message).toContain("killed through another connection");
+    opened[0]?.socket?.destroy();
+  });
+
+  it("kills a query that it stops through a connection like its own", async () => {
+    const rows = [[1], [2]];
+    const stream = new Readable({
+      objectMode: true,
+      read() {
+        if (rows.length === 2) {
+          this.emit("fields", [{ name: () => "id" }]);
+        }
+        this.push(rows.shift() ?? null);
+      },
+    });
+    const connection = {
+      threadId: 52_917,
+      serverVersion: () => "11.8.2-MariaDB",
+      query: vi.fn(() => Promise.resolve([])),
+      queryStream: () => stream,
+      destroy: vi.fn(),
+      end: vi.fn(() => Promise.resolve()),
+    };
+    const killer = { query: vi.fn(() => Promise.resolve([])), end: vi.fn(() => Promise.resolve()) };
+    vi.mocked(mariadb.createConnection)
+      .mockResolvedValueOnce(connection as unknown as mariadb.Connection)
+      .mockResolvedValueOnce(killer as unknown as mariadb.Connection);
+
+    const config = { connectionString: "mariadb://db.example.com/sales?ssl=true", authType: "none" };
+    await expect(new MariaDBDriver().execute({ config }, "SELECT id FROM sales", { maxRows: 1 })).resolves.toEqual([
+      { id: 1 },
+    ]);
+    await vi.waitFor(() => {
+      expect(killer.end).toHaveBeenCalled();
+    });
+    expect(connection.destroy).toHaveBeenCalled();
+    expect(killer.query).toHaveBeenCalledWith("KILL 52917");
+    const [first, second] = vi
+      .mocked(mariadb.createConnection)
+      .mock.calls.map(([options]) => options as mariadb.ConnectionConfig);
+    expect(second).toMatchObject({ host: "db.example.com", ssl: true, permitRedirect: false });
+    expect(second?.stream).not.toBe(first?.stream);
   });
 });
