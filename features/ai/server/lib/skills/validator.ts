@@ -74,13 +74,11 @@ export const validateSkillSyntax = async (code: string): Promise<ValidationResul
     runtime.setMemoryLimit(maxMemoryBytes);
     const deadline = Date.now() + 5_000;
     runtime.setInterruptHandler(() => Date.now() > deadline);
+    runtime.setModuleLoader(() => "");
 
     const context = runtime.newContext();
 
     try {
-      // Remove import statements to avoid module resolution during syntax validation
-      code = code.replace(/\bimport\s(?:[\s\S]+?from\s*)?['"][^'"]*['"]\s*;?/g, "");
-
       const result = context.evalCode(code, "skill.js", { type: "module", compileOnly: true });
       if (result.error) {
         const error: unknown = context.dump(result.error);

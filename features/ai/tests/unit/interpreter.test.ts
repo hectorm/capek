@@ -165,4 +165,11 @@ describe("code interpreter", () => {
     expect(stall).toBeLessThan(250);
     expect(await validateSkillSyntax(`export default async function ( {`)).toMatchObject({ valid: false });
   });
+
+  it("checks the syntax of the imports of a skill without loading them", async () => {
+    const code = (line: string) => `${line}\nexport default async function () {}`;
+    expect(await validateSkillSyntax(code("import { $read } from '/tools/index.js';"))).toEqual({ valid: true });
+    expect(await validateSkillSyntax(code("import read from './missing.js';"))).toEqual({ valid: true });
+    expect(await validateSkillSyntax(code("import foo bar from './missing.js';"))).toMatchObject({ valid: false });
+  });
 });
