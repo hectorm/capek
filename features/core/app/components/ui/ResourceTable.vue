@@ -46,6 +46,7 @@ const i18n = useI18n();
 const ACTIONS_COLUMN = "actions";
 const columnPinning = { left: [], right: [ACTIONS_COLUMN] };
 const sortingOptions = { manualSorting: true };
+const virtualize = { estimateSize: 37 };
 
 const tableComponent = useTemplateRef<ComponentPublicInstance>("tableComponent");
 
@@ -132,10 +133,11 @@ useInfiniteScroll(
     :sorting="sorting"
     :columns="tableColumns"
     :data="table.rows.value"
+    :virtualize="virtualize"
     :loading="table.loading.value"
     :column-pinning="columnPinning"
-    :ui="{ th: 'py-1', td: 'py-2' }"
     :sorting-options="sortingOptions"
+    :ui="{ base: 'overflow-visible', th: 'py-1', td: 'py-2' }"
   >
     <template v-for="column in columns" :key="column.id" #[`${column.id}-header`]>
       <ResourceTableHeader
