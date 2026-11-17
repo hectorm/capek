@@ -316,7 +316,7 @@ export const useChatStore = defineStore("ai.chat", () => {
           onStatus: (status) => {
             textEnded = true;
             const state = activeStreams.value.get(sessionId);
-            if (state) {
+            if (state?.controller === controller) {
               state.status = status;
             }
           },
@@ -368,14 +368,17 @@ export const useChatStore = defineStore("ai.chat", () => {
       }
 
       await fetchMessages(sessionId).catch(() => {
-        messages.value.set(sessionId, currentMsgs);
-        triggerRef(messages);
+        if (!controller.signal.aborted) {
+          messages.value.set(sessionId, currentMsgs);
+          triggerRef(messages);
+        }
       });
+      if (controller.signal.aborted) {
+        return;
+      }
 
       const updatedMsgs = messages.value.get(sessionId) ?? [];
-      const lastUserMsg = updatedMsgs.findLast((m) => m.role === "user");
-
-      if (!lastUserMsg?.content || lastUserMsg.content !== content) {
+      if (!updatedMsgs.some((m) => m.id === tempUserMessageId)) {
         const preservedNow = new Date();
         const preservedUserMessage: ChatMessage = {
           id: tempUserMessageId,
@@ -393,7 +396,9 @@ export const useChatStore = defineStore("ai.chat", () => {
 
       throw new Error("Failed to send message", { cause: error });
     } finally {
-      activeStreams.value.delete(sessionId);
+      if (activeStreams.value.get(sessionId)?.controller === controller) {
+        activeStreams.value.delete(sessionId);
+      }
     }
   };
 
