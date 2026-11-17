@@ -163,7 +163,7 @@ const readStreamResponse = async (
   return stream.response;
 };
 
-const timeoutSignal = (options: MCPRequestOptions): AbortSignal => {
+export const timeoutSignal = (options: MCPRequestOptions): AbortSignal => {
   const timeout = AbortSignal.timeout(options.timeoutMs ?? REQUEST_TIMEOUT_MS);
   return options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
 };

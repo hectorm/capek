@@ -38,7 +38,7 @@ interface Message {
   params?: { name?: string; protocolVersion?: string; _meta?: Record<string, unknown> };
 }
 
-const requests: { path: string; method: string; headers: Headers }[] = [];
+const requests: { path: string; method: string; headers: Headers; signal?: AbortSignal | null }[] = [];
 let listedTools: object[] = tools;
 let session: string | null = null;
 let sessions = 0;
@@ -90,9 +90,9 @@ const respond = (target: string | URL, init: EndpointInit = {}): Promise<Respons
   const { pathname } = new URL(target);
   const message = JSON.parse(init.body ?? "{}") as Message;
   const headers = new Headers(init.headers);
-  requests.push({ path: pathname, method: message.method ?? init.method ?? "", headers });
+  requests.push({ path: pathname, method: message.method ?? init.method ?? "", headers, signal: init.signal });
 
-  if (pathname === "/silent") {
+  if (pathname === "/silent" || (pathname === "/pinging" && message.method === undefined && message.id !== undefined)) {
     return new Promise((_resolve, reject) => {
       init.signal?.addEventListener("abort", () => {
         reject(init.signal?.reason as Error);
@@ -102,6 +102,10 @@ const respond = (target: string | URL, init: EndpointInit = {}): Promise<Respons
   if (init.method === "GET") {
     if (pathname === "/restless") {
       return Promise.resolve(events("retry: 0\n\n"));
+    }
+    if (pathname === "/pinging") {
+      const pings = [1, 2, 3].map((id) => `data: ${JSON.stringify({ jsonrpc: "2.0", id, method: "ping" })}\n\n`);
+      return Promise.resolve(events(pings.join("")));
     }
     const body = interrupted.get(headers.get("Last-Event-ID") ?? "");
     return Promise.resolve(body ? stream(body) : new Response(null, { status: pathname === "/session" ? 404 : 405 }));
@@ -437,6 +441,16 @@ describe("legacy MCP connection", () => {
 
     await expect(client.callTool(tool("lose"), {})).rejects.toThrow("did not resume its stream");
     expect(requests.filter(({ method }) => method === "tools/call")).toHaveLength(1);
+  });
+
+  it("answers the pings of its stream one at a time, until it closes", async () => {
+    const client = await connect({ ...server("pinging"), stateful: true });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await client.close();
+
+    const pongs = requests.filter(({ path, method }) => path === "/pinging" && method === "POST");
+    expect(pongs).toHaveLength(1);
+    expect(pongs[0]?.signal?.aborted).toBe(true);
   });
 
   it("waits before reopening the stream of a server that asks for no delay", async () => {

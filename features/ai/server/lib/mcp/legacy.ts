@@ -10,7 +10,7 @@ import type {
 } from "#layers/ai/server/lib/mcp/connection";
 import type { MCPCallToolResult, MCPTool } from "#layers/ai/shared/mcp";
 import { CLIENT_INFO, PROTOCOL_VERSIONS, requestTools } from "#layers/ai/server/lib/mcp/connection";
-import { MCPRequestError, notify, request } from "#layers/ai/server/lib/mcp/http";
+import { MCPRequestError, notify, request, timeoutSignal } from "#layers/ai/server/lib/mcp/http";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { MCPCallToolResultSchema, McpPingRequestSchema } from "#layers/ai/shared/mcp";
 import { fetchEndpoint } from "#layers/core/server/lib/http";
@@ -39,6 +39,7 @@ export class LegacyConnection implements MCPConnection {
   private _lastEventId: string | null = null;
   private _retryMs: number = this.defaultRetryMs;
   private _isTerminated = false;
+  private _isAnsweringPing = false;
 
   private constructor(options: MCPConnectionOptions) {
     this.name = options.name;
@@ -130,7 +131,12 @@ export class LegacyConnection implements MCPConnection {
     void this.runSseStream(signal);
   }
 
-  private async sendPingResponse(pingId: string | number): Promise<void> {
+  private async sendPingResponse(pingId: string | number, signal: AbortSignal): Promise<void> {
+    if (this._isAnsweringPing) {
+      return;
+    }
+    this._isAnsweringPing = true;
+
     const headers = this.buildHeaders({
       contentType: "application/json",
       accept: "application/json, text/event-stream",
@@ -147,6 +153,7 @@ export class LegacyConnection implements MCPConnection {
         method: "POST",
         headers,
         body: JSON.stringify(pongResponse),
+        signal: timeoutSignal({ headers, signal, timeoutMs: this.timeoutMs }),
       });
 
       if (!response.ok) {
@@ -158,7 +165,11 @@ export class LegacyConnection implements MCPConnection {
 
       await response.body?.cancel();
     } catch (error) {
-      logger.warn({ serverName: this.name, sessionId: this._sessionId, error }, "Failed to send ping response");
+      if (!signal.aborted) {
+        logger.warn({ serverName: this.name, sessionId: this._sessionId, error }, "Failed to send ping response");
+      }
+    } finally {
+      this._isAnsweringPing = false;
     }
   }
 
@@ -213,7 +224,7 @@ export class LegacyConnection implements MCPConnection {
               const parsed: unknown = JSON.parse(event.data);
               const ping = McpPingRequestSchema.safeParse(parsed);
               if (ping.success) {
-                void this.sendPingResponse(ping.data.id);
+                void this.sendPingResponse(ping.data.id, signal);
               }
             } catch {
               // Ignore non-JSON data
