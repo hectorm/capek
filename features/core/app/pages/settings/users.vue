@@ -86,19 +86,11 @@ const canDelete = (user: User): boolean => {
   return can(CorePermissions.UserDeleteAll) && user.id !== me.value?.id;
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { user: User | null };
   if (modalResult.user) {
-    table.addRow(modalResult.user);
-  }
-};
-
-const handleUpdateModal = async (user: User): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: user.id });
-  const modalResult = (await instance.result) as { user: User | null };
-  if (modalResult.user) {
-    table.replaceRow(modalResult.user);
+    await table.refresh();
   }
 };
 
@@ -111,7 +103,7 @@ const handleDeleteModal = async (user: User): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(user);
+    await table.refresh();
   }
 };
 
@@ -130,8 +122,8 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="pages.settings.users"
     :can-create="can(CorePermissions.UserCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   />
 </template>

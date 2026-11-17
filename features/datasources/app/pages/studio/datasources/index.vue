@@ -75,19 +75,11 @@ const canDelete = (): boolean => {
   return canAny(deletePermissions);
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { datasource: Datasource | null };
   if (modalResult.datasource) {
-    table.addRow(modalResult.datasource);
-  }
-};
-
-const handleUpdateModal = async (datasource: Datasource): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: datasource.id });
-  const modalResult = (await instance.result) as { datasource: Datasource | null };
-  if (modalResult.datasource) {
-    table.replaceRow(modalResult.datasource);
+    await table.refresh();
   }
 };
 
@@ -101,7 +93,7 @@ const handleDeleteModal = async (datasource: Datasource): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(datasource);
+    await table.refresh();
   }
 };
 
@@ -124,9 +116,9 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="datasources.pages.studio.datasources"
     :can-create="can(DatasourcesPermissions.SourceCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   >
     <template #type-cell="{ row }">
       <UBadge color="neutral" variant="outline" :label="getTypeLabel(row.type)" />

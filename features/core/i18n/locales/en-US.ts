@@ -238,7 +238,7 @@ export default () => ({
       delete: "Delete",
       empty: "There is nothing to show",
       filter: "Filter by {column}",
-      loadError: "The next rows could not be loaded",
+      loadError: "The rows could not be loaded",
       noMatches: "No results match the filter",
       retry: "Retry",
       search: "Search",

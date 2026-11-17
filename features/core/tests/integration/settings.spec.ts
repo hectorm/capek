@@ -13,4 +13,34 @@ test.describe("settings", () => {
 
     await expect(page.getByRole("cell", { name: "admin@localhost" })).toBeVisible();
   });
+
+  test("keeps groups sorted and filtered after a save", async ({ page }) => {
+    await page.goto("/settings/groups");
+    await page.getByRole("button", { name: "Filter by Name" }).click();
+    const suffix = crypto.randomUUID();
+    const search = page.getByRole("textbox", { name: "Search" });
+    await search.fill(suffix);
+    await search.press("Enter");
+    await search.press("Escape");
+
+    const dialog = page.getByRole("dialog");
+    const alpha = `Alpha-${suffix}`;
+    const zulu = `Zulu-${suffix}`;
+    for (const name of [alpha, zulu]) {
+      await page.getByRole("button", { name: "Create" }).click();
+      await dialog.getByRole("textbox", { name: "Name" }).fill(name);
+      await dialog.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+    }
+    const names = page.getByRole("cell", { name: new RegExp(suffix) });
+    await expect(names).toHaveText([alpha, zulu]);
+
+    await page.getByRole("row").filter({ hasText: alpha }).getByRole("button", { name: "Actions" }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+    const renamed = `Renamed-${crypto.randomUUID()}`;
+    await dialog.getByRole("textbox", { name: "Name" }).fill(renamed);
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(names).toHaveText([zulu]);
+    await expect(page.getByRole("cell", { name: renamed })).toHaveCount(0);
+  });
 });

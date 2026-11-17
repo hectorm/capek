@@ -68,19 +68,11 @@ const canDelete = (): boolean => {
   return canAny(deletePermissions);
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { mcpServer: McpServer | null };
   if (modalResult.mcpServer) {
-    table.addRow(modalResult.mcpServer);
-  }
-};
-
-const handleUpdateModal = async (mcpServer: McpServer): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: mcpServer.id });
-  const modalResult = (await instance.result) as { mcpServer: McpServer | null };
-  if (modalResult.mcpServer) {
-    table.replaceRow(modalResult.mcpServer);
+    await table.refresh();
   }
 };
 
@@ -94,7 +86,7 @@ const handleDeleteModal = async (mcpServer: McpServer): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(mcpServer);
+    await table.refresh();
   }
 };
 
@@ -113,8 +105,8 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="ai.pages.studio.mcpServers"
     :can-create="can(AiPermissions.McpServerCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   />
 </template>

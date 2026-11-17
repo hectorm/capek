@@ -62,19 +62,11 @@ const canDelete = (): boolean => {
   return canAny(deletePermissions);
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { skill: Skill | null };
   if (modalResult.skill) {
-    table.addRow(modalResult.skill);
-  }
-};
-
-const handleUpdateModal = async (skill: Skill): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: skill.id });
-  const modalResult = (await instance.result) as { skill: Skill | null };
-  if (modalResult.skill) {
-    table.replaceRow(modalResult.skill);
+    await table.refresh();
   }
 };
 
@@ -88,7 +80,7 @@ const handleDeleteModal = async (skill: Skill): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(skill);
+    await table.refresh();
   }
 };
 
@@ -107,8 +99,8 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="ai.pages.studio.skills"
     :can-create="can(AiPermissions.SkillCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   />
 </template>

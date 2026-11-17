@@ -91,21 +91,12 @@ const refreshChatAgents = (): void => {
   }
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { agent: Agent | null };
   if (modalResult.agent) {
-    table.addRow(modalResult.agent);
     refreshChatAgents();
-  }
-};
-
-const handleUpdateModal = async (agent: Agent): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: agent.id });
-  const modalResult = (await instance.result) as { agent: Agent | null };
-  if (modalResult.agent) {
-    table.replaceRow(modalResult.agent);
-    refreshChatAgents();
+    await table.refresh();
   }
 };
 
@@ -119,8 +110,8 @@ const handleDeleteModal = async (agent: Agent): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(agent);
     refreshChatAgents();
+    await table.refresh();
   }
 };
 
@@ -139,9 +130,9 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="ai.pages.studio.agents"
     :can-create="can(AiPermissions.AgentCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   >
     <template #type-cell="{ row }">
       <UBadge :label="row.type" variant="outline" :color="row.type === 'triage' ? 'primary' : 'neutral'" />

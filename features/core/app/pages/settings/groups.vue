@@ -64,19 +64,11 @@ const canDelete = (): boolean => {
   return can(CorePermissions.GroupDeleteAll);
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { group: Group | null };
   if (modalResult.group) {
-    table.addRow(modalResult.group);
-  }
-};
-
-const handleUpdateModal = async (group: Group): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: group.id });
-  const modalResult = (await instance.result) as { group: Group | null };
-  if (modalResult.group) {
-    table.replaceRow(modalResult.group);
+    await table.refresh();
   }
 };
 
@@ -89,7 +81,7 @@ const handleDeleteModal = async (group: Group): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(group);
+    await table.refresh();
   }
 };
 
@@ -108,8 +100,8 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="pages.settings.groups"
     :can-create="can(CorePermissions.GroupCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   />
 </template>

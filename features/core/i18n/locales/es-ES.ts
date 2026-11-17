@@ -240,7 +240,7 @@ export default (): ReturnType<typeof enUS> => ({
       delete: "Eliminar",
       empty: "No hay nada que mostrar",
       filter: "Filtrar por {column}",
-      loadError: "No se pudieron cargar las siguientes filas",
+      loadError: "No se pudieron cargar las filas",
       noMatches: "Ningún resultado coincide con el filtro",
       retry: "Reintentar",
       search: "Buscar",

@@ -68,19 +68,11 @@ const canDelete = (): boolean => {
   return canAny(deletePermissions);
 };
 
-const handleCreateModal = async (): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({});
+const handleUpsertModal = async (id?: string): Promise<void> => {
+  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id });
   const modalResult = (await instance.result) as { llmProvider: LlmProvider | null };
   if (modalResult.llmProvider) {
-    table.addRow(modalResult.llmProvider);
-  }
-};
-
-const handleUpdateModal = async (llmProvider: LlmProvider): Promise<void> => {
-  const instance = overlay.create(LazyUpsertModal, { destroyOnClose: true }).open({ id: llmProvider.id });
-  const modalResult = (await instance.result) as { llmProvider: LlmProvider | null };
-  if (modalResult.llmProvider) {
-    table.replaceRow(modalResult.llmProvider);
+    await table.refresh();
   }
 };
 
@@ -94,7 +86,7 @@ const handleDeleteModal = async (llmProvider: LlmProvider): Promise<void> => {
   });
   const { deleted } = (await instance.result) as { deleted: boolean };
   if (deleted) {
-    table.removeRow(llmProvider);
+    await table.refresh();
   }
 };
 
@@ -117,8 +109,8 @@ definePageMeta({
     :can-update="canUpdate"
     i18n-prefix="ai.pages.studio.llmProviders"
     :can-create="can(AiPermissions.LlmProviderCreate)"
-    @create="() => void handleCreateModal()"
+    @create="() => void handleUpsertModal()"
     @delete="(row) => void handleDeleteModal(row)"
-    @update="(row) => void handleUpdateModal(row)"
+    @update="(row) => void handleUpsertModal(row.id)"
   />
 </template>

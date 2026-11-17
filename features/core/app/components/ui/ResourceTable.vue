@@ -186,7 +186,7 @@ useInfiniteScroll(
         />
       </UDropdownMenu>
     </template>
-    <template v-if="table.loadMoreFailed.value" #body-bottom>
+    <template v-if="table.retry.value" #body-bottom>
       <tr>
         <td :colspan="tableColumns.length" class="px-4 py-2 text-center text-sm text-muted">
           {{ $t("components.resourceTable.loadError") }}
@@ -196,8 +196,9 @@ useInfiniteScroll(
             color="neutral"
             variant="outline"
             icon="i-lucide-rotate-cw"
+            :disabled="table.loading.value"
             :label="$t('components.resourceTable.retry')"
-            @click="() => void table.loadMore()"
+            @click="() => void table.retry.value?.()"
           />
         </td>
       </tr>
