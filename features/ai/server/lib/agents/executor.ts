@@ -43,7 +43,8 @@ import { ensureToolsDiscovered, hasFreshTools } from "#layers/ai/server/lib/mcp/
 import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets, decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
-import { loadAgentToolsets, sanitize, truncate } from "#layers/ai/server/lib/tools";
+import { sanitize } from "#layers/ai/server/lib/text";
+import { loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
@@ -141,7 +142,7 @@ const assertComplete = (incomplete: LlmIncompleteDetails | undefined): void => {
 };
 
 const toJson = (value: unknown): string => {
-  return JSON.stringify(value, (_key, item: unknown) => (typeof item === "string" ? sanitize(item) : item));
+  return JSON.stringify(sanitize(value));
 };
 
 const serialize = (value: unknown, maxChars: number): string => {
@@ -430,6 +431,7 @@ export class AgentExecutor {
     const llmClient = this.createLlmClient(agent);
 
     let completed = false;
+    let unsaved: unknown;
 
     try {
       while (this.iterationCount < agent.maxIterations) {
@@ -511,10 +513,14 @@ export class AgentExecutor {
       try {
         await this.saveAssistantMessage(items.slice(contextLength));
       } catch (error) {
+        unsaved = error;
         logger.error({ executionId: this.executionId, error }, "Failed to persist streamed answer");
       }
     }
 
+    if (unsaved !== undefined) {
+      throw new Error("The answer could not be saved", { cause: unsaved });
+    }
     if (!completed) {
       throw new MaxIterationsError();
     }

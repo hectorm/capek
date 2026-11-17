@@ -1,6 +1,7 @@
 import type { LlmStreamEvent } from "#layers/ai/shared/llm";
 import { failure } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
+import { sanitize } from "#layers/ai/server/lib/text";
 
 export interface EventTranslator {
   // Events of the answer in the data of an event of the provider, throws when the provider reports a failure
@@ -21,7 +22,7 @@ export const translateEventStream = (
     for (const data of pendingEvents.splice(0)) {
       let rawEvent: unknown;
       try {
-        rawEvent = JSON.parse(data);
+        rawEvent = sanitize(JSON.parse(data));
       } catch {
         continue;
       }

@@ -11,6 +11,7 @@ import {
   toChatCompletionsRequest,
 } from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
+import { sanitize } from "#layers/ai/server/lib/text";
 import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
 import { fetchEndpoint, limitResponse, readErrorMessage } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -136,7 +137,7 @@ export class LlmClient {
 
       return this.api.fromStream(response.body);
     }
-    const rawCompletion: unknown = await response.json();
+    const rawCompletion: unknown = sanitize(await response.json());
     return this.api.fromResponse(rawCompletion);
   }
 

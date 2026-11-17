@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { FeatureToolProvider, ResourceToolProvider, Tool, Toolset } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
+import { sanitize } from "#layers/ai/server/lib/text";
 import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { syncLinks } from "#layers/core/server/lib/database/links";
@@ -60,9 +61,6 @@ export const loadAgentToolsets = async (
     return toolsets;
   });
 };
-
-// Text without the characters that the database rejects
-export const sanitize = (text: string): string => text.toWellFormed().replaceAll("\0", "\uFFFD");
 
 // Cuts the output of a tool that is too long for the model
 export const truncate = (text: string, maxChars: number): string => {

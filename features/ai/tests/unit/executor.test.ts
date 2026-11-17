@@ -687,6 +687,18 @@ describe("agent executor", () => {
     ]);
   });
 
+  it.each([
+    { label: "answers", streaming: false },
+    { label: "streamed answers", streaming: true },
+  ])("replaces the characters of $label that cannot be stored", async ({ streaming }) => {
+    const chat = await createChat({ streaming });
+
+    fakeModel([streaming ? streamedAnswer([{ content: "Scanned \u0000." }]) : answer("Scanned \u0000.")]);
+    await send(chat, "Scan the note");
+
+    expect((await answers(chat)).map((message) => message.content)).toEqual(["Scanned \uFFFD."]);
+  });
+
   it("replaces the characters of tool responses that cannot be stored", async () => {
     const chat = await createChat();
     const scanNotes = { id: "call-5", type: "function", function: { name: "notes_scan", arguments: "{}" } };
