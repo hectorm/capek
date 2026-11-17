@@ -1,12 +1,16 @@
 # Datasources
 
-This feature lets users connect the application to their ClickHouse, MariaDB, PostgreSQL and SQL Server databases. Datasources are set up in the Studio, where their builders describe the schema of each one and choose who can use it.
+This feature lets users connect the application to their ClickHouse, MariaDB, PostgreSQL and SQL Server databases.
+Datasources are set up in the Studio, where their builders describe the schema of each one and choose who can use it.
 
-Datasources are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. The application tries to run queries in read-only mode, but how it does so varies with each type of datasource and it is not a hard limit, so datasources should connect with a user that can only read.
+Datasources are shared with users and groups, either as editors, who can update, delete and share them, or as users, who
+can use them. The application tries to run queries in read-only mode, but how it does so varies with each type of
+datasource and it is not a hard limit, so datasources should connect with a user that can only read.
 
 ## Tools
 
-Datasources provide the `datasources_query` tool to the agents of the AI feature they are assigned to, which receive their documentation to write the queries.
+Datasources provide the `datasources_query` tool to the agents of the AI feature they are assigned to, which receive
+their documentation to write the queries.
 
 ## Configuration
 

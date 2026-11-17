@@ -29,4 +29,5 @@ export default {
   ],
   importOrderTypeScriptVersion: "5.0.0",
   tailwindStylesheet: "./features/core/app/assets/css/main.css",
+  overrides: [{ files: "*.md", options: { proseWrap: "always" } }],
 };

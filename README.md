@@ -5,6 +5,7 @@
 Capek is a self-hosted conversational AI platform.
 
 > [!WARNING]
+>
 > This project began as an experiment and remains a work in progress. Breaking changes are expected.
 
 ## Features
@@ -42,7 +43,8 @@ Capek is a self-hosted conversational AI platform.
 
 ## Architecture
 
-The application is composed of [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers), each one providing a feature. See [`features/`](./features/README.md) for how they work and the documentation of each one.
+The application is composed of [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers), each one providing a
+feature. See [`features/`](./features/README.md) for how they work and the documentation of each one.
 
 ## Development
 
@@ -88,7 +90,9 @@ docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="..." loca
 
 ### Selecting features
 
-Builds include all features by default, except the [optional ones](./features/README.md#layers). The `FEATURES` environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is always included. For example, to build only the core platform:
+Builds include all features by default, except the [optional ones](./features/README.md#layers). The `FEATURES`
+environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is
+always included. For example, to build only the core platform:
 
 ```sh
 FEATURES=core pnpm build
@@ -114,4 +118,5 @@ The application is accessible at `https://capek.localhost`.
 
 ## License
 
-Licensed under the [European Union Public Licence v. 1.2 or later](./LICENSE) © [Héctor Molinero Fernández](https://hector.molinero.dev). Review the license conditions before use or distribution.
+Licensed under the [European Union Public Licence v. 1.2 or later](./LICENSE) ©
+[Héctor Molinero Fernández](https://hector.molinero.dev). Review the license conditions before use or distribution.
