@@ -239,8 +239,8 @@ importers:
         specifier: ~5.9.0
         version: 5.9.0
       h3:
-        specifier: ~1.15.11
-        version: 1.15.11
+        specifier: ~2.0.8
+        version: 2.0.8(crossws@0.4.17(srvx@1.0.8))
       jmespath:
         specifier: ~0.16.0
         version: 0.16.0
