@@ -199,12 +199,20 @@ describe("agent tools", () => {
     );
   });
 
+  it("keeps the documents whose names only differ in characters that files cannot have", () => {
+    const documents = { "Sales EU.md": "In euros", "Sales_EU.md": "In euros too" };
+    const vfs = createVFS([], [], [{ provider: "notes", tools: [], documents }]);
+
+    expect(vfs.readFile("/tools/notes/docs/Sales_EU.md")).toBe("# Sales EU\n\nIn euros");
+    expect(vfs.readFile("/tools/notes/docs/Sales_EU_2.md")).toBe("# Sales_EU\n\nIn euros too");
+  });
+
   it("exposes the tools in the code interpreter", async () => {
     const toolsets: AgentToolset[] = await loadAgentToolsets(db, providers, agentId, caller);
     const vfs = createVFS([], [], toolsets);
 
     expect(vfs.readFile("/tools/notes/README.md")).toContain("notes_read");
-    expect(vfs.readFile("/tools/notes/docs/usable-note.md")).toBe("About usable-note");
+    expect(vfs.readFile("/tools/notes/docs/usable_note.md")).toBe("# usable-note\n\nAbout usable-note");
     expect(buildCodeInterpreterPrompt({ toolProviders: ["notes"] })).toContain("# Tools of one kind: notes");
     expect(buildCodeInterpreterPrompt()).not.toContain("/tools/");
 

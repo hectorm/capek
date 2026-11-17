@@ -31,6 +31,12 @@ export const createVFS = (
 ): VirtualFileSystem => {
   const vfs = new VirtualFileSystem();
 
+  const write = (path: string, content: string): void => {
+    if (!vfs.writeFile(path, content, { readonly: true })) {
+      throw new Error(`The file "${path}" of the sandbox could not be written`);
+    }
+  };
+
   const serverExports: string[] = [];
   const serverIds = uniqueIds();
   for (const server of servers) {
@@ -42,17 +48,17 @@ export const createVFS = (
     for (const tool of server.tools) {
       const toolName = toolIds(tool.name);
       const toolPath = `/servers/${serverName}/${toolName}.js`;
-      vfs.writeFile(toolPath, generateToolModule(server.name, tool), { readonly: true });
+      write(toolPath, generateToolModule(server.name, tool));
 
       toolExports.push(
         `${briefComment(tool.description, tool.name)}\nexport { default as $${toolName} } from "./${toolName}.js";`,
       );
     }
 
-    vfs.writeFile(`/servers/${serverName}/index.js`, `${toolExports.join("\n\n")}\n`, { readonly: true });
+    write(`/servers/${serverName}/index.js`, `${toolExports.join("\n\n")}\n`);
     serverExports.push(`export * from "./${serverName}/index.js";`);
   }
-  vfs.writeFile("/servers/index.js", `${serverExports.join("\n")}\n`, { readonly: true });
+  write("/servers/index.js", `${serverExports.join("\n")}\n`);
 
   const skillExports: string[] = [];
   const skillIds = uniqueIds();
@@ -60,17 +66,17 @@ export const createVFS = (
     const skillName = skillIds(skill.name);
 
     const skillMd = generateSkillMarkdown(skill, skillName);
-    vfs.writeFile(`/skills/${skillName}/SKILL.md`, skillMd, { readonly: true });
+    write(`/skills/${skillName}/SKILL.md`, skillMd);
 
     if (skill.code) {
-      vfs.writeFile(`/skills/${skillName}/scripts/main.js`, skill.code, { readonly: true });
+      write(`/skills/${skillName}/scripts/main.js`, skill.code);
 
       skillExports.push(
         `${briefComment(skill.description, skill.name)}\nexport { default as $${skillName} } from "./${skillName}/scripts/main.js";`,
       );
     }
   }
-  vfs.writeFile("/skills/index.js", `${skillExports.join("\n\n")}\n`, { readonly: true });
+  write("/skills/index.js", `${skillExports.join("\n\n")}\n`);
 
   if (toolsets.length > 0) {
     const toolsetExports: string[] = [];
@@ -80,25 +86,26 @@ export const createVFS = (
 
       for (const tool of toolset.tools) {
         const toolName = sanitizeId(tool.name);
-        vfs.writeFile(`/tools/${provider}/${toolName}.js`, generateFeatureToolModule(tool), { readonly: true });
+        write(`/tools/${provider}/${toolName}.js`, generateFeatureToolModule(tool));
 
         toolExports.push(
           `${briefComment(tool.description, tool.name)}\nexport { default as $${toolName} } from "./${toolName}.js";`,
         );
       }
-      vfs.writeFile(`/tools/${provider}/index.js`, `${toolExports.join("\n\n")}\n`, { readonly: true });
+      write(`/tools/${provider}/index.js`, `${toolExports.join("\n\n")}\n`);
 
       if (toolset.instructions) {
-        vfs.writeFile(`/tools/${provider}/README.md`, toolset.instructions, { readonly: true });
+        write(`/tools/${provider}/README.md`, toolset.instructions);
       }
+      const documentIds = uniqueIds();
       for (const [name, content] of Object.entries(toolset.documents ?? {})) {
-        const fileName = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
-        vfs.writeFile(`/tools/${provider}/docs/${fileName}`, content, { readonly: true });
+        const title = name.replace(/\.md$/, "");
+        write(`/tools/${provider}/docs/${documentIds(title)}.md`, `# ${title}\n\n${content}`);
       }
 
       toolsetExports.push(`export * from "./${provider}/index.js";`);
     }
-    vfs.writeFile("/tools/index.js", `${toolsetExports.join("\n")}\n`, { readonly: true });
+    write("/tools/index.js", `${toolsetExports.join("\n")}\n`);
   }
 
   return vfs;
