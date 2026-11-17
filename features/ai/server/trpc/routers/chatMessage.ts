@@ -1,3 +1,4 @@
+import type { SqlBool } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { z } from "zod/v4";
@@ -111,7 +112,7 @@ export const chatMessageRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         const message = await trx
           .selectFrom("aiChatMessages")
-          .select(["id", "createdAt"])
+          .select(["id"])
           .where("id", "=", input.id)
           .where("sessionId", "=", input.sessionId)
           .executeTakeFirst();
@@ -127,7 +128,9 @@ export const chatMessageRouter = createTRPCRouter({
         await trx
           .deleteFrom("aiChatMessages")
           .where("sessionId", "=", input.sessionId)
-          .where((eb) => eb("createdAt", ">=", message.createdAt))
+          .where(
+            sql<SqlBool>`(created_at, id) >= (SELECT created_at, id FROM ai_chat_messages WHERE id = ${message.id})`,
+          )
           .execute();
 
         await trx

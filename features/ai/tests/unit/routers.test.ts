@@ -336,11 +336,10 @@ describe("chat message", () => {
         .executeTakeFirstOrThrow();
       return session.id;
     };
-    const insertMessage = async (session: string, content: string, minute: number): Promise<string> => {
-      const createdAt = new Date(Date.UTC(2025, 0, 1, 0, minute));
+    const insertMessage = async (session: string, content: string, createdAt: string): Promise<string> => {
       const result = await sql<{ id: string }>`
         INSERT INTO ai_chat_messages (session_id, role, content, created_at)
-        VALUES (${session}, 'user', ${content}, ${createdAt})
+        VALUES (${session}, 'user', ${content}, ${createdAt}::TIMESTAMPTZ)
         RETURNING id
       `.execute(db);
       return result.rows[0]?.id ?? "";
@@ -357,10 +356,10 @@ describe("chat message", () => {
 
     const sessionId = await createSession();
     const otherSessionId = await createSession();
-    await insertMessage(sessionId, "first", 1);
-    const second = await insertMessage(sessionId, "second", 2);
-    await insertMessage(sessionId, "third", 3);
-    await insertMessage(otherSessionId, "other", 4);
+    await insertMessage(sessionId, "first", "2025-01-01T00:01:00.123100Z");
+    const second = await insertMessage(sessionId, "second", "2025-01-01T00:01:00.123900Z");
+    await insertMessage(sessionId, "third", "2025-01-01T00:02:00Z");
+    await insertMessage(otherSessionId, "other", "2025-01-01T00:03:00Z");
 
     await as(alice, Roles.Member).chatMessage.delete({ id: second, sessionId });
 
