@@ -133,7 +133,7 @@ const removeHeader = (index: number) => {
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    let mcpServerId: string;
+    const access = fromPrincipalIds(event.data);
 
     if ("id" in event.data && event.data.id) {
       const result = await $trpc.ai.mcpServer.update.mutate({
@@ -144,9 +144,9 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         headers: event.data.headers,
         stateful: event.data.stateful,
         toolCallTimeoutSec: event.data.toolCallTimeoutSec,
+        access,
       });
       mcpServer = result;
-      mcpServerId = result.id;
     } else {
       const result = await $trpc.ai.mcpServer.create.mutate({
         name: event.data.name,
@@ -155,14 +155,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         headers: event.data.headers,
         stateful: event.data.stateful,
         toolCallTimeoutSec: event.data.toolCallTimeoutSec,
+        access,
       });
       mcpServer = result;
-      mcpServerId = result.id;
       state.id = result.id;
     }
-
-    const access = fromPrincipalIds(event.data);
-    await $trpc.ai.mcpServer.syncAccess.mutate({ mcpServerId, access });
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { mcpServer });

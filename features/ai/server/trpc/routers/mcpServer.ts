@@ -16,7 +16,11 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { unredactEndpoint } from "#layers/core/server/lib/http";
-import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
+import {
+  ResourceAccessSchema,
+  sharedResourceAccessProcedures,
+  syncSharedResourceAccess,
+} from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
@@ -108,6 +112,7 @@ export const mcpServerRouter = createTRPCRouter({
           url: HttpUrlSchema,
           headers: HttpHeadersSchema.optional(),
           stateful: z.boolean().default(false),
+          access: ResourceAccessSchema.optional(),
         })
         .extend(MCPServerParametersSchema.shape),
     )
@@ -141,6 +146,8 @@ export const mcpServerRouter = createTRPCRouter({
             .where("id", "=", mcpServerId)
             .executeTakeFirstOrThrow();
 
+          await syncSharedResourceAccess(trx, McpServerResource, mcpServerId, input.access, "MCP server");
+
           ctx.logger.info({ mcpServerId }, "MCP server created");
           return redactSecrets(mcpServer);
         } catch (error) {
@@ -166,11 +173,12 @@ export const mcpServerRouter = createTRPCRouter({
           url: HttpUrlSchema.optional(),
           headers: HttpHeadersSchema.optional(),
           stateful: z.boolean().optional(),
+          access: ResourceAccessSchema.optional(),
         })
         .extend(MCPServerParametersSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, url, headers, ...updateData } = input;
+      const { id, access, url, headers, ...updateData } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         try {
@@ -205,6 +213,8 @@ export const mcpServerRouter = createTRPCRouter({
               message: "MCP server not found or you don't have permission to update it",
             });
           }
+
+          await syncSharedResourceAccess(trx, McpServerResource, id, access, "MCP server");
 
           ctx.logger.info({ mcpServerId: id }, "MCP server updated");
           return redactSecrets(mcpServer);
@@ -264,7 +274,6 @@ export const mcpServerRouter = createTRPCRouter({
     idKey: "mcpServerId",
     label: "MCP server",
     readPermissions: [AiPermissions.McpServerReadAll, AiPermissions.McpServerReadOwn],
-    updatePermissions: [AiPermissions.McpServerUpdateAll, AiPermissions.McpServerUpdateOwn],
   }),
 
   testConnection: authorizedProcedure([

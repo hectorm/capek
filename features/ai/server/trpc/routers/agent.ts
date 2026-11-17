@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 
+import type { Kysely } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
+import type { Database } from "#layers/core/shared/schema";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
@@ -17,7 +19,11 @@ import { syncLinks } from "#layers/core/server/lib/database/links";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { getToolProviders } from "#layers/core/server/lib/tools";
 import { hasToolResources } from "#layers/core/server/lib/tools/define";
-import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
+import {
+  ResourceAccessSchema,
+  sharedResourceAccessProcedures,
+  syncSharedResourceAccess,
+} from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 // Only the tool providers without resources to assign can be switched on for an agent
@@ -44,6 +50,75 @@ const findResourceToolProvider = (name: string) => {
     });
   }
   return provider;
+};
+
+const AgentAssignmentsSchema = z.object({
+  mcpServerIds: z.array(z.uuid()).max(100).optional(),
+  skillIds: z.array(z.uuid()).max(100).optional(),
+  toolResources: z.record(z.string().min(1).max(100), z.array(z.uuid()).max(100)).optional(),
+  specialistIds: z.array(z.uuid()).max(100).optional(),
+  access: ResourceAccessSchema.optional(),
+});
+
+const checkSpecialists = async (
+  trx: Kysely<Database>,
+  agent: { id: string; type: string },
+  specialistIds: readonly string[],
+): Promise<void> => {
+  if (agent.type !== "triage") {
+    if (specialistIds.length > 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Only triage agents can have specialists assigned",
+      });
+    }
+    return;
+  }
+
+  const current = await trx
+    .selectFrom("aiTriageSpecialists")
+    .select(["specialistAgentId"])
+    .where("triageAgentId", "=", agent.id)
+    .execute();
+  const newIds = [...new Set(specialistIds)].filter((id) => !current.some((c) => c.specialistAgentId === id));
+  if (newIds.length === 0) {
+    return;
+  }
+
+  const validCount = await trx
+    .selectFrom("aiAgents")
+    .select((eb) => eb.fn.countAll().as("count"))
+    .where("id", "in", newIds)
+    .where("type", "=", "specialist")
+    .executeTakeFirstOrThrow();
+  if (Number(validCount.count) !== newIds.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Some agents are not specialist type or do not exist",
+    });
+  }
+};
+
+const syncAgentAssignments = async (
+  trx: Kysely<Database>,
+  agent: { id: string; type: string },
+  { mcpServerIds, skillIds, toolResources, specialistIds, access }: z.infer<typeof AgentAssignmentsSchema>,
+): Promise<void> => {
+  const agentId = agent.id;
+  if (mcpServerIds) {
+    await syncLinks(trx, "ai_agent_mcp_servers", { agent_id: agentId }, "mcp_server_id", mcpServerIds);
+  }
+  if (skillIds) {
+    await syncLinks(trx, "ai_agent_skills", { agent_id: agentId }, "skill_id", skillIds);
+  }
+  for (const [provider, resourceIds] of Object.entries(toolResources ?? {})) {
+    await syncAgentToolResources(trx, agentId, findResourceToolProvider(provider), resourceIds);
+  }
+  if (specialistIds) {
+    await checkSpecialists(trx, agent, specialistIds);
+    await syncLinks(trx, "ai_triage_specialists", { triage_agent_id: agentId }, "specialist_agent_id", specialistIds);
+  }
+  await syncSharedResourceAccess(trx, AgentResource, agentId, access, "agent");
 };
 
 export const agentRouter = createTRPCRouter({
@@ -178,7 +253,8 @@ export const agentRouter = createTRPCRouter({
           toolProviders: z.array(z.string().min(1).max(100)).max(100).default([]),
           streaming: z.boolean().default(true),
         })
-        .extend(AgentExecutorParametersSchema.shape),
+        .extend(AgentExecutorParametersSchema.shape)
+        .extend(AgentAssignmentsSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
       const toolProviders = input.type === "specialist" ? checkSwitchableToolProviders(input.toolProviders) : [];
@@ -255,13 +331,21 @@ export const agentRouter = createTRPCRouter({
             .where("id", "=", agentId)
             .executeTakeFirstOrThrow();
 
+          await syncAgentAssignments(trx, createdAgent, input);
+
           ctx.logger.info({ agentId }, "Agent created");
           return createdAgent;
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "You don't have permission to use this LLM provider",
+              message: "You don't have permission to use this LLM provider or what the agent is assigned",
+            });
+          }
+          if (isForeignKeyViolation(error)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "The LLM provider or some of what the agent is assigned does not exist",
             });
           }
           if (isUniqueViolation(error)) {
@@ -310,10 +394,11 @@ export const agentRouter = createTRPCRouter({
           toolProviders: z.array(z.string().min(1).max(100)).max(100).optional(),
           streaming: z.boolean().optional(),
         })
-        .extend(AgentExecutorParametersSchema.shape),
+        .extend(AgentExecutorParametersSchema.shape)
+        .extend(AgentAssignmentsSchema.shape),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, mcpServerIds, skillIds, toolResources, specialistIds, access, ...updateData } = input;
       const toolProviders = updateData.toolProviders && checkSwitchableToolProviders(updateData.toolProviders);
 
       const agent = await withUserTransaction(ctx.user, async (trx) => {
@@ -359,13 +444,27 @@ export const agentRouter = createTRPCRouter({
             });
           }
 
+          await syncAgentAssignments(trx, updatedAgent, {
+            mcpServerIds,
+            skillIds,
+            toolResources,
+            specialistIds,
+            access,
+          });
+
           ctx.logger.info({ agentId: id }, "Agent updated");
           return updatedAgent;
         } catch (error) {
           if (isRLSViolation(error)) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "You don't have permission to update this agent or use the selected LLM provider",
+              message: "You don't have permission to update this agent or use what it is assigned",
+            });
+          }
+          if (isForeignKeyViolation(error)) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "The LLM provider or some of what the agent is assigned does not exist",
             });
           }
           if (isUniqueViolation(error)) {
@@ -432,7 +531,6 @@ export const agentRouter = createTRPCRouter({
     idKey: "agentId",
     label: "agent",
     readPermissions: [AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn],
-    updatePermissions: [AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn],
   }),
 
   listInvocable: authorizedProcedure([AiPermissions.AgentUseAll, AiPermissions.AgentUseOwn])
@@ -523,97 +621,6 @@ export const agentRouter = createTRPCRouter({
       return specialists;
     }),
 
-  syncSpecialists: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
-    .input(
-      z.object({
-        triageAgentId: z.uuid(),
-        specialistIds: z.array(z.uuid()).max(100),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        try {
-          const agent = await trx
-            .selectFrom("aiAgents")
-            .select(["type"])
-            .where("id", "=", input.triageAgentId)
-            .executeTakeFirst();
-
-          if (!agent) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Agent not found or you don't have permission to update it",
-            });
-          }
-
-          if (agent.type !== "triage") {
-            if (input.specialistIds.length > 0) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Only triage agents can have specialists assigned",
-              });
-            }
-            return;
-          }
-
-          const current = await trx
-            .selectFrom("aiTriageSpecialists")
-            .select(["specialistAgentId"])
-            .where("triageAgentId", "=", input.triageAgentId)
-            .execute();
-
-          const newIds = [...new Set(input.specialistIds)].filter(
-            (id) => !current.some((c) => c.specialistAgentId === id),
-          );
-          if (newIds.length > 0) {
-            const validCount = await trx
-              .selectFrom("aiAgents")
-              .select((eb) => eb.fn.countAll().as("count"))
-              .where("id", "in", newIds)
-              .where("type", "=", "specialist")
-              .executeTakeFirstOrThrow();
-
-            if (Number(validCount.count) !== newIds.length) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: "Some agents are not specialist type or do not exist",
-              });
-            }
-          }
-
-          const { added, removed } = await syncLinks(
-            trx,
-            "ai_triage_specialists",
-            { triage_agent_id: input.triageAgentId },
-            "specialist_agent_id",
-            input.specialistIds,
-          );
-
-          ctx.logger.info({ triageAgentId: input.triageAgentId, added, removed }, "Triage specialists synchronized");
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have permission to edit this triage agent or access these specialists",
-            });
-          }
-          if (isForeignKeyViolation(error)) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "One or more specialist agents do not exist",
-            });
-          }
-          if (isUniqueViolation(error)) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "Duplicate specialist assignment",
-            });
-          }
-          throw error;
-        }
-      });
-    }),
-
   listMcpServers: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
@@ -644,49 +651,6 @@ export const agentRouter = createTRPCRouter({
       return mcpServers;
     }),
 
-  syncMcpServers: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
-    .input(
-      z.object({
-        agentId: z.uuid(),
-        mcpServerIds: z.array(z.uuid()).max(100),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        try {
-          const { added, removed } = await syncLinks(
-            trx,
-            "ai_agent_mcp_servers",
-            { agent_id: input.agentId },
-            "mcp_server_id",
-            input.mcpServerIds,
-          );
-
-          ctx.logger.info({ agentId: input.agentId, added, removed }, "Agent MCP servers synchronized");
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have permission to edit this agent or access these MCP servers",
-            });
-          }
-          if (isForeignKeyViolation(error)) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "One or more MCP servers do not exist",
-            });
-          }
-          if (isUniqueViolation(error)) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "Duplicate MCP server assignment",
-            });
-          }
-          throw error;
-        }
-      });
-    }),
-
   listSkills: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
@@ -715,49 +679,6 @@ export const agentRouter = createTRPCRouter({
 
       ctx.logger.debug({ agentId: input.agentId }, "Agent skills list retrieved");
       return skills;
-    }),
-
-  syncSkills: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
-    .input(
-      z.object({
-        agentId: z.uuid(),
-        skillIds: z.array(z.uuid()).max(100),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
-        try {
-          const { added, removed } = await syncLinks(
-            trx,
-            "ai_agent_skills",
-            { agent_id: input.agentId },
-            "skill_id",
-            input.skillIds,
-          );
-
-          ctx.logger.info({ agentId: input.agentId, added, removed }, "Agent skills synchronized");
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have permission to edit this agent or access these skills",
-            });
-          }
-          if (isForeignKeyViolation(error)) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "One or more skills do not exist",
-            });
-          }
-          if (isUniqueViolation(error)) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "Duplicate skill assignment",
-            });
-          }
-          throw error;
-        }
-      });
     }),
 
   listToolProviders: authorizedProcedure([
@@ -831,42 +752,6 @@ export const agentRouter = createTRPCRouter({
 
       ctx.logger.debug({ agentId: input.agentId }, "Agent tool resources list retrieved");
       return resources;
-    }),
-
-  syncToolResources: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
-    .input(
-      z.object({
-        agentId: z.uuid(),
-        provider: z.string().min(1).max(100),
-        resourceIds: z.array(z.uuid()).max(100),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const provider = findResourceToolProvider(input.provider);
-
-      return withUserTransaction(ctx.user, async (trx) => {
-        try {
-          const { added, removed } = await syncAgentToolResources(trx, input.agentId, provider, input.resourceIds);
-          ctx.logger.info(
-            { agentId: input.agentId, provider: provider.name, added, removed },
-            "Agent tool resources synchronized",
-          );
-        } catch (error) {
-          if (isRLSViolation(error)) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message: "You don't have permission to edit this agent or use these resources",
-            });
-          }
-          if (isUniqueViolation(error)) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "Duplicate resource assignment",
-            });
-          }
-          throw error;
-        }
-      });
     }),
 
   testModel: authorizedProcedure([AiPermissions.LlmProviderUseAll, AiPermissions.LlmProviderUseOwn])

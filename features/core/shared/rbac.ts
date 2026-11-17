@@ -114,7 +114,7 @@ export interface GroupPrincipal {
 
 export type Principal = UserPrincipal | GroupPrincipal;
 
-// Access entry of a shared resource, as received by the `syncAccess` procedures
+// Access entry of a shared resource, as received when it is saved
 export const PrincipalAccessSchema = z.object({
   id: z.uuid(),
   type: z.enum(["user", "group"]),

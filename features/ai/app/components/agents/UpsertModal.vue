@@ -264,7 +264,15 @@ const getSpecialistLabel = (id: string) => {
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    let agentId: string;
+    const assignments = {
+      mcpServerIds: event.data.mcpServers,
+      skillIds: event.data.skills,
+      toolResources: Object.fromEntries(
+        assignableToolProviders.map((provider) => [provider.name, toolResources[provider.name] ?? []]),
+      ),
+      specialistIds: event.data.specialists,
+      access: fromPrincipalIds(event.data),
+    };
 
     if ("id" in event.data && event.data.id) {
       const result = await $trpc.ai.agent.update.mutate({
@@ -292,9 +300,9 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         maxContextChars: event.data.maxContextChars,
         maxToolResponseChars: event.data.maxToolResponseChars,
         maxToolPartsChars: event.data.maxToolPartsChars,
+        ...assignments,
       });
       agent = result;
-      agentId = result.id;
     } else {
       const result = await $trpc.ai.agent.create.mutate({
         name: event.data.name,
@@ -321,27 +329,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         maxContextChars: event.data.maxContextChars,
         maxToolResponseChars: event.data.maxToolResponseChars,
         maxToolPartsChars: event.data.maxToolPartsChars,
+        ...assignments,
       });
       agent = result;
-      agentId = result.id;
       state.id = result.id;
     }
-
-    const access = fromPrincipalIds(event.data);
-
-    await Promise.all([
-      $trpc.ai.agent.syncMcpServers.mutate({ agentId, mcpServerIds: event.data.mcpServers }),
-      $trpc.ai.agent.syncSkills.mutate({ agentId, skillIds: event.data.skills }),
-      ...assignableToolProviders.map((provider) => {
-        return $trpc.ai.agent.syncToolResources.mutate({
-          agentId,
-          provider: provider.name,
-          resourceIds: toolResources[provider.name] ?? [],
-        });
-      }),
-      $trpc.ai.agent.syncSpecialists.mutate({ triageAgentId: agentId, specialistIds: event.data.specialists }),
-      $trpc.ai.agent.syncAccess.mutate({ agentId, access }),
-    ]);
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { agent });

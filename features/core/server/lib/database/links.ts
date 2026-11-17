@@ -22,7 +22,7 @@ export const syncLinks = async (
   `.execute(db);
 
   const currentIds = new Set(current.rows.map((row) => row.id));
-  const targetIds = new Set(ids);
+  const targetIds = new Set(ids.map((id) => id.toLowerCase()));
   const toAdd = [...targetIds].filter((id) => !currentIds.has(id));
   const toRemove = [...currentIds].filter((id) => !targetIds.has(id));
 

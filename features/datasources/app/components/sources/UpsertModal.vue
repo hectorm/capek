@@ -165,7 +165,7 @@ const azureClientSecret = useConfigField<string>("azureClientSecret", "");
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    let datasourceId: string;
+    const access = fromPrincipalIds(event.data);
 
     if ("id" in event.data && event.data.id) {
       const result = await $trpc.datasources.source.update.mutate({
@@ -175,9 +175,9 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         documentation: event.data.documentation,
         type: event.data.type,
         config: event.data.config,
+        access,
       });
       datasource = result;
-      datasourceId = result.id;
     } else {
       const result = await $trpc.datasources.source.create.mutate({
         name: event.data.name,
@@ -185,14 +185,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         documentation: event.data.documentation,
         type: event.data.type,
         config: event.data.config,
+        access,
       });
       datasource = result;
-      datasourceId = result.id;
       state.id = result.id;
     }
-
-    const access = fromPrincipalIds(event.data);
-    await $trpc.datasources.source.syncAccess.mutate({ sourceId: datasourceId, access });
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { datasource });

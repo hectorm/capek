@@ -110,7 +110,7 @@ const state = reactive<
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    let skillId: string;
+    const access = fromPrincipalIds(event.data);
 
     if ("id" in event.data && event.data.id) {
       const result = await $trpc.ai.skill.update.mutate({
@@ -119,23 +119,20 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         description: event.data.description,
         documentation: event.data.documentation,
         code: event.data.code,
+        access,
       });
       skill = result;
-      skillId = result.id;
     } else {
       const result = await $trpc.ai.skill.create.mutate({
         name: event.data.name,
         description: event.data.description,
         documentation: event.data.documentation,
         code: event.data.code,
+        access,
       });
       skill = result;
-      skillId = result.id;
       state.id = result.id;
     }
-
-    const access = fromPrincipalIds(event.data);
-    await $trpc.ai.skill.syncAccess.mutate({ skillId, access });
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { skill });

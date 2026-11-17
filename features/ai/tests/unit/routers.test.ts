@@ -12,11 +12,12 @@ import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
+import { agentRouter } from "#layers/ai/server/trpc/routers/agent";
 import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chatMessage";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { closeDb, createAiTestDb, insertLlmProvider, insertUsers } from "#layers/ai/tests/unit/helpers/db";
+import { closeDb, createAiTestDb, insertLlmProvider, insertSkill, insertUsers } from "#layers/ai/tests/unit/helpers/db";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
@@ -36,6 +37,7 @@ const llmProviderId = crypto.randomUUID();
 const mcpServerId = crypto.randomUUID();
 
 const router = createTRPCRouter({
+  agent: agentRouter,
   chatMessage: chatMessageRouter,
   llmProvider: llmProviderRouter,
   mcpServer: mcpServerRouter,
@@ -251,6 +253,67 @@ describe("tool discovery", () => {
       });
     }
     expect(requests).toEqual(["POST /slow -", "POST /slow -", "POST /slow -", "POST /slow -"]);
+  });
+});
+
+describe("agent", () => {
+  it("is saved with what it is assigned, or not at all", async () => {
+    const creator = as(alice, Roles.Creator);
+    const skillId = await insertSkill(db, "assigned");
+    await db.insertInto("aiSkillAccess").values({ skillId, userId: alice, role: "user" }).execute();
+    const skillIds = [crypto.randomUUID()];
+
+    const twice = [skillId, skillId.toUpperCase()];
+    const { id } = await creator.agent.create({ name: "saved", type: "specialist", model: "m", skillIds: twice });
+    expect(await db.selectFrom("aiAgentSkills").select(["skillId"]).where("agentId", "=", id).execute()).toEqual([
+      { skillId },
+    ]);
+
+    await expect(creator.agent.create({ name: "unsaved", type: "specialist", model: "m", skillIds })).rejects.toThrow(
+      "what the agent is assigned",
+    );
+    expect(await db.selectFrom("aiAgents").select(["id"]).where("name", "=", "unsaved").execute()).toEqual([]);
+
+    await expect(creator.agent.update({ id, description: "changed", skillIds })).rejects.toThrow("what it is assigned");
+    const agent = await db.selectFrom("aiAgents").select(["description"]).where("id", "=", id).executeTakeFirst();
+    expect(agent).toEqual({ description: "" });
+  });
+
+  it("is not saved with what does not exist, even by who can use everything", async () => {
+    const admin = as(alice, Roles.Admin);
+    const skillIds = [crypto.randomUUID()];
+
+    await expect(admin.agent.create({ name: "unsaved", type: "specialist", model: "m", skillIds })).rejects.toThrow(
+      "some of what the agent is assigned does not exist",
+    );
+  });
+});
+
+describe("shared resource", () => {
+  it("is saved with its access, or not at all", async () => {
+    const creator = as(alice, Roles.Creator);
+    const access = [
+      { id: alice, type: "user" as const, role: "editor" as const },
+      { id: mallory, type: "user" as const, role: "user" as const },
+    ];
+
+    const { id } = await creator.mcpServer.create({ name: "shared", url: `${endpointUrl}/mcp`, headers: [], access });
+    const saved = await db
+      .selectFrom("aiMcpServerAccess")
+      .select(["userId", "role"])
+      .where("mcpServerId", "=", id)
+      .orderBy("role")
+      .execute();
+    expect(saved).toEqual([
+      { userId: alice, role: "editor" },
+      { userId: mallory, role: "user" },
+    ]);
+
+    const missing = [{ id: crypto.randomUUID(), type: "user" as const, role: "user" as const }];
+    await expect(
+      creator.mcpServer.create({ name: "unsaved", url: `${endpointUrl}/mcp`, headers: [], access: missing }),
+    ).rejects.toThrow("One or more users or groups do not exist");
+    expect(await db.selectFrom("aiMcpServers").select(["id"]).where("name", "=", "unsaved").execute()).toEqual([]);
   });
 });
 

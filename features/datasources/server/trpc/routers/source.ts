@@ -10,7 +10,11 @@ import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
-import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
+import {
+  ResourceAccessSchema,
+  sharedResourceAccessProcedures,
+  syncSharedResourceAccess,
+} from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { testConnection } from "#layers/datasources/server/lib/query";
@@ -146,6 +150,7 @@ export const sourceRouter = createTRPCRouter({
           .transform((v) => v || null)
           .nullish(),
         ...typedConfigShape,
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -178,6 +183,8 @@ export const sourceRouter = createTRPCRouter({
             .where("id", "=", sourceId)
             .executeTakeFirstOrThrow();
 
+          await syncSharedResourceAccess(trx, SourceResource, sourceId, input.access, "datasource");
+
           ctx.logger.info({ sourceId }, "Datasource created");
           return { ...source, config: redactConfig(source) };
         } catch (error) {
@@ -206,10 +213,11 @@ export const sourceRouter = createTRPCRouter({
           .transform((v) => v || null)
           .nullish(),
         ...typedConfigShape,
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, access, ...updateData } = input;
       const datasourceType = requireDatasourceType(updateData.type);
       const incomingConfig = parseConfig(datasourceType, updateData.config);
 
@@ -237,6 +245,8 @@ export const sourceRouter = createTRPCRouter({
               message: "Datasource not found or you don't have permission to update it",
             });
           }
+
+          await syncSharedResourceAccess(trx, SourceResource, id, access, "datasource");
 
           ctx.logger.info({ sourceId: id }, "Datasource updated");
           return { ...source, config: redactConfig(source) };
@@ -296,7 +306,6 @@ export const sourceRouter = createTRPCRouter({
     idKey: "sourceId",
     label: "datasource",
     readPermissions: [DatasourcesPermissions.SourceReadAll, DatasourcesPermissions.SourceReadOwn],
-    updatePermissions: [DatasourcesPermissions.SourceUpdateAll, DatasourcesPermissions.SourceUpdateOwn],
   }),
 
   testConnection: authorizedProcedure([

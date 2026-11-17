@@ -11,7 +11,11 @@ import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
-import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
+import {
+  ResourceAccessSchema,
+  sharedResourceAccessProcedures,
+  syncSharedResourceAccess,
+} from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 export const skillRouter = createTRPCRouter({
@@ -90,6 +94,7 @@ export const skillRouter = createTRPCRouter({
           .max(100000)
           .transform((v) => v || null)
           .nullish(),
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -142,6 +147,8 @@ export const skillRouter = createTRPCRouter({
             .where("id", "=", skillId)
             .executeTakeFirstOrThrow();
 
+          await syncSharedResourceAccess(trx, SkillResource, skillId, input.access, "skill");
+
           ctx.logger.info({ skillId }, "Skill created");
           return skill;
         } catch (error) {
@@ -174,10 +181,11 @@ export const skillRouter = createTRPCRouter({
           .max(100000)
           .transform((v) => v || null)
           .nullish(),
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updateData } = input;
+      const { id, access, ...updateData } = input;
 
       let parsedParameters: string | undefined;
       if (updateData.code) {
@@ -226,6 +234,8 @@ export const skillRouter = createTRPCRouter({
               message: "Skill not found or you don't have permission to update it",
             });
           }
+
+          await syncSharedResourceAccess(trx, SkillResource, id, access, "skill");
 
           ctx.logger.info({ skillId: id }, "Skill updated");
           return skill;
@@ -285,6 +295,5 @@ export const skillRouter = createTRPCRouter({
     idKey: "skillId",
     label: "skill",
     readPermissions: [AiPermissions.SkillReadAll, AiPermissions.SkillReadOwn],
-    updatePermissions: [AiPermissions.SkillUpdateAll, AiPermissions.SkillUpdateOwn],
   }),
 });

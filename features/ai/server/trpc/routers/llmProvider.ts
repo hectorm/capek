@@ -16,7 +16,11 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { unredactEndpoint } from "#layers/core/server/lib/http";
-import { sharedResourceAccessProcedures } from "#layers/core/server/trpc/access";
+import {
+  ResourceAccessSchema,
+  sharedResourceAccessProcedures,
+  syncSharedResourceAccess,
+} from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
@@ -110,6 +114,7 @@ export const llmProviderRouter = createTRPCRouter({
         apiType: LlmProviderApiTypeSchema.default("chat-completions"),
         apiKey: z.string().max(1000).trim().default(""),
         headers: HttpHeadersSchema.optional(),
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -140,6 +145,8 @@ export const llmProviderRouter = createTRPCRouter({
             .where("id", "=", llmProviderId)
             .executeTakeFirstOrThrow();
 
+          await syncSharedResourceAccess(trx, LlmProviderResource, llmProviderId, input.access, "LLM provider");
+
           ctx.logger.info({ llmProviderId }, "LLM provider created");
           return redactSecrets(llmProvider);
         } catch (error) {
@@ -165,10 +172,11 @@ export const llmProviderRouter = createTRPCRouter({
         apiType: LlmProviderApiTypeSchema.optional(),
         apiKey: z.string().max(1000).trim().optional(),
         headers: HttpHeadersSchema.optional(),
+        access: ResourceAccessSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, apiUrl, apiKey, headers, ...updateData } = input;
+      const { id, access, apiUrl, apiKey, headers, ...updateData } = input;
 
       return withUserTransaction(ctx.user, async (trx) => {
         try {
@@ -202,6 +210,8 @@ export const llmProviderRouter = createTRPCRouter({
               message: "LLM provider not found or you don't have permission to update it",
             });
           }
+
+          await syncSharedResourceAccess(trx, LlmProviderResource, id, access, "LLM provider");
 
           ctx.logger.info({ llmProviderId: id }, "LLM provider updated");
           return redactSecrets(llmProvider);
@@ -267,7 +277,6 @@ export const llmProviderRouter = createTRPCRouter({
     idKey: "llmProviderId",
     label: "LLM provider",
     readPermissions: [AiPermissions.LlmProviderReadAll, AiPermissions.LlmProviderReadOwn],
-    updatePermissions: [AiPermissions.LlmProviderUpdateAll, AiPermissions.LlmProviderUpdateOwn],
   }),
 
   testConnection: authorizedProcedure([

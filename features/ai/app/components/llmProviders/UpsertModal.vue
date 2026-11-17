@@ -127,7 +127,7 @@ const removeHeader = (index: number) => {
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    let llmProviderId: string;
+    const access = fromPrincipalIds(event.data);
 
     if ("id" in event.data && event.data.id) {
       const result = await $trpc.ai.llmProvider.update.mutate({
@@ -138,9 +138,9 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         apiType: event.data.apiType,
         apiKey: event.data.apiKey,
         headers: event.data.headers,
+        access,
       });
       llmProvider = result;
-      llmProviderId = result.id;
     } else {
       const result = await $trpc.ai.llmProvider.create.mutate({
         name: event.data.name,
@@ -149,14 +149,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
         apiType: event.data.apiType,
         apiKey: event.data.apiKey,
         headers: event.data.headers,
+        access,
       });
       llmProvider = result;
-      llmProviderId = result.id;
       state.id = result.id;
     }
-
-    const access = fromPrincipalIds(event.data);
-    await $trpc.ai.llmProvider.syncAccess.mutate({ llmProviderId, access });
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { llmProvider });
