@@ -5,6 +5,7 @@ import superjson from "superjson";
 import { z } from "zod/v4";
 
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
+import type { ExecutionResult } from "#layers/ai/server/lib/code/interpreter";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
@@ -391,7 +392,9 @@ export class AgentExecutor {
       const mcpTools = mcpServers.flatMap((server) => this.createMcpTools(server));
 
       const executableSkills = skillBindings.filter((s) => s.code !== null);
-      const skillTools = executableSkills.map((skill) => this.createSkillTool(agent, skill, mcpServerBindings));
+      const skillTools = executableSkills.map((skill) => {
+        return this.createSkillTool(agent, skill, mcpServerBindings, toolsets);
+      });
 
       const featureTools = toolsets.flatMap((toolset) => {
         return toolset.tools.map((tool) => ({ tool, toolProvider: toolset.provider }));
@@ -698,29 +701,7 @@ export class AgentExecutor {
             executionResult.executionMs,
           );
 
-          for (const mcpCall of executionResult.mcpCallLogs) {
-            const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
-            await this.saveToolCallFromCodeExecution(
-              codeExecutionId,
-              server?.id ?? null,
-              mcpCall.toolName,
-              mcpCall.args,
-              mcpCall.result,
-              mcpCall.error,
-            );
-          }
-
-          for (const toolCallLog of executionResult.toolCallLogs) {
-            await this.saveToolCallFromCodeExecution(
-              codeExecutionId,
-              null,
-              toolCallLog.toolName,
-              toolCallLog.args,
-              toolCallLog.result,
-              toolCallLog.error,
-              toolCallLog.provider,
-            );
-          }
+          await this.saveToolCallsFromCodeExecution(codeExecutionId, executionResult, mcpServerBindings);
 
           if (executionResult.error !== null) {
             throw new Error(executionResult.error);
@@ -771,7 +752,12 @@ export class AgentExecutor {
     }));
   }
 
-  private createSkillTool(agent: AgentConfig, skill: SkillBinding, mcpServerBindings: MCPServerBinding[]): AgentTool {
+  private createSkillTool(
+    agent: AgentConfig,
+    skill: SkillBinding,
+    mcpServerBindings: MCPServerBinding[],
+    toolsets: AgentToolset[],
+  ): AgentTool {
     return {
       skillId: skill.id,
       tool: {
@@ -785,7 +771,7 @@ export class AgentExecutor {
 
           logger.debug({ executionId: this.executionId, skill: skill.name }, "Executing skill as tool");
 
-          const vfs = createVFS(mcpServerBindings, []);
+          const vfs = createVFS(mcpServerBindings, [], toolsets);
           vfs.writeFile("/skill.js", skill.code);
 
           const wrappedCode = [
@@ -798,23 +784,14 @@ export class AgentExecutor {
             chatSessionId: this.config.sessionId,
             vfs,
             mcpServers: mcpServerBindings,
+            tools: { toolsets, context },
             maxExecutionMs: agent.timeoutSec * 1000,
             maxMemoryBytes: CODE_MAX_MEMORY_BYTES,
             maxCallLogChars: agent.maxToolResponseChars,
             signal: context.signal,
           });
 
-          for (const mcpCall of executionResult.mcpCallLogs) {
-            const server = mcpServerBindings.find((s) => s.name === mcpCall.serverName);
-            await this.saveToolCallFromCodeExecution(
-              null,
-              server?.id ?? null,
-              mcpCall.toolName,
-              mcpCall.args,
-              mcpCall.result,
-              mcpCall.error,
-            );
-          }
+          await this.saveToolCallsFromCodeExecution(null, executionResult, mcpServerBindings);
 
           if (executionResult.error !== null) {
             throw new Error(executionResult.error);
@@ -863,35 +840,38 @@ export class AgentExecutor {
     });
   }
 
-  private async saveToolCallFromCodeExecution(
+  private async saveToolCallsFromCodeExecution(
     codeExecutionId: string | null,
-    mcpServerId: string | null,
-    toolName: string,
-    args: string,
-    result: string | null,
-    errorMessage: string | null,
-    toolProvider: string | null = null,
+    { mcpCallLogs, toolCallLogs }: ExecutionResult,
+    mcpServerBindings: MCPServerBinding[],
   ): Promise<void> {
     const executionId = this.executionId;
-    if (!executionId) {
+    if (!executionId || mcpCallLogs.length + toolCallLogs.length === 0) {
       return;
     }
 
+    const completedAt = new Date();
+    const values = [
+      ...mcpCallLogs.map((call) => ({
+        ...call,
+        mcpServerId: mcpServerBindings.find((server) => server.name === call.serverName)?.id ?? null,
+        toolProvider: null,
+      })),
+      ...toolCallLogs.map((call) => ({ ...call, mcpServerId: null, toolProvider: call.provider })),
+    ].map(({ mcpServerId, toolProvider, toolName, args, result, error }) => ({
+      executionId,
+      codeExecutionId,
+      mcpServerId,
+      toolProvider,
+      toolName,
+      arguments: args,
+      result,
+      errorMessage: error,
+      completedAt,
+    }));
+
     await withUserTransaction(this.config.user, async (trx) => {
-      await trx
-        .insertInto("aiAgentToolCalls")
-        .values({
-          executionId,
-          codeExecutionId,
-          mcpServerId,
-          toolProvider,
-          toolName,
-          arguments: args,
-          result,
-          errorMessage,
-          completedAt: new Date(),
-        })
-        .execute();
+      await trx.insertInto("aiAgentToolCalls").values(values).execute();
     });
   }
 

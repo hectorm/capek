@@ -32,6 +32,21 @@ export default {
       ],
       skills: [
         {
+          name: "sales_table",
+          description: "Shows a table of sales through a feature tool",
+          code: [
+            "import { $ai_table } from '/tools/index.js';",
+            "export default async function () {",
+            "  await $ai_table({ name: 'Sales', columns: ['Product', 'Total'], rows: [['Books', 350]] });",
+            "  return 'Sales table ready';",
+            "}",
+          ].join("\n"),
+          access: {
+            editors: { users: ["admin"] },
+            users: { users: ["admin"] },
+          },
+        },
+        {
           name: "rot13",
           description: "Encodes or decodes text using the ROT13 cipher",
           documentation: [
@@ -129,6 +144,7 @@ export default {
           llmProvider: "Mock LLM Chat Completions",
           model: "goody-2",
           tools: { ai_tables: true },
+          skills: ["sales_table"],
           access: {
             editors: { users: ["admin"] },
             users: { users: ["admin"] },

@@ -109,6 +109,9 @@ const chartNotes = { id: "call-3", type: "function", function: { name: "notes_ch
 const listNotes = (rows: number) => {
   return { id: "call-4", type: "function", function: { name: "notes_table", arguments: JSON.stringify({ rows }) } };
 };
+const callSkill = (name: string) => {
+  return { id: "call-5", type: "function", function: { name: `skill_${name}`, arguments: "{}" } };
+};
 
 beforeAll(async () => {
   db = await createAiTestDb();
@@ -212,6 +215,16 @@ const tables = ({ sessionId }: TestChat) => {
   return db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute();
 };
 
+const notesToolCalls = ({ sessionId }: TestChat) => {
+  return db
+    .selectFrom("aiAgentToolCalls")
+    .innerJoin("aiAgentExecutions", "aiAgentExecutions.id", "aiAgentToolCalls.executionId")
+    .select(["toolName", "arguments", "result", "aiAgentToolCalls.errorMessage"])
+    .where("sessionId", "=", sessionId)
+    .where("toolProvider", "=", "notes")
+    .execute();
+};
+
 const roles = (request?: OpenAICompletionRequest): string[] => {
   return (request?.messages ?? []).map((message) => (message.tool_calls ? `${message.role} with tools` : message.role));
 };
@@ -302,6 +315,70 @@ describe("agent executor", () => {
     await send(chat, "Hi");
 
     expect(requests[0]?.tools?.map((tool) => tool.function.name)).toEqual(["skill_usable"]);
+  });
+
+  it("runs the feature tools of the agent in a skill tool and saves their calls", async () => {
+    const chat = await createChat();
+    const code = [
+      "import { $notes_chart } from '/tools/index.js';",
+      "export default async function () {",
+      "  return await $notes_chart({ points: 2 });",
+      "}",
+    ].join("\n");
+    const skillId = await insertSkill(db, "chart_notes", { code });
+    await db.insertInto("aiAgentSkills").values({ agentId: chat.agentId, skillId }).execute();
+
+    const requests = fakeModel([answer(null, [callSkill("chart_notes")]), answer("There are 3 notes.")]);
+    const { parts } = await send(chat, "Chart the notes.");
+
+    expect(requests[1]?.messages.at(-1)?.content).toBe("Shown");
+    expect(parts).toEqual([{ type: "chart", name: "Notes", option: { series: [{ type: "bar", data: [3, 3] }] } }]);
+    expect(await notesToolCalls(chat)).toEqual([
+      { toolName: "notes_chart", arguments: '{"points":2}', result: "Shown", errorMessage: null },
+    ]);
+  });
+
+  it("saves the failed feature tool calls of a skill tool", async () => {
+    const chat = await createChat();
+    const code = [
+      "import { $notes_table } from '/tools/index.js';",
+      "export default async function () {",
+      "  return await $notes_table({ rows: 5001 });",
+      "}",
+    ].join("\n");
+    const skillId = await insertSkill(db, "list_notes", { code });
+    await db.insertInto("aiAgentSkills").values({ agentId: chat.agentId, skillId }).execute();
+
+    const requests = fakeModel([answer(null, [callSkill("list_notes")]), answer("There are too many notes.")]);
+    const { parts } = await send(chat, "List the notes.");
+
+    expect(parts).toEqual([]);
+    expect(requests[1]?.messages.at(-1)?.content).toContain("A table cannot have more than 5000 rows");
+    expect(await notesToolCalls(chat)).toEqual([
+      {
+        toolName: "notes_table",
+        arguments: '{"rows":5001}',
+        result: null,
+        errorMessage: expect.stringContaining("A table cannot have more than 5000 rows") as string,
+      },
+    ]);
+  });
+
+  it("does not give a skill tool the feature tools that the agent does not have", async () => {
+    const chat = await createChat({ toolProviders: [] });
+    const code = [
+      "import { $notes_count } from '/tools/index.js';",
+      "export default async function () {",
+      "  return await $notes_count({});",
+      "}",
+    ].join("\n");
+    const skillId = await insertSkill(db, "count_notes", { code });
+    await db.insertInto("aiAgentSkills").values({ agentId: chat.agentId, skillId }).execute();
+
+    const requests = fakeModel([answer(null, [callSkill("count_notes")]), answer("The notes are unavailable.")]);
+    await send(chat, "Count the notes.");
+
+    expect(requests[1]?.messages.at(-1)?.content).toContain("Module not found: /tools/index.js");
   });
 
   it("drops the tool calls that do not fit in the context", async () => {

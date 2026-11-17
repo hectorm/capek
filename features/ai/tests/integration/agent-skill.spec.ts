@@ -8,4 +8,12 @@ test.describe("agent skill", () => {
 
     await expect(answer(page, "Uryyb Jbeyq")).toBeVisible();
   });
+
+  test("shows the table of a feature tool that a skill calls", async ({ page }) => {
+    await startChat(page, "Mock specialist table agent", "Show sales using skill_sales_table.");
+
+    const message = answer(page, "Sales table ready");
+    await expect(message.getByRole("cell", { name: "Books", exact: true })).toBeVisible();
+    await expect(message.getByRole("cell", { name: "350", exact: true })).toBeVisible();
+  });
 });
