@@ -49,7 +49,7 @@ export class PostgresDriver implements DatasourceDriver {
 
     let pid: number | undefined;
     const cancel = async (): Promise<void> => {
-      const canceller = new pg.Client(clientConfig);
+      const canceller = new pg.Client({ ...clientConfig, query_timeout: settings.requestTimeoutMs });
       try {
         await canceller.connect();
         await canceller.query("SELECT pg_cancel_backend($1)", [pid]);
