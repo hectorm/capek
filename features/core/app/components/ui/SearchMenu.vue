@@ -40,6 +40,7 @@ const search = ref<string>();
 const items = shallowRef<Item[]>([]);
 const loading = ref<boolean>(false);
 const timer = ref<ReturnType<typeof setTimeout> | null>(null);
+let latestSearch = 0;
 
 const internalModelValue = computed({
   get: () => {
@@ -58,9 +59,13 @@ const getSelectedValues = (): string[] => {
 };
 
 const doSearch = async (value?: string) => {
+  const searchId = ++latestSearch;
   try {
     loading.value = true;
     const searchResults = await props.searchFn(value);
+    if (searchId !== latestSearch) {
+      return;
+    }
     const selectedValues = new Set(getSelectedValues());
     const selectedItems = items.value.filter((i) => selectedValues.has(i.value));
     const searchItems = searchResults.map((v) => ({
@@ -73,10 +78,15 @@ const doSearch = async (value?: string) => {
     const preservedItems = selectedItems.filter((i) => !searchValuesSet.has(i.value));
     items.value = [...preservedItems, ...searchItems];
   } catch {
+    if (searchId !== latestSearch) {
+      return;
+    }
     const selectedValues = new Set(getSelectedValues());
     items.value = items.value.filter((i) => selectedValues.has(i.value));
   } finally {
-    loading.value = false;
+    if (searchId === latestSearch) {
+      loading.value = false;
+    }
   }
 };
 
