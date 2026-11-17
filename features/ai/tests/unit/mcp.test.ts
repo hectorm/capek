@@ -5,6 +5,7 @@ import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { EndpointInit } from "#layers/core/server/lib/http";
 import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
+import { TimeoutError } from "#layers/ai/server/lib/errors";
 import { connect, testConnection } from "#layers/ai/server/lib/mcp/client";
 import { PROTOCOL_VERSIONS } from "#layers/ai/server/lib/mcp/connection";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
@@ -43,6 +44,7 @@ let listedTools: object[] = tools;
 let session: string | null = null;
 let sessions = 0;
 let finishSlowCall: () => void = () => undefined;
+let connecting = Promise.withResolvers();
 
 const interrupted = new Map<string, unknown>();
 
@@ -125,6 +127,9 @@ const respond = (target: string | URL, init: EndpointInit = {}): Promise<Respons
   if (meta && !MODERN_SERVERS.includes(pathname)) {
     if (pathname === "/future") {
       return refuse(-32022, { supported: ["2099-01-01"] });
+    }
+    if (pathname === "/late") {
+      return connecting.promise.then(() => refuse(-32000));
     }
     return pathname === "/lenient" ? refuse(-32601, undefined, 200) : refuse(-32000);
   }
@@ -254,6 +259,22 @@ describe("MCP manager", () => {
     await manager.callTool(server("mcp"), tool("count"), {}, chatSessionId);
     await manager.callTool(server("rotated"), tool("count"), {}, chatSessionId);
     expect(requests.at(-1)?.path).toBe("/rotated");
+
+    await manager.cleanupSession(chatSessionId);
+  });
+
+  it("does not call a tool whose time is over while it connects", async () => {
+    const manager = MCPManager.getInstance();
+    const chatSessionId = crypto.randomUUID();
+    connecting = Promise.withResolvers();
+
+    const call = manager.callTool({ ...server("late"), toolCallTimeoutSec: 1 }, tool("count"), {}, chatSessionId);
+    await expect(call).rejects.toBeInstanceOf(TimeoutError);
+    connecting.resolve(undefined);
+    await vi.waitFor(() => {
+      expect(requests.map(({ method }) => method)).toContain("notifications/initialized");
+    });
+    expect(requests.filter(({ method }) => method === "tools/call")).toEqual([]);
 
     await manager.cleanupSession(chatSessionId);
   });

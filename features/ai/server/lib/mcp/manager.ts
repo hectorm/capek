@@ -1,5 +1,5 @@
 import cluster from "node:cluster";
-import { clearTimeout, setTimeout } from "node:timers";
+import { once } from "node:events";
 
 import type { MCPConnection, MCPServer } from "#layers/ai/server/lib/mcp/connection";
 import type { MCPCallToolResult, MCPTool } from "#layers/ai/shared/mcp";
@@ -166,70 +166,31 @@ export class MCPManager {
       session.calls++;
     }
 
-    return new Promise<string>((resolve, reject) => {
-      let settled = false;
-      let abortListener: (() => void) | null = null;
-
-      const cleanup = () => {
-        clearTimeout(timeoutId);
-        if (signal && abortListener) {
-          signal.removeEventListener("abort", abortListener);
-        }
-      };
-
-      const settle = (fn: () => void) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        cleanup();
-        fn();
-      };
-
-      if (signal) {
-        abortListener = () => {
-          settle(() => {
-            reject(new AbortError());
-          });
-        };
-
-        if (signal.aborted) {
-          reject(new AbortError());
-          return;
-        }
-
-        signal.addEventListener("abort", abortListener);
+    const deadline = AbortSignal.timeout(callTimeoutMs);
+    const callSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    try {
+      callSignal.throwIfAborted();
+      const aborted = once(callSignal, "abort").then(() => Promise.reject(callSignal.reason as Error));
+      const connection = await Promise.race([client, aborted]);
+      callSignal.throwIfAborted();
+      const callResult = await connection.callTool(tool, args, { signal: callSignal, timeoutMs: callTimeoutMs });
+      if (callResult.isError) {
+        throw new Error(`Tool error: ${mcpResultText(callResult)}`);
       }
-
-      const timeoutId = setTimeout(() => {
-        settle(() => {
-          reject(new TimeoutError());
-        });
-      }, callTimeoutMs);
-
-      client
-        .then((created) => created.callTool(tool, args, { signal, timeoutMs: callTimeoutMs }))
-        .then(
-          (callResult) => {
-            settle(() => {
-              if (callResult.isError) {
-                reject(new Error(`Tool error: ${mcpResultText(callResult)}`));
-              } else {
-                resolve(mcpResultText(callResult));
-              }
-            });
-          },
-          (error: unknown) => {
-            settle(() => {
-              reject(error instanceof Error ? error : new Error(String(error)));
-            });
-          },
-        );
-    }).finally(() => {
+      return mcpResultText(callResult);
+    } catch (error) {
+      if (signal?.aborted) {
+        throw new AbortError();
+      }
+      if (deadline.aborted) {
+        throw new TimeoutError();
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    } finally {
       if (session) {
         session.calls--;
         session.lastUsedAt = Date.now();
       }
-    });
+    }
   }
 }
