@@ -100,6 +100,32 @@ describe("PostgreSQL datasource", () => {
     Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
   });
 
+  it("stops a query when its signal aborts", async () => {
+    const controller = new AbortController();
+    const stopped = new Error("stopped");
+    const stalled = createServer((client) => {
+      client.on("error", () => undefined);
+      client.once("data", () => {
+        client.write(
+          Buffer.from([82, 0, 0, 0, 8, 0, 0, 0, 0, 75, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 2, 90, 0, 0, 0, 5, 73]),
+        );
+        client.once("data", () => {
+          controller.abort(stopped);
+        });
+      });
+    });
+    await new Promise<void>((resolve) => stalled.listen(0, "127.0.0.1", resolve));
+    const host = `127.0.0.1:${String((stalled.address() as AddressInfo).port)}`;
+    Object.assign(runtimeConfig, { allowedPrivateHosts: `${server.getServerConn()}, ${host}` });
+
+    const connection = { ...config(), connectionString: `postgres://${host}/postgres` };
+    const query = driver.execute({ config: connection }, "SELECT 1", { ...settings, signal: controller.signal });
+    await expect(query).rejects.toBe(stopped);
+
+    stalled.close();
+    Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
+  });
+
   it("limits the rows of every query", async () => {
     expect(await run("SELECT id, total FROM orders ORDER BY id")).toEqual([
       { id: 1, total: 10 },

@@ -1,10 +1,49 @@
+import type { DatasourceConnectionParams } from "#layers/datasources/server/lib/drivers";
+import { useLogger } from "#layers/core/server/lib/logger";
 import { defineToolProvider } from "#layers/core/server/lib/tools/define";
 import { TABLE_PART_MAX_ROWS } from "#layers/core/shared/tools";
-import { executeQuery, QUERY_MAX_ROWS } from "#layers/datasources/server/lib/query";
+import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
+import { executeQuery } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
 import { decryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 
+interface QuerySource extends DatasourceConnectionParams {
+  id: string;
+  type: string;
+}
+
+const logger = useLogger();
+
 export const DATASOURCES_QUERY_TOOL = "datasources_query";
+
+const QUERY_MAX_ROWS = 100;
+
+// Runs a query on a datasource and returns its first rows
+const querySource = async (
+  source: QuerySource,
+  sql: string,
+  { shown, signal }: { shown: boolean; signal?: AbortSignal },
+): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> => {
+  const type = findDatasourceType(source.type);
+  if (!type) {
+    throw new Error(`Datasource type "${source.type}" is not supported`);
+  }
+
+  const maxRows = shown ? TABLE_PART_MAX_ROWS : QUERY_MAX_ROWS;
+  try {
+    const rows = await executeQuery(type, source, sql, {
+      maxRows: maxRows + 1,
+      maxBytes: shown ? 5_000_000 : 1_000_000,
+      statementTimeoutMs: 30_000,
+      requestTimeoutMs: 10_000,
+      signal,
+    });
+    return { rows: rows.slice(0, maxRows), truncated: rows.length > maxRows };
+  } catch (error) {
+    logger.warn({ sourceId: source.id, error }, "Datasource query failed");
+    throw error;
+  }
+};
 
 // Lets the callers that datasources are assigned to query them
 export const datasourcesToolProvider = defineToolProvider({
@@ -80,7 +119,7 @@ export const datasourcesToolProvider = defineToolProvider({
                 throw new Error("Tables cannot be shown here");
               }
 
-              const { rows, truncated } = await executeQuery(source, args.sql, { shown: true, signal: context.signal });
+              const { rows, truncated } = await querySource(source, args.sql, { shown: true, signal: context.signal });
               const [first] = rows;
               if (first) {
                 context.show({
@@ -93,7 +132,7 @@ export const datasourcesToolProvider = defineToolProvider({
               return JSON.stringify({ shown: rows.length, truncated });
             }
 
-            return JSON.stringify(await executeQuery(source, args.sql, { signal: context.signal }));
+            return JSON.stringify(await querySource(source, args.sql, { shown: false, signal: context.signal }));
           },
           describe(args) {
             return typeof args.sql === "string" ? `\`\`\`sql\n${args.sql}\n\`\`\`` : undefined;
