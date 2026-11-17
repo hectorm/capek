@@ -9,15 +9,13 @@ import type {
   DatasourceDriver,
   DatasourceQuerySettings,
 } from "#layers/datasources/server/lib/drivers";
-import { readBodyStart } from "#layers/core/server/lib/http";
+import { readErrorBody } from "#layers/core/server/lib/http";
 import { allowedHost } from "#layers/core/server/lib/network";
 import { connectionUrl } from "#layers/datasources/server/lib/drivers/common";
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { ClickhouseDatasourceType } from "#layers/datasources/shared/definitions/clickhouse";
 
 const URL_OPTIONS = new Set(["application", "compression_request", "compression_response"]);
-
-const ERROR_BODY_MAX_BYTES = 16_384;
 
 const READONLY_ERROR = "164";
 const INVALID_RESPONSE_ERROR = "Invalid response from ClickHouse";
@@ -59,7 +57,7 @@ export class ClickhouseDriver implements DatasourceDriver {
       if (ok && headers["x-clickhouse-query-id"] !== undefined) {
         return result.stream;
       }
-      const body = await readBodyStart(result.stream, ERROR_BODY_MAX_BYTES);
+      const body = await readErrorBody(result.stream);
       const statusText = `${String(status)} ${STATUS_CODES[status] ?? ""}`.trim();
       throw this.toError(body, ok ? INVALID_RESPONSE_ERROR : `ClickHouse request failed: ${statusText}`);
     };

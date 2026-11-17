@@ -12,10 +12,13 @@ import {
 } from "#layers/ai/server/lib/openai/chatCompletions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";
-import { fetchEndpoint, readErrorMessage } from "#layers/core/server/lib/http";
+import { fetchEndpoint, limitResponse, readErrorMessage } from "#layers/core/server/lib/http";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
+
+const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
+const STREAM_MAX_BYTES = 100 * 1024 * 1024;
 
 interface LlmClientApi {
   path: string;
@@ -80,7 +83,7 @@ export class LlmClient {
     this.streaming = options.streaming ?? null;
   }
 
-  private async request(path: string, init: EndpointInit = {}): Promise<Response> {
+  private async request(path: string, init: EndpointInit = {}, maxBytes = RESPONSE_MAX_BYTES): Promise<Response> {
     const url = new URL(this.apiUrl);
     url.pathname = `${url.pathname}/${path}`.replace(/\/+/g, "/");
 
@@ -103,7 +106,10 @@ export class LlmClient {
       });
     }
 
-    return fetchEndpoint(url, { ...init, headers });
+    const response = await fetchEndpoint(url, { ...init, headers });
+    return response.ok
+      ? limitResponse(response, maxBytes, `The AI service sent a response larger than ${String(maxBytes)} bytes`)
+      : response;
   }
 
   public async completion(
@@ -113,11 +119,11 @@ export class LlmClient {
     const model = request.model ?? this.model;
     const stream = request.stream ?? this.streaming ?? true;
 
-    const response = await this.request(this.api.path, {
-      method: "POST",
-      body: JSON.stringify(this.api.toRequest({ ...request, model, stream })),
-      signal,
-    });
+    const response = await this.request(
+      this.api.path,
+      { method: "POST", body: JSON.stringify(this.api.toRequest({ ...request, model, stream })), signal },
+      stream ? STREAM_MAX_BYTES : RESPONSE_MAX_BYTES,
+    );
 
     if (!response.ok) {
       throw failure(await readErrorMessage(response));

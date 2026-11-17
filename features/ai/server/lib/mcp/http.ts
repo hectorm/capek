@@ -5,11 +5,10 @@ import { z } from "zod/v4";
 import type { EndpointInit } from "#layers/core/server/lib/http";
 import { describeError } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
-import { fetchEndpoint, readBodyStart, readErrorMessage } from "#layers/core/server/lib/http";
+import { fetchEndpoint, limitResponse, readErrorBody, readErrorMessage } from "#layers/core/server/lib/http";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
-const ERROR_BODY_MAX_BYTES = 16_384;
 const STREAM_RETRY_MIN_MS = 1_000;
 
 const JSONRPCErrorSchema = z.object({
@@ -68,10 +67,15 @@ const send = async (url: string, init: EndpointInit): Promise<Response> => {
   });
 
   if (!response.ok) {
-    const error = parseResponse(await readBodyStart(response.clone().body, ERROR_BODY_MAX_BYTES))?.error;
-    throw new MCPRequestError(`MCP request failed: ${await readErrorMessage(response)}`, response.status, error);
+    const body = await readErrorBody(response.body);
+    const error = parseResponse(body)?.error;
+    throw new MCPRequestError(`MCP request failed: ${await readErrorMessage(response, body)}`, response.status, error);
   }
-  return response;
+  return limitResponse(
+    response,
+    RESPONSE_MAX_BYTES,
+    `The MCP server sent a response larger than ${String(RESPONSE_MAX_BYTES)} bytes`,
+  );
 };
 
 const post = async (
@@ -86,21 +90,10 @@ const post = async (
   return send(url, { method: "POST", headers, body: JSON.stringify(message), signal });
 };
 
-const readBody = async function* (body: ReadableStream<Uint8Array> | null): AsyncGenerator<Uint8Array> {
-  let bytes = 0;
-  for await (const chunk of body ?? []) {
-    bytes += chunk.byteLength;
-    if (bytes > RESPONSE_MAX_BYTES) {
-      throw new Error(`The MCP server sent a response larger than ${String(RESPONSE_MAX_BYTES)} bytes`);
-    }
-    yield chunk;
-  }
-};
-
 const readJsonResponse = async (body: ReadableStream<Uint8Array> | null): Promise<JSONRPCResponse> => {
   const decoder = new TextDecoder();
   let text = "";
-  for await (const chunk of readBody(body)) {
+  for await (const chunk of body ?? []) {
     text += decoder.decode(chunk, { stream: true });
   }
 
@@ -126,7 +119,7 @@ const readStream = async (body: ReadableStream<Uint8Array> | null, id: number): 
     },
   });
 
-  for await (const chunk of readBody(body)) {
+  for await (const chunk of body ?? []) {
     sse.process(chunk);
     if (stream.response) {
       return stream;

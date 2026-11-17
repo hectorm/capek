@@ -226,15 +226,35 @@ export const fetchEndpoint = async (url: string | URL, init: EndpointInit = {}):
   throw new Error("The endpoint redirects too many times");
 };
 
-// Reads the first bytes of a body as text
-export const readBodyStart = async (body: AsyncIterable<Uint8Array> | null, maxBytes: number): Promise<string> => {
+// Fails the body of a response once it is larger than a number of bytes
+export const limitResponse = (response: Response, maxBytes: number, message: string): Response => {
+  if (!response.body) {
+    return response;
+  }
+  let bytes = 0;
+  const body = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        bytes += chunk.byteLength;
+        if (bytes > maxBytes) {
+          throw new Error(message);
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+  return new Response(body, response);
+};
+
+// Reads the start of the body of a failed response as text
+export const readErrorBody = async (body: AsyncIterable<Uint8Array> | null): Promise<string> => {
   const decoder = new TextDecoder();
   let text = "";
   let bytes = 0;
   for await (const chunk of body ?? []) {
-    text += decoder.decode(chunk.subarray(0, maxBytes - bytes), { stream: true });
+    text += decoder.decode(chunk.subarray(0, ERROR_BODY_MAX_BYTES - bytes), { stream: true });
     bytes += chunk.byteLength;
-    if (bytes >= maxBytes) {
+    if (bytes >= ERROR_BODY_MAX_BYTES) {
       break;
     }
   }
@@ -242,8 +262,8 @@ export const readBodyStart = async (body: AsyncIterable<Uint8Array> | null, maxB
 };
 
 // Describes a failed response without exposing bodies other than API errors
-export const readErrorMessage = async (response: Response): Promise<string> => {
-  const body = await readBodyStart(response.body, ERROR_BODY_MAX_BYTES);
+export const readErrorMessage = async (response: Response, body?: string): Promise<string> => {
+  body ??= await readErrorBody(response.body);
 
   let message: string | undefined;
   try {
