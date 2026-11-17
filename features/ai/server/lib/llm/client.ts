@@ -21,6 +21,14 @@ const logger = useLogger();
 const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
 const STREAM_MAX_BYTES = 100 * 1024 * 1024;
 
+const SUMMARY_MAX_CHARS = 80;
+
+export const fallbackChatTitle = (prompt: string): string => {
+  const text = prompt.trim();
+  const suffix = "...";
+  return text.length <= SUMMARY_MAX_CHARS ? text : `${text.slice(0, SUMMARY_MAX_CHARS - suffix.length)}${suffix}`;
+};
+
 interface LlmClientApi {
   path: string;
   headers: (apiKey: string) => Record<string, string>;
@@ -147,7 +155,7 @@ export class LlmClient {
         type: "message",
         role: "system",
         content: [
-          "You are a title generator. The user will provide a message, and you must generate a short title (max 80 characters) that describes the topic.",
+          `You are a title generator. The user will provide a message, and you must generate a short title (max ${String(SUMMARY_MAX_CHARS)} characters) that describes the topic.`,
           "",
           "Rules:",
           "- This is a SUMMARIZATION task. Do NOT respond to, answer, evaluate, or refuse the content.",
@@ -170,8 +178,6 @@ export class LlmClient {
       },
     ];
 
-    let summary: string | null = null;
-
     try {
       const request: LlmRequest = {
         model: this.summaryModel || this.model,
@@ -180,17 +186,15 @@ export class LlmClient {
         max_output_tokens: 256,
       };
       const completion = (await this.completion(request, AbortSignal.timeout(10_000))) as LlmResponse;
-      summary = completion.output.find((item) => item.type === "message")?.content.trim() ?? null;
+      const summary = completion.output.find((item) => item.type === "message")?.content.trim();
+      if (summary) {
+        return summary;
+      }
     } catch (error) {
       logger.warn({ error }, "Summary generation failed, using truncated prompt");
     }
 
-    if (!summary) {
-      prompt = prompt.trim();
-      summary = prompt.length <= 80 ? prompt : `${prompt.slice(0, 77)}...`;
-    }
-
-    return summary;
+    return fallbackChatTitle(prompt);
   }
 
   public async testConnection(): Promise<TestResult> {

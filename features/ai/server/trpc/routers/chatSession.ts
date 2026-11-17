@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
-import { LlmClient } from "#layers/ai/server/lib/llm/client";
+import { fallbackChatTitle, LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -274,8 +274,7 @@ export const chatSessionRouter = createTRPCRouter({
         ctx.logger.debug({ sessionId: input.id }, "Chat session title summarized");
       } catch (error) {
         ctx.logger.warn({ sessionId: input.id, error }, "Failed to summarize title, using truncated message");
-        const content = firstUserMessageContent.trim();
-        title = content.length <= 80 ? content : `${content.slice(0, 77)}...`;
+        title = fallbackChatTitle(firstUserMessageContent);
       }
 
       return withUserTransaction(ctx.user, async (trx) => {
