@@ -131,6 +131,25 @@ describe("proxy authentication", () => {
     expect(await forged.json()).toEqual({});
   });
 
+  it.each(["", " \t "])("does not take the user when the secret is %j, even if it is sent", async (secret) => {
+    const proxy = runtimeConfig.proxy as { secret: string };
+    const originalSecret = proxy.secret;
+    proxy.secret = secret;
+
+    try {
+      const forgedHeaders = new Headers(headers);
+      forgedHeaders.delete("X-Proxy-Secret");
+      const missing = await request("/api/me", { headers: forgedHeaders });
+      expect(await missing.json()).toEqual({});
+
+      forgedHeaders.set("X-Proxy-Secret", secret);
+      const matching = await request("/api/me", { headers: forgedHeaders });
+      expect(await matching.json()).toEqual({});
+    } finally {
+      proxy.secret = originalSecret;
+    }
+  });
+
   it("only takes the roles from the headers when their sync is enabled", async () => {
     await request("/api/me", { headers });
     expect(await roles("bob")).toEqual([]);

@@ -192,7 +192,7 @@ export default defineNuxtConfig({
       nonceCookieName: "oidc_nonce",
     },
     proxy: {
-      secret: "changeme",
+      secret: "",
       secretHeader: "X-Proxy-Secret",
       headerUsername: "X-Forwarded-User",
       headerFullname: "X-Forwarded-Preferred-Username",

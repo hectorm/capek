@@ -131,8 +131,8 @@ const getUtf8Header = (event: H3Event, name: string): string | undefined => {
 export class ProxyStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
     const expectedSecret = config.proxy.secret;
-    if (expectedSecret === "changeme") {
-      logger.error("Proxy secret must be changed from its default value");
+    if (!expectedSecret.trim()) {
+      logger.error("NUXT_PROXY_SECRET must be set to authenticate through a proxy");
       return null;
     }
 
