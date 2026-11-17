@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { useInfiniteScroll } from "@vueuse/core";
 import { navigateTo, useSeoMeta } from "nuxt/app";
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
+import {
+  computed,
+  inject,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onWatcherCleanup,
+  ref,
+  useTemplateRef,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
@@ -202,14 +212,27 @@ const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
   return i18n.t("ai.pages.chat.toolCalls.calls", { count: calls.length });
 };
 
-const loadSession = async () => {
+const loadSession = async (id: string) => {
+  if (!id) {
+    return;
+  }
+  const controller = new AbortController();
+  onWatcherCleanup(() => {
+    controller.abort();
+  });
   showsLastMessages.value = false;
   try {
-    await chatStore.selectSession(sessionId.value);
+    await chatStore.selectSession(id, controller.signal);
     await nextTick();
+    if (controller.signal.aborted) {
+      return;
+    }
     messagesContainer.value?.scrollTo({ top: messagesContainer.value.scrollHeight });
     showsLastMessages.value = true;
   } catch (error) {
+    if (controller.signal.aborted) {
+      return;
+    }
     console.error("Failed to load chat session", error);
     toast.add({
       color: "error",
@@ -388,17 +411,8 @@ useInfiniteScroll(
   },
 );
 
-watch(
-  () => route.params.id,
-  async (newId, oldId) => {
-    if (newId && newId !== oldId) {
-      await loadSession();
-    }
-  },
-);
-
-onMounted(async () => {
-  await loadSession();
+onMounted(() => {
+  watch(sessionId, loadSession, { immediate: true });
   window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
