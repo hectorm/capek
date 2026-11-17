@@ -7,12 +7,12 @@ import { sql } from "kysely";
 
 import type { ChatTablePart } from "#layers/ai/shared/chat";
 import type { NewChatTable } from "#layers/ai/shared/schema";
+import type { TablePart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
-import type { TablePart } from "#layers/core/shared/tools";
+import { defineToolProvider } from "#layers/ai/server/lib/tools/define";
+import { TABLE_PART_MAX_ROWS, TablePartSchema } from "#layers/ai/shared/tools";
 import { withUserTransaction } from "#layers/core/server/lib/database";
-import { defineToolProvider } from "#layers/core/server/lib/tools/define";
-import { TABLE_PART_MAX_ROWS, TablePartSchema } from "#layers/core/shared/tools";
 
 export const AI_TABLE_TOOL = "ai_table";
 

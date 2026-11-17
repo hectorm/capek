@@ -1,4 +1,4 @@
-import { defineToolProvider } from "#layers/core/server/lib/tools/define";
+import { defineToolProvider } from "#layers/ai/server/lib/tools/define";
 
 export const AI_CHART_TOOL = "ai_chart";
 

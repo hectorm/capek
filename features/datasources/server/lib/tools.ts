@@ -1,7 +1,7 @@
 import type { DatasourceConnectionParams } from "#layers/datasources/server/lib/drivers";
+import { defineToolProvider } from "#layers/ai/server/lib/tools/define";
+import { TABLE_PART_MAX_ROWS } from "#layers/ai/shared/tools";
 import { useLogger } from "#layers/core/server/lib/logger";
-import { defineToolProvider } from "#layers/core/server/lib/tools/define";
-import { TABLE_PART_MAX_ROWS } from "#layers/core/shared/tools";
 import { findDatasourceType } from "#layers/datasources/server/lib/drivers";
 import { executeQuery } from "#layers/datasources/server/lib/query";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
@@ -45,7 +45,7 @@ const querySource = async (
   }
 };
 
-// Lets the callers that datasources are assigned to query them
+// Lets the agents that datasources are assigned to query them
 export const datasourcesToolProvider = defineToolProvider({
   name: "datasources",
   label: "datasources.tools.label",

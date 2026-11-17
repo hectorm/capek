@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { ChartPartSchema, TablePartSchema } from "#layers/core/shared/tools";
+import { ChartPartSchema, TablePartSchema } from "#layers/ai/shared/tools";
 
 export const ChatStreamEvents = {
   Token: "token",

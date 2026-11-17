@@ -3,12 +3,12 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ToolContext } from "#layers/core/server/lib/tools/define";
+import type { ToolContext } from "#layers/ai/server/lib/tools/define";
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
+import { collectToolProviders } from "#layers/ai/server/lib/tools/define";
 import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
-import { collectToolProviders } from "#layers/core/server/lib/tools/define";
 import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import datasourcesFeature from "#layers/datasources/server/feature";

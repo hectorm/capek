@@ -1,7 +1,7 @@
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { Tool } from "#layers/ai/server/lib/tools/define";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
-import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
 import { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 

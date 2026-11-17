@@ -8,7 +8,8 @@ import type { Database } from "#layers/core/shared/schema";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
-import { syncAgentToolResources } from "#layers/ai/server/lib/tools";
+import { getToolProviders, syncAgentToolResources } from "#layers/ai/server/lib/tools";
+import { hasToolResources } from "#layers/ai/server/lib/tools/define";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
@@ -17,8 +18,6 @@ import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { syncLinks } from "#layers/core/server/lib/database/links";
 import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
-import { getToolProviders } from "#layers/core/server/lib/tools";
-import { hasToolResources } from "#layers/core/server/lib/tools/define";
 import {
   ResourceAccessSchema,
   sharedResourceAccessProcedures,

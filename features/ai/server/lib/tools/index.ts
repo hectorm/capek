@@ -1,18 +1,25 @@
 import type { Kysely } from "kysely";
 
+import type { FeatureToolProvider, ResourceToolProvider, Tool, Toolset } from "#layers/ai/server/lib/tools/define";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
-import type { FeatureToolProvider, ResourceToolProvider, Tool, Toolset } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { sanitize } from "#layers/ai/server/lib/text";
+import { collectToolProviders, hasToolResources } from "#layers/ai/server/lib/tools/define";
 import { usableResourceIds } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { syncLinks } from "#layers/core/server/lib/database/links";
+import { getServerFeatures } from "#layers/core/server/lib/features";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
-import { hasToolResources } from "#layers/core/server/lib/tools/define";
 
 export interface AgentToolset extends Toolset {
   provider: string;
 }
+
+let toolProviders: readonly FeatureToolProvider[] | null = null;
+
+export const getToolProviders = (): readonly FeatureToolProvider[] => {
+  return (toolProviders ??= collectToolProviders(getServerFeatures()));
+};
 
 // Tools of an agent, with only the assigned resources that the calling user can use and that still exist
 export const loadAgentToolsets = async (

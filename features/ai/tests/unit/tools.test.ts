@@ -2,9 +2,9 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { ToolContext } from "#layers/ai/server/lib/tools/define";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
-import type { ToolContext } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import aiFeature from "#layers/ai/server/feature";
 import { buildCodeInterpreterPrompt, buildToolsetsPrompt } from "#layers/ai/server/lib/agents/prompts";
@@ -12,6 +12,7 @@ import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, syncAgentToolResources } from "#layers/ai/server/lib/tools";
+import { collectToolProviders, defineToolProvider } from "#layers/ai/server/lib/tools/define";
 import {
   asUser,
   closeDb,
@@ -22,7 +23,6 @@ import {
 } from "#layers/ai/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
 import { listResources } from "#layers/core/server/lib/authz/resources";
-import { collectToolProviders, defineToolProvider } from "#layers/core/server/lib/tools/define";
 
 let db: Kysely<Database>;
 

@@ -20,7 +20,7 @@ export const TablePartSchema = z.object({
 
 export type TablePart = z.infer<typeof TablePartSchema>;
 
-// What a tool shows the user, apart from the result that it returns to its caller
+// What a tool shows the user, apart from the result that it returns to the agent
 export const ToolPartSchema = z.discriminatedUnion("type", [ChartPartSchema, TablePartSchema]);
 
 export type ToolPart = z.infer<typeof ToolPartSchema>;

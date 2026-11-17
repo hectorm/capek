@@ -9,16 +9,16 @@ import type { ExecutionResult } from "#layers/ai/server/lib/code/interpreter";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { MCPServerInfo } from "#layers/ai/server/lib/mcp/tools";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
+import type { Tool } from "#layers/ai/server/lib/tools/define";
 import type { ChatMessagePart, ChatToolPart } from "#layers/ai/shared/chat";
 import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PageCursor } from "#layers/core/server/lib/database/pagination";
-import type { Tool } from "#layers/core/server/lib/tools/define";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
 import {
   buildCodeInterpreterPrompt,
   buildSkillToolsPrompt,
@@ -44,7 +44,7 @@ import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#l
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets, decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { sanitize } from "#layers/ai/server/lib/text";
-import { loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
+import { getToolProviders, loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
@@ -55,7 +55,6 @@ import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { paginate } from "#layers/core/server/lib/database/pagination";
 import { useLogger } from "#layers/core/server/lib/logger";
-import { getToolProviders } from "#layers/core/server/lib/tools";
 
 const logger = useLogger();
 

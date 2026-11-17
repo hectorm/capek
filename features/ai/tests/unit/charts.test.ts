@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
 import { AI_CHART_TOOL, aiChartsToolProvider } from "#layers/ai/server/lib/charts";
 
 const user = { id: crypto.randomUUID() } as AuthUser;

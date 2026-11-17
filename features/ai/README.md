@@ -10,6 +10,10 @@ Agents can also use the tools that other features provide, like the datasources 
 
 Agents, LLM providers, MCP servers and skills are shared with users and groups, either as editors, who can update, delete and share them, or as users, who can use them. Assigning a provider, MCP server, skill or specialist to an agent requires permission to edit the agent and to use the resource. Once assigned, everyone who can use the agent uses its provider and specialists through it, while its MCP servers, skills and the resources of other features only reach the users who can use them.
 
+## Tools
+
+Other features give tools to the agents with the providers in the `tools` field of their server feature (`defineToolProvider()`), for which they depend on this feature. A provider gives the tools of the resources assigned to each agent, like its datasources, and only of the ones that the user who calls them can use. Without resources it is switched on for each agent instead. Either way, the tools are loaded with the restrictions of that user and act on their behalf. Providers and tools are named after their feature (`datasources_query`).
+
 ## Configuration
 
 `NUXT_AI_QUICK_CHATS` sets the default prompts of the welcome page, separated by `;`, which can be changed in the Settings. The `ai` section of the seed configuration creates LLM providers, MCP servers, skills and agents (see `compose.base.yaml`). The `tools` field of an agent gives it the tools of other features (e.g. `tools: { datasources: ["sales"] }`).

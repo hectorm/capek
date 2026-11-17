@@ -3,6 +3,7 @@ import { defineNuxtConfig } from "nuxt/config";
 export default defineNuxtConfig({
   $meta: {
     name: "datasources",
+    dependsOn: ["ai"],
   },
   i18n: {
     langDir: "locales",

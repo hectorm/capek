@@ -13,7 +13,7 @@ import type {
 } from "#layers/ai/server/lib/code/protocol";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { AgentToolset } from "#layers/ai/server/lib/tools";
-import type { ToolContext } from "#layers/core/server/lib/tools/define";
+import type { ToolContext } from "#layers/ai/server/lib/tools/define";
 import { AbortError } from "#layers/ai/server/lib/errors";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { findAgentTool, truncate } from "#layers/ai/server/lib/tools";

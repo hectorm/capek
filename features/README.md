@@ -20,7 +20,7 @@ A feature is a layer in `features/<name>/`, named `<name>` with the `$meta.name`
 
 | File                           | Contribution                                                                                                        |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `server/feature.ts`            | `defineServerFeature()`: the fields of `ServerFeature`, like migrations, permissions, settings and tools            |
+| `server/feature.ts`            | `defineServerFeature()`: the fields of `ServerFeature`, like migrations, permissions and settings                   |
 | `server/trpc/routers/index.ts` | `routers` object merged into the application tRPC router                                                            |
 | `app/feature.ts`               | `defineAppFeature()`: home page, main navigation, sidebar sections, user menu entries, and studio and settings tabs |
 | `shared/*.d.ts`                | Declaration merging into the core registries (e.g. the tables of the `Database` interface)                          |
@@ -43,7 +43,6 @@ Except in core, everything that can collide with other features starts with the 
 - Plugins, middleware and layouts as `<feature>-*`.
 - Runtime config under `runtimeConfig.<feature>` (`NUXT_<FEATURE>_*` variables), settings as `<feature>.*` and seed configuration in a `<feature>` section.
 - i18n keys under `<feature>.*`.
-- Tools with `<feature>_` (`datasources_query`).
 - Pinia stores under `<feature>.*`, and browser storage keys with a `<feature>` prefix.
 
 The build or the startup fails when a name does not follow this rule, except for Pinia stores and browser storage keys.
@@ -67,10 +66,6 @@ Each feature owns its database changes:
 - When a feature is removed its tables are kept, with row level security enabled and no policies, so they become inaccessible.
 - Migrations, policies and functions qualify their tables with the `public` schema, queries do not.
 - Lists are paged with `paginate()`, and the ones that can be long also filter by the rows of the user, since the policies alone do not use the indexes.
-
-## Tools
-
-A feature exposes tools to automated callers, such as the agents of the AI feature, with the providers in the `tools` field of its server feature (`defineToolProvider()`). A provider gives the tools of the resources assigned to each caller, like the datasources of an agent, and only of the ones that the user who calls them can use. Without resources it is switched on for each caller instead. Either way, the tools are loaded with the restrictions of that user and act on their behalf.
 
 ## Extension points
 

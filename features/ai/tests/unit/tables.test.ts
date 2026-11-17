@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
 import { compareCells, toCsv } from "#layers/ai/app/utils/table";
 import { AI_TABLE_TOOL, aiTablesToolProvider } from "#layers/ai/server/lib/tables";
 

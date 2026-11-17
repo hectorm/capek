@@ -4,12 +4,12 @@ import { z } from "zod/v4";
 import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
 import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
+import { collectToolProviders, hasToolResources } from "#layers/ai/server/lib/tools/define";
 import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { defineSeed, SeedAccessSchema } from "#layers/core/server/lib/seed";
-import { collectToolProviders, hasToolResources } from "#layers/core/server/lib/tools/define";
 import { HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
 const SeedLLMProviderSchema = z.object({

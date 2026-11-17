@@ -5,7 +5,6 @@ import type { CspContribution } from "#layers/core/server/lib/csp";
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { SettingDefinition } from "#layers/core/server/lib/settings/define";
-import type { ToolProvider } from "#layers/core/server/lib/tools/define";
 import type { User } from "#layers/core/shared/schema";
 
 // Server side contribution of a layer (its `server/feature.ts`), extensible through declaration merging
@@ -24,8 +23,6 @@ export interface ServerFeature {
   csp?: CspContribution;
   // Limits of the request bodies of the routes that accept larger ones
   bodyLimits?: BodyLimits;
-  // Tools given to automated callers, like the agents of the AI feature
-  tools?: readonly ToolProvider[];
   // Hook run after syncing a user with the identity provider, on each OIDC sign-in and proxy sync
   onUserSync?: (event: { user: User; claims: Readonly<Record<string, unknown>> }) => Promise<void>;
 }

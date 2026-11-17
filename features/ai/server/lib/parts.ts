@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 
 import type { ChatToolPart } from "#layers/ai/shared/chat";
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
 import { attachTables, discardSessionTables, keepTable, saveSessionTables } from "#layers/ai/server/lib/tables";
 
 export const keepPart = (part: ToolPart): ChatToolPart => (part.type === "table" ? keepTable(part) : part);

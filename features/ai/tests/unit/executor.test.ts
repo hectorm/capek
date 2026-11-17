@@ -1,16 +1,17 @@
 import type { Kysely } from "kysely";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { FeatureToolProvider } from "#layers/ai/server/lib/tools/define";
 import type { ChatTablePart } from "#layers/ai/shared/chat";
 import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
 import type { NewAgent } from "#layers/ai/shared/schema";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
-import type { FeatureToolProvider } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
 import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { loadTable } from "#layers/ai/server/lib/tables";
+import { getToolProviders } from "#layers/ai/server/lib/tools";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
   closeDb,
@@ -25,67 +26,66 @@ import { fetchEndpoint } from "#layers/core/server/lib/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
 vi.mock("#layers/core/server/lib/http", { spy: true });
+vi.mock("#layers/ai/server/lib/tools", { spy: true });
 
 // Tools that stand in for the ones of another feature, one telling what it does and others showing a chart or a table
-vi.mock("#layers/core/server/lib/tools", () => {
-  const provider: FeatureToolProvider = {
-    name: "notes",
-    feature: "notes",
-    label: "notes.tools.label",
-    load: () => {
-      return Promise.resolve({
-        tools: [
-          {
-            name: "notes_read",
-            description: "Read a note",
-            parameters: { type: "object", properties: { note: { type: "string" } }, required: ["note"] },
-            execute: (args) => Promise.resolve(`Content of ${String(args.note)}: ${"hello ".repeat(100)}`),
-            describe: (args) => `Reads the note "${String(args.note)}"`,
+const provider: FeatureToolProvider = {
+  name: "notes",
+  feature: "notes",
+  label: "notes.tools.label",
+  load: () => {
+    return Promise.resolve({
+      tools: [
+        {
+          name: "notes_read",
+          description: "Read a note",
+          parameters: { type: "object", properties: { note: { type: "string" } }, required: ["note"] },
+          execute: (args) => Promise.resolve(`Content of ${String(args.note)}: ${"hello ".repeat(100)}`),
+          describe: (args) => `Reads the note "${String(args.note)}"`,
+        },
+        {
+          name: "notes_export",
+          description: "Export the notes",
+          parameters: { type: "object", properties: {} },
+          execute: () => Promise.resolve("note ".repeat(1000)),
+        },
+        {
+          name: "notes_count",
+          description: "Count the notes",
+          parameters: { type: "object", properties: {} },
+          execute: () => Promise.resolve("3"),
+        },
+        {
+          name: "notes_scan",
+          description: "Scan a note",
+          parameters: { type: "object", properties: {} },
+          execute: () => Promise.resolve("Scanned \ud83d\0"),
+        },
+        {
+          name: "notes_chart",
+          description: "Chart the notes",
+          parameters: { type: "object", properties: { points: { type: "number" } } },
+          execute: (args, context) => {
+            const data = Array<number>(Number(args.points ?? 1)).fill(3);
+            context.show?.({ type: "chart", name: "Notes", option: { series: [{ type: "bar", data }] } });
+            return Promise.resolve("Shown");
           },
-          {
-            name: "notes_export",
-            description: "Export the notes",
-            parameters: { type: "object", properties: {} },
-            execute: () => Promise.resolve("note ".repeat(1000)),
+        },
+        {
+          name: "notes_table",
+          description: "List the notes",
+          parameters: { type: "object", properties: { rows: { type: "number" } } },
+          execute: (args, context) => {
+            const rows = Array.from({ length: Number(args.rows) }, (_, index) => [`note ${String(index)}`]);
+            context.show?.({ type: "table", name: "Notes", columns: ["note"], rows });
+            return Promise.resolve("Shown");
           },
-          {
-            name: "notes_count",
-            description: "Count the notes",
-            parameters: { type: "object", properties: {} },
-            execute: () => Promise.resolve("3"),
-          },
-          {
-            name: "notes_scan",
-            description: "Scan a note",
-            parameters: { type: "object", properties: {} },
-            execute: () => Promise.resolve("Scanned \ud83d\0"),
-          },
-          {
-            name: "notes_chart",
-            description: "Chart the notes",
-            parameters: { type: "object", properties: { points: { type: "number" } } },
-            execute: (args, context) => {
-              const data = Array<number>(Number(args.points ?? 1)).fill(3);
-              context.show?.({ type: "chart", name: "Notes", option: { series: [{ type: "bar", data }] } });
-              return Promise.resolve("Shown");
-            },
-          },
-          {
-            name: "notes_table",
-            description: "List the notes",
-            parameters: { type: "object", properties: { rows: { type: "number" } } },
-            execute: (args, context) => {
-              const rows = Array.from({ length: Number(args.rows) }, (_, index) => [`note ${String(index)}`]);
-              context.show?.({ type: "table", name: "Notes", columns: ["note"], rows });
-              return Promise.resolve("Shown");
-            },
-          },
-        ],
-      });
-    },
-  };
-  return { getToolProviders: () => [provider] };
-});
+        },
+      ],
+    });
+  },
+};
+vi.mocked(getToolProviders).mockReturnValue([provider]);
 
 let db: Kysely<Database>;
 let llmProviderId: string;

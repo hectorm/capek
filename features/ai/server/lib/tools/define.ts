@@ -1,10 +1,17 @@
 import type { Kysely } from "kysely";
 
+import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
-import type { ToolPart } from "#layers/core/shared/tools";
+
+declare module "#layers/core/server/lib/features/define" {
+  interface ServerFeature {
+    // Tools given to the agents
+    tools?: readonly ToolProvider[];
+  }
+}
 
 // JSON schema of the arguments of a tool
 export interface ToolParameters {
@@ -17,11 +24,11 @@ export interface ToolContext {
   // User on whose behalf the tool is called
   user: AuthUser;
   signal?: AbortSignal;
-  // Shows something to the user, when the caller has a way to
+  // Shows something to the user, when the agent has a way to
   show?: (part: ToolPart) => void;
 }
 
-// Operation that a feature exposes to automated callers, such as the agents of the AI feature
+// Operation that a feature gives to the agents
 export interface Tool {
   // Starts with the name of the feature, like "datasources_query"
   name: string;
@@ -41,15 +48,15 @@ export interface Toolset {
   documents?: Readonly<Record<string, string>>;
 }
 
-// Provides the tools that a feature gives to a caller
+// Provides the tools that a feature gives to an agent
 export interface ToolProvider {
   // Name of the feature, followed by `_<name>` when it has several providers
   name: string;
-  // i18n key of the label shown where the provider is given to a caller
+  // i18n key of the label shown where the provider is given to an agent
   label: string;
   // i18n key of the description shown where a provider without resources is switched on
   description?: string;
-  // Resources assigned to each caller with `<type>:use` access, or none for tools that are switched on for each caller
+  // Resources assigned to each agent with `<type>:use` access, or none for tools that are switched on for each agent
   resource?: SharedResource;
   // Tools of the assigned resources that still exist and the user that calls them can use, read as that user
   load: (db: Kysely<Database>, resourceIds: readonly string[]) => Promise<Toolset>;
@@ -80,7 +87,7 @@ export const collectToolProviders = (features: readonly ServerFeature[]): Featur
       if (resourceType !== undefined && providers.some((other) => other.resource?.type === resourceType)) {
         throw new Error(`Resource type "${resourceType}" has more than one tool provider`);
       }
-      if (feature.name !== "core" && provider.name !== feature.name && !provider.name.startsWith(`${feature.name}_`)) {
+      if (provider.name !== feature.name && !provider.name.startsWith(`${feature.name}_`)) {
         throw new Error(
           `Tool provider "${provider.name}" of feature "${feature.name}" must be named "${feature.name}" or start with "${feature.name}_"`,
         );
