@@ -89,7 +89,7 @@
     "zod": "~4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite-socket": "~0.2.18",
+    "@electric-sql/pglite-socket": "~0.2.19",
     "@eslint/js": "~10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "~4.7.1",
     "@nuxt/devtools": "~3.4.4",
@@ -100,16 +100,16 @@
     "@types/pg": "~8.23.1",
     "eslint": "~10.14.0",
     "eslint-config-prettier": "~10.1.8",
-    "eslint-plugin-better-tailwindcss": "~4.10.0",
-    "eslint-plugin-vue": "~10.12.0",
+    "eslint-plugin-better-tailwindcss": "~4.11.0",
+    "eslint-plugin-vue": "~10.12.1",
     "globals": "~17.14.0",
     "jsdom": "~31.0.0",
     "npm-run-all2": "~9.0.4",
     "prettier": "~3.9.10",
     "prettier-plugin-tailwindcss": "~0.8.1",
     "typescript": "~6.0.3",
-    "typescript-eslint": "~8.72.1",
-    "vite": "~8.3.6",
+    "typescript-eslint": "~8.72.2",
+    "vite": "~8.3.7",
     "vitest": "~5.1.0",
     "vue-tsc": "~3.3.14"
   }
