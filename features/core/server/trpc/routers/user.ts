@@ -11,7 +11,12 @@ import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter, publicProcedure } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
@@ -102,11 +107,11 @@ export const userRouter = createTRPCRouter({
   search: authorizedProcedure([CorePermissions.UserListAll])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["username", "fullname", "email", "roles", "groups"]).default("username"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["username", "fullname", "email"]).default("username"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -116,10 +121,7 @@ export const userRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = selectUsers(trx);
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-
+        if (search.length > 0) {
           if (searchBy === "roles") {
             query = query.where((eb) => {
               return eb.exists(
@@ -127,7 +129,7 @@ export const userRouter = createTRPCRouter({
                   .selectFrom("userRoles")
                   .innerJoin("roles", "roles.id", "userRoles.roleId")
                   .whereRef("userRoles.userId", "=", "users.id")
-                  .where((eb2) => eb2.or(searchList.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
+                  .where((eb2) => eb2.or(search.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
               );
             });
           } else if (searchBy === "groups") {
@@ -137,11 +139,11 @@ export const userRouter = createTRPCRouter({
                   .selectFrom("userGroups")
                   .innerJoin("groups", "groups.id", "userGroups.groupId")
                   .whereRef("userGroups.userId", "=", "users.id")
-                  .where((eb2) => eb2.or(searchList.map((v) => eb2("groups.name", "ilike", `%${v}%`)))),
+                  .where((eb2) => eb2.or(search.map((v) => eb2("groups.name", "ilike", `%${v}%`)))),
               );
             });
           } else {
-            query = query.where((eb) => eb.or(searchList.map((v) => eb(`users.${searchBy}`, "ilike", `%${v}%`))));
+            query = query.where((eb) => eb.or(search.map((v) => eb(`users.${searchBy}`, "ilike", `%${v}%`))));
           }
         }
 

@@ -19,6 +19,7 @@ import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
 
+import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
@@ -182,7 +183,7 @@ if (agent?.llmProviderId && agent.llmProviderName) {
   llmProviderLabels.set(agent.llmProviderId, agent.llmProviderName);
 }
 const searchLlmProviders = async (query?: string) => {
-  const result = await $trpc.ai.llmProvider.search.query({ search: query, limit: 25 });
+  const result = await $trpc.ai.llmProvider.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.llmProviders.forEach((provider) => {
     llmProviderLabels.set(provider.id, provider.name);
   });
@@ -194,7 +195,7 @@ const getLlmProviderLabel = (id: string) => {
 
 const mcpServerLabels = new Map(currentMcpServers.map((server) => [server.id, server.name]));
 const searchMcpServers = async (query?: string) => {
-  const result = await $trpc.ai.mcpServer.search.query({ search: query, limit: 25 });
+  const result = await $trpc.ai.mcpServer.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.mcpServers.forEach((server) => {
     mcpServerLabels.set(server.id, server.name);
   });
@@ -206,7 +207,7 @@ const getMcpServerLabel = (id: string) => {
 
 const skillLabels = new Map(currentSkills.map((skill) => [skill.id, skill.name]));
 const searchSkills = async (query?: string) => {
-  const result = await $trpc.ai.skill.search.query({ search: query, limit: 25 });
+  const result = await $trpc.ai.skill.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.skills.forEach((skill) => {
     skillLabels.set(skill.id, skill.name);
   });
@@ -240,7 +241,11 @@ const toolResources = reactive<Record<string, string[]>>(
 );
 const toolResourceLabels = new Map(currentToolResources.map((resource) => [resource.id, resource.name]));
 const searchToolResources = async (provider: string, query?: string) => {
-  const resources = await $trpc.ai.agent.searchToolResources.query({ provider, search: query, limit: 25 });
+  const resources = await $trpc.ai.agent.searchToolResources.query({
+    provider,
+    search: query,
+    limit: SEARCH_SUGGESTION_LIMIT,
+  });
   resources.forEach((resource) => {
     toolResourceLabels.set(resource.id, resource.name);
   });
@@ -252,7 +257,11 @@ const getToolResourceLabel = (id: string) => {
 
 const specialistLabels = new Map(currentSpecialists.map((specialist) => [specialist.id, specialist.name]));
 const searchSpecialists = async (query?: string) => {
-  const result = await $trpc.ai.agent.search.query({ search: query, type: "specialist", limit: 25 });
+  const result = await $trpc.ai.agent.search.query({
+    search: query,
+    type: "specialist",
+    limit: SEARCH_SUGGESTION_LIMIT,
+  });
   result.agents.forEach((specialist) => {
     specialistLabels.set(specialist.id, specialist.name);
   });

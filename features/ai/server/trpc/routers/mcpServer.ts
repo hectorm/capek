@@ -14,7 +14,12 @@ import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import { unredactEndpoint } from "#layers/core/server/lib/http";
 import {
   ResourceAccessSchema,
@@ -70,11 +75,11 @@ export const mcpServerRouter = createTRPCRouter({
   search: authorizedProcedure([AiPermissions.McpServerListAll, AiPermissions.McpServerListOwn])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["name", "description", "url"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description", "url"]).default("name"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -84,10 +89,8 @@ export const mcpServerRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx.selectFrom("aiMcpServers").select(["id", "name", "description", "url"]);
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-          query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiMcpServers.${searchBy}`, "ilike", `%${v}%`))));
+        if (search.length > 0) {
+          query = query.where((eb) => eb.or(search.map((v) => eb(`aiMcpServers.${searchBy}`, "ilike", `%${v}%`))));
         }
 
         const { rows: mcpServers, nextCursor } = await paginate(query, {

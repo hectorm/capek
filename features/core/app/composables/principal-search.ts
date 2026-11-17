@@ -2,6 +2,7 @@ import { useNuxtApp } from "nuxt/app";
 
 import type { Principal } from "#layers/core/shared/rbac";
 import { usePermissions } from "#layers/core/app/composables/permissions";
+import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 export const usePrincipalSearch = () => {
@@ -12,9 +13,11 @@ export const usePrincipalSearch = () => {
   const search = async (query?: string): Promise<string[]> => {
     const [groups, users] = await Promise.all([
       canAny([CorePermissions.GroupListAll, CorePermissions.GroupListOwn])
-        ? $trpc.group.search.query({ search: query, limit: 25 })
+        ? $trpc.group.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT })
         : { groups: [] },
-      canAny([CorePermissions.UserListAll]) ? $trpc.user.search.query({ search: query, limit: 25 }) : { users: [] },
+      canAny([CorePermissions.UserListAll])
+        ? $trpc.user.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT })
+        : { users: [] },
     ]);
 
     groups.groups.forEach((g) => {

@@ -4,6 +4,7 @@ import { useNuxtApp } from "nuxt/app";
 import UBadge from "@nuxt/ui/components/Badge.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
@@ -28,7 +29,7 @@ const agentStore = useAgentStore();
 
 const table = await useResourceTable({
   key: "ai.agent.search",
-  query: { limit: 100, orderBy: "name", order: "asc" },
+  query: { limit: MAX_PAGE_SIZE, orderBy: "name", order: "asc" },
   search: async (input: SearchInput) => {
     const result = await $trpc.ai.agent.search.query(input);
     return { rows: result.agents, nextCursor: result.nextCursor };

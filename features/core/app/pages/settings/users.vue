@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePayloadData } from "#layers/core/app/composables/payload-data";
@@ -32,7 +33,7 @@ const { user: me } = storeToRefs(userStore);
 const [table, roles] = await Promise.all([
   useResourceTable({
     key: "user.search",
-    query: { limit: 100, orderBy: "username", order: "asc" },
+    query: { limit: MAX_PAGE_SIZE, orderBy: "username", order: "asc" },
     search: async (input: SearchInput) => {
       const result = await $trpc.user.search.query(input);
       return { rows: result.users, nextCursor: result.nextCursor };

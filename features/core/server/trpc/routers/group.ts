@@ -7,7 +7,12 @@ import type { Database } from "#layers/core/shared/schema";
 import { syncGroupRoles } from "#layers/core/server/lib/authn/sync";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
@@ -60,11 +65,11 @@ export const groupRouter = createTRPCRouter({
   search: authorizedProcedure([CorePermissions.GroupListAll, CorePermissions.GroupListOwn])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["name", "description", "roles"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description"]).default("name"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -74,10 +79,7 @@ export const groupRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = selectGroups(trx);
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-
+        if (search.length > 0) {
           if (searchBy === "roles") {
             query = query.where((eb) => {
               return eb.exists(
@@ -85,11 +87,11 @@ export const groupRouter = createTRPCRouter({
                   .selectFrom("groupRoles")
                   .innerJoin("roles", "roles.id", "groupRoles.roleId")
                   .whereRef("groupRoles.groupId", "=", "groups.id")
-                  .where((eb2) => eb2.or(searchList.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
+                  .where((eb2) => eb2.or(search.map((v) => eb2("roles.name", "ilike", `%${v}%`)))),
               );
             });
           } else {
-            query = query.where((eb) => eb.or(searchList.map((v) => eb(`groups.${searchBy}`, "ilike", `%${v}%`))));
+            query = query.where((eb) => eb.or(search.map((v) => eb(`groups.${searchBy}`, "ilike", `%${v}%`))));
           }
         }
 

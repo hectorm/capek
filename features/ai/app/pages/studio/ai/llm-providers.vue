@@ -3,6 +3,7 @@ import { useNuxtApp } from "nuxt/app";
 
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
@@ -25,7 +26,7 @@ const { can, canAny } = usePermissions();
 
 const table = await useResourceTable({
   key: "ai.llmProvider.search",
-  query: { limit: 100, orderBy: "name", order: "asc" },
+  query: { limit: MAX_PAGE_SIZE, orderBy: "name", order: "asc" },
   search: async (input: SearchInput) => {
     const result = await $trpc.ai.llmProvider.search.query(input);
     return { rows: result.llmProviders, nextCursor: result.nextCursor };

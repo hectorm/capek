@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
 import type { RouterOutputs } from "#layers/core/app/types/trpc";
+import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 
 export type InvocableAgent = RouterOutputs["ai"]["agent"]["listInvocable"][number];
 
@@ -16,7 +17,7 @@ export const useAgentStore = defineStore("ai.agent", () => {
   const hasAgents = computed(() => agents.value.length > 0);
 
   const search = async (query?: string): Promise<InvocableAgent[]> => {
-    const found = await $trpc.ai.agent.listInvocable.query({ search: query, limit: 25 });
+    const found = await $trpc.ai.agent.listInvocable.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
     found.forEach((agent) => cache.set(agent.id, agent));
     return found;
   };

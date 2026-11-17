@@ -7,7 +7,7 @@ import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmItem } from "#layers/ai/shared/llm";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { withUserTransaction } from "#layers/core/server/lib/database";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import { ListPageSizeSchema, PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 // Of the items of a message, only its text and what its tool calls say about themselves and show are for the user
@@ -32,7 +32,7 @@ export const chatMessageRouter = createTRPCRouter({
     .input(
       z.object({
         sessionId: z.uuid(),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )

@@ -9,7 +9,12 @@ import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import {
   ResourceAccessSchema,
   sharedResourceAccessProcedures,
@@ -103,11 +108,11 @@ export const sourceRouter = createTRPCRouter({
   search: authorizedProcedure([DatasourcesPermissions.SourceListAll, DatasourcesPermissions.SourceListOwn])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["name", "description", "type"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description", "type"]).default("name"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -117,11 +122,9 @@ export const sourceRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx.selectFrom("datasourcesSources").select(["id", "name", "description", "type"]);
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
+        if (search.length > 0) {
           query = query.where((eb) => {
-            return eb.or(searchList.map((v) => eb(`datasourcesSources.${searchBy}`, "ilike", `%${v}%`)));
+            return eb.or(search.map((v) => eb(`datasourcesSources.${searchBy}`, "ilike", `%${v}%`)));
           });
         }
 

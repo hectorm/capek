@@ -10,7 +10,12 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import {
   ResourceAccessSchema,
   sharedResourceAccessProcedures,
@@ -45,11 +50,11 @@ export const skillRouter = createTRPCRouter({
   search: authorizedProcedure([AiPermissions.SkillListAll, AiPermissions.SkillListOwn])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["name", "description"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description"]).default("name"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -59,10 +64,8 @@ export const skillRouter = createTRPCRouter({
       return withUserTransaction(ctx.user, async (trx) => {
         let query = trx.selectFrom("aiSkills").select(["id", "name", "description"]);
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-          query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiSkills.${searchBy}`, "ilike", `%${v}%`))));
+        if (search.length > 0) {
+          query = query.where((eb) => eb.or(search.map((v) => eb(`aiSkills.${searchBy}`, "ilike", `%${v}%`))));
         }
 
         const { rows: skills, nextCursor } = await paginate(query, {

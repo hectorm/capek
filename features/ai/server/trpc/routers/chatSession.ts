@@ -8,7 +8,12 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+} from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 export const chatSessionRouter = createTRPCRouter({
@@ -42,11 +47,11 @@ export const chatSessionRouter = createTRPCRouter({
   search: authorizedProcedure([AiPermissions.ChatListAll, AiPermissions.ChatListOwn])
     .input(
       z.object({
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["title"]).default("title"),
         order: z.enum(["asc", "desc"]).default("desc"),
         orderBy: z.enum(["title", "updatedAt", "createdAt"]).default("updatedAt"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -63,10 +68,8 @@ export const chatSessionRouter = createTRPCRouter({
           query = query.where("aiChatSessions.userId", "=", ctx.user.id);
         }
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-          query = query.where((eb) => eb.or(searchList.map((v) => eb("aiChatSessions.title", "ilike", `%${v}%`))));
+        if (search.length > 0) {
+          query = query.where((eb) => eb.or(search.map((v) => eb("aiChatSessions.title", "ilike", `%${v}%`))));
         }
 
         const { rows: sessions, nextCursor } = await paginate(query, {

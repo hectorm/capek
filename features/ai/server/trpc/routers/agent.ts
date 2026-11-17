@@ -17,7 +17,13 @@ import { grantResourceAccess, listResources, usableResourceIds } from "#layers/c
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { syncLinks } from "#layers/core/server/lib/database/links";
-import { PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
+import {
+  ListPageSizeSchema,
+  PageCursorSchema,
+  paginate,
+  SearchTermsSchema,
+  SuggestionLimitSchema,
+} from "#layers/core/server/lib/database/pagination";
 import {
   ResourceAccessSchema,
   sharedResourceAccessProcedures,
@@ -187,11 +193,11 @@ export const agentRouter = createTRPCRouter({
     .input(
       z.object({
         type: z.enum(["triage", "specialist"]).optional(),
-        search: z.union([z.string().max(255), z.array(z.string().max(255)).max(255)]).optional(),
+        search: SearchTermsSchema,
         searchBy: z.enum(["name", "description", "type", "model"]).default("name"),
         order: z.enum(["asc", "desc"]).default("asc"),
         orderBy: z.enum(["name", "description", "type", "model", "priority"]).default("name"),
-        limit: z.number().min(1).max(100).default(50),
+        limit: ListPageSizeSchema,
         cursor: PageCursorSchema.nullish(),
       }),
     )
@@ -214,10 +220,8 @@ export const agentRouter = createTRPCRouter({
           query = query.where("aiAgents.type", "=", type);
         }
 
-        // Apply search filters
-        if (search && (typeof search === "string" ? search.length > 0 : search.length > 0)) {
-          const searchList = Array.isArray(search) ? search : [search];
-          query = query.where((eb) => eb.or(searchList.map((v) => eb(`aiAgents.${searchBy}`, "ilike", `%${v}%`))));
+        if (search.length > 0) {
+          query = query.where((eb) => eb.or(search.map((v) => eb(`aiAgents.${searchBy}`, "ilike", `%${v}%`))));
         }
 
         const { rows: agents, nextCursor } = await paginate(query, {
@@ -536,7 +540,7 @@ export const agentRouter = createTRPCRouter({
     .input(
       z.object({
         search: z.string().max(255).optional(),
-        limit: z.number().min(1).max(100).default(25),
+        limit: SuggestionLimitSchema,
         id: z.uuid().optional(),
       }),
     )
@@ -702,7 +706,7 @@ export const agentRouter = createTRPCRouter({
       z.object({
         provider: z.string().min(1).max(100),
         search: z.string().max(255).optional(),
-        limit: z.number().min(1).max(100).default(25),
+        limit: SuggestionLimitSchema,
       }),
     )
     .query(async ({ ctx, input }) => {

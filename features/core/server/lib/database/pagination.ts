@@ -2,9 +2,19 @@ import type { SelectQueryBuilder, SqlBool } from "kysely";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 
-export const PageCursorSchema = z.tuple([z.string(), z.uuid()]);
+import { MAX_PAGE_SIZE, SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 
+export const PageCursorSchema = z.tuple([z.string(), z.uuid()]);
 export type PageCursor = z.infer<typeof PageCursorSchema>;
+
+export const PageSizeSchema = z.number().int().min(1).max(MAX_PAGE_SIZE);
+export const ListPageSizeSchema = PageSizeSchema.default(50);
+export const SuggestionLimitSchema = PageSizeSchema.default(SEARCH_SUGGESTION_LIMIT);
+
+const SearchTermSchema = z.string().max(255);
+export const SearchTermsSchema = z
+  .union([SearchTermSchema.transform((term) => (term ? [term] : [])), z.array(SearchTermSchema).max(255)])
+  .default([]);
 
 export interface PageOptions {
   table: string;

@@ -257,6 +257,10 @@ describe("tool discovery", () => {
 });
 
 describe("agent", () => {
+  it("rejects a fractional search limit as invalid input", async () => {
+    await expect(as(alice, Roles.Admin).agent.search({ limit: 1.5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("is saved with what it is assigned, or not at all", async () => {
     const creator = as(alice, Roles.Creator);
     const skillId = await insertSkill(db, "assigned");

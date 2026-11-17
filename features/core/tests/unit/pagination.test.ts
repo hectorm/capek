@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Database } from "#layers/core/shared/schema";
-import { paginate } from "#layers/core/server/lib/database/pagination";
+import { paginate, SearchTermsSchema } from "#layers/core/server/lib/database/pagination";
 import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
@@ -45,6 +45,14 @@ const usernames = async (orderBy: string, order: "asc" | "desc"): Promise<string
 
 describe("pagination", () => {
   const users = [1, 2, 3, 4, 5, 6, 7].map((n) => `page${String(n)}`);
+
+  it("accepts one or more search terms and leaves an empty search unfiltered", () => {
+    expect(SearchTermsSchema.parse("one")).toEqual(["one"]);
+    expect(SearchTermsSchema.parse(["one", "two"])).toEqual(["one", "two"]);
+    for (const empty of [undefined, "", []]) {
+      expect(SearchTermsSchema.parse(empty)).toEqual([]);
+    }
+  });
 
   it("returns every row once when values tie within the date precision", async () => {
     expect(await usernames("createdAt", "asc")).toEqual(users);
