@@ -6,6 +6,16 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const VALIDATION_MAX_MEMORY_BYTES = 8 * 1024 * 1024;
+const VALIDATION_TIMEOUT_MS = 5_000;
+
+const TYPE_MAP: Record<string, string> = {
+  string: "string",
+  number: "number",
+  boolean: "boolean",
+  object: "object",
+};
+
 export type ValidationResult = { valid: true } | { valid: false; error: string };
 
 interface ParsedParameter {
@@ -70,9 +80,8 @@ export const validateSkillSyntax = async (code: string): Promise<ValidationResul
     const quickJS = await getQuickJSModule();
     const runtime = quickJS.newRuntime();
 
-    const maxMemoryBytes = 8 * 1024 * 1024;
-    runtime.setMemoryLimit(maxMemoryBytes);
-    const deadline = Date.now() + 5_000;
+    runtime.setMemoryLimit(VALIDATION_MAX_MEMORY_BYTES);
+    const deadline = Date.now() + VALIDATION_TIMEOUT_MS;
     runtime.setInterruptHandler(() => Date.now() > deadline);
     runtime.setModuleLoader(() => "");
 
@@ -97,13 +106,6 @@ export const validateSkillSyntax = async (code: string): Promise<ValidationResul
     logger.error({ error }, "Skill syntax validation error");
     return { valid: false, error: "Syntax validation failed" };
   }
-};
-
-const TYPE_MAP: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  object: "object",
 };
 
 const parseJSDocType = (typeStr: string): { type: string; items?: { type: string }; enum?: string[] } => {

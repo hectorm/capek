@@ -11,6 +11,8 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
 export interface MCPIPCRequest {
   type: "callTool" | "cancelToolCall" | "cleanupSession" | "cleanupIdleSessions";
   requestId: string;
@@ -53,7 +55,7 @@ export class MCPIPCClient {
 
   public async send(
     request: Omit<MCPIPCRequest, "requestId">,
-    timeoutMs = 60000,
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
     signal?: AbortSignal,
   ): Promise<unknown> {
     if (!process.send) {

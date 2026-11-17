@@ -4,6 +4,9 @@ import { z } from "zod/v4";
 import { defineSetting } from "#layers/core/server/lib/settings/define";
 import { SettingType } from "#layers/core/shared/settings";
 
+const BRANDING_IMAGE_MAX_BYTES = 128 * 1024;
+const BRANDING_IMAGE_MAX_BASE64_CHARS = Math.floor((BRANDING_IMAGE_MAX_BYTES / 3) * 4);
+
 export const coreSettings = {
   "branding.name": defineSetting({
     type: SettingType.String,
@@ -22,13 +25,10 @@ export const coreSettings = {
     category: "branding",
     isPublic: true,
     getDefault: (): string => useRuntimeConfig().branding.logo,
-    schema: z
-      .string()
-      .min(0)
-      .max((((128 * 1024) / 3) * 4) | 0), // Base64 overhead
+    schema: z.string().min(0).max(BRANDING_IMAGE_MAX_BASE64_CHARS),
     config: {
       accept: ["image/png", "image/webp", "image/jpeg", "image/jxl", "image/avif", "image/gif", "image/svg+xml"],
-      maxSize: 128 * 1024,
+      maxSize: BRANDING_IMAGE_MAX_BYTES,
     },
   }),
   "branding.icon": defineSetting({
@@ -36,13 +36,10 @@ export const coreSettings = {
     category: "branding",
     isPublic: true,
     getDefault: (): string => useRuntimeConfig().branding.icon,
-    schema: z
-      .string()
-      .min(0)
-      .max((((128 * 1024) / 3) * 4) | 0), // Base64 overhead
+    schema: z.string().min(0).max(BRANDING_IMAGE_MAX_BASE64_CHARS),
     config: {
       accept: ["image/png", "image/webp", "image/jpeg", "image/jxl", "image/avif", "image/gif", "image/svg+xml"],
-      maxSize: 128 * 1024,
+      maxSize: BRANDING_IMAGE_MAX_BYTES,
     },
   }),
   "branding.primaryColor": defineSetting({

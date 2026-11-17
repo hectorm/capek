@@ -8,6 +8,14 @@ import type { ConsoleLog, SandboxHostFunction, SandboxInput, SandboxMessage, San
 import { formatConsoleLog } from "./protocol.ts";
 import { VirtualFileSystem, WORKSPACE_DIR } from "./vfs.ts";
 
+const WASM_PAGE_BYTES = 65_536;
+const JOB_POLL_INTERVAL_MS = 10;
+
+const MAX_CONCURRENT_HOST_CALLS = 8;
+const MAX_HOST_CALL_ARGS = 3;
+const MAX_TRACKED_FS_CALLS = 1_000;
+const MAX_CONSOLE_CHARS = 1_000_000;
+
 if (!parentPort) {
   throw new Error("The sandbox of the code interpreter has to run in a worker thread");
 }
@@ -15,7 +23,6 @@ if (!parentPort) {
 const port = parentPort;
 const input = workerData as SandboxInput;
 
-const WASM_PAGE_BYTES = 65_536;
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const growMemory = WebAssembly.Memory.prototype.grow;
 WebAssembly.Memory.prototype.grow = function (this: WebAssembly.Memory, delta: number): number {
@@ -47,9 +54,6 @@ port.on("message", (reply: SandboxReply) => {
 
 let nextCallId = 0;
 
-const MAX_CONCURRENT_HOST_CALLS = 8;
-const MAX_HOST_CALL_ARGS = 3;
-
 let activeHostCalls = 0;
 let pendingHostCallChars = 0;
 const queuedHostCalls: (() => void)[] = [];
@@ -76,8 +80,6 @@ const callHost = async (name: SandboxHostFunction, args: string[]): Promise<stri
     }
   }
 };
-
-const MAX_CONSOLE_CHARS = 1_000_000;
 
 const vfs = VirtualFileSystem.fromJSON(input.files, { maxWorkspaceBytes: input.maxWorkspaceBytes });
 const consoleLogs: ConsoleLog[] = [];
@@ -124,7 +126,7 @@ const execute = async (): Promise<unknown> => {
         throw new Error(extractError(context, scope.manage(promiseState.error)));
       }
 
-      await sleep(10);
+      await sleep(JOB_POLL_INTERVAL_MS);
     }
     throw new Error("Execution timeout");
   });
@@ -212,7 +214,7 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
           promise.reject(error);
           error.dispose();
         }
-        if (pendingCalls.length < 1_000) {
+        if (pendingCalls.length < MAX_TRACKED_FS_CALLS) {
           pendingCalls.push(promise.settled.then(() => void context.runtime.executePendingJobs()));
         }
         return promise.handle;

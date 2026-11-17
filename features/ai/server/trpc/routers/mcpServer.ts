@@ -29,6 +29,8 @@ import {
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
+const CONNECTION_TEST_TIMEOUT_MS = 10_000;
+
 interface WithRedactedValues {
   headers: HttpRedactedHeader[];
   [key: string]: unknown;
@@ -325,7 +327,7 @@ export const mcpServerRouter = createTRPCRouter({
         url: endpoint.url,
         headers: endpoint.headers,
         stateful: false,
-        timeoutMs: 10_000,
+        timeoutMs: CONNECTION_TEST_TIMEOUT_MS,
       });
     }),
 });

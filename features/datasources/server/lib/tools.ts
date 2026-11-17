@@ -17,6 +17,11 @@ const logger = useLogger();
 export const DATASOURCES_QUERY_TOOL = "datasources_query";
 
 const QUERY_MAX_ROWS = 100;
+const QUERY_MAX_BYTES = 1_000_000;
+const SHOWN_QUERY_MAX_BYTES = 5_000_000;
+
+const QUERY_STATEMENT_TIMEOUT_MS = 30_000;
+const QUERY_REQUEST_TIMEOUT_MS = 10_000;
 
 // Runs a query on a datasource and returns its first rows
 const querySource = async (
@@ -33,9 +38,9 @@ const querySource = async (
   try {
     const rows = await executeQuery(type, source, sql, {
       maxRows: maxRows + 1,
-      maxBytes: shown ? 5_000_000 : 1_000_000,
-      statementTimeoutMs: 30_000,
-      requestTimeoutMs: 10_000,
+      maxBytes: shown ? SHOWN_QUERY_MAX_BYTES : QUERY_MAX_BYTES,
+      statementTimeoutMs: QUERY_STATEMENT_TIMEOUT_MS,
+      requestTimeoutMs: QUERY_REQUEST_TIMEOUT_MS,
       signal,
     });
     return { rows: rows.slice(0, maxRows), truncated: rows.length > maxRows };

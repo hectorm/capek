@@ -8,6 +8,8 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const VALIDATION_PHASE_TIMEOUT_MS = 5_000;
+
 // Runs a statement on a datasource within the time to connect and run it
 export const executeQuery = async (
   type: ServerDatasourceType,
@@ -36,8 +38,8 @@ export const testConnection = async (
 ): Promise<TestResult> => {
   try {
     await executeQuery(type, params, type.driver.validationQuery, {
-      statementTimeoutMs: 5_000,
-      requestTimeoutMs: 5_000,
+      statementTimeoutMs: VALIDATION_PHASE_TIMEOUT_MS,
+      requestTimeoutMs: VALIDATION_PHASE_TIMEOUT_MS,
     });
     logger.debug({ type: type.definition.type }, "Datasource test succeeded");
     return { success: true };

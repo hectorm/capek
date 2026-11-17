@@ -12,6 +12,7 @@ import { useLogger } from "#layers/core/server/lib/logger";
 const logger = useLogger();
 
 const IDLE_SESSION_MS = 30 * 60 * 1000;
+const IPC_TIMEOUT_GRACE_MS = 1_000;
 
 const mcpResultText = (result: MCPCallToolResult): string => {
   const texts = result.content.map((content) => {
@@ -145,7 +146,7 @@ export class MCPManager {
     const callTimeoutMs = (server.toolCallTimeoutSec ?? MCPServerParameters.toolCallTimeoutSec.default) * 1000;
 
     if (cluster.isWorker && MCPManager.ipcClient) {
-      const ipcTimeoutMs = callTimeoutMs + 1000;
+      const ipcTimeoutMs = callTimeoutMs + IPC_TIMEOUT_GRACE_MS;
       const { name, url, headers, stateful, toolCallTimeoutSec } = server;
       return (await MCPManager.ipcClient.send(
         {

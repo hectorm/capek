@@ -22,6 +22,10 @@ const RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
 const STREAM_MAX_BYTES = 100 * 1024 * 1024;
 
 const SUMMARY_MAX_CHARS = 80;
+const SUMMARY_TIMEOUT_MS = 10_000;
+
+const CONNECTION_TEST_TIMEOUT_MS = 10_000;
+const MODEL_TEST_TIMEOUT_MS = 60_000;
 
 export const fallbackChatTitle = (prompt: string): string => {
   const text = prompt.trim();
@@ -185,7 +189,7 @@ export class LlmClient {
         stream: false,
         max_output_tokens: 256,
       };
-      const completion = (await this.completion(request, AbortSignal.timeout(10_000))) as LlmResponse;
+      const completion = (await this.completion(request, AbortSignal.timeout(SUMMARY_TIMEOUT_MS))) as LlmResponse;
       const summary = completion.output.find((item) => item.type === "message")?.content.trim();
       if (summary) {
         return summary;
@@ -199,7 +203,7 @@ export class LlmClient {
 
   public async testConnection(): Promise<TestResult> {
     try {
-      await this.fetchModels(AbortSignal.timeout(10_000));
+      await this.fetchModels(AbortSignal.timeout(CONNECTION_TEST_TIMEOUT_MS));
 
       logger.debug("LLM provider test succeeded");
       return { success: true };
@@ -224,7 +228,7 @@ export class LlmClient {
           },
         ],
       };
-      const completion = await this.completion(request, AbortSignal.timeout(60_000));
+      const completion = await this.completion(request, AbortSignal.timeout(MODEL_TEST_TIMEOUT_MS));
       if (completion instanceof ReadableStream) {
         await completion.pipeTo(new WritableStream());
       }

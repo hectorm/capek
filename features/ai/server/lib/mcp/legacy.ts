@@ -18,8 +18,11 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
+const SESSION_MAX_RETRIES = 2;
+
 const SSE_RETRY_MIN_MS = 1_000;
 const SSE_RETRY_MAX_MS = 60_000;
+const SSE_RETRY_DEFAULT_MS = 3_000;
 
 const InitializeResultSchema = z.object({
   protocolVersion: z.string(),
@@ -31,13 +34,12 @@ export class LegacyConnection implements MCPConnection {
   private readonly headers: Record<string, string>;
   private readonly stateful: boolean;
   private readonly timeoutMs: number | undefined;
-  private readonly defaultRetryMs = 3000;
   private _protocolVersion: string = PROTOCOL_VERSIONS.legacy[0];
   private _sessionId: string | null = null;
   private _sseAbortController: AbortController | null = null;
   private _sseReconnectTimeout: NodeJS.Timeout | null = null;
   private _lastEventId: string | null = null;
-  private _retryMs: number = this.defaultRetryMs;
+  private _retryMs: number = SSE_RETRY_DEFAULT_MS;
   private _isTerminated = false;
   private _isAnsweringPing = false;
 
@@ -101,7 +103,12 @@ export class LegacyConnection implements MCPConnection {
       this._sessionId = headers.get("Mcp-Session-Id") ?? this._sessionId;
       return result;
     } catch (error) {
-      if (!(error instanceof MCPRequestError) || error.status !== 404 || !sentSessionId || depth >= 2) {
+      if (
+        !(error instanceof MCPRequestError) ||
+        error.status !== 404 ||
+        !sentSessionId ||
+        depth >= SESSION_MAX_RETRIES
+      ) {
         throw error;
       }
 
@@ -116,7 +123,7 @@ export class LegacyConnection implements MCPConnection {
     this._protocolVersion = PROTOCOL_VERSIONS.legacy[0];
     this._sessionId = null;
     this._lastEventId = null;
-    this._retryMs = this.defaultRetryMs;
+    this._retryMs = SSE_RETRY_DEFAULT_MS;
   }
 
   private startSseStream(): void {
