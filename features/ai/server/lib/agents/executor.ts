@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 import superjson from "superjson";
 import { z } from "zod/v4";
 
+import type { AgentConfig } from "#layers/ai/server/lib/agents/config";
 import type { MCPServerBinding, SkillBinding } from "#layers/ai/server/lib/code/generators";
 import type { ExecutionResult } from "#layers/ai/server/lib/code/interpreter";
 import type { VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
@@ -12,13 +13,12 @@ import type { AgentToolset } from "#layers/ai/server/lib/tools";
 import type { Tool } from "#layers/ai/server/lib/tools/define";
 import type { ChatMessagePart, ChatToolPart } from "#layers/ai/shared/chat";
 import type { LlmIncompleteDetails, LlmItem, LlmTool } from "#layers/ai/shared/llm";
-import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import type { ToolPart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PageCursor } from "#layers/core/server/lib/database/pagination";
-import type { HttpHeader } from "#layers/core/shared/http";
 import type { Database } from "#layers/core/shared/schema";
+import { loadAgent, loadTriageSpecialists } from "#layers/ai/server/lib/agents/config";
 import {
   buildCodeInterpreterPrompt,
   buildSkillToolsPrompt,
@@ -42,10 +42,9 @@ import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
 import { ensureToolsDiscovered, hasFreshTools } from "#layers/ai/server/lib/mcp/tools";
 import { attachParts, discardSessionParts, keepPart, saveSessionParts } from "#layers/ai/server/lib/parts";
 import { McpServerResource, SkillResource } from "#layers/ai/server/lib/resources";
-import { decryptLlmProviderSecrets, decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
+import { decryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { sanitize } from "#layers/ai/server/lib/text";
 import { getToolProviders, loadAgentToolsets, truncate } from "#layers/ai/server/lib/tools";
-import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { ChatStreamEvents } from "#layers/ai/shared/chat";
 import { LlmItemSchema } from "#layers/ai/shared/llm";
 import { MCPToolSchema } from "#layers/ai/shared/mcp";
@@ -70,35 +69,6 @@ interface AgentExecutorConfig {
   message: string;
   userMessageId?: string;
   assistantMessageId?: string;
-}
-
-interface AgentConfig {
-  id: string;
-  name: string;
-  description: string;
-  instructions: string;
-  type: "triage" | "specialist";
-  model: string;
-  summaryModel: string | null;
-  reasoningEffort: string;
-  codeInterpreter: boolean;
-  showToolCalls: boolean;
-  streaming: boolean;
-  temperature: number | null;
-  maxTokens: number | null;
-  topP: number | null;
-  frequencyPenalty: number | null;
-  presencePenalty: number | null;
-  maxIterations: number;
-  timeoutSec: number;
-  maxContextChars: number;
-  maxToolResponseChars: number;
-  maxToolPartsChars: number;
-  llmProviderId: string;
-  apiUrl: string;
-  apiType: LlmProviderApiType;
-  apiKey: string;
-  headers: HttpHeader[];
 }
 
 interface AgentTool {
@@ -232,7 +202,7 @@ export class AgentExecutor {
       }
       await discardSessionParts(this.config.sessionId, this.config.user);
 
-      const agent = await this.loadAgent(agentId);
+      const agent = await loadAgent(agentId);
 
       if (agent.type === "triage") {
         yield* this.executeTriageStream(agent, signal);
@@ -260,7 +230,7 @@ export class AgentExecutor {
   }
 
   private async *executeTriageStream(agent: AgentConfig, signal?: AbortSignal): AsyncGenerator<Uint8Array> {
-    const specialists = await this.loadTriageSpecialists(agent.id);
+    const specialists = await loadTriageSpecialists(agent.id);
 
     if (specialists.length === 0) {
       throw new Error("No specialists assigned to this triage agent");
@@ -909,105 +879,6 @@ export class AgentExecutor {
     });
   }
 
-  private async loadAgent(agentId: string): Promise<AgentConfig> {
-    const db = await useDb();
-    const agent = await db
-      .selectFrom("aiAgents")
-      .innerJoin("aiLlmProviders", "aiLlmProviders.id", "aiAgents.llmProviderId")
-      .select([
-        "aiAgents.id",
-        "aiAgents.name",
-        "aiAgents.description",
-        "aiAgents.instructions",
-        "aiAgents.type",
-        "aiAgents.model",
-        "aiAgents.summaryModel",
-        "aiAgents.reasoningEffort",
-        "aiAgents.codeInterpreter",
-        "aiAgents.showToolCalls",
-        "aiAgents.streaming",
-        "aiAgents.temperature",
-        "aiAgents.maxTokens",
-        "aiAgents.topP",
-        "aiAgents.frequencyPenalty",
-        "aiAgents.presencePenalty",
-        "aiAgents.maxIterations",
-        "aiAgents.timeoutSec",
-        "aiAgents.maxContextChars",
-        "aiAgents.maxToolResponseChars",
-        "aiAgents.maxToolPartsChars",
-        "aiLlmProviders.id as llmProviderId",
-        "aiLlmProviders.apiUrl",
-        "aiLlmProviders.apiType",
-        "aiLlmProviders.apiKey",
-        "aiLlmProviders.headers",
-      ])
-      .where("aiAgents.id", "=", agentId)
-      .executeTakeFirst();
-
-    if (!agent) {
-      throw new Error(`Agent ${agentId} not found or has no LLM provider assigned`);
-    }
-
-    return {
-      ...agent,
-      ...decryptLlmProviderSecrets(agent),
-      maxIterations: agent.maxIterations ?? AgentExecutorParameters.maxIterations.default,
-      timeoutSec: agent.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
-      maxContextChars: agent.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
-      maxToolResponseChars: agent.maxToolResponseChars ?? AgentExecutorParameters.maxToolResponseChars.default,
-      maxToolPartsChars: agent.maxToolPartsChars ?? AgentExecutorParameters.maxToolPartsChars.default,
-    };
-  }
-
-  private async loadTriageSpecialists(triageAgentId: string): Promise<AgentConfig[]> {
-    const db = await useDb();
-    const specialists = await db
-      .selectFrom("aiTriageSpecialists")
-      .innerJoin("aiAgents", (join) => join.onRef("aiAgents.id", "=", "aiTriageSpecialists.specialistAgentId"))
-      .innerJoin("aiLlmProviders", (join) => join.onRef("aiLlmProviders.id", "=", "aiAgents.llmProviderId"))
-      .select([
-        "aiAgents.id",
-        "aiAgents.name",
-        "aiAgents.description",
-        "aiAgents.instructions",
-        "aiAgents.type",
-        "aiAgents.model",
-        "aiAgents.summaryModel",
-        "aiAgents.reasoningEffort",
-        "aiAgents.codeInterpreter",
-        "aiAgents.showToolCalls",
-        "aiAgents.streaming",
-        "aiAgents.temperature",
-        "aiAgents.maxTokens",
-        "aiAgents.topP",
-        "aiAgents.frequencyPenalty",
-        "aiAgents.presencePenalty",
-        "aiAgents.maxIterations",
-        "aiAgents.timeoutSec",
-        "aiAgents.maxContextChars",
-        "aiAgents.maxToolResponseChars",
-        "aiAgents.maxToolPartsChars",
-        "aiLlmProviders.id as llmProviderId",
-        "aiLlmProviders.apiUrl",
-        "aiLlmProviders.apiType",
-        "aiLlmProviders.apiKey",
-        "aiLlmProviders.headers",
-      ])
-      .where("aiTriageSpecialists.triageAgentId", "=", triageAgentId)
-      .execute();
-
-    return specialists.map((s) => ({
-      ...s,
-      ...decryptLlmProviderSecrets(s),
-      maxIterations: s.maxIterations ?? AgentExecutorParameters.maxIterations.default,
-      timeoutSec: s.timeoutSec ?? AgentExecutorParameters.timeoutSec.default,
-      maxContextChars: s.maxContextChars ?? AgentExecutorParameters.maxContextChars.default,
-      maxToolResponseChars: s.maxToolResponseChars ?? AgentExecutorParameters.maxToolResponseChars.default,
-      maxToolPartsChars: s.maxToolPartsChars ?? AgentExecutorParameters.maxToolPartsChars.default,
-    }));
-  }
-
   private async filterUsable<R extends { id: string }>(resource: SharedResource, rows: R[]): Promise<R[]> {
     if (rows.length === 0) {
       return rows;
@@ -1250,7 +1121,7 @@ export class AgentExecutor {
       apiKey: agent.apiKey,
       headers: agent.headers,
       model: agent.model,
-      summaryModel: agent.summaryModel ?? undefined,
+      summaryModel: agent.summaryModel,
       streaming: agent.streaming,
     });
   }
