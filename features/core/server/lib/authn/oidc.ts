@@ -404,9 +404,7 @@ export class OIDC {
       issuer: this.as.issuer,
       audience: this.client.client_id,
       maxTokenAge: "2 minutes",
-      // TODO: Keycloak uses a too generic type, revisit this later
-      // See: https://github.com/keycloak/keycloak/issues/19220
-      // typ: "logout+jwt",
+      // Keycloak may use a generic logout token type (https://github.com/keycloak/keycloak/issues/19220)
     });
 
     if (!payload.sid && !payload.sub) {

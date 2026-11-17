@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // We currently support only one OIDC provider at a time, but this may be expanded in the future.
+  // The token issuer must match the configured OIDC provider
   if (tokens.idTokenClaims.iss !== oidc.as.issuer) {
     logger.error({ issuer: tokens.idTokenClaims.iss }, "Token issuer unexpected");
     throw createError({

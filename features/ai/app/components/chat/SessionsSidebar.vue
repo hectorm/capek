@@ -65,7 +65,7 @@ const handleNewChat = async (): Promise<void> => {
 };
 
 const openChatDeleteModal = async (id: string): Promise<void> => {
-  // Created on demand, since the sidebar is remounted whenever the mobile slideover opens
+  // The mobile slideover remounts the sidebar on each open, so the modal is created on demand
   const instance = overlay.create(LazyDeleteModal, { destroyOnClose: true }).open({ id });
   const result = (await instance.result) as { deleted: boolean; error: Error | null };
   if (result.deleted) {

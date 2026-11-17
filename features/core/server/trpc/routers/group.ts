@@ -16,7 +16,6 @@ import {
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
-// Groups with the names of their roles
 const selectGroups = (db: Kysely<Database>) => {
   return db.selectFrom("groups").select([
     "groups.id",
@@ -35,7 +34,7 @@ const selectGroups = (db: Kysely<Database>) => {
   ]);
 };
 
-// The names are typed as nullable, although their aggregation always gives a list
+// COALESCE returns a list even when the inferred subquery type allows null
 const withNames = <G extends { roles: string[] | null }>(group: G) => ({ ...group, roles: group.roles ?? [] });
 
 export const groupRouter = createTRPCRouter({

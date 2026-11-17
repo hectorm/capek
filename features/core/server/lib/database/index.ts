@@ -23,7 +23,6 @@ const usingPGlite = databaseUrl.protocol === "file:" || databaseUrl.protocol ===
 
 let connIsSuperuser = false;
 
-// Configure pg to parse JSONB as JSON objects
 pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val) as unknown);
 
 export const HANDOVER_MESSAGE = "core:database-handover";
@@ -42,7 +41,7 @@ const waitForHandover = (): Promise<void> => {
 };
 
 export const useDb = async (): Promise<Kysely<Database>> => {
-  // Calls that arrive while the database is being set up share it, and a failed setup is tried again
+  // Concurrent callers share setup and can retry after a failure
   db ??= (async () => {
     if (cluster.isWorker) {
       await waitForHandover();

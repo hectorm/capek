@@ -69,7 +69,7 @@ const canModify = computed(() => {
   );
 });
 
-// The configuration is validated with the schema of the selected type of datasource
+// The selected datasource type supplies the validation schema
 const schema = z
   .object({
     id: z.uuid().optional(),
@@ -138,7 +138,7 @@ const typeOptions = DatasourceTypes.map((type) => ({
   value: type.type,
 }));
 
-// Undefined when the type of the datasource is no longer supported
+// A saved datasource can outlive its type definition
 const definition = computed(() => DatasourceTypes.find((type) => type.type === state.type));
 
 const authTypeOptions = computed(() => {

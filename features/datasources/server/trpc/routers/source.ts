@@ -33,7 +33,6 @@ const typedConfigShape = {
   config: DatasourceConfigSchema,
 };
 
-// The type has to be supported, since it validates the configuration and runs the queries
 const requireDatasourceType = (type: string): ServerDatasourceType => {
   const datasourceType = findDatasourceType(type);
   if (!datasourceType) {
@@ -57,7 +56,6 @@ const parseConfig = (datasourceType: ServerDatasourceType, config: DatasourceCon
   return parsed.data as DatasourceConfig;
 };
 
-// Takes the hidden secrets of a configuration from the stored one
 const unredactConfig = (
   datasourceType: ServerDatasourceType,
   incoming: DatasourceConfig,
@@ -76,7 +74,7 @@ const unredactConfig = (
   }
 };
 
-// Hides the secrets of the configuration, which cannot be read back when its type is not supported
+// An unknown type has no redactor, so its configuration stays hidden
 const redactConfig = (source: { type: string; config: string }): DatasourceConfig => {
   return findDatasourceType(source.type)?.definition.redact(decryptSourceConfig(source.config)) ?? {};
 };
@@ -321,10 +319,9 @@ export const sourceRouter = createTRPCRouter({
       const { id, type } = input;
       const datasourceType = requireDatasourceType(type);
 
-      // The secrets hidden in the form are taken from the stored datasource
       let config = parseConfig(datasourceType, input.config);
       if (id) {
-        // The lock only returns it to those who can update it
+        // FOR UPDATE applies the update policy before reading stored secrets
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("datasourcesSources")

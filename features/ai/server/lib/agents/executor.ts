@@ -266,7 +266,7 @@ export class AgentExecutor {
       },
     ];
 
-    // The tools are called by the specialists, so only what was said matters to choose one
+    // Triage uses conversation text to choose a specialist. Specialists handle tool calls
     const context = await this.buildContext(agent, { toolCalls: false });
     const items: LlmItem[] = [{ type: "message", role: "system", content: triageInstructions }, ...context];
 
@@ -449,7 +449,7 @@ export class AgentExecutor {
             }
           } finally {
             reader.releaseLock();
-            // A stream that stops before its response is complete leaves the text that it sent
+            // Keep partial text if the stream ends before the final output arrives
             if (output.length === 0 && text) {
               output = [{ type: "message", role: "assistant", content: text }];
             }
@@ -478,7 +478,7 @@ export class AgentExecutor {
         yield* this.handleToolCalls(functionCalls, tools, items, agent, signal);
       }
     } finally {
-      // Yielding here would stop a stream closed by its consumer before the answer is saved
+      // Save before yielding so a consumer closing the stream cannot interrupt the write
       try {
         await this.saveAssistantMessage(items.slice(contextLength));
       } catch (error) {
@@ -957,7 +957,7 @@ export class AgentExecutor {
 
     const result: LlmItem[][] = [];
 
-    // Half of the context is left for the answer and what its tools return
+    // Reserve half the context budget for the answer and tool results
     const maxChars = agent.maxContextChars / 2;
     let totalChars = 0;
     let cursor: PageCursor | undefined;
@@ -978,11 +978,11 @@ export class AgentExecutor {
           content: m.content,
         };
         let items = options.toolCalls && parsed.success && parsed.data.length > 0 ? parsed.data : [message];
-        // An answer whose tool calls do not fit is kept as what it said
+        // Keep the message text when its tool history exceeds the budget
         if (result.length > 0 && totalChars + countChars(items) > maxChars) {
           items = [message];
         }
-        // Always keep the newest message, even if it alone exceeds the budget
+        // The newest message always stays in context, even if it exceeds the budget
         if (result.length > 0 && totalChars + countChars(items) > maxChars) {
           return result.reverse().flat();
         }
@@ -1002,13 +1002,13 @@ export class AgentExecutor {
       .map((item) => item.content)
       .join("");
 
-    // The reasoning only lasts for the execution, and a tool call left without its output cannot be sent again
+    // Reasoning is local to this run. Replaying a tool call requires its output
     const callIds = new Set(answer.filter((item) => item.type === "function_call_output").map((item) => item.call_id));
     const items = answer.filter(
       (item) => item.type !== "reasoning" && (item.type !== "function_call" || callIds.has(item.call_id)),
     );
 
-    // An answer without text is only kept for what its tool calls show the user
+    // An answer without text is saved only if it has user-visible tool content
     if (
       !content &&
       !items.some((item) => item.type === "function_call" && (item.parts !== undefined || item.description))

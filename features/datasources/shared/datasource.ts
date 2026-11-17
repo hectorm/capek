@@ -8,18 +8,16 @@ export type DatasourceAuthType = (typeof DatasourceAuthTypes)[number];
 export const DatasourceConfigSchema = z.record(z.string(), z.unknown());
 export type DatasourceConfig = z.infer<typeof DatasourceConfigSchema>;
 
-// Type of datasource that users can connect to, like PostgreSQL
 export interface DatasourceTypeDefinition<S extends z.ZodType = z.ZodType> {
-  // Identifier stored with the datasources of the type
+  // Persisted type identifier
   type: string;
   label: string;
-  // Example of the connection string
+  // Example connection string
   placeholder: string;
   authTypes: readonly DatasourceAuthType[];
   configSchema: S;
-  // Hides the secrets of a stored configuration
   redact: (config: DatasourceConfig) => DatasourceConfig;
-  // Restores the secrets that were hidden in an incoming configuration from the stored one
+  // Redacted fields retain their stored values
   unredact: (incoming: DatasourceConfig, stored: DatasourceConfig) => DatasourceConfig;
 }
 
@@ -53,7 +51,7 @@ export const defineDatasourceType = <S extends z.ZodType>(def: {
     const parsedStored = def.configSchema.safeParse(stored);
     const config = def.unredact(parsedIncoming, parsedStored.success ? parsedStored.data : undefined);
 
-    // Stored secrets are only taken while the connection string stays the same, or editors could send them elsewhere
+    // Reusing stored secrets requires the same connection string
     const taken = Object.entries(config).some(
       ([key, value]) => Boolean(value) && value !== (parsedIncoming as DatasourceConfig)[key],
     );
@@ -68,7 +66,6 @@ const ConnectionUrlSchema = z.url().refine((value) => !URL.parse(value)?.passwor
   message: "The password of the connection string has to be entered in its own field",
 });
 
-// Configuration of the datasources that connect to a URL, with or without a user and password
 export const UrlDatasourceConfigSchema = z.discriminatedUnion("authType", [
   z.object({
     connectionString: ConnectionUrlSchema,

@@ -10,7 +10,7 @@ const logger = useLogger();
 
 const VALIDATION_PHASE_TIMEOUT_MS = 5_000;
 
-// Runs a statement on a datasource within the time to connect and run it
+// The deadline covers both connection setup and statement execution
 export const executeQuery = async (
   type: ServerDatasourceType,
   params: DatasourceConnectionParams,
@@ -31,7 +31,6 @@ export const executeQuery = async (
   }
 };
 
-// Runs the validation query of a datasource
 export const testConnection = async (
   type: ServerDatasourceType,
   params: DatasourceConnectionParams,

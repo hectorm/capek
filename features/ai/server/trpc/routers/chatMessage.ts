@@ -10,7 +10,7 @@ import { withUserTransaction } from "#layers/core/server/lib/database";
 import { ListPageSizeSchema, PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
-// Of the items of a message, only its text and what its tool calls say about themselves and show are for the user
+// Chat exposes message text, tool descriptions, and user-visible tool output
 const toParts = (content: string, items: LlmItem[]): ChatMessagePart[] => {
   const parts: ChatMessagePart[] = [];
   for (const item of items) {

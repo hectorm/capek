@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // If logout token contains sid, invalidate all sessions with that sid
+  // A session ID limits logout to that provider session
   if (payload.sid) {
     const sid = typeof payload.sid === "string" ? payload.sid : JSON.stringify(payload.sid);
     await sessions.invalidateSessionsBySid(sid);
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     return;
   }
 
-  // If logout token contains iss and sub, find the user and invalidate all their sessions
+  // Without a session ID, logout applies to every session for this user
   if (payload.iss && payload.sub) {
     const iss = typeof payload.iss === "string" ? payload.iss : JSON.stringify(payload.iss);
     const sub = typeof payload.sub === "string" ? payload.sub : JSON.stringify(payload.sub);

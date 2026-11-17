@@ -3,7 +3,7 @@ import { sql } from "kysely";
 
 import type { Database } from "#layers/core/shared/schema";
 
-// Non-superuser role a superuser connection de-escalates to, so row level security still applies.
+// Superuser connections assume this role for transactions subject to row-level security
 export const FALLBACK_ROLE = "app_rls";
 
 export const isSuperuser = async (db: Kysely<Database>): Promise<boolean> => {

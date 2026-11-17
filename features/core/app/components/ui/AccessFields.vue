@@ -9,7 +9,7 @@ import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 const props = defineProps<{
   editors: string[];
   users: string[];
-  // Principals with access to the resource, to label the selected values without searching them
+  // Existing principals supply labels before the first search
   access: Principal[];
   disabled?: boolean;
 }>();

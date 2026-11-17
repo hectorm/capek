@@ -3,13 +3,13 @@ import { sql } from "kysely";
 
 import type { Database } from "#layers/core/shared/schema";
 
-// Replaces the rows of a table that link a row to others, like the roles of a user, with the ones to the given IDs
+// The supplied IDs become the complete set of links for this row
 export const syncLinks = async (
   db: Kysely<Database>,
   table: string,
-  // Values of the columns that identify the linked row, like the ID of the user whose roles they are
+  // Columns that identify the row whose links are being replaced
   owner: Readonly<Record<string, string>>,
-  // Column with the ID of each linked row
+  // Column that identifies each linked row
   column: string,
   ids: readonly string[],
 ): Promise<{ added: number; removed: number }> => {

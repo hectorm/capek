@@ -27,7 +27,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
     .transaction()
     .setIsolationLevel("read committed")
     .execute(async (trx) => {
-      // Try to find existing account
       const existingAccount = await trx
         .selectFrom("accounts")
         .select(["userId"])
@@ -36,7 +35,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
         .executeTakeFirst();
 
       if (existingAccount) {
-        // Update user
         const updatedUser = await trx
           .updateTable("users")
           .set({
@@ -54,7 +52,7 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
         return updatedUser;
       }
 
-      // Check if user exists by email (for linking existing accounts)
+      // Only a verified email can link a new OIDC identity to an existing user
       const existingUser = userInfo.emailVerified
         ? await trx
             .selectFrom("users")
@@ -65,7 +63,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
 
       if (existingUser) {
         const [updatedUser] = await Promise.all([
-          // Update user
           trx
             .updateTable("users")
             .set({
@@ -77,7 +74,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
             .where("id", "=", existingUser.id)
             .returning(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
             .executeTakeFirstOrThrow(),
-          // Create account
           trx
             .insertInto("accounts")
             .values({
@@ -92,7 +88,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
         return updatedUser;
       }
 
-      // Create user
       const newUser = await trx
         .insertInto("users")
         .values({
@@ -104,7 +99,6 @@ export const getOrCreateUserFromOIDC = async (userInfo: OIDCUserInfo): Promise<U
         .returning(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
         .executeTakeFirstOrThrow();
 
-      // Create account
       await trx
         .insertInto("accounts")
         .values({
@@ -128,7 +122,7 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
     .transaction()
     .setIsolationLevel("read committed")
     .execute(async (trx) => {
-      // Look up user by email, or by username when the email changed
+      // Email takes precedence. The username still matches after an email change
       const userQuery = trx
         .selectFrom("users")
         .select(["id", "username", "fullname", "email", "picture", "lastLoginAt", "createdAt", "updatedAt"])
@@ -137,7 +131,6 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
       const existingUser = await userQuery.executeTakeFirst();
 
       if (existingUser) {
-        // Update user info if changed
         if (
           existingUser.username !== userInfo.username ||
           existingUser.fullname !== userInfo.fullname ||
@@ -164,7 +157,7 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
         return existingUser;
       }
 
-      // Create user, unless a concurrent request did it first
+      // A concurrent sign-in may have already created the user
       const newUser = await trx
         .insertInto("users")
         .values({
@@ -187,7 +180,6 @@ export const getOrCreateUserFromProxy = async (userInfo: UserInfo): Promise<User
   return user;
 };
 
-// Runs in the given transaction, or in a new one
 const inTransaction = async (
   db: Kysely<Database> | undefined,
   sync: (trx: Kysely<Database>) => Promise<void>,
@@ -205,7 +197,7 @@ const logChanges = (context: Record<string, string>, changes: { added: number; r
   }
 };
 
-// Groups that do not exist are created
+// Missing groups are created during sync
 export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely<Database>): Promise<void> => {
   return inTransaction(db, async (trx) => {
     let groups: { id: string }[] = [];
@@ -229,7 +221,7 @@ export const syncUserGroups = (userId: string, groupnames: string[], db?: Kysely
   });
 };
 
-// Roles that do not exist are ignored
+// Sync skips unknown roles
 export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> => {
   return inTransaction(db, async (trx) => {
     const roles =
@@ -246,7 +238,7 @@ export const syncUserRoles = (userId: string, roleNames: string[], db?: Kysely<D
   });
 };
 
-// Roles that do not exist are ignored
+// Sync skips unknown roles
 export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely<Database>): Promise<void> => {
   return inTransaction(db, async (trx) => {
     const roles =
@@ -263,7 +255,7 @@ export const syncGroupRoles = (groupId: string, roleNames: string[], db?: Kysely
   });
 };
 
-// Permissions that do not exist are ignored
+// Sync skips unknown permissions
 export const syncRolePermissions = (
   roleId: string,
   permissionNames: string[],

@@ -301,7 +301,7 @@ export const llmProviderRouter = createTRPCRouter({
 
       let endpoint: Endpoint = { url: input.apiUrl, apiKey: input.apiKey, headers: input.headers ?? [] };
       if (id) {
-        // The lock only returns it to those who can update it
+        // FOR UPDATE applies the update policy before reading stored secrets
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("aiLlmProviders")

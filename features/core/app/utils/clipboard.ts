@@ -6,7 +6,7 @@ export const copyToClipboard = async (getText: () => string | Promise<string>) =
       await navigator.clipboard.write([item]);
       copied = true;
     } catch {
-      /**/
+      // A failed ClipboardItem write falls back to writeText
     }
   }
   if (!copied) {
@@ -14,7 +14,7 @@ export const copyToClipboard = async (getText: () => string | Promise<string>) =
       await navigator.clipboard.writeText(await getText());
       copied = true;
     } catch {
-      /**/
+      // Clipboard errors are reported through the return value
     }
   }
   return copied;

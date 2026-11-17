@@ -6,7 +6,7 @@ import features from "#features/app";
 import type { AppFeature, AppMenuItem } from "#layers/core/app/utils/features";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 
-// Client side features of all layers, each one after the features it depends on
+// Client features load in dependency order
 export const getAppFeatures = (): readonly AppFeature[] => features;
 
 const byOrder = (a: { order?: number }, b: { order?: number }): number => (a.order ?? 0) - (b.order ?? 0);
@@ -25,7 +25,7 @@ export const useAppFeatures = () => {
     return !item.permissions || canAny(item.permissions);
   };
 
-  // Keeps the items the user can access, linking the items with tabs to the first accessible one
+  // A section links to its first accessible tab
   const resolveItems = (items: readonly AppMenuItem[]): AppMenuItem[] => {
     return items
       .filter(isAllowed)

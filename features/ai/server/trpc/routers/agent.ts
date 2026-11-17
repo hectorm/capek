@@ -31,7 +31,7 @@ import {
 } from "#layers/core/server/trpc/access";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
-// Only the tool providers without resources to assign can be switched on for an agent
+// Only providers without assignable resources use an agent-level switch
 const checkSwitchableToolProviders = (names: readonly string[]): string[] => {
   const switchable = getToolProviders()
     .filter((provider) => !hasToolResources(provider))
@@ -174,7 +174,7 @@ export const agentRouter = createTRPCRouter({
 
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
-        // Agent access was verified above, resolve the linked provider in system context
+        // The agent access check permits this system lookup of the linked provider name
         // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
@@ -364,7 +364,7 @@ export const agentRouter = createTRPCRouter({
 
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
-        // Agent access was verified above, resolve the linked provider in system context
+        // The agent access check permits this system lookup of the linked provider name
         // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
@@ -483,7 +483,7 @@ export const agentRouter = createTRPCRouter({
 
       let llmProviderName: string | null = null;
       if (agent.llmProviderId) {
-        // Agent access was verified above, resolve the linked provider in system context
+        // The agent access check permits this system lookup of the linked provider name
         // eslint-disable-next-line no-restricted-syntax
         const db = await useDb();
         const llmProvider = await db
@@ -609,7 +609,7 @@ export const agentRouter = createTRPCRouter({
         });
       }
 
-      // Agent access was verified above, load linked specialists in system context
+      // The agent access check permits this system lookup of linked specialists
       // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const specialists = await db
@@ -639,7 +639,7 @@ export const agentRouter = createTRPCRouter({
         });
       }
 
-      // Agent access was verified above, load linked MCP servers in system context
+      // The agent access check permits this system lookup of linked MCP servers
       // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const mcpServers = await db
@@ -669,7 +669,7 @@ export const agentRouter = createTRPCRouter({
         });
       }
 
-      // Agent access was verified above, load linked skills in system context
+      // The agent access check permits this system lookup of linked skills
       // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const skills = await db
@@ -734,7 +734,7 @@ export const agentRouter = createTRPCRouter({
         });
       }
 
-      // Agent access was verified above, load assigned resources in system context
+      // The agent access check permits this system lookup of assigned resources
       // eslint-disable-next-line no-restricted-syntax
       const db = await useDb();
       const assigned = await db

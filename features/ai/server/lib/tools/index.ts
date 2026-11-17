@@ -21,7 +21,7 @@ export const getToolProviders = (): readonly FeatureToolProvider[] => {
   return (toolProviders ??= collectToolProviders(getServerFeatures()));
 };
 
-// Tools of an agent, with only the assigned resources that the calling user can use and that still exist
+// Resource-backed tools require both an agent assignment and use access for the caller
 export const loadAgentToolsets = async (
   db: Kysely<Database>,
   providers: readonly FeatureToolProvider[],
@@ -69,7 +69,6 @@ export const loadAgentToolsets = async (
   });
 };
 
-// Cuts the output of a tool that is too long for the model
 export const truncate = (text: string, maxChars: number): string => {
   const output = sanitize(text);
   if (output.length <= maxChars) {
@@ -91,7 +90,6 @@ export const findAgentTool = (
   return undefined;
 };
 
-// Replaces the resources of a tool provider assigned to an agent with the given ones
 export const syncAgentToolResources = (
   db: Kysely<Database>,
   agentId: string,

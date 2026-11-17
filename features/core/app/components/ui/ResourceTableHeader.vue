@@ -29,7 +29,7 @@ const filterValues = computed(() => (Array.isArray(filter.value) ? filter.value 
 const filterText = computed(() => (typeof filter.value === "string" ? filter.value : ""));
 
 const onFilterEnter = (event: KeyboardEvent): void => {
-  // Enter also ends an IME composition, which must not apply the filter
+  // Enter can confirm an IME composition before the filter text is ready
   if (!event.isComposing) {
     emit("filter", (event.target as HTMLInputElement).value);
   }

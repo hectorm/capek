@@ -77,7 +77,7 @@ export const aiSeed = defineSeed({
     agents: z.array(SeedAgentSchema).max(1000).default([]),
   },
   async run(config, { db, logger, features, grantAccess, defer }) {
-    // Seed LLM providers (idempotent by name)
+    // LLM provider seeds match on name
     const llmProviderIds = new Map<string, string>();
     for (const llmProviderConfig of config.llmProviders) {
       const existing = await db
@@ -112,7 +112,7 @@ export const aiSeed = defineSeed({
       }
     }
 
-    // Seed MCP servers (idempotent by name)
+    // MCP server seeds match on name
     const mcpServerIds = new Map<string, string>();
     for (const mcpConfig of config.mcpServers) {
       const existing = await db
@@ -146,7 +146,7 @@ export const aiSeed = defineSeed({
       }
     }
 
-    // Seed skills (idempotent by name)
+    // Skill seeds match on name
     const skillIds = new Map<string, string>();
     for (const skillConfig of config.skills) {
       const existing = await db
@@ -181,7 +181,7 @@ export const aiSeed = defineSeed({
       }
     }
 
-    // Seed agents (idempotent by name)
+    // Agent seeds match on name
     const agentIds = new Map<string, string>();
     const providers = collectToolProviders(features);
     for (const agentConfig of config.agents) {
@@ -197,13 +197,11 @@ export const aiSeed = defineSeed({
         continue;
       }
 
-      // Resolve LLM provider ID
       const llmProviderId = llmProviderIds.get(agentConfig.llmProvider);
       if (!llmProviderId) {
         throw new Error(`LLM provider "${agentConfig.llmProvider}" not found for agent "${agentConfig.name}"`);
       }
 
-      // Create agent
       const agent = await db
         .insertInto("aiAgents")
         .values({
@@ -237,7 +235,6 @@ export const aiSeed = defineSeed({
       logger.info(`Created agent: ${agent.name} (${agent.type})`);
       agentIds.set(agent.name, agent.id);
 
-      // Assign MCP servers to agent
       for (const mcpName of agentConfig.mcpServers) {
         const mcpServerId = mcpServerIds.get(mcpName);
         if (!mcpServerId) {
@@ -251,7 +248,6 @@ export const aiSeed = defineSeed({
         logger.info(`Assigned MCP server "${mcpName}" to agent "${agent.name}"`);
       }
 
-      // Assign skills to agent
       for (const skillName of agentConfig.skills) {
         const skillId = skillIds.get(skillName);
         if (!skillId) {
@@ -267,7 +263,6 @@ export const aiSeed = defineSeed({
 
       await grantAccess(AgentResource, agent.id, agentConfig.access);
 
-      // Assign specialists to triage agents
       if (agentConfig.type === "triage") {
         defer(async () => {
           for (const specialistName of agentConfig.specialists) {
@@ -285,7 +280,6 @@ export const aiSeed = defineSeed({
         });
       }
 
-      // Give the tools of other features to the agents
       defer(async () => {
         for (const [providerName, resourceNames] of Object.entries(agentConfig.tools)) {
           const provider = providers.find((candidate) => candidate.name === providerName);

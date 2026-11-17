@@ -153,7 +153,7 @@ const isPublicAddress = (address: string, own: BlockList): boolean => {
   );
 };
 
-// Checks the addresses of a host, allowed when public or listed in the allowed private hosts
+// Hosts must resolve to public addresses unless explicitly allowed
 export const allowedHost = (host: string, port: string): AllowedHost => {
   const allowed = parseHostList(config.allowedPrivateHosts);
   const name = host
@@ -206,7 +206,7 @@ export const allowedHost = (host: string, port: string): AllowedHost => {
   return { name, nameAllowed, isAllowed, lookup: lookupAllowed, resolve };
 };
 
-// Socket that connects only to the allowed addresses of a host, or to the given one, whatever its connection arguments
+// The socket uses the validated destination even if the driver supplies different connection arguments
 export const allowedSocket = (host: string, port: number, address?: string): AllowedSocket => {
   const allowed = allowedHost(host, String(port));
   const checkedLookup: LookupFunction =
@@ -225,7 +225,7 @@ export const allowedSocket = (host: string, port: number, address?: string): All
   return Object.assign(socket, { connect: () => connect({ host: allowed.name, port, lookup: checkedLookup }) });
 };
 
-// Sockets that connect only to the allowed addresses of a host, all of them to the server of the first one
+// Once a connection succeeds, subsequent sockets use the same server address
 export const pinnedSockets = (host: string, port: number): (() => AllowedSocket) => {
   let address: string | undefined;
   return () => {

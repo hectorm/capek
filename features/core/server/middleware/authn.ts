@@ -18,11 +18,10 @@ export default defineEventHandler(async (event) => {
   const requestId = crypto.randomUUID();
   const loggerContext: Record<string, string> = { requestId };
 
-  // Include request ID in response headers for client-side correlation
+  // Clients can use the request ID to correlate a response with server logs
   setHeader(event, "X-Request-ID", requestId);
 
   if (event.path.startsWith("/api/")) {
-    // CSRF protection
     if (event.method !== "GET" && event.method !== "HEAD" && event.method !== "OPTIONS") {
       const site = getHeader(event, "Sec-Fetch-Site");
       if (site !== undefined && site !== "same-origin" && site !== "none") {
@@ -33,7 +32,6 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Authentication
     const strategy = getAuthStrategy();
     const user = await strategy.getUserFromEvent(event);
     event.context.user = user;

@@ -22,7 +22,7 @@ export const coreSeed = defineSeed({
     groups: z.array(SeedGroupSchema).max(10000).default([]),
   },
   async run(config, { db, logger }) {
-    // Seed users (idempotent by username)
+    // User seeds match on username
     const userIds = new Map<string, string>();
     for (const userConfig of config.users) {
       const existing = await db
@@ -47,7 +47,6 @@ export const coreSeed = defineSeed({
         logger.info(`Created user: ${user.username}`);
         userIds.set(user.username, user.id);
 
-        // Assign roles to user
         for (const roleName of userConfig.roles) {
           const role = await db.selectFrom("roles").where("name", "=", roleName).select("id").executeTakeFirst();
           if (!role) {
@@ -64,7 +63,7 @@ export const coreSeed = defineSeed({
       }
     }
 
-    // Seed groups (idempotent by name)
+    // Group seeds match on name
     const groupIds = new Map<string, string>();
     for (const groupConfig of config.groups) {
       const existing = await db
@@ -89,7 +88,6 @@ export const coreSeed = defineSeed({
         logger.info(`Created group: ${group.name}`);
         groupIds.set(group.name, group.id);
 
-        // Assign roles to group
         for (const roleName of groupConfig.roles) {
           const role = await db.selectFrom("roles").where("name", "=", roleName).select("id").executeTakeFirst();
           if (!role) {
@@ -106,7 +104,6 @@ export const coreSeed = defineSeed({
       }
     }
 
-    // Add users to groups
     for (const userConfig of config.users) {
       const userId = userIds.get(userConfig.username);
       if (!userId) {
@@ -116,7 +113,7 @@ export const coreSeed = defineSeed({
       for (const groupname of userConfig.groups) {
         const groupId = groupIds.get(groupname);
         if (!groupId) {
-          // Try to find group in database (might have been created in previous run)
+          // The group may already exist from an earlier seed
           const group = await db.selectFrom("groups").where("name", "=", groupname).select("id").executeTakeFirst();
           if (!group) {
             throw new Error(`Group "${groupname}" not found for user "${userConfig.username}"`);

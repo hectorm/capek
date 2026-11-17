@@ -107,7 +107,7 @@ const title = computed(() => {
 const uiMessages = computed(() => {
   return chatStore.currentMessages.map((msg) => ({
     id: msg.id,
-    // Map "app" and "tool" messages to "system" for UI display (Nuxt UI doesn't support custom roles)
+    // Nuxt UI displays app and tool messages under its system role
     role: msg.role === "app" || msg.role === "tool" ? "system" : msg.role,
     parts: [{ type: "text" as const, text: msg.content }],
     createdAt: msg.createdAt,

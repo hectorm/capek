@@ -8,12 +8,11 @@ import type { Database } from "#layers/core/shared/schema";
 
 declare module "#layers/core/server/lib/features/define" {
   interface ServerFeature {
-    // Tools given to the agents
     tools?: readonly ToolProvider[];
   }
 }
 
-// JSON schema of the arguments of a tool
+// JSON Schema for a tool's arguments
 export interface ToolParameters {
   type: "object";
   properties: Record<string, unknown>;
@@ -21,44 +20,42 @@ export interface ToolParameters {
 }
 
 export interface ToolContext {
-  // User on whose behalf the tool is called
+  // Tool calls run on behalf of this user
   user: AuthUser;
   signal?: AbortSignal;
-  // Shows something to the user, when the agent has a way to
+  // Available when the caller can display tool output
   show?: (part: ToolPart) => void;
 }
 
-// Operation that a feature gives to the agents
 export interface Tool {
-  // Starts with the name of the feature, like "datasources_query"
+  // Tool names start with the feature name, e.g. datasources_query
   name: string;
   description: string;
   parameters: ToolParameters;
-  // Returns the result as text, usually JSON, and throws when the call fails
+  // Tools return text (usually JSON) and throw on failure
   execute: (args: Record<string, unknown>, context: ToolContext) => Promise<string>;
-  // Markdown that shows the user what a call does, like the query that it runs
+  // User-visible Markdown describing the call, such as the SQL it runs
   describe?: (args: Record<string, unknown>) => string | undefined;
 }
 
 export interface Toolset {
   tools: Tool[];
-  // Guidance on how to use the tools, in Markdown
+  // Markdown instructions for the agent
   instructions?: string;
-  // Reference documents in Markdown by file name, like the documentation of each resource
+  // Markdown reference documents keyed by filename
   documents?: Readonly<Record<string, string>>;
 }
 
-// Provides the tools that a feature gives to an agent
 export interface ToolProvider {
-  // Name of the feature, followed by `_<name>` when it has several providers
+  // Provider names use <feature> or <feature>_<name>
   name: string;
-  // i18n key of the label shown where the provider is given to an agent
+  // Translation key for the provider label in agent settings
   label: string;
-  // i18n key of the description shown where a provider without resources is switched on
+  // Translation key for the description beside a provider switch
   description?: string;
-  // Resources assigned to each agent with `<type>:use` access, or none for tools that are switched on for each agent
+  // Resource-backed tools require <type>:use access. Other providers use an agent-level switch
   resource?: SharedResource;
-  // Tools of the assigned resources that still exist and the user that calls them can use, read as that user
+  // The caller's transaction limits which assigned resources the provider can load
   load: (db: Kysely<Database>, resourceIds: readonly string[]) => Promise<Toolset>;
 }
 

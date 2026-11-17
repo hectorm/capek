@@ -7,7 +7,7 @@ import type { UnionToIntersection } from "#layers/core/shared/types";
 interface BaseSettingDefinition<V = unknown> {
   // Category used to group the setting in the settings page
   category: string;
-  // Whether users without the `settings:*:all` permissions can read the setting
+  // Public settings are readable without settings:*:all permissions
   isPublic: boolean;
   getDefault: () => V;
   schema: z.ZodType<V>;

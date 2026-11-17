@@ -116,7 +116,7 @@ export const useChatStore = defineStore("ai.chat", () => {
       triggerRef(messages);
       currentSessionId.value = session.id;
 
-      // Fetch messages immediately to show greeting if present
+      // New sessions may already contain an agent greeting
       await fetchMessages(session.id);
 
       return session;
@@ -453,7 +453,7 @@ export const useChatStore = defineStore("ai.chat", () => {
 
     const previousUserMessage = msgs.slice(0, messageIndex).findLast((m) => m.role === "user");
     if (!previousUserMessage) {
-      // Edge case, this means the first message is an assistant message
+      // An agent greeting has no user message to retry
       return;
     }
 

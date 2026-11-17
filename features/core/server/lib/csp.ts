@@ -3,7 +3,7 @@ import type { H3Event } from "h3";
 // Sources of the directives of the Content Security Policy, like `{ "frame-src": ["https://example.com"] }`
 export type CspSources = Readonly<Record<string, readonly string[]>>;
 
-// Sources that a feature adds to the policy, resolved on each request when they depend on its configuration
+// Dynamic sources resolve on each request
 export type CspContribution = CspSources | ((event: H3Event) => CspSources | Promise<CspSources>);
 
 const DIRECTIVE_PATTERN = /^[a-z][a-z-]*$/;
@@ -28,7 +28,7 @@ export const composeCsp = (base: CspSources, contributions: readonly CspSources[
   for (const sources of contributions) {
     assertCspSources(sources);
     for (const [name, values] of Object.entries(sources)) {
-      // A directive that is not in the policy starts from the sources of "default-src", which it stops falling back to
+      // New directives inherit default-src before adding feature sources
       const directive = directives.get(name) ?? new Set(directives.get("default-src"));
       values.forEach((value) => directive.add(value));
       directives.set(name, directive);

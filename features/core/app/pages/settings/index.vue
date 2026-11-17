@@ -41,7 +41,7 @@ const settingList = computed<SettingDefinition[]>(() => {
   return Object.entries(settingsStore.settings).map(([key, setting]) => ({ ...setting, key }));
 });
 
-// Categories are scoped to the feature that defines them
+// Each feature owns its settings categories
 const categoryList = computed(() => {
   const categoryMap = new Map<string, { label: string; settings: SettingDefinition[] }>();
   for (const setting of settingList.value) {
@@ -56,7 +56,7 @@ const categoryList = computed(() => {
   return Array.from(categoryMap.entries()).map(([id, category]) => ({ id, ...category }));
 });
 
-// Translations of a setting are part of the messages of the feature that defines it
+// Setting labels come from the feature that defines them
 const fieldKey = (setting: SettingDefinition, name: string): string => {
   return featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
 };
@@ -275,7 +275,6 @@ definePageMeta({
             <p class="text-sm text-muted">
               {{ $t(fieldKey(settingItem, "description")) }}
             </p>
-            <!-- STRING -->
             <UFieldGroup
               v-if="settingItem.type === SettingType.String || settingItem.type === SettingType.StringSecret"
             >
@@ -306,7 +305,6 @@ definePageMeta({
                 @click="handleResetSetting(settingItem)"
               />
             </UFieldGroup>
-            <!-- STRING LARGE -->
             <div v-else-if="settingItem.type === SettingType.StringLarge" class="flex flex-row gap-2">
               <UTextarea
                 :id="settingItem.key"
@@ -335,7 +333,6 @@ definePageMeta({
                 @click="handleResetSetting(settingItem)"
               />
             </div>
-            <!-- STRING LIST -->
             <div v-else-if="settingItem.type === SettingType.StringList" class="flex flex-col gap-2">
               <UFieldGroup v-for="(item, index) in formValues[settingItem.key] as string[]" :key="index">
                 <UInput
@@ -390,7 +387,6 @@ definePageMeta({
                 />
               </UFieldGroup>
             </div>
-            <!-- STRING CHOICE -->
             <UFieldGroup v-else-if="settingItem.type === SettingType.StringChoice">
               <USelect
                 :id="settingItem.key"
@@ -414,7 +410,6 @@ definePageMeta({
                 @click="handleResetSetting(settingItem)"
               />
             </UFieldGroup>
-            <!-- NUMBER -->
             <UFieldGroup v-else-if="settingItem.type === SettingType.Number">
               <UInputNumber
                 color="neutral"
@@ -437,7 +432,6 @@ definePageMeta({
                 @click="handleResetSetting(settingItem)"
               />
             </UFieldGroup>
-            <!-- BOOLEAN -->
             <div v-else-if="settingItem.type === SettingType.Boolean" class="flex flex-row items-center gap-2">
               <USwitch
                 :id="settingItem.key"
@@ -457,7 +451,6 @@ definePageMeta({
                 @click="handleResetSetting(settingItem)"
               />
             </div>
-            <!-- FILE -->
             <UFieldGroup v-else-if="settingItem.type === SettingType.File">
               <UInput
                 :id="settingItem.key"

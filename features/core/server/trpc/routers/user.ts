@@ -22,7 +22,6 @@ import { CorePermissions } from "#layers/core/shared/rbac";
 
 const config = useRuntimeConfig();
 
-// Users with the names of their groups and roles
 const selectUsers = (db: Kysely<Database>) => {
   return db.selectFrom("users").select([
     "users.id",
@@ -54,7 +53,7 @@ const selectUsers = (db: Kysely<Database>) => {
   ]);
 };
 
-// The names are typed as nullable, although their aggregation always gives a list
+// COALESCE returns a list even when the inferred subquery type allows null
 const withNames = <U extends { groups: string[] | null; roles: string[] | null }>(user: U) => ({
   ...user,
   groups: user.groups ?? [],

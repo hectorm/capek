@@ -149,7 +149,7 @@ describe("PostgreSQL datasource", () => {
       "The result takes more than 100 bytes",
     );
 
-    // The connection is cut, which the test server takes a moment to get over
+    // The test server needs time to accept a new connection after cancellation
     await vi.waitFor(() => run("SELECT 1"), { timeout: 5000 });
   });
 

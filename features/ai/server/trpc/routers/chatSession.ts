@@ -63,7 +63,7 @@ export const chatSessionRouter = createTRPCRouter({
           .selectFrom("aiChatSessions")
           .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"]);
 
-        // The policy alone reads the sessions of every user to find the ones of this one
+        // Filtering by user ID avoids scanning other users' sessions during the policy check
         if (!canAny(ctx.user, [AiPermissions.ChatReadAll, AiPermissions.ChatListAll])) {
           query = query.where("aiChatSessions.userId", "=", ctx.user.id);
         }

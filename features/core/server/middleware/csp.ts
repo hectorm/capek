@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   const nonce = randomBytes(16).toString("base64");
   event.context.nonce = nonce;
 
-  // A feature whose sources cannot be resolved is left out, which keeps the policy strict
+  // A failed lookup contributes no sources to the policy
   const contributions: CspSources[] = [];
   for (const { name, csp } of getServerFeatures()) {
     if (csp) {

@@ -1,6 +1,5 @@
 import { useRequestHeaders } from "nuxt/app";
 
-// Very naive check but good enough for most cases
 const MOBILE_PATTERN = /Mobile|Android|iP(hone|ad)/i;
 
 export const useDevice = () => {

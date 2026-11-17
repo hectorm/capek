@@ -71,7 +71,7 @@ export const toResponsesRequest = (request: LlmRequest): OpenAIResponsesRequest 
     model: request.model,
     input,
     stream: request.stream,
-    // The conversation is sent in full with every request, so the provider does not have to keep it
+    // Each request carries the full history, so the provider can skip storing the response
     store: false,
     include: ["reasoning.encrypted_content"],
     max_output_tokens: request.max_output_tokens,
@@ -80,7 +80,7 @@ export const toResponsesRequest = (request: LlmRequest): OpenAIResponsesRequest 
     top_p: request.top_p,
     frequency_penalty: request.frequency_penalty,
     presence_penalty: request.presence_penalty,
-    // Function tools are strict by default
+    // The Responses API defaults function tools to strict mode
     tools: request.tools?.map((tool) => ({ ...tool, strict: false })),
   };
 };
@@ -99,7 +99,6 @@ const fromIncomplete = (response?: {
   return response?.incomplete_details?.reason === "max_output_tokens" ? { reason: "max_output_tokens" } : undefined;
 };
 
-// Translates a response of the Responses API
 export const fromResponsesResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = OpenAIResponsesResponseSchema.safeParse(rawResponse);
   if (!parsed.success) {
@@ -114,7 +113,6 @@ export const fromResponsesResponse = (rawResponse: unknown): LlmResponse => {
   return { output: fromOutput(response.output), incomplete_details: fromIncomplete(response) };
 };
 
-// Translates the events of a streamed response of the Responses API
 export const fromResponsesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
   let completed = false;
 

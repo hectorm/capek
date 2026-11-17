@@ -34,7 +34,7 @@ export class ClickhouseDriver implements DatasourceDriver {
     const https = url.protocol === "https:";
     const host = allowedHost(url.hostname, url.port || (https ? "443" : "80"));
 
-    // The request outlasts the query, and errors are returned instead of logged
+    // The HTTP deadline covers connection setup and query execution
     const client = createClient({
       url,
       http_agent: new (https ? HttpsAgent : HttpAgent)({ keepAlive: true, lookup: host.lookup }),

@@ -36,7 +36,7 @@ export interface ResourceName {
   name: string;
 }
 
-// Resources by ID, name or search, among the ones that the database connection can read
+// The caller can only list resources visible to this database connection
 export const listResources = async (
   db: Kysely<Database>,
   resource: SharedResource,
@@ -69,7 +69,7 @@ export const listResources = async (
   return result.rows;
 };
 
-// IDs of the given resources that the user of the transaction can use
+// The transaction checks use access for each requested resource
 export const usableResourceIds = async (
   db: Kysely<Database>,
   resource: SharedResource,
@@ -171,7 +171,6 @@ export const revokeResourceAccess = async (
   }
 };
 
-// Replaces the access entries of a resource with the given ones
 export const syncResourceAccess = async (
   db: Kysely<Database>,
   resource: SharedResource,
@@ -196,7 +195,7 @@ export const syncResourceAccess = async (
   const toAdd = access.filter((a) => !currentKeys.has(accessKey(a)));
   const toRemove = current.filter((c) => !targetKeys.has(accessKey(c)));
 
-  // Grant first, so the policies check the editor access held before the change
+  // Grant access before revoking it so the editor can finish the update
   await grantResourceAccess(db, resource, resourceId, toAdd);
   await revokeResourceAccess(db, resource, resourceId, toRemove);
 

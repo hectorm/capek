@@ -2,8 +2,7 @@ import { z } from "zod/v4";
 
 import { ChatToolPartSchema } from "#layers/ai/shared/chat";
 
-// Conversation with a model, a subset of Open Responses (https://www.openresponses.org) that the API of each LLM
-// provider is translated to
+// Provider adapters share a subset of Open Responses (https://www.openresponses.org)
 
 export const LlmItemSchema = z.discriminatedUnion("type", [
   z.object({
@@ -21,9 +20,9 @@ export const LlmItemSchema = z.discriminatedUnion("type", [
     call_id: z.string(),
     name: z.string(),
     arguments: z.string(),
-    // Markdown that shows the user what the call does
+    // User-visible Markdown describing the tool call
     description: z.string().optional(),
-    // What the call shows the user
+    // Tool output displayed to the user
     parts: z.array(ChatToolPartSchema).optional(),
   }),
   z.object({

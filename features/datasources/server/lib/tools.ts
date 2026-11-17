@@ -23,7 +23,6 @@ const SHOWN_QUERY_MAX_BYTES = 5_000_000;
 const QUERY_STATEMENT_TIMEOUT_MS = 30_000;
 const QUERY_REQUEST_TIMEOUT_MS = 10_000;
 
-// Runs a query on a datasource and returns its first rows
 const querySource = async (
   source: QuerySource,
   sql: string,
@@ -50,7 +49,7 @@ const querySource = async (
   }
 };
 
-// Lets the agents that datasources are assigned to query them
+// Agents can query their assigned datasources
 export const datasourcesToolProvider = defineToolProvider({
   name: "datasources",
   label: "datasources.tools.label",

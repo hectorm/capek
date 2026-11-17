@@ -1,6 +1,6 @@
 import type { Principal, PrincipalAccess, PrincipalRole, UserPrincipal } from "#layers/core/shared/rbac";
 
-// IDs of the editors and users of a resource, in the "<type>:<id>" format of the search fields
+// Search fields identify each principal as <type>:<id>
 export const toPrincipalIds = (access: Principal[]): { editors: string[]; users: string[] } => {
   const withRole = (role: PrincipalRole): string[] => {
     return access.filter((a) => a.role === role).map((a) => `${a.type}:${a.id}`);
@@ -19,7 +19,7 @@ export const fromPrincipalIds = (selection: { editors: string[]; users: string[]
   ];
 };
 
-// IDs of the editors of a resource, which the ":own" permission checks take as its owners
+// The :own permission treats resource editors as owners
 export const toOwnerIds = (access: Principal[]): string[] => {
   return access.filter((a) => a.role === "editor").map((a) => a.id);
 };

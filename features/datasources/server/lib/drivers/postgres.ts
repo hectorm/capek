@@ -54,7 +54,7 @@ export class PostgresDriver implements DatasourceDriver {
         await canceller.connect();
         await canceller.query("SELECT pg_cancel_backend($1)", [pid]);
       } catch {
-        // ignore
+        // Cancellation is best effort once the server stops responding
       } finally {
         await canceller.end().catch(() => undefined);
       }
@@ -63,7 +63,7 @@ export class PostgresDriver implements DatasourceDriver {
       if (pid !== undefined) {
         void cancel();
       }
-      // The query would otherwise wait for a server that does not answer
+      // Closing the socket releases the query even if the server never acknowledges cancellation
       client.connection.stream.destroy();
     };
 

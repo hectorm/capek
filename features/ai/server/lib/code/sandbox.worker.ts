@@ -74,6 +74,7 @@ const callHost = async (name: SandboxHostFunction, args: string[]): Promise<stri
   } finally {
     const next = queuedHostCalls.shift();
     if (next) {
+      // The next queued call inherits this slot
       next();
     } else {
       activeHostCalls--;

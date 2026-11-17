@@ -111,7 +111,7 @@ describe("agent tools", () => {
       asUser({ id: alice, permissions }, (trx) => syncAgentToolResources(trx, agentId, notesProvider, [otherSkillId])),
     ).rejects.toThrow(/row-level security/);
 
-    // Editing the agent is not enough without the permission to use the resources
+    // Assigning a resource also requires use access
     await expect(
       asUser({ id: alice, permissions: agentEditor }, (trx) => {
         return syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]);
@@ -142,7 +142,7 @@ describe("agent tools", () => {
       "## Notes\n\nUse `notes_read` to read a note.\n\n### usable-note\n\nAbout usable-note",
     );
 
-    // Nor reach the resources that the user who calls them cannot use
+    // The caller must have use access even when the resource is assigned
     await db
       .insertInto("aiAgentToolResources")
       .values({ agentId, resourceType: SkillResource.type, resourceId: otherSkillId })
@@ -161,7 +161,7 @@ describe("agent tools", () => {
     };
     expect(await loadedTools()).toEqual(["notes_read"]);
 
-    // Providers of features that are not part of the build are ignored
+    // A stored provider name can outlive its feature
     await db
       .updateTable("aiAgents")
       .set({ toolProviders: ["notes_profile", "removed_feature"] })
@@ -169,7 +169,7 @@ describe("agent tools", () => {
       .execute();
     expect(await loadedTools()).toEqual(["notes_read", "notes_whoami"]);
 
-    // Their tools act on behalf of the user that calls them
+    // Tools run as the user who invokes them
     const [, toolset] = await loadAgentToolsets(db, providers, agentId, caller);
     const result = await toolset?.tools[0]?.execute({}, { user: { id: alice } } as ToolContext);
     expect(result).toBe(JSON.stringify({ userId: alice, resources: [] }));

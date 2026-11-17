@@ -1,8 +1,6 @@
 import { z } from "zod/v4";
 
-// =============================================================================
 // Chat Completions API
-// =============================================================================
 
 export const OpenAIFunctionParametersSchema = z.object({
   type: z.literal("object"),
@@ -119,9 +117,7 @@ export const OpenAIStreamChunkSchema = z.object({
 
 export type OpenAIStreamChunk = z.infer<typeof OpenAIStreamChunkSchema>;
 
-// =============================================================================
 // Responses API
-// =============================================================================
 
 export const OpenAIResponsesToolSchema = z.object({
   type: z.literal("function"),
@@ -210,9 +206,7 @@ export const OpenAIResponsesStreamEventSchema = z.object({
 
 export type OpenAIResponsesStreamEvent = z.infer<typeof OpenAIResponsesStreamEventSchema>;
 
-// =============================================================================
 // Models API
-// =============================================================================
 
 export const OpenAIModelsResponseSchema = z.object({
   object: z.literal("list").optional(),

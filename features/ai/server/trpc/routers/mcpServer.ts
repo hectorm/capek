@@ -195,7 +195,7 @@ export const mcpServerRouter = createTRPCRouter({
             .executeTakeFirst();
           const endpoint = unredactEndpoint({ url, headers }, existing ? storedEndpoint(existing) : undefined);
 
-          // The tools are discovered again when the server may be another one
+          // A different URL or headers can expose a different set of tools
           const cachedTools = url !== undefined || headers !== undefined ? "[]" : undefined;
 
           const mcpServer = await trx
@@ -298,7 +298,7 @@ export const mcpServerRouter = createTRPCRouter({
 
       let endpoint: Endpoint = { url: input.url, headers: input.headers ?? [] };
       if (id) {
-        // The lock only returns it to those who can update it
+        // FOR UPDATE applies the update policy before reading stored secrets
         const stored = await withUserTransaction(ctx.user, (trx) => {
           return trx
             .selectFrom("aiMcpServers")

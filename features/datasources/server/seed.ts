@@ -21,7 +21,7 @@ export const datasourcesSeed = defineSeed({
     sources: z.array(SeedSourceSchema).max(1000).default([]),
   },
   async run(config, { db, logger, grantAccess }) {
-    // Seed datasources (idempotent by name)
+    // Datasource seeds match on name
     for (const sourceConfig of config.sources) {
       const existing = await db
         .selectFrom("datasourcesSources")

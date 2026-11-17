@@ -31,9 +31,9 @@ export interface SeedContext {
 }
 
 export interface SeedDefinition<S extends z.ZodRawShape = z.ZodRawShape> {
-  // Shape of the section of the seed configuration owned by the feature
+  // Schema for this feature's seed configuration
   schema: S;
-  // Seeds the feature resources, it must be idempotent
+  // Seed handlers must be idempotent
   // eslint-disable-next-line @typescript-eslint/method-signature-style
   run(config: z.output<z.ZodObject<S>>, ctx: SeedContext): Promise<void>;
 }
@@ -46,7 +46,7 @@ export const createSeedContext = (
   features: readonly ServerFeature[],
   defer: SeedContext["defer"],
 ): SeedContext => {
-  // Resolves the principals with a single query, the returned lookup throws for missing ones
+  // One query resolves all principals. The lookup throws for unknown principals
   const resolveMany = async (
     type: PrincipalAccess["type"],
     names: readonly string[],

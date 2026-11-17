@@ -1,4 +1,4 @@
-// The value with its strings cleaned of the characters that the database rejects
+// PostgreSQL text cannot store NUL or unpaired UTF-16 surrogates
 export const sanitize = <T>(value: T): T => {
   if (typeof value === "string") {
     return value.toWellFormed().replaceAll("\0", "\uFFFD") as T;

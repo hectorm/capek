@@ -4,7 +4,7 @@ import { failure } from "#layers/ai/server/lib/errors";
 import { translateEventStream } from "#layers/ai/server/lib/llm/stream";
 import { OpenAICompletionResponseSchema, OpenAIStreamChunkSchema } from "#layers/ai/shared/openai";
 
-// The data that a provider needs back with a tool call is the reasoning that precedes it
+// Some providers require the preceding reasoning when a tool call is replayed
 const toExtraContent = (encryptedContent?: string): OpenAIToolCall["extra_content"] => {
   try {
     return JSON.parse(encryptedContent ?? "") as OpenAIToolCall["extra_content"];
@@ -34,7 +34,6 @@ const fromMessage = (content: string, toolCalls: OpenAIToolCall[]): LlmItem[] =>
   return output;
 };
 
-// Translates a request to the Chat Completions API
 export const toChatCompletionsRequest = (request: LlmRequest): OpenAICompletionRequest => {
   const messages: OpenAIMessage[] = [];
   let extraContent: OpenAIToolCall["extra_content"];
@@ -96,7 +95,6 @@ const fromFinish = (finishReason?: string | null, refusal?: string | null): LlmI
   return finishReason === "length" ? { reason: "max_output_tokens" } : undefined;
 };
 
-// Translates a response of the Chat Completions API
 export const fromChatCompletionsResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = OpenAICompletionResponseSchema.safeParse(rawResponse);
   if (!parsed.success) {
@@ -112,7 +110,6 @@ export const fromChatCompletionsResponse = (rawResponse: unknown): LlmResponse =
   };
 };
 
-// Translates the chunks of a streamed response of the Chat Completions API
 export const fromChatCompletionsStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
   let content = "";
   let refusal = "";

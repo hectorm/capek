@@ -27,7 +27,7 @@ interface Module {
   from: string;
 }
 
-// Generates the `#features/*` registries from the feature layers, each one after the features it depends on
+// Generated #features registries list dependencies before their dependents
 export default defineNuxtModule({
   meta: {
     name: "features",
@@ -58,10 +58,10 @@ export default defineNuxtModule({
     checkFeatureIdentity(features);
     await checkFeatureNames(nuxt.options.rootDir, features);
 
-    // Lowest priority first, fails when a feature depends on one that is not part of the build
+    // Nuxt lists higher-priority layers first. Reverse them before sorting by dependency
     const ordered = orderFeatures(features.toReversed());
 
-    // Features in the build, for the tools that do not load the Nuxt configuration
+    // Tools can read the feature selection without loading Nuxt
     const enabled = features.map((feature) => feature.name);
     const excluded = readdirSync(featuresDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && !enabled.includes(entry.name))
@@ -72,7 +72,7 @@ export default defineNuxtModule({
       getContents: () => JSON.stringify({ enabled, excluded }, null, 2),
     });
 
-    // Plain JavaScript with type declarations, so it can be bundled from any build directory
+    // Plain JavaScript and separate types work from any build directory
     const register = (name: string, js: string[], dts: string[]): void => {
       addTemplate({ filename: `features/${name}.js`, write: true, getContents: () => js.join("\n") });
       addTemplate({ filename: `features/${name}.d.ts`, write: true, getContents: () => dts.join("\n") });
@@ -86,7 +86,7 @@ export default defineNuxtModule({
         .map(({ feature, path }, i) => ({ feature, binding: `module${String(i)}`, from: importPath(path) }));
     };
 
-    // Also brings in the declarations that features merge into the core registries
+    // Registry imports also load each feature's merged type declarations
     const registerFeatures = (name: string, list: Module[]): void => {
       register(
         name,
@@ -104,7 +104,7 @@ export default defineNuxtModule({
     registerFeatures("server", modules("server", "feature.ts"));
     registerFeatures("app", modules("app", "feature.ts"));
 
-    // Routers of core are at the root of the API, and the ones of every other feature under its name
+    // Core routers sit at the API root. Other routers use the feature name
     const routers = modules("server", "trpc/routers/index.ts");
     const record = ({ feature }: Module, value: string): string => {
       return feature === "core" ? value : `{ ${feature}: ${value} }`;
@@ -130,7 +130,7 @@ export default defineNuxtModule({
   },
 });
 
-// Features are named after their directory, and the name is used in identifiers
+// Feature directory names must be valid identifiers
 const checkFeatureIdentity = (features: readonly Feature[]): void => {
   for (const { name, metaName } of features) {
     if (!/^[a-z][a-z0-9_]*$/.test(name)) {
@@ -142,7 +142,7 @@ const checkFeatureIdentity = (features: readonly Feature[]): void => {
   }
 };
 
-// Outside core, the files, runtime config and messages merged between layers start with the name of the feature
+// Feature prefixes prevent collisions when Nuxt merges layers
 const checkFeatureNames = async (rootDir: string, features: readonly Feature[]): Promise<void> => {
   const errors: string[] = [];
   for (const { name, dirs, runtimeConfig, localeFiles } of features) {

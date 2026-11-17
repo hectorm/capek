@@ -21,7 +21,7 @@ import ResourceTableHeader from "#layers/core/app/components/ui/ResourceTableHea
 const props = defineProps<{
   table: ResourceTableState<Q, R>;
   columns: ResourceTableColumn[];
-  // Prefix of the resource messages, used for the "table.<columnId>" labels of the columns
+  // Column labels use <i18nPrefix>.table.<columnId>
   i18nPrefix: string;
   canCreate?: boolean;
   canUpdate: (row: R) => boolean;
@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 defineSlots<
   {
-    // Content of the table without rows, "filtered" when a filter of the columns removed them
+    // The empty slot receives filtered=true when a search is active
     empty?: (props: { filtered: boolean }) => unknown;
   } & Record<`${string}-cell`, (props: { row: R }) => unknown>
 >();
@@ -63,7 +63,7 @@ const tableColumns = computed<TableColumn<R>[]>(() => [
   },
 ]);
 
-// Lets the table mark the sorted column, as the rows come sorted from the server
+// The server sorts the rows. The table uses this state for its sort indicator
 const sorting = computed(() => {
   const { orderBy, order } = props.table.query.value;
   return orderBy ? [{ id: orderBy, desc: order === "desc" }] : [];
@@ -71,7 +71,7 @@ const sorting = computed(() => {
 
 const filtered = computed(() => Boolean(props.table.query.value.search?.length));
 
-// Remounts the table when the locale changes, since it does not render its headers and cells again
+// The table needs a remount to translate its headers and cells after a locale change
 const tableKey = computed(() => i18n.locale.value);
 
 const rowActions = (row: R): DropdownMenuItem[] => {

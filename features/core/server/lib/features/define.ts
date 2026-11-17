@@ -7,27 +7,27 @@ import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { SettingDefinition } from "#layers/core/server/lib/settings/define";
 import type { User } from "#layers/core/shared/schema";
 
-// Server side contribution of a layer (its `server/feature.ts`), extensible through declaration merging
+// Layers declare server features in server/feature.ts and extend this interface through declaration merging
 export interface ServerFeature {
   name: string;
-  // Versioned migrations, applied in name order and tracked separately for each feature
+  // Each feature tracks its migrations separately and applies them in name order
   migrations?: Readonly<Record<string, Migration>>;
-  // Row level security definitions, reapplied for all features whenever any of them changes
+  // Changing one feature's policies reapplies row-level security across all features
   security?: SecurityDefinition;
   permissions?: readonly string[];
   rolePermissions?: Readonly<Partial<Record<string, readonly string[]>>>;
   settings?: Readonly<Record<string, SettingDefinition>>;
-  // Handler for the section of the seed configuration owned by the feature
+  // Each feature owns its section of the seed configuration
   seed?: SeedDefinition;
-  // Sources added to the Content Security Policy, like the origins of the content that the feature embeds
+  // Features can allow additional sources, such as the origins of embedded content
   csp?: CspContribution;
-  // Limits of the request bodies of the routes that accept larger ones
+  // Per-route request body limits in bytes
   bodyLimits?: BodyLimits;
-  // Hook run after syncing a user with the identity provider, on each OIDC sign-in and proxy sync
+  // Runs after each OIDC sign-in or proxy user sync
   onUserSync?: (event: { user: User; claims: Readonly<Record<string, unknown>> }) => Promise<void>;
 }
 
-// Names outside core start with the name of their feature, like "ai_agents" or "ai.quickChats"
+// Names outside core use the feature prefix, e.g. ai_agents or ai.quickChats
 export const assertFeaturePrefix = (feature: string, name: string, kind: string, separator = "_"): void => {
   if (feature !== "core" && !name.startsWith(`${feature}${separator}`)) {
     throw new Error(`${kind} "${name}" of feature "${feature}" must start with "${feature}${separator}"`);

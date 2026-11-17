@@ -4,13 +4,12 @@ import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { sanitize } from "#layers/ai/server/lib/text";
 
 export interface EventTranslator {
-  // Events of the answer in the data of an event of the provider, throws when the provider reports a failure
+  // A provider event can yield several model events. Provider failures throw
   event: (data: unknown) => LlmStreamEvent[];
-  // Events that end the answer, or null when the stream ended before it was complete
+  // A null result marks an incomplete stream
   end: () => LlmStreamEvent[] | null;
 }
 
-// Translates the events of a streamed response, whose data are JSON
 export const translateEventStream = (
   stream: ReadableStream<Uint8Array>,
   translator: EventTranslator,

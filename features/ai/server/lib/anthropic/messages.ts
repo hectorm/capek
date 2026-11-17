@@ -69,7 +69,6 @@ const fromBlocks = (blocks: AnthropicMessagesOutputBlock[]): LlmItem[] => {
   return blocks.flatMap((block) => fromBlock(block) ?? []).filter((item) => item.type !== "message" || item.content);
 };
 
-// Translates a request to the Messages API of Anthropic
 export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest => {
   const system: string[] = [];
   const messages: AnthropicMessagesMessage[] = [];
@@ -85,7 +84,7 @@ export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest
       continue;
     }
 
-    // Messages take turns starting with the user, so the results of the tools called in a turn go together
+    // Anthropic conversations start with a user turn and group consecutive blocks with the same role
     const role =
       item.type === "function_call_output" || (item.type === "message" && item.role === "user") ? "user" : "assistant";
     const last = messages.at(-1);
@@ -96,13 +95,13 @@ export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest
     }
   }
 
-  // The sampling parameters and the penalties of the request have no equivalent
+  // This adapter omits sampling parameters and penalties
   return {
     model: request.model,
     system: system.length > 0 ? system.join("\n\n") : undefined,
     messages,
     stream: request.stream,
-    // The limit of tokens is mandatory
+    // Anthropic requires max_tokens even when the caller omits a limit
     max_tokens: request.max_output_tokens ?? AgentExecutorParameters.maxTokens.default,
     output_config: request.reasoning,
     tools: request.tools?.map((tool) => ({
@@ -113,7 +112,6 @@ export const toMessagesRequest = (request: LlmRequest): AnthropicMessagesRequest
   };
 };
 
-// Translates a response of the Messages API
 export const fromMessagesResponse = (rawResponse: unknown): LlmResponse => {
   const parsed = AnthropicMessagesResponseSchema.safeParse(rawResponse);
   if (!parsed.success) {
@@ -126,7 +124,6 @@ export const fromMessagesResponse = (rawResponse: unknown): LlmResponse => {
   };
 };
 
-// Translates the events of a streamed response of the Messages API
 export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): ReadableStream<LlmStreamEvent> => {
   const items = new Map<number, LlmItem>();
   let incompleteDetails: LlmIncompleteDetails | undefined;
@@ -164,7 +161,7 @@ export const fromMessagesStream = (stream: ReadableStream<Uint8Array>): Readable
           }
           return [];
         case "content_block_stop":
-          // A tool called without arguments streams none
+          // A tool call with no arguments may have no input deltas
           if (item?.type === "function_call" && !item.arguments) {
             item.arguments = "{}";
           }

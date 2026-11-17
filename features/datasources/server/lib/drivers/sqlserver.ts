@@ -97,7 +97,7 @@ export class SqlServerDriver implements DatasourceDriver {
     }
 
     options.readOnlyIntent = true;
-    // Changes are discarded on close since nothing is committed, unless a statement commits them itself
+    // Closing the connection rolls back implicit transactions unless the batch commits them
     options.enableImplicitTransactions = true;
     if (settings.requestTimeoutMs) {
       options.connectTimeout = settings.requestTimeoutMs;
@@ -210,7 +210,7 @@ export class SqlServerDriver implements DatasourceDriver {
       try {
         connection.close();
       } catch {
-        // ignore
+        // A close error must not replace the query result or error
       }
     }
   }

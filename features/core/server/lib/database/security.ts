@@ -1,68 +1,34 @@
-// =============================================================================
-// Row Level Security
-// =============================================================================
+// Row-level security across features
 //
-// The row level security of all features is one set of statements, recreated when it or the migrations change.
+// Each feature declares its resources and table policies for PostgreSQL to enforce.
 //
-// HOW IT WORKS:
-// -------------
-// 1. withUserTransaction() sets session variables, and switches superuser connections to a role bound by the policies:
-//    - app.user_id: Current user's UUID
-//    - app.user_groups: Array of group UUIDs the user belongs to
-//    - app.user_permissions: Array of permission strings (e.g., 'user:read:own')
-//    - app.trusted_write: 'on' when the server writes rows on behalf of the user that users cannot write themselves
+// Transaction context
+// - withUserTransaction() sets app.user_id, app.user_groups, and app.user_permissions for the current transaction.
+// - A superuser connection assumes the app_rls role for user transactions. Forced policies also apply to table owners.
+// - System operations such as migrations have no user ID and use the table's system policy.
+// - A trusted write still has a user. Feature policies can check app.trusted_write for server-authored rows.
 //
-// 2. Helper functions read these variables:
-//    - security.user_id(): Returns current user ID (NULL for system operations)
-//    - security.user_groups(): Returns user's group memberships
-//    - security.user_permissions(): Returns the current user's permissions
-//    - security.is_trusted_write(): Checks whether the transaction is a trusted write
-//    - security.can()/security.can_any(): Check whether all, or any, of the required permissions are present
-//    - security.is_owner(): Checks ownership of the owned resources registered by features
-//    - security.has_access(): Checks access granted through the access tables of shared resources
-//    - security.has_other_access(): Checks whether anyone else was granted access to a shared resource
-//    - security.is_creating(): Checks whether the current transaction created a shared resource nobody else can access
+// Policy patterns
+// - Use protectTable() with custom policies. sharedResourcePolicies() protects both the resource and its access table.
+// - The <type>:update:all permission allows updates across shared rows of that type without an editor grant.
+// - defineOwnedResource() identifies the owner column. For child rows, check the parent with isOwner().
+// - defineSharedResource() identifies the access table. hasAccess() checks grants to the user and their groups.
+// - The user and editor roles both allow reading or using a shared row with the corresponding permission.
+// - Updating, deleting, or sharing a resource under :own requires the editor role and the corresponding permission.
+// - The initial self-grant requires create permission, a row written in this transaction, and no grants to others.
 //
-// 3. Policies on public tables use those helpers to define who can access each row. Features write them with:
-//    - protectTable(): Enables row level security on a table, allowing system operations
-//    - isOwner()/hasAccess(): Conditions on the ownership of, or the access to, the resource that a column refers to
-//    - sharesResourceWith(): Condition that lets editors see the users and groups they share resources with
-//    - sharedResourcePolicies(): Policies of a shared resource and its access table
+// Writing a policy
+// - Use USING to check existing rows and WITH CHECK to validate the row an insert or update would store.
+// - Wrap transaction lookups in scalar subqueries, e.g. (SELECT security.user_id()), so PostgreSQL can run them once.
+// - Use isOwner() or hasAccess() for row-dependent checks so the planner can hash the matching rows.
+// - Qualify the outer column, e.g. isOwner(parent, "items.parent_id"), so the subquery checks the intended row.
+// - Access-table policies use security.has_access() when an inline check would recurse into the same policy.
+// - When replacing grants, insert new entries before revoking old ones so an editor can finish transferring access.
 //
-// PERFORMANCE:
-// ------------
-// A policy is evaluated for each row that a statement reads, so what does not depend on the row is computed once:
-//   - Session lookups are wrapped in a subquery, like "(SELECT security.can_any(...))", which the planner runs once.
-//   - Access checks on other rows use hasAccess() and isOwner(), which the planner can hash, unlike the functions.
-//
-// The startup fails when a policy calls a session lookup directly.
-//
-// POLICY PATTERNS:
-// ----------------
-// *_system policies:
-//   Allow system operations (migrations, scheduled tasks), which have no user, bypassing all user-level restrictions.
-//
-// Permission-based access:
-//   - ':all' permissions (e.g., 'user:read:all') grant access to ALL rows
-//   - ':own' permissions (e.g., 'user:read:own') require additional ownership checks
-//
-// Ownership via owner column:
-//   Owned resources (see defineOwnedResource) belong to the user in their owner column.
-//
-// Ownership via access tables:
-//   Shared resources (see defineSharedResource) use access tables to track who has access. Two roles exist:
-//   - 'editor': Can update, delete, and grant access to others
-//   - 'user': Can read and execute (use) the resource
-//
-// Access can be granted to:
-//   - Individual users (user_id column)
-//   - Groups (group_id column), all group members inherit access
-//
-// Within the transaction that creates a shared resource, its creator can see it and grant themselves access to it.
-//
-// Tables of removed features keep row level security enabled without policies, so they become inaccessible.
-//
-// =============================================================================
+// Installation and checks
+// - After migrations, applySecurity() rebuilds policies and helpers atomically when SQL or migration names change.
+// - Startup checks policy lookups, registered resource types, and forced row-level security on application tables.
+// - Removing a feature leaves its tables protected. The rebuilt policy set grants no access to those rows.
 
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
@@ -77,15 +43,16 @@ import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
 
-// Resource owned by a single user, checked by `security.is_owner()`
+// An owned resource records a single user's ID on each row
 export interface OwnedResource {
-  // Resource type, as passed to `security.is_owner()`
+  // Identifier passed to security.is_owner()
   readonly type: string;
   readonly table: string;
-  // Column holding the ID of the owner user
+  // User ID column that records ownership
   readonly ownerColumn: string;
 }
 
+// Describe an owned table for policy generation, using user_id as the default owner column
 export const defineOwnedResource = (resource: {
   type: string;
   table: string;
@@ -96,23 +63,23 @@ export const defineOwnedResource = (resource: {
   ownerColumn: resource.ownerColumn ?? "user_id",
 });
 
+// Feature policy builders can reference resources from any enabled feature
 export interface SecurityContext {
-  // Shared resources registered by all features
   readonly sharedResources: readonly SharedResource[];
-  // Owned resources registered by all features
   readonly ownedResources: readonly OwnedResource[];
 }
 
+// A feature registers its resources and supplies the SQL for its own tables
 export interface SecurityDefinition {
-  // Resources shared through access tables, checked by `security.has_access()`
+  // Access tables back security.has_access()
   sharedResources?: readonly SharedResource[];
-  // Resources owned by a single user, checked by `security.is_owner()`
+  // Owner columns back security.is_owner()
   ownedResources?: readonly OwnedResource[];
-  // SQL statements that create the functions and policies of the feature
+  // Build feature-specific functions and policies using the combined resource registry
   statements?: (ctx: SecurityContext) => string[];
 }
 
-// Expression that evaluates the condition of the matching resource type
+// Select the SQL condition for a resource type. Unknown types evaluate to FALSE
 const dispatch = (cases: [type: string, condition: string][]): string => {
   if (cases.length === 0) {
     return "FALSE";
@@ -120,8 +87,9 @@ const dispatch = (cases: [type: string, condition: string][]): string => {
   return `CASE resource_type ${cases.map(([type, condition]) => `WHEN '${type}' THEN ${condition}`).join(" ")} ELSE FALSE END`;
 };
 
+// Build the shared SQL functions that read transaction settings and check registered resources
 const helperFunctions = (ctx: SecurityContext): string[] => [
-  // Function to get user ID from session variable
+  // Return the transaction's user ID, or NULL for system operations
   `
     CREATE FUNCTION security.user_id()
     RETURNS UUID
@@ -132,7 +100,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT NULLIF(CURRENT_SETTING('app.user_id', TRUE), '')::UUID;
     $$
   `,
-  // Function to get user group IDs from session variable
+  // Return the transaction's group IDs for membership checks
   `
     CREATE FUNCTION security.user_groups()
     RETURNS UUID[]
@@ -143,7 +111,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT NULLIF(CURRENT_SETTING('app.user_groups', TRUE), '')::UUID[];
     $$
   `,
-  // Function to get user permissions from session variable
+  // Return the transaction's effective permission names
   `
     CREATE FUNCTION security.user_permissions()
     RETURNS TEXT[]
@@ -154,7 +122,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT NULLIF(CURRENT_SETTING('app.user_permissions', TRUE), '')::TEXT[];
     $$
   `,
-  // Function to check whether the transaction was opened as a trusted server-authored write
+  // Check whether the server marked this user transaction as a trusted write
   `
     CREATE FUNCTION security.is_trusted_write()
     RETURNS BOOLEAN
@@ -165,7 +133,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT COALESCE(CURRENT_SETTING('app.trusted_write', TRUE) = 'on', FALSE);
     $$
   `,
-  // Function to check if user has ALL permissions from the list
+  // Require a user and every permission in the supplied list
   `
     CREATE FUNCTION security.can(permissions TEXT[])
     RETURNS BOOLEAN
@@ -176,7 +144,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT security.user_id() IS NOT NULL AND COALESCE(permissions <@ security.user_permissions(), FALSE);
     $$
   `,
-  // Function to check if user has ANY permission from the list
+  // Require a user and at least one permission in the supplied list
   `
     CREATE FUNCTION security.can_any(permissions TEXT[])
     RETURNS BOOLEAN
@@ -187,7 +155,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       SELECT security.user_id() IS NOT NULL AND COALESCE(permissions && security.user_permissions(), FALSE);
     $$
   `,
-  // Function to check if user owns a resource with direct user ownership
+  // Check the registered owner column for the current user
   `
     CREATE FUNCTION security.is_owner(resource_type TEXT, resource_id UUID)
     RETURNS BOOLEAN
@@ -208,7 +176,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       )};
     $$
   `,
-  // Function to check if user has direct access to a shared resource via access tables
+  // Check for a matching access role granted to the user or any of their groups
   `
     CREATE FUNCTION security.has_access(resource_type TEXT, resource_id UUID, required_roles TEXT[] DEFAULT ARRAY['editor', 'user'])
     RETURNS BOOLEAN
@@ -231,7 +199,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       )};
     $$
   `,
-  // Function to check if users other than the current one, or groups, were given access to a shared resource
+  // Check for any grant to a different user or to a group, including the current user's groups
   `
     CREATE FUNCTION security.has_other_access(resource_type TEXT, resource_id UUID)
     RETURNS BOOLEAN
@@ -253,7 +221,7 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
       )};
     $$
   `,
-  // Function to check if the current transaction created a shared resource that nobody else has access to yet
+  // Check that this transaction wrote the row and that no other principal has a grant
   `
     CREATE FUNCTION security.is_creating(resource_type TEXT, resource_id UUID)
     RETURNS BOOLEAN
@@ -275,10 +243,11 @@ const helperFunctions = (ctx: SecurityContext): string[] => [
   `,
 ];
 
-// Enables row level security on a table, allowing system operations
+// Enable and force row-level security on the table and install its system policy
 export const protectTable = (table: string): string[] => [
   `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY`,
+  // Allow system transactions with no user ID to read and write rows
   `
     CREATE POLICY ${table}_system ON public.${table}
       USING ((SELECT security.user_id()) IS NULL)
@@ -286,14 +255,14 @@ export const protectTable = (table: string): string[] => [
   `,
 ];
 
-// The column is qualified with its table, otherwise it would be taken from the table of the subquery
+// Require a table-qualified outer column so generated subqueries compare against the intended row
 const assertQualified = (column: string): void => {
   if (!/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(column)) {
-    throw new Error(`Column "${column}" must be qualified with its table, like "ai_agents.id"`);
+    throw new Error(`Column "${column}" must be qualified with its table, like "items.parent_id"`);
   }
 };
 
-// Condition of a policy that is true when the current user owns the resource of a column
+// Build an EXISTS check against the owner of the resource referenced by the outer column
 export const isOwner = (resource: OwnedResource, column: string): string => {
   assertQualified(column);
   return `
@@ -304,7 +273,7 @@ export const isOwner = (resource: OwnedResource, column: string): string => {
   `;
 };
 
-// Condition of a policy that is true when the current user was given access to the shared resource of a column
+// Build an EXISTS check for a user or group grant, optionally restricted to specific roles
 export const hasAccess = (resource: SharedResource, column: string, roles?: readonly PrincipalRole[]): string => {
   assertQualified(column);
   return `
@@ -317,7 +286,7 @@ export const hasAccess = (resource: SharedResource, column: string, roles?: read
   `;
 };
 
-// Lets editors see the users and groups they share resources with
+// Check whether the target has a grant on a resource where the caller holds an editor grant directly or via a group
 export const sharesResourceWith = (
   resources: readonly SharedResource[],
   principal: { userId: string } | { groupId: string },
@@ -340,28 +309,30 @@ export const sharesResourceWith = (
   return `(${conditions.join(" OR ")})`;
 };
 
-// Policies of a shared resource and its access table
+// Generate policies for the resource rows and the grants that control access to them
 export const sharedResourcePolicies = (
   resource: SharedResource,
   options: {
-    // Additional condition required to insert a resource
+    // Additional condition on the row being inserted
     insertCheck?: string;
-    // Additional condition required to update a resource
+    // Additional condition on the row after an update
     updateCheck?: string;
   } = {},
 ): string[] => {
   const { type, table, accessTable, foreignKey } = resource;
 
+  // Match any listed action for this resource type using one transaction lookup
   const canAny = (...actions: string[]): string => {
     return `(SELECT security.can_any(ARRAY[${actions.map((action) => `'${type}:${action}'`).join(", ")}]))`;
   };
 
+  // An :own update or delete requires an editor grant on the affected row
   const canEdit = (action: "update" | "delete"): string => `
     ${canAny(`${action}:all`)}
     OR (${canAny(`${action}:own`)} AND ${hasAccess(resource, `${table}.id`, ["editor"])})
   `;
 
-  // Policies of the access table use the function, since a subquery on their own table is rejected as a recursion
+  // Sharing requires update access. The SQL helper avoids an inline subquery on the access table itself
   const canShare = `
     ${canAny("update:all")}
     OR (${canAny("update:own")} AND security.has_access('${type}', ${foreignKey}, ARRAY['editor']))
@@ -369,6 +340,7 @@ export const sharedResourcePolicies = (
 
   return [
     ...protectTable(table),
+    // Allow :all access, :own access with a grant, or creator access while establishing the first grants
     `
       CREATE POLICY ${table}_select ON public.${table}
         FOR SELECT
@@ -387,6 +359,7 @@ export const sharedResourcePolicies = (
           )
         );
     `,
+    // Require create permission and any feature-specific insert condition
     `
       CREATE POLICY ${table}_insert ON public.${table}
         FOR INSERT
@@ -395,6 +368,7 @@ export const sharedResourcePolicies = (
           ${options.insertCheck ? `AND (${options.insertCheck})` : ""}
         );
     `,
+    // Require update access to both row versions and apply the feature check to the new values
     `
       CREATE POLICY ${table}_update ON public.${table}
         FOR UPDATE
@@ -404,18 +378,20 @@ export const sharedResourcePolicies = (
           ${options.updateCheck ? `AND (${options.updateCheck})` : ""}
         );
     `,
+    // Require delete:all, or delete:own with an editor grant on this resource
     `
       CREATE POLICY ${table}_delete ON public.${table}
         FOR DELETE
         USING (${canEdit("delete")});
     `,
     ...protectTable(accessTable),
-    // Doesn't filter by resource access to avoid RLS recursion, so :own permissions show the access of all resources
+    // Read or update permission (:all or :own) exposes grant rows across resources to avoid policy recursion
     `
       CREATE POLICY ${accessTable}_select ON public.${accessTable}
         FOR SELECT
         USING (${canAny("read:all", "update:all", "read:own", "update:own")});
     `,
+    // Allow sharing by authorized editors, update:all holders, or creators making their initial self-grants
     `
       CREATE POLICY ${accessTable}_insert ON public.${accessTable}
         FOR INSERT
@@ -429,6 +405,7 @@ export const sharedResourcePolicies = (
           )
         );
     `,
+    // Revoke a grant with update:all or with update:own and an editor grant on the resource
     `
       CREATE POLICY ${accessTable}_delete ON public.${accessTable}
         FOR DELETE
@@ -437,7 +414,7 @@ export const sharedResourcePolicies = (
   ];
 };
 
-// Provisions the role that superuser connections de-escalate to, which accesses all objects as their owner
+// Provision the fallback owner role for superuser connections and reject a role that could bypass policies
 const roleStatements = (): string[] => [
   `
     DO $$
@@ -497,7 +474,7 @@ const roleStatements = (): string[] => [
   `,
 ];
 
-// Drops the security schema and all public policies, keeping row level security enabled
+// Drop public policies and the shared helper schema before rebuilding them. Tables retain row-level security
 const dropStatements = (): string[] => [
   `
     DO $$
@@ -522,7 +499,7 @@ const dropStatements = (): string[] => [
   "DROP SCHEMA IF EXISTS security CASCADE",
 ];
 
-// Rejects duplicated types, which the security functions would silently ignore
+// Collect one kind of resource across features and reject invalid prefixes or duplicate types
 const collectResources = <R extends { type: string }>(
   features: readonly ServerFeature[],
   pick: (security: SecurityDefinition) => readonly R[] | undefined,
@@ -540,6 +517,7 @@ const collectResources = <R extends { type: string }>(
   });
 };
 
+// Assemble the shared helpers and feature policies, then validate their lookups and resource references
 export const composeSecurity = (features: readonly ServerFeature[]): string[] => {
   const ctx: SecurityContext = {
     sharedResources: collectResources(features, (security) => security.sharedResources),
@@ -551,6 +529,7 @@ export const composeSecurity = (features: readonly ServerFeature[]): string[] =>
     ...helperFunctions(ctx),
     ...features.flatMap((feature) => {
       const featureStatements = feature.security?.statements?.(ctx) ?? [];
+      // Feature prefixes keep SQL function names distinct in the shared security schema
       for (const [, name] of featureStatements
         .join("\n")
         .matchAll(/CREATE (?:OR REPLACE )?FUNCTION security\.(\w+)/g)) {
@@ -560,6 +539,7 @@ export const composeSecurity = (features: readonly ServerFeature[]): string[] =>
     }),
   ];
 
+  // Reject direct transaction lookups in policies so they can be evaluated once per statement
   for (const statement of statements) {
     const policy = /^\s*CREATE POLICY (\w+)/.exec(statement)?.[1];
     const direct =
@@ -572,6 +552,7 @@ export const composeSecurity = (features: readonly ServerFeature[]): string[] =>
     }
   }
 
+  // Literal ownership and access checks must reference a resource registered for that kind of check
   for (const [, fn, type] of statements.join("\n").matchAll(/security\.(has_access|is_owner)\('([^']+)'/g)) {
     const resources = fn === "is_owner" ? ctx.ownedResources : ctx.sharedResources;
     if (!resources.some((resource) => resource.type === type)) {
@@ -582,11 +563,11 @@ export const composeSecurity = (features: readonly ServerFeature[]): string[] =>
   return statements;
 };
 
-// Applies the security statements when they differ from the last applied ones
+// Rebuild changed policies atomically and verify table protection on every startup
 export const applySecurity = async (db: Kysely<Database>, features: readonly ServerFeature[]): Promise<void> => {
   const statements = composeSecurity(features);
 
-  // Migrations are part of the checksum, since a recreated table loses its policies
+  // Migration names enter the checksum because a migration can recreate a table and remove its policies
   const migrations = features.flatMap((feature) => {
     return Object.keys(feature.migrations ?? {}).map((name) => `${feature.name}/${name}`);
   });
@@ -597,7 +578,7 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
   const checksum = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 
   const applied = await db.transaction().execute(async (trx) => {
-    // Serializes concurrent instances, so the statements are applied only once
+    // The lock lets one instance apply a given policy change
     await sql`SELECT pg_advisory_xact_lock(hashtext('kysely_migration_repeatable'))`.execute(trx);
 
     await sql`
@@ -628,6 +609,7 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
       `.execute(trx);
     }
 
+    // Require enabled and forced RLS on public tables, except migration tables and extension-owned tables
     const unprotected = await sql<{ name: string }>`
       SELECT c.relname AS name
       FROM pg_class c
@@ -645,7 +627,7 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
       throw new Error(`Tables without row level security: ${unprotected.rows.map((row) => row.name).join(", ")}`);
     }
 
-    // Always provisioned, since it depends on the connection and the existing objects rather than on the checksum
+    // Reconcile the fallback role on every run so it also owns objects added since the last policy change
     for (const statement of roleStatements()) {
       await sql.raw(statement).execute(trx);
     }

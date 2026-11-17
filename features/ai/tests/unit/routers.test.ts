@@ -118,7 +118,7 @@ describe("connection test", () => {
     await expect(member.llmProvider.testConnection({ apiUrl })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(member.mcpServer.testConnection({ url })).rejects.toMatchObject({ code: "FORBIDDEN" });
 
-    // Nor with an ID that they cannot update
+    // Testing an existing endpoint requires update access
     await expect(member.llmProvider.testConnection({ id: llmProviderId, apiUrl })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });

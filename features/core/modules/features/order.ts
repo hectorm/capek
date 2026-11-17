@@ -1,10 +1,10 @@
 export interface FeatureNode {
   name: string;
-  // Features it builds on, which have to be part of the build and are set up before it
+  // Required features load first
   dependsOn: readonly string[];
 }
 
-// Places each feature after the features it depends on, keeping the given order otherwise
+// Independent features keep their original order whenever possible
 export const orderFeatures = <F extends FeatureNode>(features: readonly F[]): F[] => {
   const ordered: F[] = [];
   const visit = (feature: F, path: readonly string[]): void => {

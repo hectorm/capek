@@ -7,10 +7,9 @@ export const DEFAULT_BODY_LIMIT = 2 * 1024 * 1024;
 // Body limit of a route in bytes
 export type BodyLimit = number | ((event: H3Event) => number | Promise<number>);
 
-// Body limits of the routes of a feature
 export type BodyLimits = Readonly<Record<string, BodyLimit>>;
 
-// Outside core, a feature only sets the limits of the routes under "/api/<feature>/"
+// Non-core features can override body limits only under /api/<feature>/
 export const collectBodyLimits = (features: readonly ServerFeature[]): ReadonlyMap<string, BodyLimit> => {
   const limits = new Map<string, BodyLimit>();
   for (const feature of features) {
@@ -27,7 +26,7 @@ export const collectBodyLimits = (features: readonly ServerFeature[]): ReadonlyM
   return limits;
 };
 
-// A path that only resembles the one of a route, like with a trailing slash, keeps the default limit
+// Only an exact route match gets a custom body limit
 export const resolveBodyLimit = async (limits: ReadonlyMap<string, BodyLimit>, event: H3Event): Promise<number> => {
   const limit = limits.get(event.path.split("?", 1)[0] ?? "");
   const bytes = typeof limit === "function" ? await limit(event) : limit;

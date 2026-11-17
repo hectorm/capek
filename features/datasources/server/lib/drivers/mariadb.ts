@@ -12,7 +12,7 @@ import { connectionUrl, toRow } from "#layers/datasources/server/lib/drivers/com
 import { ResultTooLargeError } from "#layers/datasources/server/lib/errors";
 import { MariaDBDatasourceType } from "#layers/datasources/shared/definitions/mariadb";
 
-// Options parsed from a connection string, whose collation is an object that connections only take by name
+// The URL parser returns a collation object. The connection expects its name
 type ParsedOptions = Omit<mariadb.ConnectionConfig, "collation"> & {
   host: string;
   port: number;
@@ -39,9 +39,9 @@ export class MariaDBDriver implements DatasourceDriver {
     if (settings.requestTimeoutMs) {
       url.searchParams.set("connectTimeout", String(settings.requestTimeoutMs));
     }
-    // Dates are returned as text, since as objects they would shift with the time zone of the application
+    // Returning dates as text preserves their values across application time zones
     url.searchParams.set("dateStrings", "true");
-    // Each row is a packet, which is refused before it is buffered when it is larger
+    // The driver rejects oversized row packets before buffering them
     if (settings.maxBytes) {
       url.searchParams.set("maxAllowedPacket", String(settings.maxBytes));
     }
@@ -140,7 +140,7 @@ export class MariaDBDriver implements DatasourceDriver {
     }
   }
 
-  // BIGINT values, like the result of COUNT, become numbers when they are safe integers and texts otherwise
+  // BIGINT values outside the safe integer range serialize as strings
   private toSerializable(row: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(
       Object.entries(row).map(([key, value]) => [

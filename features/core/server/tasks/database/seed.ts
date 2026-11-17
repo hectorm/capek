@@ -51,7 +51,6 @@ export default defineTask({
         .transaction()
         .setIsolationLevel("read committed")
         .execute(async (trx) => {
-          // Create permissions
           const permissionNames: string[] = [];
           for (const feature of features) {
             for (const name of feature.permissions ?? []) {
@@ -70,7 +69,7 @@ export default defineTask({
               .execute();
           }
 
-          // Collect the permissions granted to each role by all features
+          // Features can grant permissions to the same role
           const rolePermissions = new Map<string, string[]>(Object.values(Roles).map((name) => [name, []]));
           for (const feature of features) {
             for (const [roleName, names] of Object.entries(feature.rolePermissions ?? {})) {
@@ -78,7 +77,6 @@ export default defineTask({
             }
           }
 
-          // Create roles
           const roleNames = [...rolePermissions.keys()];
           if (roleNames.length > 0) {
             await trx
@@ -88,7 +86,6 @@ export default defineTask({
               .execute();
           }
 
-          // Apply permissions to roles
           for (const [roleName, rolePermissionNames] of rolePermissions) {
             const role = await trx
               .selectFrom("roles")
@@ -100,7 +97,6 @@ export default defineTask({
           }
         });
 
-      // Ensure single user exists and has admin role if in single user mode
       if (config.authMode === AuthModes.SingleUser) {
         await db
           .transaction()
@@ -134,7 +130,7 @@ export default defineTask({
           });
       }
 
-      // Core is configured at the root, and every other feature in a section named after it
+      // Core seed keys live at the root. Other features use a section named after the feature
       const seedShape: Record<string, z.core.$ZodType> = {};
       for (const { name, seed } of features) {
         const shape = name === "core" ? seed?.schema : seed && { [name]: z.object(seed.schema).prefault({}) };
@@ -146,7 +142,6 @@ export default defineTask({
         }
       }
 
-      // Seed resources from configuration
       if (config.seed.config) {
         let seedConfigRaw: unknown;
         if (typeof config.seed.config === "string") {

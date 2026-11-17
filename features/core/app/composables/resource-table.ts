@@ -12,13 +12,13 @@ export interface ResourceTableQuery {
 }
 
 interface ResourceTableFilter {
-  // Values to pick from instead of typing the filter
+  // Fixed choices for this filter
   items?: string[];
-  // Searches the values to pick from, for columns with too many to list as items
+  // Searchable choices for columns with too many values to list
   searchFn?: (search?: string) => Promise<string[]>;
 }
 
-// Column of a resource table, sortable or filterable only if the search accepts its ID as "orderBy" or "searchBy"
+// Sortable and filterable column IDs must be valid orderBy and searchBy keys, respectively
 export type ResourceTableColumn<Q extends ResourceTableQuery = ResourceTableQuery> = {
   class?: { th?: string; td?: string };
 } & (
@@ -45,7 +45,7 @@ export interface ResourceTableState<Q extends ResourceTableQuery, R extends { id
 }
 
 export const useResourceTable = async <Q extends ResourceTableQuery, R extends { id: string }>(options: {
-  // Unique in the application, as the tables with the same key share their first page
+  // Tables with the same key share their first page
   key: string;
   query: Q;
   search: (query: Q) => Promise<{ rows: R[]; nextCursor?: Q["cursor"] }>;
@@ -55,7 +55,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
   const loading = ref<boolean>(false);
   const nextCursor = shallowRef<Q["cursor"]>();
   const retry = shallowRef<() => Promise<void>>();
-  // Query of the rows shown, restored when a new query fails to load
+  // A failed first-page load restores the query for the visible rows
   let loadedQuery = options.query;
   let lastLoad = 0;
 
@@ -75,7 +75,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
         rows.value = result.rows;
         loadedQuery = loadQuery;
       } else {
-        // A page can repeat rows that were created or updated after loading the previous ones
+        // Rows can move between pages after an insert or update
         const loaded = new Set(rows.value.map((row) => row.id));
         rows.value = rows.value.concat(result.rows.filter((row) => !loaded.has(row.id)));
       }

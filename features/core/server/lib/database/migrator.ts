@@ -23,7 +23,7 @@ class VirtualMigrationProvider implements MigrationProvider {
   }
 }
 
-// Names of the database objects in the public schema, which all features share
+// All features share the public schema
 const objectNames = async (db: Kysely<Database>): Promise<Set<string>> => {
   const result = await sql<{ name: string }>`
     SELECT relname AS name FROM pg_class WHERE relnamespace = 'public'::regnamespace
@@ -35,7 +35,7 @@ const objectNames = async (db: Kysely<Database>): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => row.name));
 };
 
-// Migrates each feature in the given order, then applies the row level security of all of them
+// Feature migrations run in dependency order before policies are applied
 export const migrateToLatest = async (db: Kysely<Database>, features: readonly ServerFeature[]): Promise<void> => {
   const names = features.map((feature) => feature.name);
   const duplicate = names.find((name, i) => names.indexOf(name) !== i);
@@ -43,7 +43,7 @@ export const migrateToLatest = async (db: Kysely<Database>, features: readonly S
     throw new Error(`Duplicate feature "${duplicate}"`);
   }
 
-  // Instances that start at once migrate one after another
+  // The lock serializes migrations across instances
   await db.connection().execute(async (conn) => {
     await sql`SELECT pg_advisory_lock(hashtext('kysely_migration'))`.execute(conn);
     try {

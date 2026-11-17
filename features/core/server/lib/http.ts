@@ -203,7 +203,7 @@ const sendAllowed = async (target: URL, init: EndpointInit): Promise<Response> =
   return send(target, init, { agent: agentOf(target.protocol, proxy), lookup: host.lookup });
 };
 
-// Requests an endpoint connecting only to public IP addresses or allowed hosts
+// Connections are restricted to public addresses and explicitly allowed hosts
 export const fetchEndpoint = async (url: string | URL, init: EndpointInit = {}): Promise<Response> => {
   let target = new URL(url);
   let hopInit = init;
@@ -220,13 +220,12 @@ export const fetchEndpoint = async (url: string | URL, init: EndpointInit = {}):
       throw new Error(`The endpoint redirects${shown ? ` to "${shown}"` : ""}, its URL has to be changed`);
     }
     target = new URL(location, target);
-    // Redirects are followed with plain GET requests, without the headers or body of the first one
+    // Redirects start a fresh GET with no headers or body from the original request
     hopInit = { signal: init.signal };
   }
   throw new Error("The endpoint redirects too many times");
 };
 
-// Fails the body of a response once it is larger than a number of bytes
 export const limitResponse = (response: Response, maxBytes: number, message: string): Response => {
   if (!response.body) {
     return response;
@@ -246,7 +245,7 @@ export const limitResponse = (response: Response, maxBytes: number, message: str
   return new Response(body, response);
 };
 
-// Reads the start of the body of a failed response as text
+// Read only the bounded prefix of an error response
 export const readErrorBody = async (body: AsyncIterable<Uint8Array> | null): Promise<string> => {
   const decoder = new TextDecoder();
   let text = "";
@@ -261,7 +260,7 @@ export const readErrorBody = async (body: AsyncIterable<Uint8Array> | null): Pro
   return text + decoder.decode();
 };
 
-// Describes a failed response without exposing bodies other than API errors
+// Only recognized API errors may include response text in the error message
 export const readErrorMessage = async (response: Response, body?: string): Promise<string> => {
   body ??= await readErrorBody(response.body);
 
@@ -269,7 +268,7 @@ export const readErrorMessage = async (response: Response, body?: string): Promi
   try {
     message = ApiErrorSchema.safeParse(JSON.parse(body)).data;
   } catch {
-    // The body is not JSON
+    // Non-JSON responses fall back to the HTTP status
   }
 
   const status = `${String(response.status)} ${STATUS_CODES[response.status] ?? ""}`.trim();
@@ -281,9 +280,8 @@ export const readErrorMessage = async (response: Response, body?: string): Promi
     : `${status}: ${message}`;
 };
 
-// Completes what a client sends of an endpoint with the stored one, whose secrets are only taken for the same URL
+// Stored secrets can be reused only for the same URL
 export const unredactEndpoint = (incoming: Partial<Endpoint>, stored: Endpoint | undefined): Required<Endpoint> => {
-  // Stored secrets that the endpoint keeps
   let kept = 0;
   const unredact = (value: string | undefined, storedValue: string | undefined): string => {
     if (value !== undefined && value !== HTTP_REDACTED_VALUE) {
@@ -295,7 +293,7 @@ export const unredactEndpoint = (incoming: Partial<Endpoint>, stored: Endpoint |
 
   const url = incoming.url ?? stored?.url ?? "";
   const apiKey = unredact(incoming.apiKey, stored?.apiKey);
-  // Headers that were not sent are the stored ones, all left hidden
+  // Omitting the entire header list preserves the stored headers
   const hidden = stored?.headers.map((h) => ({ ...h, value: HTTP_REDACTED_VALUE })) ?? [];
   const headers = (incoming.headers ?? hidden).map((h) => {
     return { ...h, value: unredact(h.value, stored?.headers.find((s) => s.name === h.name)?.value) };

@@ -10,7 +10,7 @@ interface BundlerContext {
   resolve: (source: string, importer: string) => Promise<unknown>;
 }
 
-// Emits the worker threads of the server as they are, since bundling them could start another server in the thread
+// Bundling a worker with the server can start another server inside the worker
 export default defineNuxtModule({
   meta: {
     name: "workers",

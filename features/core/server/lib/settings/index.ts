@@ -9,7 +9,7 @@ import { useSecrets } from "#layers/core/server/lib/secrets";
 import { SettingType } from "#layers/core/shared/settings";
 
 const settingsCache = new Map<string, { value: unknown; expiresAt: number }>();
-// Low enough to not have to deal with invalidation, high enough to not hammer the DB on bursts
+// The short TTL absorbs bursts and bounds how long stale settings can be served
 const SETTINGS_CACHE_TTL_MS = 1000;
 
 // Setting definition along with the name of the feature that defines it

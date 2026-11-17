@@ -1,8 +1,6 @@
 import { z } from "zod/v4";
 
-// =============================================================================
 // Messages API
-// =============================================================================
 
 export const AnthropicMessagesToolSchema = z.object({
   name: z.string(),

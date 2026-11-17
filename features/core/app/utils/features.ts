@@ -7,37 +7,37 @@ export interface AppMenuItem {
   label: string;
   icon: string;
   to: string;
-  // Only match the exact route when highlighting the active item
+  // Only the exact route marks this item active
   exact?: boolean;
-  // Decide the paths that highlight the item
+  // Custom path match for the active item
   match?: (path: string) => boolean;
-  // Show the item only to users holding any of these permissions
+  // Any listed permission makes the item visible
   permissions?: PermissionName[];
-  // Tabs of the section, the item links to the first one the user can access and is hidden if there is none
+  // The item links to its first accessible tab and stays hidden if none are accessible
   tabs?: readonly AppMenuItem[] | ((features: readonly AppFeature[]) => readonly AppMenuItem[]);
-  // Position of the item, lower values come first
+  // Lower values appear first
   order?: number;
 }
 
 export interface AppSidebarSection {
-  // Loader of the sidebar component, which receives a `collapsed` boolean prop
+  // Sidebar components receive a boolean collapsed prop
   component: AsyncComponentLoader<Component>;
-  // Show the section only to users holding any of these permissions
+  // Any listed permission makes the section visible
   permissions?: PermissionName[];
-  // Position of the section, lower values come first
+  // Lower values appear first
   order?: number;
 }
 
-// Client side contribution of a layer (its `app/feature.ts`), extensible through declaration merging
+// Layers declare client features in app/feature.ts and extend this interface through declaration merging
 export interface AppFeature {
   name: string;
-  // Runs in the default layout setup for every user, so it must check the permissions it requires
+  // Setup runs for every user and must check its own permissions
   setup?: () => void;
-  // Page that "/" redirects to, the one with the lowest order the user can access wins
+  // The root route redirects to the accessible home page with the lowest order
   home?: { to: string; permissions?: PermissionName[]; order?: number };
-  // Entries of the main navigation, shown at the top of the sidebar
+  // Navigation appears at the top of the sidebar
   navigation?: AppMenuItem[];
-  // Sections of the sidebar, shown below the main navigation
+  // Feature sections appear below the main navigation
   sidebar?: AppSidebarSection[];
   userMenu?: AppMenuItem[];
   settingsTabs?: AppMenuItem[];
@@ -46,7 +46,7 @@ export interface AppFeature {
 
 export const defineAppFeature = (feature: AppFeature): AppFeature => feature;
 
-// Key of a message of a feature, whose messages are under its name unless it is core
+// Core uses unprefixed message keys. Other features use their name as the prefix
 export const featureMessageKey = (feature: string, key: string): string => {
   return feature === "core" ? key : `${feature}.${key}`;
 };
