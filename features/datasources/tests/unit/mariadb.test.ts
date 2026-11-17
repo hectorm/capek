@@ -20,6 +20,7 @@ afterEach(() => {
 
 describe("MariaDB driver", () => {
   it("rejects connection options that would read files or allow writes", async () => {
+    vi.mocked(mariadb.createConnection).mockRejectedValue(new Error("Unexpected connection attempt"));
     const run = (options: string) => {
       const config = { connectionString: `mariadb://db.example.com/sales?${options}`, authType: "none" };
       return new MariaDBDriver().execute({ config }, "SELECT 1", {});
@@ -27,6 +28,8 @@ describe("MariaDB driver", () => {
 
     await expect(run("permitLocalInfile=true")).rejects.toThrow('The option "permitLocalInfile"');
     await expect(run("ssl=true&multipleStatements=true")).rejects.toThrow('The option "multipleStatements"');
+    await expect(run("=value&unknown=true")).rejects.toThrow('The option ""');
+    expect(mariadb.createConnection).not.toHaveBeenCalled();
   });
 
   it("does not connect to a private host that is not allowed", async () => {

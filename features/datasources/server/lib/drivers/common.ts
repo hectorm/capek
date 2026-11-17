@@ -3,7 +3,7 @@ import type { UrlDatasourceConfig } from "#layers/datasources/shared/datasource"
 export const connectionUrl = (config: UrlDatasourceConfig, options: ReadonlySet<string>): URL => {
   const url = new URL(config.connectionString);
   const unsupported = [...url.searchParams.keys()].find((name) => !options.has(name));
-  if (unsupported) {
+  if (unsupported !== undefined) {
     throw new Error(`The option "${unsupported}" of the connection string is not supported`);
   }
   if (config.authType === "basic") {
