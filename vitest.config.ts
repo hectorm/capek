@@ -26,6 +26,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    env: { HTTP_PROXY: "", HTTPS_PROXY: "", NO_PROXY: "", http_proxy: "", https_proxy: "", no_proxy: "" },
     testTimeout: 30000,
     hookTimeout: 30000,
     projects: projects.map((name) => ({

@@ -2,6 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { z } from "zod/v4";
 
+import type { EndpointInit } from "#layers/core/server/lib/http";
 import { describeError } from "#layers/ai/server/lib/errors";
 import { SSEProcessor } from "#layers/ai/server/lib/sse";
 import { fetchEndpoint, readBodyStart, readErrorMessage } from "#layers/core/server/lib/http";
@@ -61,7 +62,7 @@ const parseResponse = (text: string): JSONRPCResponse | null => {
   }
 };
 
-const send = async (url: string, init: RequestInit): Promise<Response> => {
+const send = async (url: string, init: EndpointInit): Promise<Response> => {
   const response = await fetchEndpoint(url, init).catch((error: unknown) => {
     throw new Error(describeError(error));
   });

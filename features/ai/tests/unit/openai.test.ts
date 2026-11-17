@@ -14,6 +14,9 @@ import {
   readStream,
   streamOf,
 } from "#layers/ai/tests/unit/helpers/llm";
+import { fetchEndpoint } from "#layers/core/server/lib/http";
+
+vi.mock("#layers/core/server/lib/http", { spy: true });
 
 const request: LlmRequest = {
   input: [{ type: "message", role: "user", content: "What is the weather in Madrid?" }],
@@ -37,7 +40,7 @@ const parisCall = {
 } as const;
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(fetchEndpoint).mockReset();
 });
 
 describe("OpenAI Chat Completions API", () => {

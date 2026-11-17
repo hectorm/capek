@@ -2,11 +2,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { MCPToolServer } from "#layers/ai/server/lib/mcp/manager";
 import type { MCPTool } from "#layers/ai/shared/mcp";
+import type { EndpointInit } from "#layers/core/server/lib/http";
 import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { connect, testConnection } from "#layers/ai/server/lib/mcp/client";
 import { PROTOCOL_VERSIONS } from "#layers/ai/server/lib/mcp/connection";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
+import { fetchEndpoint } from "#layers/core/server/lib/http";
+
+vi.mock("#layers/core/server/lib/http", { spy: true });
 
 const tools = [
   {
@@ -82,9 +86,9 @@ const stream = (body: unknown): Response => {
   );
 };
 
-const respond = (target: string, init: RequestInit): Promise<Response> => {
+const respond = (target: string | URL, init: EndpointInit = {}): Promise<Response> => {
   const { pathname } = new URL(target);
-  const message = JSON.parse((init.body as string | undefined) ?? "{}") as Message;
+  const message = JSON.parse(init.body ?? "{}") as Message;
   const headers = new Headers(init.headers);
   requests.push({ path: pathname, method: message.method ?? init.method ?? "", headers });
 
@@ -209,7 +213,7 @@ const respond = (target: string, init: RequestInit): Promise<Response> => {
 };
 
 beforeAll(() => {
-  vi.stubGlobal("fetch", respond);
+  vi.mocked(fetchEndpoint).mockImplementation(respond);
 });
 
 beforeEach(() => {
@@ -220,7 +224,7 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(fetchEndpoint).mockReset();
 });
 
 describe("MCP manager", () => {

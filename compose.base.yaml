@@ -77,6 +77,9 @@ services:
       NUXT_DATABASE_MAX_CONNECTIONS: "20"
       NUXT_ENCRYPTION_KEY: "${NUXT_ENCRYPTION_KEY:-GIMAxGqsofiyEBw2fzuXw0IiTiDD5vKWDJzYS5FxCyM=}"
       NUXT_ENCRYPTION_PREVIOUS_KEY: "${NUXT_ENCRYPTION_PREVIOUS_KEY:-}"
+      NUXT_ALLOWED_PRIVATE_HOSTS: >-
+        host.docker.internal:9931,
+        playwright-mcp:8931
       NUXT_AI_QUICK_CHATS: >-
         Give me a fun fact;
         What tools are available to you?;

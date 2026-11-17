@@ -20,7 +20,10 @@ import {
   insertUsers,
 } from "#layers/ai/tests/unit/helpers/db";
 import { chatCompletion, chatCompletionStream } from "#layers/ai/tests/unit/helpers/llm";
+import { fetchEndpoint } from "#layers/core/server/lib/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
+
+vi.mock("#layers/core/server/lib/http", { spy: true });
 
 // Tools that stand in for the ones of another feature, one telling what it does and others showing a chart or a table
 vi.mock("#layers/core/server/lib/tools", () => {
@@ -113,7 +116,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(fetchEndpoint).mockReset();
 });
 
 afterAll(async () => {
@@ -146,8 +149,8 @@ const createChat = async (settings: Partial<NewAgent> = {}, user: AuthUser = adm
 // The model answers with the given responses in order, and its requests are kept to check them
 const fakeModel = (responses: Response[]): OpenAICompletionRequest[] => {
   const requests: OpenAICompletionRequest[] = [];
-  vi.stubGlobal("fetch", (_url: URL, init: RequestInit) => {
-    requests.push(JSON.parse(init.body as string) as OpenAICompletionRequest);
+  vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
+    requests.push(JSON.parse(init.body ?? "") as OpenAICompletionRequest);
     return Promise.resolve(responses.shift() ?? Response.error());
   });
   return requests;
@@ -506,7 +509,7 @@ describe("agent executor", () => {
   it("cancels the execution when the agent runs out of time", async () => {
     const chat = await createChat({ timeoutSec: 1 });
 
-    vi.stubGlobal("fetch", (_url: URL, init: RequestInit) => {
+    vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
       return new Promise((_resolve, reject) => {
         init.signal?.addEventListener("abort", () => {
           reject(init.signal?.reason as Error);

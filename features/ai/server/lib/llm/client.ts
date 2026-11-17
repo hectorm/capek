@@ -1,5 +1,6 @@
 import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { EndpointInit } from "#layers/core/server/lib/http";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { TestResult } from "#layers/core/shared/types";
 import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
@@ -79,7 +80,7 @@ export class LlmClient {
     this.streaming = options.streaming ?? null;
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<Response> {
+  private async request(path: string, init: EndpointInit = {}): Promise<Response> {
     const url = new URL(this.apiUrl);
     url.pathname = `${url.pathname}/${path}`.replace(/\/+/g, "/");
 

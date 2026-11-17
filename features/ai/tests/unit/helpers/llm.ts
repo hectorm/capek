@@ -3,15 +3,16 @@ import { vi } from "vitest";
 import type { LlmItem, LlmStreamEvent } from "#layers/ai/shared/llm";
 import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
+import { fetchEndpoint } from "#layers/core/server/lib/http";
 
-// The requests of the client are answered by the given function and kept to check them
+// The requests of the client are answered by the given function and kept, in tests that mock the HTTP module
 export const createClient = (respond: () => Response, apiType?: LlmProviderApiType) => {
   const sent: Record<string, unknown>[] = [];
   const paths: string[] = [];
   const headers: Headers[] = [];
-  vi.stubGlobal("fetch", (url: URL, init: RequestInit) => {
-    sent.push(JSON.parse(init.body as string) as Record<string, unknown>);
-    paths.push(url.pathname);
+  vi.mocked(fetchEndpoint).mockImplementation((url, init = {}) => {
+    sent.push(JSON.parse(init.body ?? "") as Record<string, unknown>);
+    paths.push(new URL(url).pathname);
     headers.push(new Headers(init.headers));
     return Promise.resolve(respond());
   });

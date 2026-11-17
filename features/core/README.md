@@ -21,3 +21,7 @@ Permissions are named `<resource>:<action>`, followed by a scope when the action
 Every user request runs in a transaction that sets the ID, groups and permissions of the user in session variables, which the policies of each table check through the functions of the `security` schema (`security.can_any()`, `security.has_access()`, `security.is_owner()`, etc.). Operations without a user, such as migrations and tasks, are not restricted. Superuser connections switch to the `app_rls` role in those transactions, so the policies still apply. Connections of other roles that bypass row level security are refused.
 
 See the [database section](../README.md#database) of the features guide for how features define their policies.
+
+## Outbound connections
+
+Direct connections to destinations that users can set only reach public IP addresses, unless `NUXT_ALLOWED_PRIVATE_HOSTS` lists the private hosts they can reach with the syntax of `NO_PROXY` (e.g. `localhost:9931, .svc.cluster.local, 10.20.0.0/16`). HTTP requests go through the proxies of `HTTP_PROXY` and `HTTPS_PROXY`, except for loopback hosts and those of `NO_PROXY`. Proxies resolve destinations independently and must enforce their own access rules.

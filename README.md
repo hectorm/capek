@@ -59,13 +59,14 @@ The application runs in single-user mode at `http://localhost:3000` and automati
 
 Copy `.env.example` to `.env` and adjust as needed. Key variables:
 
-| Variable                       | Description                                          | Default                 |
-| ------------------------------ | ---------------------------------------------------- | ----------------------- |
-| `NUXT_DATABASE_URL`            | PostgreSQL connection string or PGlite file path     | `file://./.data/pglite` |
-| `NUXT_AUTH_MODE`               | Authentication mode: `single-user`, `oidc`, `proxy`  | `single-user`           |
-| `NUXT_ENCRYPTION_KEY`          | Encryption key, 32 bytes in base64                   |                         |
-| `NUXT_ENCRYPTION_PREVIOUS_KEY` | Previous encryption key, used while rotating it      |                         |
-| `NUXT_LOG_LEVEL`               | Log level: `fatal`, `error`, `warn`, `info`, `debug` | `info`                  |
+| Variable                       | Description                                                           | Default                 |
+| ------------------------------ | --------------------------------------------------------------------- | ----------------------- |
+| `NUXT_DATABASE_URL`            | PostgreSQL connection string or PGlite file path                      | `file://./.data/pglite` |
+| `NUXT_AUTH_MODE`               | Authentication mode: `single-user`, `oidc`, `proxy`                   | `single-user`           |
+| `NUXT_ENCRYPTION_KEY`          | Encryption key, 32 bytes in base64                                    |                         |
+| `NUXT_ENCRYPTION_PREVIOUS_KEY` | Previous encryption key, used while rotating it                       |                         |
+| `NUXT_ALLOWED_PRIVATE_HOSTS`   | Private hosts that outbound connections can reach (`NO_PROXY` syntax) |                         |
+| `NUXT_LOG_LEVEL`               | Log level: `fatal`, `error`, `warn`, `info`, `debug`                  | `info`                  |
 
 See `.env.example` for all available configuration options.
 

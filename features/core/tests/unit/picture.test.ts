@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { fetchUserPicture, userPicturePath } from "#layers/core/server/lib/authn/picture";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 
 // Server that answers as the one of the pictures of an identity provider or as another service
 let server: http.Server;
@@ -16,6 +17,7 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   url = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/picture`;
+  Object.assign(runtimeConfig, { allowedPrivateHosts: new URL(url).host });
 });
 
 afterAll(async () => {
@@ -43,7 +45,6 @@ describe("user picture", () => {
       (res) => res.writeHead(200, { "Content-Type": "application/json" }).end('{"token":"internal secret"}'),
       (res) => res.writeHead(200, { "Content-Type": "image/svg+xml" }).end("<svg><script>alert(1)</script></svg>"),
       (res) => res.writeHead(403, { "Content-Type": "image/png" }).end("internal secret"),
-      (res) => res.writeHead(302, { Location: "http://169.254.169.254/latest/meta-data" }).end(),
       (res) => res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.alloc(1024 * 1024 + 1)),
     ];
 
@@ -51,5 +52,17 @@ describe("user picture", () => {
       respond = answer;
       await expect(fetchUserPicture(url)).rejects.toThrow();
     }
+  });
+
+  it("is the image its URL redirects to", async () => {
+    const answers: ((res: http.ServerResponse) => void)[] = [
+      (res) => res.writeHead(302, { Location: "/default.png" }).end(),
+      (res) => res.writeHead(200, { "Content-Type": "image/png" }).end("default"),
+    ];
+    respond = (res) => {
+      answers.shift()?.(res);
+    };
+
+    await expect(fetchUserPicture(url)).resolves.toEqual({ mimeType: "image/png", data: Buffer.from("default") });
   });
 });

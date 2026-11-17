@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LlmRequest } from "#layers/ai/shared/llm";
 import { fromMessagesResponse, fromMessagesStream, toMessagesRequest } from "#layers/ai/server/lib/anthropic/messages";
 import { createClient, readStream, streamOf } from "#layers/ai/tests/unit/helpers/llm";
+import { fetchEndpoint } from "#layers/core/server/lib/http";
+
+vi.mock("#layers/core/server/lib/http", { spy: true });
 
 const request: LlmRequest = {
   input: [{ type: "message", role: "user", content: "What is the weather in Madrid?" }],
@@ -11,7 +14,7 @@ const request: LlmRequest = {
 };
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(fetchEndpoint).mockReset();
 });
 
 describe("Anthropic Messages API", () => {

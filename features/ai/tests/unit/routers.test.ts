@@ -19,6 +19,7 @@ import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import { closeDb, createAiTestDb, insertLlmProvider, insertUsers } from "#layers/ai/tests/unit/helpers/db";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 
 let db: Kysely<Database>;
 
@@ -71,6 +72,7 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => endpoint.listen(0, "127.0.0.1", resolve));
   endpointUrl = `http://127.0.0.1:${String((endpoint.address() as AddressInfo).port)}`;
+  Object.assign(runtimeConfig, { allowedPrivateHosts: new URL(endpointUrl).host });
 
   db = await createAiTestDb();
 

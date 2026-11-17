@@ -178,4 +178,7 @@ export default {
       ],
     },
   },
+  env: {
+    NUXT_ALLOWED_PRIVATE_HOSTS: "localhost:51235, localhost:51238, localhost:51239",
+  },
 };

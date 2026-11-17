@@ -21,7 +21,7 @@ export const userPicturePath = (url: string | null): string | null => {
 };
 
 export const fetchUserPicture = async (url: string): Promise<UserPicture> => {
-  const response = await fetchEndpoint(url, { signal: AbortSignal.timeout(PICTURE_TIMEOUT_MS) });
+  const response = await fetchEndpoint(url, { redirect: "follow", signal: AbortSignal.timeout(PICTURE_TIMEOUT_MS) });
 
   const mimeType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
   if (!response.ok || !ALLOWED_MIME_TYPES.has(mimeType)) {

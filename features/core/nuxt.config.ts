@@ -224,6 +224,7 @@ export default defineNuxtConfig({
     seed: {
       config: "",
     },
+    allowedPrivateHosts: "",
     logLevel: "info",
   },
 });
