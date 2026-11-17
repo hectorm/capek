@@ -349,12 +349,13 @@ export class AgentExecutor {
     const db = await useDb();
     const mcpServers = await this.loadAgentMCPServers(agent.id);
 
+    const discovery = this.withTimeout(agent, signal);
     await Promise.all(
       mcpServers
         .filter((server) => !hasFreshTools(server))
         .map(async (server) => {
           try {
-            server.cachedTools = await ensureToolsDiscovered(db, server.id);
+            server.cachedTools = await ensureToolsDiscovered(db, server.id, discovery);
           } catch (error) {
             logger.error({ mcpServerId: server.id, serverName: server.name, error }, "Failed to discover MCP tools");
           }

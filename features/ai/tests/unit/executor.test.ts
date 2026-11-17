@@ -9,6 +9,7 @@ import type { FeatureToolProvider } from "#layers/core/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
+import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { loadTable } from "#layers/ai/server/lib/tables";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
@@ -508,6 +509,20 @@ describe("agent executor", () => {
 
   it("cancels the execution when the agent runs out of time", async () => {
     const chat = await createChat({ timeoutSec: 1 });
+    const mcpServer = await db
+      .insertInto("aiMcpServers")
+      .values({
+        name: `mcp-${crypto.randomUUID()}`,
+        description: "",
+        url: "http://mcp.localhost/mcp",
+        headers: encryptMcpServerHeaders([]),
+        stateful: false,
+        toolCallTimeoutSec: null,
+        cachedTools: JSON.stringify([]),
+      })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await db.insertInto("aiAgentMcpServers").values({ agentId: chat.agentId, mcpServerId: mcpServer.id }).execute();
 
     vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
       return new Promise((_resolve, reject) => {
@@ -519,7 +534,7 @@ describe("agent executor", () => {
     const late = await send(chat, "Are you there?");
     expect(late.error).toBeInstanceOf(TimeoutError);
     expect(await executions(chat)).toEqual([{ status: "cancelled", errorMessage: "The operation timed out" }]);
-  });
+  }, 3000);
 
   it("cancels the execution when the client stops reading", async () => {
     const chat = await createChat({ streaming: true });

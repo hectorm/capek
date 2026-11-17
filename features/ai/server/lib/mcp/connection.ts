@@ -21,6 +21,7 @@ export interface MCPServer {
 
 export interface MCPConnectionOptions extends MCPServer {
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface MCPCallOptions {
@@ -34,7 +35,7 @@ export interface MCPToolList {
 }
 
 export interface MCPConnection {
-  listTools: () => Promise<MCPToolList>;
+  listTools: (options?: MCPCallOptions) => Promise<MCPToolList>;
   callTool: (tool: MCPTool, args: Record<string, unknown>, options?: MCPCallOptions) => Promise<MCPCallToolResult>;
   close: () => Promise<void>;
 }

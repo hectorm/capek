@@ -52,9 +52,9 @@ export class LegacyConnection implements MCPConnection {
   public static async open(options: MCPConnectionOptions): Promise<LegacyConnection> {
     const connection = new LegacyConnection(options);
     try {
-      await connection.initialize();
+      await connection.initialize(options.signal);
     } catch (error) {
-      await connection.close();
+      void connection.close();
       throw error;
     }
     return connection;
@@ -107,7 +107,7 @@ export class LegacyConnection implements MCPConnection {
 
       logger.debug({ serverName: this.name, sessionId: sentSessionId }, "MCP session expired, reinitializing");
       this.resetSessionState();
-      await this.initialize();
+      await this.initialize(options.signal);
       return this.rpc(method, params, options, depth + 1);
     }
   }
@@ -280,12 +280,12 @@ export class LegacyConnection implements MCPConnection {
     }, retryMs);
   }
 
-  private async initialize(): Promise<void> {
-    const result = await this.rpc("initialize", {
-      protocolVersion: PROTOCOL_VERSIONS.legacy[0],
-      capabilities: {},
-      clientInfo: CLIENT_INFO,
-    });
+  private async initialize(signal?: AbortSignal): Promise<void> {
+    const result = await this.rpc(
+      "initialize",
+      { protocolVersion: PROTOCOL_VERSIONS.legacy[0], capabilities: {}, clientInfo: CLIENT_INFO },
+      { signal },
+    );
 
     const answered = InitializeResultSchema.safeParse(result).data?.protocolVersion;
     const protocolVersion = PROTOCOL_VERSIONS.legacy.find((version) => version === answered);
@@ -298,7 +298,7 @@ export class LegacyConnection implements MCPConnection {
       this.url,
       "notifications/initialized",
       {},
-      { headers: this.buildHeaders(), timeoutMs: this.timeoutMs },
+      { headers: this.buildHeaders(), signal, timeoutMs: this.timeoutMs },
     ).catch((error: unknown) => {
       logger.debug({ serverName: this.name, sessionId: this._sessionId, error }, "MCP notification failed");
     });
@@ -310,8 +310,8 @@ export class LegacyConnection implements MCPConnection {
     }
   }
 
-  public async listTools(): Promise<MCPToolList> {
-    const list = await requestTools((params) => this.rpc("tools/list", params));
+  public async listTools(options: MCPCallOptions = {}): Promise<MCPToolList> {
+    const list = await requestTools((params) => this.rpc("tools/list", params, options));
     logger.debug(
       { serverName: this.name, toolCount: list.tools.length, sessionId: this._sessionId },
       "MCP tools listed",

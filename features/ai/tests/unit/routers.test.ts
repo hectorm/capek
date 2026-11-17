@@ -52,14 +52,17 @@ beforeAll(async () => {
     requests.push(`${String(req.method)} ${String(req.url)} ${req.headers.authorization ?? "-"}`);
     if (req.url?.startsWith("/moved")) {
       res.writeHead(307, { Location: `${endpointUrl}${req.method === "GET" ? "/v1/models" : "/mcp"}` }).end();
-    } else if (req.url?.startsWith("/tools")) {
+    } else if (req.url?.startsWith("/tools") || req.url?.startsWith("/slow")) {
       const chunks: Buffer[] = [];
       req.on("data", (chunk: Buffer) => chunks.push(chunk));
       req.on("end", () => {
         const { id, method } = JSON.parse(Buffer.concat(chunks).toString()) as { id: number; method: string };
+        if (req.url?.startsWith("/slow") && method === "tools/list") {
+          return;
+        }
         const result = method === "server/discover" ? { supportedVersions: ["2026-07-28"] } : toolList;
         res
-          .writeHead(toolList ? 200 : 500, { "Content-Type": "application/json" })
+          .writeHead(result ? 200 : 500, { "Content-Type": "application/json" })
           .end(JSON.stringify({ jsonrpc: "2.0", id, result }));
       });
     } else if (req.url?.startsWith("/api")) {
@@ -224,6 +227,30 @@ describe("tool discovery", () => {
     await expire();
     toolList = null;
     expect(await ensureToolsDiscovered(db, id)).toEqual([search, read]);
+  });
+
+  it("stops at the deadline of its caller", async () => {
+    const id = crypto.randomUUID();
+    await db
+      .insertInto("aiMcpServers")
+      .values({
+        id,
+        name: "slow",
+        description: "",
+        url: `${endpointUrl}/slow`,
+        headers: encryptMcpServerHeaders([]),
+        stateful: false,
+        toolCallTimeoutSec: null,
+        cachedTools: JSON.stringify([]),
+      })
+      .execute();
+
+    for (let i = 0; i < 2; i++) {
+      await expect(ensureToolsDiscovered(db, id, AbortSignal.timeout(200))).rejects.toMatchObject({
+        name: "TimeoutError",
+      });
+    }
+    expect(requests).toEqual(["POST /slow -", "POST /slow -", "POST /slow -", "POST /slow -"]);
   });
 });
 

@@ -123,7 +123,7 @@ export class ModernConnection implements MCPConnection {
     let supported: unknown;
     try {
       const preferred = new ModernConnection(options, PROTOCOL_VERSIONS.modern[0]);
-      supported = (await preferred.rpc("server/discover", {})).supportedVersions;
+      supported = (await preferred.rpc("server/discover", {}, { signal: options.signal })).supportedVersions;
     } catch (error) {
       if (!(error instanceof MCPRequestError)) {
         throw error;
@@ -182,8 +182,8 @@ export class ModernConnection implements MCPConnection {
     return parsed.data;
   }
 
-  public async listTools(): Promise<MCPToolList> {
-    const listed = await requestTools((params) => this.rpc("tools/list", params));
+  public async listTools(options: MCPCallOptions = {}): Promise<MCPToolList> {
+    const listed = await requestTools((params) => this.rpc("tools/list", params, options));
 
     const tools = listed.tools.filter((tool) => {
       try {

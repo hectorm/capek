@@ -35,7 +35,11 @@ export const hasFreshTools = (server: Pick<MCPServerInfo, "cachedTools" | "cache
   return server.cachedTools.length > 0 && (server.cachedToolsExpiresAt?.getTime() ?? 0) > Date.now();
 };
 
-export const ensureToolsDiscovered = async (db: Kysely<Database>, mcpServerId: string): Promise<MCPTool[]> => {
+export const ensureToolsDiscovered = async (
+  db: Kysely<Database>,
+  mcpServerId: string,
+  signal?: AbortSignal,
+): Promise<MCPTool[]> => {
   const server = await db
     .selectFrom("aiMcpServers")
     .select(["id", "name", "url", "headers", "stateful", "cachedTools", "cachedToolsExpiresAt"])
@@ -71,8 +75,9 @@ export const ensureToolsDiscovered = async (db: Kysely<Database>, mcpServerId: s
       headers,
       stateful: false,
       timeoutMs: DISCOVERY_TIMEOUT_MS,
+      signal,
     });
-    const listed = await connection.listTools();
+    const listed = await connection.listTools({ signal });
     tools = listed.tools;
 
     const ttlMs = Math.min(Math.max(listed.ttlMs, TOOLS_TTL_MIN_MS), TOOLS_TTL_MAX_MS);
@@ -85,6 +90,7 @@ export const ensureToolsDiscovered = async (db: Kysely<Database>, mcpServerId: s
     logger.info({ mcpServerId, serverName: server.name, toolCount: tools.length }, "MCP tools discovered and cached");
     return tools;
   } catch (error) {
+    signal?.throwIfAborted();
     logger.error({ mcpServerId, serverName: server.name, error }, "Failed to discover MCP tools");
 
     if (cached.length > 0) {
@@ -94,8 +100,8 @@ export const ensureToolsDiscovered = async (db: Kysely<Database>, mcpServerId: s
       `Failed to discover tools from MCP server: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   } finally {
-    await connection?.close();
-    if (tools.length === 0) {
+    void connection?.close();
+    if (tools.length === 0 && !signal?.aborted) {
       unavailable.set(mcpServerId, { config, since: Date.now() });
     }
   }
