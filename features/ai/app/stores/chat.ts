@@ -1,6 +1,6 @@
 import { useNuxtApp } from "nuxt/app";
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef, triggerRef } from "vue";
+import { computed, ref, shallowReactive, shallowRef, triggerRef } from "vue";
 
 import type { ChatMessagePart, ChatStreamError } from "#layers/ai/shared/chat";
 import type { ChatSession } from "#layers/ai/shared/schema";
@@ -39,8 +39,8 @@ export const useChatStore = defineStore("ai.chat", () => {
   const activeStreams = ref<Map<string, StreamState>>(new Map());
   const unsentMessageIds = new Set<string>();
   const isLoadingSessions = ref<boolean>(false);
-  const pendingMessageLoads = ref(0);
-  const isLoadingMessages = computed(() => pendingMessageLoads.value > 0);
+  const latestMessageLoads = shallowReactive(new Map<string, symbol>());
+  const isLoadingMessages = computed(() => latestMessageLoads.size > 0);
   const isCreatingSession = ref<boolean>(false);
   const sessionsNextCursor = ref<RouterOutputs["ai"]["chatSession"]["search"]["nextCursor"]>(undefined);
 
@@ -166,6 +166,7 @@ export const useChatStore = defineStore("ai.chat", () => {
       if (openedSession.value?.id === sessionId) {
         openedSession.value = null;
       }
+      latestMessageLoads.delete(sessionId);
       messages.value.delete(sessionId);
       messagesNextCursors.value.delete(sessionId);
       triggerRef(messages);
@@ -191,61 +192,71 @@ export const useChatStore = defineStore("ai.chat", () => {
     }
   };
 
-  const fetchMessages = async (sessionId: string, signal?: AbortSignal): Promise<void> => {
-    pendingMessageLoads.value++;
-    const stream = activeStreams.value.get(sessionId);
-
+  const loadMessagePage = async (sessionId: string, cursor?: MessagesCursor, signal?: AbortSignal): Promise<void> => {
+    const load = Symbol();
+    latestMessageLoads.set(sessionId, load);
     try {
-      const result = await $trpc.ai.chatMessage.list.query({ sessionId }, { signal });
-      if (signal?.aborted) {
-        return;
-      }
-      const currentStream = activeStreams.value.get(sessionId);
-      if (currentStream && currentStream !== stream) {
+      const result = await $trpc.ai.chatMessage.list.query({ sessionId, cursor }, { signal });
+      if (signal?.aborted || latestMessageLoads.get(sessionId) !== load) {
         return;
       }
       const msgs = messages.value.get(sessionId) ?? [];
-      const index = msgs.findIndex((m) => m.id === result.messages[0]?.id);
-      if (index > 0) {
-        messages.value.set(sessionId, [...msgs.slice(0, index), ...result.messages]);
-      } else {
-        messages.value.set(sessionId, result.messages);
+      if (cursor) {
+        messages.value.set(sessionId, [...result.messages, ...msgs]);
         messagesNextCursors.value.set(sessionId, result.nextCursor);
+      } else {
+        const index = msgs.findIndex((m) => m.id === result.messages[0]?.id);
+        if (index > 0) {
+          messages.value.set(sessionId, [...msgs.slice(0, index), ...result.messages]);
+        } else {
+          messages.value.set(sessionId, result.messages);
+          messagesNextCursors.value.set(sessionId, result.nextCursor);
+        }
       }
       triggerRef(messages);
     } catch (error) {
-      throw new Error("Failed to fetch messages", { cause: error });
+      if (!signal?.aborted && latestMessageLoads.get(sessionId) === load) {
+        throw new Error("Failed to fetch messages", { cause: error });
+      }
     } finally {
-      pendingMessageLoads.value--;
+      if (latestMessageLoads.get(sessionId) === load) {
+        latestMessageLoads.delete(sessionId);
+      }
     }
+  };
+
+  const fetchMessages = (sessionId: string, signal?: AbortSignal): Promise<void> => {
+    return loadMessagePage(sessionId, undefined, signal);
   };
 
   const loadOlderMessages = async (sessionId: string): Promise<void> => {
     const cursor = messagesNextCursors.value.get(sessionId);
-    if (!cursor || isLoadingMessages.value) {
-      return;
-    }
-
-    pendingMessageLoads.value++;
-
-    try {
-      const result = await $trpc.ai.chatMessage.list.query({ sessionId, cursor });
-      if (messagesNextCursors.value.get(sessionId) !== cursor) {
-        return;
-      }
-      messages.value.set(sessionId, [...result.messages, ...(messages.value.get(sessionId) ?? [])]);
-      messagesNextCursors.value.set(sessionId, result.nextCursor);
-      triggerRef(messages);
-    } catch (error) {
-      throw new Error("Failed to load older messages", { cause: error });
-    } finally {
-      pendingMessageLoads.value--;
+    if (cursor && !isLoadingMessages.value) {
+      await loadMessagePage(sessionId, cursor);
     }
   };
 
   const hasOlderMessages = (sessionId: string): boolean => messagesNextCursors.value.get(sessionId) != null;
 
-  const sendMessage = async (sessionId: string, content: string): Promise<void> => {
+  const replaceMessagesFrom = (sessionId: string, messageId: string | undefined, ...replacement: ChatMessage[]) => {
+    const msgs = messages.value.get(sessionId) ?? [];
+    const index = messageId ? msgs.findIndex((m) => m.id === messageId) : msgs.length;
+    if (index >= 0) {
+      messages.value.set(sessionId, [...msgs.slice(0, index), ...replacement]);
+      triggerRef(messages);
+    }
+  };
+
+  const sendMessage = async (sessionId: string, content: string, replaceMessageId?: string): Promise<boolean> => {
+    const currentMsgs = messages.value.get(sessionId) ?? [];
+    if (replaceMessageId && !currentMsgs.some((m) => m.id === replaceMessageId && m.role === "user")) {
+      throw new Error("Message to replace was not found");
+    }
+    const replacingUnsent = replaceMessageId !== undefined && unsentMessageIds.has(replaceMessageId);
+    const firstUserMessage = currentMsgs.find((m) => m.role === "user");
+    const shouldAutoRename =
+      currentSession.value?.title === "" && (!firstUserMessage || firstUserMessage.id === replaceMessageId);
+    latestMessageLoads.delete(sessionId);
     const controller = new AbortController();
     const tempUserMessageId = randomUUID();
     const tempAssistantMessageId = randomUUID();
@@ -279,16 +290,22 @@ export const useChatStore = defineStore("ai.chat", () => {
       updatedAt: now,
     };
 
-    const currentMsgs = messages.value.get(sessionId) ?? [];
-    messages.value.set(sessionId, [...currentMsgs, tempUserMessage, tempAssistantMessage]);
-    triggerRef(messages);
+    if (!replaceMessageId) {
+      replaceMessagesFrom(sessionId, undefined, tempUserMessage, tempAssistantMessage);
+    }
 
-    const shouldAutoRename = currentSession.value?.title === "" && !currentMsgs.some((m) => m.role === "user");
-
+    let accepted = false;
     let textEnded = false;
 
     const onStreamComplete = () => {
-      void fetchMessages(sessionId);
+      const active = activeStreams.value.get(sessionId);
+      if (active && active.controller !== controller) {
+        return;
+      }
+      if (replacingUnsent && !accepted) {
+        return;
+      }
+      fetchMessages(sessionId).catch(console.error);
       const session = findSession(sessionId);
       if (session) {
         sessions.value = [{ ...session, updatedAt: new Date() }, ...sessions.value.filter((s) => s.id !== sessionId)];
@@ -307,6 +324,7 @@ export const useChatStore = defineStore("ai.chat", () => {
         body: JSON.stringify({
           sessionId,
           message: content,
+          replaceMessageId: replacingUnsent ? undefined : replaceMessageId,
           userMessageId: tempUserMessageId,
           assistantMessageId: tempAssistantMessageId,
         }),
@@ -316,6 +334,12 @@ export const useChatStore = defineStore("ai.chat", () => {
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to send message: ${errorText}`);
+      }
+
+      accepted = true;
+      if (replaceMessageId && !controller.signal.aborted) {
+        unsentMessageIds.delete(replaceMessageId);
+        replaceMessagesFrom(sessionId, replaceMessageId, tempUserMessage, tempAssistantMessage);
       }
 
       if (response.headers.get("Content-Type")?.includes("text/event-stream") && response.body) {
@@ -369,37 +393,42 @@ export const useChatStore = defineStore("ai.chat", () => {
       }
 
       onStreamComplete();
+      return accepted;
     } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
+      if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
         onStreamComplete();
-        return;
+        return accepted;
+      }
+
+      if (replaceMessageId && !accepted) {
+        // The server may have saved the edit before the connection failed
+        if (!replacingUnsent) {
+          await fetchMessages(sessionId).catch(console.error);
+        }
+        throw new Error("Failed to replace message", { cause: error });
       }
 
       await fetchMessages(sessionId).catch(() => {
-        if (!controller.signal.aborted) {
-          messages.value.set(sessionId, currentMsgs);
+        if (activeStreams.value.get(sessionId)?.controller === controller) {
+          const msgs = messages.value.get(sessionId) ?? [];
+          messages.value.set(
+            sessionId,
+            msgs.filter((m) => m.id !== tempAssistantMessageId && (accepted || m.id !== tempUserMessageId)),
+          );
           triggerRef(messages);
         }
       });
-      if (controller.signal.aborted) {
-        return;
+      if (activeStreams.value.get(sessionId)?.controller !== controller) {
+        return accepted;
       }
 
       const updatedMsgs = messages.value.get(sessionId) ?? [];
       if (!updatedMsgs.some((m) => m.id === tempUserMessageId)) {
-        const preservedNow = new Date();
-        const preservedUserMessage: ChatMessage = {
-          id: tempUserMessageId,
-          sessionId,
-          role: "user",
-          content,
-          parts: [{ type: "text", text: content }],
-          createdAt: preservedNow,
-          updatedAt: preservedNow,
-        };
-        messages.value.set(sessionId, [...updatedMsgs, preservedUserMessage]);
+        messages.value.set(sessionId, [...updatedMsgs, tempUserMessage]);
         triggerRef(messages);
-        unsentMessageIds.add(tempUserMessageId);
+        if (!accepted) {
+          unsentMessageIds.add(tempUserMessageId);
+        }
       }
 
       throw new Error("Failed to send message", { cause: error });
@@ -418,29 +447,11 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const retryMessage = async (sessionId: string, messageId: string): Promise<void> => {
     const msgs = messages.value.get(sessionId) ?? [];
-    const messageIndex = msgs.findLastIndex((m) => m.id === messageId);
-
-    if (messageIndex === -1) {
-      throw new Error("Message not found");
-    }
-
-    const message = msgs[messageIndex];
+    const message = msgs.find((m) => m.id === messageId);
     if (!message) {
       throw new Error("Message not found");
     }
-
-    const userMessageContent = message.content;
-
-    try {
-      await deleteMessagesFrom(sessionId, messageId);
-    } catch (error) {
-      await fetchMessages(sessionId);
-      throw new Error("Failed to retry message", { cause: error });
-    }
-
-    messages.value.set(sessionId, msgs.slice(0, messageIndex));
-    triggerRef(messages);
-    await sendMessage(sessionId, userMessageContent);
+    await sendMessage(sessionId, message.content, messageId);
   };
 
   const regenerateMessage = async (sessionId: string, messageId: string): Promise<void> => {
@@ -462,40 +473,17 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const deleteMessage = async (sessionId: string, messageId: string): Promise<void> => {
     const msgs = messages.value.get(sessionId) ?? [];
-    const messageIndex = msgs.findLastIndex((m) => m.id === messageId);
-
-    if (messageIndex === -1) {
+    if (!msgs.some((m) => m.id === messageId)) {
       throw new Error("Message not found");
     }
 
     try {
       await deleteMessagesFrom(sessionId, messageId);
-      messages.value.set(sessionId, msgs.slice(0, messageIndex));
-      triggerRef(messages);
+      latestMessageLoads.delete(sessionId);
+      replaceMessagesFrom(sessionId, messageId);
     } catch (error) {
       await fetchMessages(sessionId);
       throw new Error("Failed to delete message", { cause: error });
-    }
-  };
-
-  const editMessage = async (sessionId: string, messageId: string): Promise<string> => {
-    const msgs = messages.value.get(sessionId) ?? [];
-    const messageIndex = msgs.findLastIndex((m) => m.id === messageId);
-
-    if (messageIndex === -1 || !msgs[messageIndex]) {
-      throw new Error("Message not found");
-    }
-
-    const messageContent = msgs[messageIndex].content;
-
-    try {
-      await deleteMessagesFrom(sessionId, messageId);
-      messages.value.set(sessionId, msgs.slice(0, messageIndex));
-      triggerRef(messages);
-      return messageContent;
-    } catch (error) {
-      await fetchMessages(sessionId);
-      throw new Error("Failed to edit message", { cause: error });
     }
   };
 
@@ -520,8 +508,6 @@ export const useChatStore = defineStore("ai.chat", () => {
     triggerRef(messages);
 
     activeStreams.value.delete(sessionId);
-
-    fetchMessages(sessionId).catch(console.error);
 
     return true;
   };
@@ -630,7 +616,6 @@ export const useChatStore = defineStore("ai.chat", () => {
     retryMessage,
     regenerateMessage,
     deleteMessage,
-    editMessage,
     getStream,
     abortStream,
   };

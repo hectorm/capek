@@ -7,6 +7,7 @@ import type { ChatStreamError } from "#layers/ai/shared/chat";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import {
   AbortError,
+  ChatMessageNotFoundError,
   ConcurrentExecutionError,
   MaxIterationsError,
   MaxOutputTokensError,
@@ -27,6 +28,7 @@ const BodySchema = z.object({
   message: z.string().trim().min(1).max(100000),
   userMessageId: z.uuid().optional(),
   assistantMessageId: z.uuid().optional(),
+  replaceMessageId: z.uuid().optional(),
 });
 
 const errorEvent = (reason: ChatStreamError): string => {
@@ -38,24 +40,21 @@ export default defineEventHandler(async (event) => {
 
   const user = requirePermissions(event.context.user, [AiPermissions.ChatCreate]);
 
-  let sessionId: string;
-  let message: string;
-  let userMessageId: string | undefined;
-  let assistantMessageId: string | undefined;
-
+  let body: z.infer<typeof BodySchema>;
   try {
     const rawBody: unknown = await readBody(event);
-    const body = BodySchema.parse(rawBody);
-    sessionId = body.sessionId;
-    message = body.message;
-    userMessageId = body.userMessageId;
-    assistantMessageId = body.assistantMessageId;
+    body = BodySchema.parse(rawBody);
   } catch (error) {
     logger.warn({ userId: user.id, error }, "Invalid chat request body");
     throw createError({
       statusCode: 400,
       message: "Invalid request body",
     });
+  }
+
+  const { sessionId } = body;
+  if (body.replaceMessageId) {
+    requirePermissions(user, [AiPermissions.ChatDeleteAll, AiPermissions.ChatDeleteOwn]);
   }
 
   const session = await withUserTransaction(
@@ -130,11 +129,15 @@ export default defineEventHandler(async (event) => {
     abortController.abort();
   }
 
-  const executor = new AgentExecutor({ sessionId, user, message, userMessageId, assistantMessageId });
+  const executor = new AgentExecutor({ ...body, user });
 
   try {
     await executor.createExecution(session.agentId);
   } catch (error) {
+    if (error instanceof ChatMessageNotFoundError) {
+      logger.warn({ sessionId, userId: user.id, messageId: body.replaceMessageId }, error.message);
+      throw createError({ statusCode: 404, message: error.message });
+    }
     if (error instanceof ConcurrentExecutionError) {
       logger.warn({ sessionId, userId: user.id }, "An execution is already in progress for this session");
       throw createError({
@@ -155,6 +158,7 @@ export default defineEventHandler(async (event) => {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
+    event.node.res.flushHeaders();
 
     const keepAlive = setInterval(() => {
       event.node.res.write(":\n\n");

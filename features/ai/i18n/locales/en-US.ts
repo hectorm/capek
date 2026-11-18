@@ -54,6 +54,7 @@ export default () => ({
           refusal: "The model declined to answer this request",
           maxOutputTokens: "The answer was cut off because it reached the maximum number of tokens",
         },
+        editMessage: "Edit message",
         dateGroups: {
           today: "Today",
           yesterday: "Yesterday",
@@ -64,6 +65,8 @@ export default () => ({
           menu: "Actions menu",
           copy: "Copy",
           edit: "Edit",
+          cancel: "Cancel",
+          resend: "Resend",
           retry: "Retry",
           regenerate: "Regenerate",
           rename: "Rename",
@@ -96,12 +99,6 @@ export default () => ({
             error: {
               title: "Error",
               description: "Failed to delete message",
-            },
-          },
-          editMessage: {
-            error: {
-              title: "Error",
-              description: "Failed to edit message",
             },
           },
           renameSession: {

@@ -1,10 +1,10 @@
-import type { SqlBool } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmItem } from "#layers/ai/shared/llm";
+import { deleteChatMessagesFrom } from "#layers/ai/server/lib/chat-messages";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { withUserTransaction } from "#layers/core/server/lib/database";
 import { ListPageSizeSchema, PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
@@ -110,28 +110,13 @@ export const chatMessageRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       return withUserTransaction(ctx.user, async (trx) => {
-        const message = await trx
-          .selectFrom("aiChatMessages")
-          .select(["id"])
-          .where("id", "=", input.id)
-          .where("sessionId", "=", input.sessionId)
-          .executeTakeFirst();
-
-        if (!message) {
+        if (!(await deleteChatMessagesFrom(trx, input.sessionId, input.id))) {
           ctx.logger.warn({ messageId: input.id, sessionId: input.sessionId }, "Chat message not found");
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Chat message not found",
           });
         }
-
-        await trx
-          .deleteFrom("aiChatMessages")
-          .where("sessionId", "=", input.sessionId)
-          .where(
-            sql<SqlBool>`(created_at, id) >= (SELECT created_at, id FROM ai_chat_messages WHERE id = ${message.id})`,
-          )
-          .execute();
 
         await trx
           .updateTable("aiChatSessions")

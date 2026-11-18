@@ -25,12 +25,14 @@ import {
   buildToolsetsPrompt,
   buildTriagePrompt,
 } from "#layers/ai/server/lib/agents/prompts";
+import { deleteChatMessagesFrom } from "#layers/ai/server/lib/chat-messages";
 import { createVFS, uniqueIds } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { loadSessionWorkspace, saveSessionWorkspace } from "#layers/ai/server/lib/code/persistence";
 import { formatConsoleLog } from "#layers/ai/server/lib/code/protocol";
 import {
   AbortError,
+  ChatMessageNotFoundError,
   ConcurrentExecutionError,
   MaxIterationsError,
   MaxOutputTokensError,
@@ -69,6 +71,7 @@ interface AgentExecutorConfig {
   message: string;
   userMessageId?: string;
   assistantMessageId?: string;
+  replaceMessageId?: string;
 }
 
 interface AgentTool {
@@ -149,11 +152,16 @@ export class AgentExecutor {
   public async createExecution(agentId: string): Promise<string> {
     try {
       return await withUserTransaction(this.config.user, async (trx) => {
+        const { replaceMessageId, sessionId } = this.config;
+        if (replaceMessageId && !(await deleteChatMessagesFrom(trx, sessionId, replaceMessageId, "user"))) {
+          throw new ChatMessageNotFoundError();
+        }
+
         const userMessage = await trx
           .insertInto("aiChatMessages")
           .values({
             id: this.config.userMessageId,
-            sessionId: this.config.sessionId,
+            sessionId,
             role: "user",
             content: this.config.message,
           })
@@ -163,7 +171,7 @@ export class AgentExecutor {
         const execution = await trx
           .insertInto("aiAgentExecutions")
           .values({
-            sessionId: this.config.sessionId,
+            sessionId,
             agentId,
             userId: this.config.user.id,
             status: "running",

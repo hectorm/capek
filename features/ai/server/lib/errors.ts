@@ -33,6 +33,13 @@ export class MaxOutputTokensError extends Error {
   }
 }
 
+export class ChatMessageNotFoundError extends Error {
+  public constructor(message = "Chat message to replace was not found") {
+    super(message);
+    this.name = "ChatMessageNotFoundError";
+  }
+}
+
 export class ConcurrentExecutionError extends Error {
   public constructor(message = "An execution is already in progress for this session") {
     super(message);

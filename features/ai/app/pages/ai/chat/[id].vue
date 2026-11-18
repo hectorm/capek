@@ -23,6 +23,7 @@ import UChatTool from "@nuxt/ui/components/ChatTool.vue";
 import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import UProgress from "@nuxt/ui/components/Progress.vue";
+import UTextarea from "@nuxt/ui/components/Textarea.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
@@ -47,6 +48,12 @@ interface MessagePart {
   text?: string;
 }
 
+interface MessageEdit {
+  id: string;
+  original: string;
+  text: string;
+}
+
 type ToolCallPart = Extract<ChatMessagePart, { type: "tool" }>;
 
 type DisplayedPart = Exclude<ChatMessagePart, { type: "tool" }> | { type: "tools"; calls: ToolCallPart[] };
@@ -65,7 +72,8 @@ const chatDeleteModal = overlay.create(LazyDeleteModal);
 const chatRenameModal = overlay.create(LazyRenameModal);
 
 const input = ref<string>("");
-const promptRef = ref<InstanceType<typeof UChatPrompt>>();
+const edit = ref<MessageEdit>();
+const editField = useTemplateRef<{ textareaRef: HTMLTextAreaElement | null }>("editField");
 const messagesContainer = useTemplateRef<HTMLElement>("messagesContainer");
 const showsLastMessages = ref<boolean>(false);
 
@@ -107,6 +115,7 @@ const title = computed(() => {
 const uiMessages = computed(() => {
   return chatStore.currentMessages.map((msg) => ({
     id: msg.id,
+    ...(msg.id === edit.value?.id ? { actions: [], ui: { body: "w-full" } } : {}),
     // Nuxt UI displays app and tool messages under its system role
     role: msg.role === "app" || msg.role === "tool" ? "system" : msg.role,
     parts: [{ type: "text" as const, text: msg.content }],
@@ -213,6 +222,7 @@ const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
 };
 
 const loadSession = async (id: string) => {
+  edit.value = undefined;
   if (!id) {
     return;
   }
@@ -247,17 +257,20 @@ const handleStopGeneration = () => {
   chatStore.abortStream(sessionId.value);
 };
 
-const handleSubmit = async (e: Event) => {
-  e.preventDefault();
-  if (!input.value.trim() || chatStatus.value === "streaming") {
+const handleSubmit = async (draft?: MessageEdit) => {
+  const content = (draft?.text ?? input.value).trim();
+  if (!content || content === draft?.original.trim() || chatStatus.value === "streaming") {
     return;
   }
-
-  const userMessage = input.value.trim();
-  input.value = "";
+  if (!draft) {
+    input.value = "";
+  }
 
   try {
-    await chatStore.sendMessage(sessionId.value, userMessage);
+    const accepted = await chatStore.sendMessage(sessionId.value, content, draft?.id);
+    if (accepted && draft && edit.value === draft) {
+      edit.value = undefined;
+    }
   } catch (error) {
     console.error("Failed to send chat message", error);
     toast.add({
@@ -324,21 +337,10 @@ const handleCopyMessage = async (_e: MouseEvent, message: { id: string; parts: M
 };
 
 const handleEditMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
-  try {
-    const messageContent = await chatStore.editMessage(sessionId.value, message.id);
-    input.value = messageContent;
-    await nextTick();
-    const promptElement = promptRef.value?.$el as HTMLElement | undefined;
-    const textarea = promptElement?.querySelector("textarea");
-    textarea?.focus();
-  } catch (error) {
-    console.error("Failed to edit message", error);
-    toast.add({
-      color: "error",
-      title: i18n.t("ai.pages.chat.actions.editMessage.error.title"),
-      description: describeAnswerError(error, i18n.t("ai.pages.chat.actions.editMessage.error.description")),
-    });
-  }
+  const original = message.parts[0]?.text ?? "";
+  edit.value = { id: message.id, original, text: original };
+  await nextTick();
+  editField.value?.textareaRef?.focus();
 };
 
 const handleRetryMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
@@ -465,8 +467,44 @@ definePageMeta({
         :should-scroll-to-bottom="uiMessages.length > 1"
       >
         <template #content="{ message }">
+          <form v-if="edit && message.id === edit.id" class="flex flex-col gap-2" @submit.prevent="handleSubmit(edit)">
+            <UTextarea
+              ref="editField"
+              v-model="edit.text"
+              :rows="2"
+              autoresize
+              :maxrows="12"
+              class="w-full"
+              :disabled="chatStatus === 'streaming'"
+              :aria-label="$t('ai.pages.chat.editMessage')"
+            />
+            <div class="flex flex-wrap justify-end gap-2">
+              <UButton
+                size="sm"
+                type="button"
+                color="neutral"
+                variant="ghost"
+                :disabled="chatStatus === 'streaming'"
+                :label="$t('ai.pages.chat.actions.cancel')"
+                @click="edit = undefined"
+              />
+              <UButton
+                size="sm"
+                type="submit"
+                :label="$t('ai.pages.chat.actions.resend')"
+                :disabled="
+                  !edit.text.trim() ||
+                  edit.text.trim() === edit.original.trim() ||
+                  chatStatus === 'streaming' ||
+                  !agentStore.hasAgents
+                "
+              />
+            </div>
+          </form>
           <template
-            v-if="chatStatus === 'streaming' && message.role === 'assistant' && !messageParts.get(message.id)?.length"
+            v-else-if="
+              chatStatus === 'streaming' && message.role === 'assistant' && !messageParts.get(message.id)?.length
+            "
           >
             <div class="flex items-center gap-2 py-3 text-muted">
               <div class="flex gap-1">
@@ -512,14 +550,13 @@ definePageMeta({
         </div>
       </div>
       <UChatPrompt
-        ref="promptRef"
         v-model="input"
         variant="subtle"
         autocomplete="off"
         :ui="{ footer: 'empty:hidden' }"
         :disabled="!agentStore.hasAgents"
         class="sticky bottom-0 z-10 rounded-b-none [view-transition-name:chat-prompt]"
-        @submit="handleSubmit"
+        @submit.prevent="handleSubmit()"
       >
         <UChatPromptSubmit
           color="neutral"

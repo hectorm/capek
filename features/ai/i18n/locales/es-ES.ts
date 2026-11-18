@@ -56,6 +56,7 @@ export default (): ReturnType<typeof enUS> => ({
           refusal: "El modelo ha rechazado responder a esta petición",
           maxOutputTokens: "La respuesta se ha cortado porque ha alcanzado el número máximo de tokens",
         },
+        editMessage: "Editar mensaje",
         dateGroups: {
           today: "Hoy",
           yesterday: "Ayer",
@@ -66,6 +67,8 @@ export default (): ReturnType<typeof enUS> => ({
           menu: "Menú de acciones",
           copy: "Copiar",
           edit: "Editar",
+          cancel: "Cancelar",
+          resend: "Reenviar",
           retry: "Reintentar",
           regenerate: "Regenerar",
           rename: "Renombrar",
@@ -98,12 +101,6 @@ export default (): ReturnType<typeof enUS> => ({
             error: {
               title: "Error",
               description: "Error al eliminar el mensaje",
-            },
-          },
-          editMessage: {
-            error: {
-              title: "Error",
-              description: "Error al editar el mensaje",
             },
           },
           renameSession: {
