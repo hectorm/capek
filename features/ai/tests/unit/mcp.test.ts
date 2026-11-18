@@ -9,6 +9,7 @@ import { TimeoutError } from "#layers/ai/server/lib/errors";
 import { connect, testConnection } from "#layers/ai/server/lib/mcp/client";
 import { PROTOCOL_VERSIONS } from "#layers/ai/server/lib/mcp/connection";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
+import { decodeRequestBody } from "#layers/ai/tests/unit/helpers/http";
 import { fetchEndpoint } from "#layers/core/server/lib/http";
 
 vi.mock("#layers/core/server/lib/http", { spy: true });
@@ -90,7 +91,7 @@ const stream = (body: unknown): Response => {
 
 const respond = (target: string | URL, init: EndpointInit = {}): Promise<Response> => {
   const { pathname } = new URL(target);
-  const message = JSON.parse(init.body ?? "{}") as Message;
+  const message = JSON.parse(decodeRequestBody(init.body) ?? "{}") as Message;
   const headers = new Headers(init.headers);
   requests.push({ path: pathname, method: message.method ?? init.method ?? "", headers, signal: init.signal });
 

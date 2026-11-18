@@ -21,6 +21,7 @@ import {
   insertSkill,
   insertUsers,
 } from "#layers/ai/tests/unit/helpers/db";
+import { decodeRequestBody } from "#layers/ai/tests/unit/helpers/http";
 import { chatCompletion, chatCompletionStream } from "#layers/ai/tests/unit/helpers/llm";
 import { fetchEndpoint } from "#layers/core/server/lib/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
@@ -154,7 +155,7 @@ const createChat = async (settings: Partial<NewAgent> = {}, user: AuthUser = adm
 const fakeModel = (responses: Response[]): OpenAICompletionRequest[] => {
   const requests: OpenAICompletionRequest[] = [];
   vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
-    requests.push(JSON.parse(init.body ?? "") as OpenAICompletionRequest);
+    requests.push(JSON.parse(decodeRequestBody(init.body) ?? "") as OpenAICompletionRequest);
     return Promise.resolve(responses.shift() ?? Response.error());
   });
   return requests;

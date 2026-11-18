@@ -8,7 +8,13 @@ import type { Duplex } from "node:stream";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Endpoint } from "#layers/core/server/lib/http";
-import { fetchEndpoint, readErrorMessage, unredactEndpoint } from "#layers/core/server/lib/http";
+import {
+  fetchEndpoint,
+  limitResponse,
+  readErrorBody,
+  readErrorMessage,
+  unredactEndpoint,
+} from "#layers/core/server/lib/http";
 import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 
@@ -79,6 +85,37 @@ describe("endpoint secret", () => {
   });
 });
 
+describe("bounded responses", () => {
+  it("preserves the response metadata and accepts a body exactly at the byte limit", async () => {
+    const response = limitResponse(new Response("éé", { status: 201, headers: { "X-Test": "kept" } }), 4, "too large");
+    expect(response.status).toBe(201);
+    expect(response.headers.get("X-Test")).toBe("kept");
+    expect(await response.text()).toBe("éé");
+    const empty = new Response(null, { status: 204 });
+    expect(limitResponse(empty, 0, "too large")).toBe(empty);
+  });
+
+  it("counts bytes across chunks and cancels an oversized response before it ends", async () => {
+    const cancelled = Promise.withResolvers();
+    const source = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("é"));
+        controller.enqueue(new TextEncoder().encode("é"));
+      },
+      cancel: cancelled.resolve,
+    });
+    const response = limitResponse(new Response(source), 3, "too large");
+    await expect(response.text()).rejects.toThrow("too large");
+    await cancelled.promise;
+  });
+
+  it("reads the first 16 KiB of an error body", async () => {
+    const prefix = "é".repeat(8192);
+    const response = new Response(`${prefix}tail`, { status: 500 });
+    expect(await readErrorBody(response.body)).toBe(prefix);
+  });
+});
+
 describe("failed response", () => {
   const describeFailure = (body: string, status: number) => readErrorMessage(new Response(body, { status }));
 
@@ -95,6 +132,12 @@ describe("failed response", () => {
 
     const long = JSON.stringify({ error: { message: "x".repeat(2000) } });
     expect(await describeFailure(long, 400)).toBe(`400 Bad Request: ${"x".repeat(1000)}...`);
+  });
+
+  it("uses the supplied error body after the response has been read", async () => {
+    const response = Response.json({ error: "Unavailable" }, { status: 500 });
+    const body = await response.text();
+    expect(await readErrorMessage(response, body)).toBe("500 Internal Server Error: Unavailable");
   });
 
   it("is described only by its status when the body is not an API error", async () => {
@@ -237,6 +280,15 @@ describe("endpoint request", () => {
     const response = await fetchEndpoint(urlOf("llm.example"), { method: "POST", headers, body: '{"a":1}' });
     expect(await response.text()).toBe('7 {"a":1}');
     expect(requests).toBe(1);
+  });
+
+  it.each([
+    { label: "a buffer", body: Buffer.from([0, 255, 128, 13, 10]) },
+    { label: "a byte view", body: new Uint8Array([99, 0, 255, 128, 13, 10, 99]).subarray(1, 6) },
+  ])("sends $label without changing its bytes or including bytes outside its view", async ({ body }) => {
+    respond = (req, res) => req.pipe(res);
+    const response = await fetchEndpoint(urlOf("files.example"), { method: "PUT", body });
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from([0, 255, 128, 13, 10]));
   });
 
   it("has no body when its status has none", async () => {

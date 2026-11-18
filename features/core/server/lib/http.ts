@@ -19,7 +19,7 @@ export interface Endpoint {
 }
 
 export type EndpointInit = Pick<RequestInit, "method" | "headers" | "signal"> & {
-  body?: string;
+  body?: string | Uint8Array;
   redirect?: "error" | "follow";
 };
 
