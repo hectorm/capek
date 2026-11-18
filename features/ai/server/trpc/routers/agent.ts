@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import type { Kysely } from "kysely";
 import { TRPCError } from "@trpc/server";
+import { sql } from "kysely";
 import { z } from "zod/v4";
 
 import type { Database } from "#layers/core/shared/schema";
@@ -10,7 +11,12 @@ import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resour
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { getToolProviders, syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { hasToolResources } from "#layers/ai/server/lib/tools/define";
-import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
+import {
+  AgentExecutorParametersSchema,
+  AgentSettingsSchema,
+  allowsAgentTools,
+  NewAgentSettingsSchema,
+} from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources, usableResourceIds } from "#layers/core/server/lib/authz/resources";
@@ -32,7 +38,7 @@ import {
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
 // Only providers without assignable resources use an agent-level switch
-const checkSwitchableToolProviders = (names: readonly string[]): string[] => {
+const checkSwitchableToolProviders = (names: readonly string[]): void => {
   const switchable = getToolProviders()
     .filter((provider) => !hasToolResources(provider))
     .map((provider) => provider.name);
@@ -43,7 +49,6 @@ const checkSwitchableToolProviders = (names: readonly string[]): string[] => {
       message: `Tool provider "${unknown}" cannot be switched on`,
     });
   }
-  return [...new Set(names)];
 };
 
 const findResourceToolProvider = (name: string) => {
@@ -56,6 +61,8 @@ const findResourceToolProvider = (name: string) => {
   }
   return provider;
 };
+
+const ToolProvidersSchema = z.array(z.string().min(1).max(100)).max(100);
 
 const AgentAssignmentsSchema = z.object({
   mcpServerIds: z.array(z.uuid()).max(100).optional(),
@@ -239,28 +246,16 @@ export const agentRouter = createTRPCRouter({
 
   create: authorizedProcedure([AiPermissions.AgentCreate])
     .input(
-      z
-        .object({
-          name: z.string().trim().min(1).max(100),
-          description: z.string().max(500).trim().default(""),
-          instructions: z.string().max(100000).trim().default(""),
-          greetingMessage: z.string().max(10000).trim().default(""),
-          priority: z.number().int().min(-1000).max(1000).default(0),
-          type: z.enum(["triage", "specialist"]),
-          llmProviderId: z.uuid().nullish(),
-          model: z.string().trim().min(1).max(100),
-          summaryModel: z.string().max(100).trim().default(""),
-          reasoningEffort: z.string().max(20).trim().default(""),
-          codeInterpreter: z.boolean().default(false),
-          showToolCalls: z.boolean().default(true),
-          toolProviders: z.array(z.string().min(1).max(100)).max(100).default([]),
-          streaming: z.boolean().default(true),
-        })
-        .extend(AgentExecutorParametersSchema.shape)
-        .extend(AgentAssignmentsSchema.shape),
+      NewAgentSettingsSchema.extend({
+        llmProviderId: z.uuid().nullish(),
+        toolProviders: ToolProvidersSchema.default([]),
+        ...AgentAssignmentsSchema.shape,
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      const toolProviders = input.type === "specialist" ? checkSwitchableToolProviders(input.toolProviders) : [];
+      const allowTools = allowsAgentTools(input, input.toolProviders.length > 0);
+      const toolProviders = allowTools ? [...new Set(input.toolProviders)] : [];
+      checkSwitchableToolProviders(toolProviders);
 
       const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
@@ -280,7 +275,7 @@ export const agentRouter = createTRPCRouter({
               model: input.model,
               summaryModel: input.summaryModel,
               reasoningEffort: input.reasoningEffort,
-              codeInterpreter: input.type === "specialist" ? input.codeInterpreter : false,
+              codeInterpreter: allowTools && input.codeInterpreter,
               showToolCalls: input.showToolCalls,
               toolProviders,
               streaming: input.streaming,
@@ -380,35 +375,41 @@ export const agentRouter = createTRPCRouter({
 
   update: authorizedProcedure([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn])
     .input(
-      z
-        .object({
+      AgentSettingsSchema.omit({ type: true })
+        .partial()
+        .extend({
           id: z.uuid(),
-          name: z.string().trim().min(1).max(100).optional(),
-          description: z.string().max(500).trim().optional(),
-          instructions: z.string().max(100000).trim().optional(),
-          greetingMessage: z.string().max(10000).trim().optional(),
-          priority: z.number().int().min(-1000).max(1000).optional(),
           llmProviderId: z.uuid().nullish(),
-          model: z.string().trim().min(1).max(100).optional(),
-          summaryModel: z.string().max(100).trim().optional(),
-          reasoningEffort: z.string().max(20).trim().optional(),
-          codeInterpreter: z.boolean().optional(),
-          showToolCalls: z.boolean().optional(),
-          toolProviders: z.array(z.string().min(1).max(100)).max(100).optional(),
-          streaming: z.boolean().optional(),
-        })
-        .extend(AgentExecutorParametersSchema.shape)
-        .extend(AgentAssignmentsSchema.shape),
+          toolProviders: ToolProvidersSchema.optional(),
+          ...AgentAssignmentsSchema.shape,
+        }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, mcpServerIds, skillIds, toolResources, specialistIds, access, ...updateData } = input;
-      const toolProviders = updateData.toolProviders && checkSwitchableToolProviders(updateData.toolProviders);
+      const {
+        id,
+        mcpServerIds,
+        skillIds,
+        toolResources,
+        specialistIds,
+        access,
+        codeInterpreter,
+        toolProviders,
+        ...updateData
+      } = input;
 
       const agent = await withUserTransaction(ctx.user, async (trx) => {
         try {
+          const specialist = sql<boolean>`type = 'specialist'`;
           const updatedAgent = await trx
             .updateTable("aiAgents")
-            .set({ ...updateData, toolProviders, updatedAt: new Date() })
+            .set({
+              ...updateData,
+              codeInterpreter: codeInterpreter ? specialist : codeInterpreter,
+              toolProviders: toolProviders?.length
+                ? sql<string[]>`CASE WHEN ${specialist} THEN ${[...new Set(toolProviders)]}::varchar[] ELSE '{}' END`
+                : toolProviders,
+              updatedAt: new Date(),
+            })
             .where("id", "=", id)
             .returning([
               "id",
@@ -447,6 +448,9 @@ export const agentRouter = createTRPCRouter({
             });
           }
 
+          if (toolProviders?.length) {
+            checkSwitchableToolProviders(updatedAgent.toolProviders);
+          }
           await syncAgentAssignments(trx, updatedAgent, {
             mcpServerIds,
             skillIds,

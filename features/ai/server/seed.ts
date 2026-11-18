@@ -5,7 +5,7 @@ import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } 
 import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { collectToolProviders, hasToolResources } from "#layers/ai/server/lib/tools/define";
-import { AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
+import { allowsAgentTools, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
@@ -41,33 +41,18 @@ const SeedSkillSchema = z.object({
   access: SeedAccessSchema,
 });
 
-const SeedAgentSchema = z
-  .object({
-    name: z.string().trim().min(1).max(100),
-    description: z.string().max(500).trim().default(""),
-    instructions: z.string().max(100000).trim().default(""),
-    greetingMessage: z.string().max(10000).trim().default(""),
-    priority: z.number().int().min(-1000).max(1000).default(0),
-    type: z.enum(["triage", "specialist"]),
-    llmProvider: z.string().trim().min(1).max(100),
-    model: z.string().trim().min(1).max(100),
-    summaryModel: z.string().max(100).trim().default(""),
-    reasoningEffort: z.string().max(20).trim().default(""),
-    specialists: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
-    mcpServers: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
-    skills: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
-    tools: z
-      .record(
-        z.string().min(1).max(100),
-        z.union([z.literal(true), z.array(z.string().trim().min(1).max(255)).max(100)]),
-      )
-      .default({}),
-    codeInterpreter: z.boolean().default(false),
-    showToolCalls: z.boolean().default(true),
-    streaming: z.boolean().default(true),
-    access: SeedAccessSchema,
-  })
-  .extend(AgentExecutorParametersSchema.shape);
+const SeedAgentSchema = NewAgentSettingsSchema.extend({
+  llmProvider: z.string().trim().min(1).max(100),
+  specialists: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  mcpServers: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  skills: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  tools: z
+    .record(z.string().min(1).max(100), z.union([z.literal(true), z.array(z.string().trim().min(1).max(255)).max(100)]))
+    .default({}),
+  access: SeedAccessSchema,
+}).refine((agent) => {
+  return allowsAgentTools(agent, Object.values(agent.tools).includes(true));
+}, "Only specialist agents can enable the code interpreter or switch on tool providers");
 
 export const aiSeed = defineSeed({
   schema: {
@@ -215,7 +200,7 @@ export const aiSeed = defineSeed({
           model: agentConfig.model,
           summaryModel: agentConfig.summaryModel,
           reasoningEffort: agentConfig.reasoningEffort,
-          codeInterpreter: agentConfig.type === "specialist" ? agentConfig.codeInterpreter : false,
+          codeInterpreter: agentConfig.codeInterpreter,
           showToolCalls: agentConfig.showToolCalls,
           streaming: agentConfig.streaming,
           temperature: agentConfig.temperature ?? null,

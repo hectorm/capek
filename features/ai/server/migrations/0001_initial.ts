@@ -214,6 +214,14 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addCheckConstraint("ai_agents_type_check", sql`type IN ('triage', 'specialist')`)
     .execute();
 
+  await db.schema
+    .alterTable("public.aiAgents")
+    .addCheckConstraint(
+      "ai_agents_specialist_settings_check",
+      sql`type = 'specialist' OR (NOT code_interpreter AND cardinality(tool_providers) = 0)`,
+    )
+    .execute();
+
   ////////////////////////////////
 
   await db.schema

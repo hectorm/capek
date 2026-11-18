@@ -1,5 +1,14 @@
 import { z } from "zod/v4";
 
+import type { Agent } from "#layers/ai/shared/schema";
+
+export const allowsAgentTools = (
+  agent: Pick<Agent, "type" | "codeInterpreter">,
+  hasToolProviders: boolean,
+): boolean => {
+  return agent.type === "specialist" || (!agent.codeInterpreter && !hasToolProviders);
+};
+
 // prettier-ignore
 export const AgentExecutorParameters = {
   temperature:                   { min: 0,    max: 2,          step: 0.1,       default: 1.0          },
@@ -26,4 +35,33 @@ export const AgentExecutorParametersSchema = z.object({
   maxContextChars: z.number().int().min(AgentExecutorParameters.maxContextChars.min).max(AgentExecutorParameters.maxContextChars.max).nullish(),
   maxToolResponseChars: z.number().int().min(AgentExecutorParameters.maxToolResponseChars.min).max(AgentExecutorParameters.maxToolResponseChars.max).nullish(),
   maxToolPartsChars: z.number().int().min(AgentExecutorParameters.maxToolPartsChars.min).max(AgentExecutorParameters.maxToolPartsChars.max).nullish(),
+});
+
+export const AgentSettingsSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(500).trim(),
+  instructions: z.string().max(100000).trim(),
+  greetingMessage: z.string().max(10000).trim(),
+  priority: z.number().int().min(-1000).max(1000),
+  type: z.enum(["triage", "specialist"]),
+  model: z.string().trim().min(1).max(100),
+  summaryModel: z.string().max(100).trim(),
+  reasoningEffort: z.string().max(20).trim(),
+  codeInterpreter: z.boolean(),
+  showToolCalls: z.boolean(),
+  streaming: z.boolean(),
+  ...AgentExecutorParametersSchema.shape,
+});
+
+// Partial updates must preserve omitted settings
+export const NewAgentSettingsSchema = AgentSettingsSchema.extend({
+  description: AgentSettingsSchema.shape.description.default(""),
+  instructions: AgentSettingsSchema.shape.instructions.default(""),
+  greetingMessage: AgentSettingsSchema.shape.greetingMessage.default(""),
+  priority: AgentSettingsSchema.shape.priority.default(0),
+  summaryModel: AgentSettingsSchema.shape.summaryModel.default(""),
+  reasoningEffort: AgentSettingsSchema.shape.reasoningEffort.default(""),
+  codeInterpreter: AgentSettingsSchema.shape.codeInterpreter.default(false),
+  showToolCalls: AgentSettingsSchema.shape.showToolCalls.default(true),
+  streaming: AgentSettingsSchema.shape.streaming.default(true),
 });

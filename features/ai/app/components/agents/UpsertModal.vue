@@ -26,7 +26,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { AgentExecutorParameters, AgentExecutorParametersSchema } from "#layers/ai/shared/agent";
+import { AgentExecutorParameters, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
@@ -80,29 +80,15 @@ const canModify = computed(() => {
   return canAny([AiPermissions.AgentUpdateAll, AiPermissions.AgentUpdateOwn], toOwnerIds(currentAccess));
 });
 
-const schema = z
-  .object({
-    id: z.uuid().optional(),
-    name: z.string().trim().min(1).max(100),
-    description: z.string().max(500).trim().default(""),
-    instructions: z.string().max(100000).trim().default(""),
-    greetingMessage: z.string().max(10000).trim().default(""),
-    priority: z.number().int().min(-1000).max(1000).default(0),
-    editors: z.array(z.string()).default([]),
-    users: z.array(z.string()).default([]),
-    type: z.enum(["triage", "specialist"]),
-    specialists: z.array(z.string()).default([]),
-    llmProviderId: z.uuid().nullable(),
-    model: z.string().trim().min(1).max(100),
-    summaryModel: z.string().max(100).trim().default(""),
-    reasoningEffort: z.string().max(20).trim().default(""),
-    mcpServers: z.array(z.string()).default([]),
-    skills: z.array(z.string()).default([]),
-    codeInterpreter: z.boolean().default(false),
-    showToolCalls: z.boolean().default(true),
-    streaming: z.boolean().default(true),
-  })
-  .extend(AgentExecutorParametersSchema.shape);
+const schema = NewAgentSettingsSchema.extend({
+  id: z.uuid().optional(),
+  editors: z.array(z.string()).default([]),
+  users: z.array(z.string()).default([]),
+  specialists: z.array(z.string()).default([]),
+  llmProviderId: z.uuid().nullable(),
+  mcpServers: z.array(z.string()).default([]),
+  skills: z.array(z.string()).default([]),
+});
 
 type Schema = z.infer<typeof schema>;
 
@@ -273,76 +259,22 @@ const getSpecialistLabel = (id: string) => {
 
 const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
-    const assignments = {
-      mcpServerIds: event.data.mcpServers,
-      skillIds: event.data.skills,
+    const { id, type, mcpServers, skills, specialists, editors, users, ...settings } = event.data;
+    const data = {
+      ...settings,
+      toolProviders: getEnabledToolProviders(),
+      mcpServerIds: mcpServers,
+      skillIds: skills,
       toolResources: Object.fromEntries(
         assignableToolProviders.map((provider) => [provider.name, toolResources[provider.name] ?? []]),
       ),
-      specialistIds: event.data.specialists,
-      access: fromPrincipalIds(event.data),
+      specialistIds: specialists,
+      access: fromPrincipalIds({ editors, users }),
     };
-
-    if ("id" in event.data && event.data.id) {
-      const result = await $trpc.ai.agent.update.mutate({
-        id: event.data.id,
-        name: event.data.name,
-        description: event.data.description,
-        instructions: event.data.instructions,
-        greetingMessage: event.data.greetingMessage,
-        priority: event.data.priority,
-        llmProviderId: event.data.llmProviderId,
-        model: event.data.model,
-        summaryModel: event.data.summaryModel,
-        reasoningEffort: event.data.reasoningEffort,
-        codeInterpreter: event.data.type === "specialist" ? event.data.codeInterpreter : false,
-        showToolCalls: event.data.showToolCalls,
-        toolProviders: event.data.type === "specialist" ? getEnabledToolProviders() : [],
-        streaming: event.data.streaming,
-        temperature: event.data.temperature,
-        maxTokens: event.data.maxTokens,
-        topP: event.data.topP,
-        frequencyPenalty: event.data.frequencyPenalty,
-        presencePenalty: event.data.presencePenalty,
-        maxIterations: event.data.maxIterations,
-        timeoutSec: event.data.timeoutSec,
-        maxContextChars: event.data.maxContextChars,
-        maxToolResponseChars: event.data.maxToolResponseChars,
-        maxToolPartsChars: event.data.maxToolPartsChars,
-        ...assignments,
-      });
-      agent = result;
-    } else {
-      const result = await $trpc.ai.agent.create.mutate({
-        name: event.data.name,
-        description: event.data.description,
-        instructions: event.data.instructions,
-        greetingMessage: event.data.greetingMessage,
-        priority: event.data.priority,
-        type: event.data.type,
-        llmProviderId: event.data.llmProviderId,
-        model: event.data.model,
-        summaryModel: event.data.summaryModel,
-        reasoningEffort: event.data.reasoningEffort,
-        codeInterpreter: event.data.codeInterpreter,
-        showToolCalls: event.data.showToolCalls,
-        toolProviders: getEnabledToolProviders(),
-        streaming: event.data.streaming,
-        temperature: event.data.temperature,
-        maxTokens: event.data.maxTokens,
-        topP: event.data.topP,
-        frequencyPenalty: event.data.frequencyPenalty,
-        presencePenalty: event.data.presencePenalty,
-        maxIterations: event.data.maxIterations,
-        timeoutSec: event.data.timeoutSec,
-        maxContextChars: event.data.maxContextChars,
-        maxToolResponseChars: event.data.maxToolResponseChars,
-        maxToolPartsChars: event.data.maxToolPartsChars,
-        ...assignments,
-      });
-      agent = result;
-      state.id = result.id;
-    }
+    agent = id
+      ? await $trpc.ai.agent.update.mutate({ ...data, id })
+      : await $trpc.ai.agent.create.mutate({ ...data, type });
+    state.id = agent.id;
 
     notify(props.id ? "update" : "create", "success");
     emit("close", { agent });

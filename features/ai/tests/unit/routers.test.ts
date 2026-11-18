@@ -17,7 +17,14 @@ import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chatMessage";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { closeDb, createAiTestDb, insertLlmProvider, insertSkill, insertUsers } from "#layers/ai/tests/unit/helpers/db";
+import {
+  closeDb,
+  createAiTestDb,
+  insertAgent,
+  insertLlmProvider,
+  insertSkill,
+  insertUsers,
+} from "#layers/ai/tests/unit/helpers/db";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
@@ -257,6 +264,32 @@ describe("tool discovery", () => {
 });
 
 describe("agent", () => {
+  it("applies specialist settings consistently when creating and updating an agent", async () => {
+    const { agent } = as(alice, Roles.Admin);
+    const tools = { codeInterpreter: true, toolProviders: ["ai_tables"] };
+    const triage = await agent.create({ name: "router", type: "triage", model: "m", ...tools });
+    const disabled = { codeInterpreter: false, toolProviders: [] };
+    expect(triage).toMatchObject(disabled);
+    expect(await agent.update({ id: triage.id, ...tools })).toMatchObject(disabled);
+
+    const specialist = await agent.create({ name: "specialist-settings", type: "specialist", model: "m", ...tools });
+    expect(await agent.update({ id: specialist.id, ...disabled })).toMatchObject(disabled);
+    expect(await agent.update({ id: specialist.id, ...tools })).toMatchObject(tools);
+    await expect(agent.update({ id: specialist.id, toolProviders: ["missing"] })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(await agent.update({ id: specialist.id, description: "changed" })).toMatchObject(tools);
+  });
+
+  it("rejects specialist settings written directly to a triage agent", async () => {
+    const id = await insertAgent(db, "triage-settings", { type: "triage" });
+    for (const settings of [{ codeInterpreter: true }, { toolProviders: ["ai_tables"] }]) {
+      await expect(db.updateTable("aiAgents").set(settings).where("id", "=", id).execute()).rejects.toMatchObject({
+        constraint: "ai_agents_specialist_settings_check",
+      });
+    }
+  });
+
   it("rejects a fractional search limit as invalid input", async () => {
     await expect(as(alice, Roles.Admin).agent.search({ limit: 1.5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
