@@ -425,7 +425,7 @@ const roleStatements = (): string[] => [
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${FALLBACK_ROLE}') THEN
           CREATE ROLE ${FALLBACK_ROLE} NOSUPERUSER NOBYPASSRLS;
         ELSIF (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = '${FALLBACK_ROLE}') THEN
-          RAISE EXCEPTION 'Role "%" already exists and bypasses row level security', '${FALLBACK_ROLE}';
+          RAISE EXCEPTION 'Role "%" already exists and bypasses row-level security', '${FALLBACK_ROLE}';
         END IF;
         IF NOT has_database_privilege('${FALLBACK_ROLE}', current_database(), 'CREATE') THEN
           EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', current_database(), '${FALLBACK_ROLE}');
@@ -596,7 +596,7 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
     const changed = existing.rows[0]?.checksum !== checksum;
 
     if (changed) {
-      logger.info("Applying row level security");
+      logger.info("Applying row-level security");
 
       for (const statement of [...dropStatements(), ...statements]) {
         await sql.raw(statement).execute(trx);
@@ -624,7 +624,7 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
       )
     `.execute(trx);
     if (unprotected.rows.length > 0) {
-      throw new Error(`Tables without row level security: ${unprotected.rows.map((row) => row.name).join(", ")}`);
+      throw new Error(`Tables without row-level security: ${unprotected.rows.map((row) => row.name).join(", ")}`);
     }
 
     // Reconcile the fallback role on every run so it also owns objects added since the last policy change
@@ -636,6 +636,6 @@ export const applySecurity = async (db: Kysely<Database>, features: readonly Ser
   });
 
   if (applied) {
-    logger.info("Row level security applied");
+    logger.info("Row-level security applied");
   }
 };

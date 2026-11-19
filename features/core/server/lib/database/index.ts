@@ -108,7 +108,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
       connIsSuperuser = await isSuperuser(database);
       if (!connIsSuperuser && (await bypassesRls(database))) {
         throw new Error(
-          "Database connection is a role with the BYPASSRLS attribute, which bypasses row level security. " +
+          "Database connection is a role with the BYPASSRLS attribute, which bypasses row-level security. " +
             "Connect as a role without it.",
         );
       }
@@ -119,7 +119,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
 
     if (connIsSuperuser && !usingPGlite) {
       logger.warn(
-        "Database connection is a superuser, which bypasses row level security. " +
+        "Database connection is a superuser, which bypasses row-level security. " +
           `Each request de-escalates to the "${FALLBACK_ROLE}" role so the policies apply, ` +
           "but connecting as a non-superuser role is recommended instead.",
       );

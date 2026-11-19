@@ -39,7 +39,7 @@ afterAll(async () => {
   await closeDb();
 });
 
-describe("row level security", () => {
+describe("row-level security", () => {
   it("runs as a role without superuser rights", async () => {
     expect(await isSuperuser(db)).toBe(true);
     const role = await asUser({ id: alice, permissions: ["user:read:own"] }, async (trx) => {
@@ -161,7 +161,7 @@ describe("row level security", () => {
     }
   });
 
-  it("rejects tables without row level security", async () => {
+  it("rejects tables without row-level security", async () => {
     await sql`CREATE TABLE public.unprotected_objects (id SERIAL PRIMARY KEY)`.execute(db);
     try {
       await expect(applySecurity(db, [coreFeature])).rejects.toThrow(/unprotected_objects/);
@@ -190,10 +190,10 @@ describe("row level security", () => {
     expect(hasAccess(resource, "extra_objects.id")).toContain("acl.extra_object_id = extra_objects.id");
   });
 
-  it("rejects a fallback role that bypasses row level security", async () => {
+  it("rejects a fallback role that bypasses row-level security", async () => {
     await sql`ALTER ROLE ${sql.raw(FALLBACK_ROLE)} BYPASSRLS`.execute(db);
     try {
-      await expect(applySecurity(db, [coreFeature])).rejects.toThrow(/bypasses row level security/);
+      await expect(applySecurity(db, [coreFeature])).rejects.toThrow(/bypasses row-level security/);
     } finally {
       await sql`ALTER ROLE ${sql.raw(FALLBACK_ROLE)} NOBYPASSRLS`.execute(db);
     }
