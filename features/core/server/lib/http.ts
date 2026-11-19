@@ -6,6 +6,7 @@ import type { IncomingMessage } from "node:http";
 import type { LookupFunction } from "node:net";
 
 import { TRPCError } from "@trpc/server";
+import { useRuntimeConfig } from "nitropack/runtime/config";
 import { z } from "zod/v4";
 
 import type { HttpHeaders } from "#layers/core/shared/http";
@@ -32,7 +33,7 @@ const HEADERS_TIMEOUT_MS = 300_000;
 const BODY_TIMEOUT_MS = 300_000;
 const KEEP_ALIVE_TIMEOUT_MS = 4_000;
 
-const USER_AGENT = "Capek";
+const USER_AGENT = useRuntimeConfig().httpUserAgent;
 
 const RESERVED_HEADERS = new Set([
   "connection",

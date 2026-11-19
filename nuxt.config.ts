@@ -3,6 +3,7 @@ import process from "node:process";
 import { defineNuxtConfig } from "nuxt/config";
 
 import { findEnabledFeatures } from "./features/core/modules/features/selection.ts";
+import pkg from "./package.json" with { type: "json" };
 
 const enabledFeatures = await findEnabledFeatures(new URL("./", import.meta.url), process.env.FEATURES);
 
@@ -18,6 +19,9 @@ export default defineNuxtConfig({
     compatibilityVersion: 5,
   },
   modules: ["@nuxt/devtools", "@nuxt/eslint"],
+  runtimeConfig: {
+    httpUserAgent: `${pkg.name}/${pkg.version}`,
+  },
   typescript: {
     tsConfig: {
       compilerOptions: {

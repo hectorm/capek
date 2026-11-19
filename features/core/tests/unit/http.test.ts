@@ -252,7 +252,7 @@ describe("endpoint request", () => {
     });
     expect(await response.json()).toEqual({
       method: "POST",
-      agent: "Capek",
+      agent: runtimeConfig.httpUserAgent,
       token: "secret",
       body: '{"model":"reasoner"}',
     });

@@ -3,6 +3,7 @@ export const runtimeConfig: Record<string, unknown> = {
   databaseMaxConnections: 1,
   encryption: { key: "GIMAxGqsofiyEBw2fzuXw0IiTiDD5vKWDJzYS5FxCyM=", previousKey: "" },
   allowedPrivateHosts: "",
+  httpUserAgent: "test/1.0.0",
   logLevel: "silent",
 };
 
