@@ -53,6 +53,7 @@ const headers = Object.fromEntries(setups.flatMap((setup) => Object.entries(setu
 export default defineConfig({
   testDir: "./features/",
   testMatch: selection.enabled.map((name) => `features/${name}/tests/integration/**/*.spec.ts`),
+  metadata: { enabledFeatures: selection.enabled },
   outputDir: "./.cache/playwright/output/",
   globalSetup: integrationDirs.map((dir) => join(dir, "global-setup.ts")).filter((file) => existsSync(file)),
   reporter: isCI ? [["dot"]] : [["list"], ["html", { outputFolder: "./.cache/playwright/report/", open: "never" }]],
