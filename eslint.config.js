@@ -214,6 +214,7 @@ export default withNuxt(
     "dist/**",
     // Excluded features are not part of the TypeScript projects
     ...selection.excluded.map((name) => `features/${name}/**`),
+    ...selection.excludedFiles,
   ]),
 ).prepend(
   eslint.configs.recommended,

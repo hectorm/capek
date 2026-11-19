@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { readIntegrations, resolveIntegrations } from "#layers/core/modules/features/integrations";
 import { orderFeatures } from "#layers/core/modules/features/order";
 import { selectFeatures } from "#layers/core/modules/features/selection";
 import coreFeature from "#layers/core/server/feature";
@@ -36,6 +37,33 @@ describe("feature registry", () => {
     expect(selectFeatures(features)).toEqual(["files", "core"]);
     expect(selectFeatures(features, " reports, ")).toEqual(["reports", "core"]);
     expect(() => selectFeatures(features, "files,charts")).toThrow(/Unknown feature "charts" in FEATURES/);
+  });
+
+  it("imports the adapter of an integration only in the builds with its companion feature", () => {
+    const integrations = readIntegrations("reports", {
+      files: {
+        adapter: "app/integrations/files.ts",
+        fallback: "app/integrations/disabled.ts",
+        files: ["tests/unit/files-*.test.ts"],
+      },
+    });
+    const reports = { name: "reports", root: "/app/features/reports", integrations };
+
+    expect(resolveIntegrations([reports], ["files", "reports", "core"])).toEqual({
+      aliases: { "#features/reports-files": "/app/features/reports/app/integrations/files.ts" },
+      excludedPaths: [],
+    });
+    expect(resolveIntegrations([reports], ["reports", "core"])).toEqual({
+      aliases: { "#features/reports-files": "/app/features/reports/app/integrations/disabled.ts" },
+      excludedPaths: [
+        "/app/features/reports/app/integrations/files.ts",
+        "/app/features/reports/tests/unit/files-*.test.ts",
+      ],
+    });
+    expect(readIntegrations("reports")).toEqual({});
+    expect(() => readIntegrations("reports", { files: { adapter: "app/integrations/files.ts" } })).toThrow(
+      /Feature "reports" must set each entry of the "\$meta.integrations" option/,
+    );
   });
 
   it("rejects duplicated feature names before migrating", async () => {

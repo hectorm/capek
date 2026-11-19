@@ -4,13 +4,16 @@ import { pathToFileURL } from "node:url";
 
 import { addTemplate, defineNuxtModule, getLayerDirectories } from "nuxt/kit";
 
+import type { FeatureIntegration } from "./integrations.ts";
 import type { FeatureNode } from "./order.ts";
+import { readIntegrations, resolveIntegrations } from "./integrations.ts";
 import { orderFeatures } from "./order.ts";
 
 interface Feature extends FeatureNode {
   dirs: ReturnType<typeof getLayerDirectories>[number];
   // Name given in the `$meta` option of the layer
   metaName: unknown;
+  integrations: Record<string, FeatureIntegration>;
   runtimeConfig: Record<string, unknown>;
   localeFiles: string[];
 }
@@ -38,13 +41,14 @@ export default defineNuxtModule({
       .map((dirs, i) => {
         const layer = nuxt.options._layers[i];
         const config = layer?.config;
-        const meta = (layer?.meta ?? {}) as { name?: unknown; dependsOn?: unknown };
+        const meta = (layer?.meta ?? {}) as { name?: unknown; dependsOn?: unknown; integrations?: unknown };
         const i18n = (config as { i18n?: I18nOptions } | undefined)?.i18n;
         return {
           name: basename(dirs.root),
           dirs,
           metaName: meta.name,
           dependsOn: Array.isArray(meta.dependsOn) ? meta.dependsOn.map(String) : [],
+          integrations: readIntegrations(basename(dirs.root), meta.integrations),
           runtimeConfig: config?.runtimeConfig ?? {},
           localeFiles: (i18n?.locales ?? []).flatMap((locale) => {
             return typeof locale === "object" && locale.file !== undefined
@@ -66,10 +70,21 @@ export default defineNuxtModule({
     const excluded = readdirSync(featuresDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && !enabled.includes(entry.name))
       .map((entry) => entry.name);
+    // Optional integrations import their companion feature only in the builds that include it
+    const { aliases, excludedPaths } = resolveIntegrations(
+      features.map(({ name, dirs, integrations }) => ({ name, root: dirs.root, integrations })),
+      enabled,
+    );
+    Object.assign(nuxt.options.alias, aliases);
+    const { appTsConfig, serverTsConfig, sharedTsConfig, nodeTsConfig } = nuxt.options.typescript;
+    for (const config of [appTsConfig, serverTsConfig, sharedTsConfig, nodeTsConfig]) {
+      config.exclude = [...(config.exclude ?? []), ...excludedPaths];
+    }
+    const excludedFiles = excludedPaths.map((path) => relative(nuxt.options.rootDir, path).replaceAll("\\", "/"));
     addTemplate({
       filename: "features/selection.json",
       write: true,
-      getContents: () => JSON.stringify({ enabled, excluded }, null, 2),
+      getContents: () => JSON.stringify({ enabled, excluded, excludedFiles }, null, 2),
     });
 
     // Plain JavaScript and separate types work from any build directory
