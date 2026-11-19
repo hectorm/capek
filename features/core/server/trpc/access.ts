@@ -6,7 +6,7 @@ import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PermissionName, PrincipalAccess } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { listResourceAccess, listResources, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { authorizedProcedure } from "#layers/core/server/trpc/init";
 import { PrincipalAccessSchema } from "#layers/core/shared/rbac";
@@ -72,7 +72,7 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
     listAccess: authorizedProcedure(options.readPermissions)
       .input(ListAccessInputSchema)
       .query(async ({ ctx, input: { resourceId } }) => {
-        return withUserTransaction(ctx.user, async (trx) => {
+        return withResourceTransaction(ctx.user, resource.type, "read", async (trx) => {
           const [found] = await listResources(trx, resource, { ids: [resourceId] });
           if (!found) {
             ctx.logger.warn({ [idKey]: resourceId }, `${capitalizedLabel} not found`);

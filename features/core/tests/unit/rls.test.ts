@@ -1,7 +1,9 @@
 import type { Kysely } from "kysely";
+import type { Logger } from "pino";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { Database } from "#layers/core/shared/schema";
 import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
@@ -10,6 +12,10 @@ import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { applySecurity, composeSecurity, hasAccess, protectTable } from "#layers/core/server/lib/database/security";
+import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
+import { groupRouter } from "#layers/core/server/trpc/routers/group";
+import { userRouter } from "#layers/core/server/trpc/routers/user";
+import { CorePermissions } from "#layers/core/shared/rbac";
 import { asUser, closeDb, createTestDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
@@ -81,6 +87,28 @@ describe("row-level security", () => {
       };
     });
     expect(visible).toEqual({ users, groups });
+  });
+
+  it("scopes directory reads and group search to the permission for that action", async () => {
+    const { GroupListAll, GroupListOwn, GroupReadAll, GroupReadOwn, UserListAll, UserReadOwn } = CorePermissions;
+    const caller = createCallerFactory(createTRPCRouter({ user: userRouter, group: groupRouter }));
+    const logger = { warn: () => undefined, debug: () => undefined } as unknown as Logger;
+    const asAlice = (permissions: string[]) => {
+      return caller({ logger, user: { id: alice, groups: [carolGroup], permissions } as unknown as AuthUser });
+    };
+
+    const browse = asAlice([UserListAll, UserReadOwn, GroupListAll, GroupReadOwn]);
+    await expect(browse.user.read({ id: alice })).resolves.toMatchObject({ id: alice });
+    await expect(browse.user.read({ id: bob })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(browse.group.read({ id: carolGroup })).resolves.toMatchObject({ id: carolGroup });
+    await expect(browse.group.read({ id: daveGroup })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const read = asAlice([GroupReadAll, GroupListOwn]);
+    await expect(read.group.read({ id: daveGroup })).resolves.toMatchObject({ id: daveGroup });
+    await expect(read.group.search({ limit: 1 })).resolves.toMatchObject({
+      groups: [{ id: carolGroup }],
+      nextCursor: undefined,
+    });
   });
 
   it("rejects writes without the matching permission", async () => {

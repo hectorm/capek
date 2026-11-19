@@ -9,6 +9,7 @@ import { useRuntimeConfig } from "nitropack/runtime/config";
 import pg from "pg";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { ResourceSelectAction } from "#layers/core/server/lib/database/security";
 import type { Database } from "#layers/core/shared/schema";
 import { bypassesRls, FALLBACK_ROLE, isSuperuser } from "#layers/core/server/lib/database/rls";
 import { useLogger } from "#layers/core/server/lib/logger";
@@ -162,6 +163,7 @@ export const setupDbHandover = (ready: Promise<void>): void => {
 export interface UserTransactionOptions {
   // Sets the GUC that RLS policies check to allow server-authored rows
   trustedWrites?: boolean;
+  resourceScope?: `${string}:${ResourceSelectAction}`;
 }
 
 export const withUserTransaction = async <T>(
@@ -178,9 +180,17 @@ export const withUserTransaction = async <T>(
         set_config('app.user_groups', ARRAY[${sql.join(user.groups)}]::UUID[]::TEXT, true),
         set_config('app.user_permissions', ARRAY[${sql.join(user.permissions)}]::TEXT[]::TEXT, true),
         set_config('app.trusted_write', ${options.trustedWrites ? "on" : "off"}, true),
+        set_config('app.resource_scope', ${options.resourceScope ?? ""}, true),
         -- The policies trigger JIT compilation in short queries, which is slower than running them
         set_config('jit', 'off', true)
     `.execute(trx);
     return callback(trx);
   });
 };
+
+export const withResourceTransaction = <T>(
+  user: AuthUser,
+  resource: string,
+  action: ResourceSelectAction,
+  callback: (trx: Transaction<Database>) => Promise<T>,
+): Promise<T> => withUserTransaction(user, callback, { resourceScope: `${resource}:${action}` });

@@ -9,7 +9,7 @@ import type { Database } from "#layers/core/shared/schema";
 import { userPicturePath } from "#layers/core/server/lib/authn/picture";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -87,7 +87,7 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, "user", "read", async (trx) => {
         const user = await selectUsers(trx).where("users.id", "=", input.id).executeTakeFirst();
 
         if (!user) {
@@ -117,7 +117,7 @@ export const userRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, "user", "list", async (trx) => {
         let query = selectUsers(trx);
 
         if (search.length > 0) {

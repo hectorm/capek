@@ -286,6 +286,27 @@ export const hasAccess = (resource: SharedResource, column: string, roles?: read
   `;
 };
 
+export type ResourceSelectAction = "read" | "list";
+
+// Evaluate the scope of one action using the resource's own-row rule
+export const selectAccess = (type: string, action: ResourceSelectAction, own: string): string => `
+  (SELECT security.can_any(ARRAY['${type}:${action}:all']))
+  OR ((SELECT security.can_any(ARRAY['${type}:${action}:own'])) AND (${own}))
+`;
+
+// Intersect the baseline visibility policy with the scope of an explicit read or list
+export const scopedSelectPolicy = (table: string, type: string, own: string): string => `
+  CREATE POLICY ${table}_select_scope ON public.${table}
+    AS RESTRICTIVE FOR SELECT
+    USING (
+      CASE (SELECT CURRENT_SETTING('app.resource_scope', TRUE))
+        WHEN '${type}:read' THEN (${selectAccess(type, "read", own)})
+        WHEN '${type}:list' THEN (${selectAccess(type, "list", own)})
+        ELSE TRUE
+      END
+    );
+`;
+
 // Check whether the target has a grant on a resource where the caller holds an editor grant directly or via a group
 export const sharesResourceWith = (
   resources: readonly SharedResource[],
@@ -359,6 +380,7 @@ export const sharedResourcePolicies = (
           )
         );
     `,
+    scopedSelectPolicy(table, type, hasAccess(resource, `${table}.id`)),
     // Require create permission and any feature-specific insert condition
     `
       CREATE POLICY ${table}_insert ON public.${table}
@@ -385,11 +407,17 @@ export const sharedResourcePolicies = (
         USING (${canEdit("delete")});
     `,
     ...protectTable(accessTable),
-    // Read or update permission (:all or :own) exposes grant rows across resources to avoid policy recursion
+    // Readers and updaters can inspect grants. The other :own permissions only expose the caller's own grants
     `
       CREATE POLICY ${accessTable}_select ON public.${accessTable}
         FOR SELECT
-        USING (${canAny("read:all", "update:all", "read:own", "update:own")});
+        USING (
+          ${canAny("read:all", "update:all", "read:own", "update:own")}
+          OR (
+            ${canAny("list:own", "delete:own", "use:own")}
+            AND (user_id = (SELECT security.user_id()) OR group_id = ANY ((SELECT security.user_groups())::UUID[]))
+          )
+        );
     `,
     // Allow sharing by authorized editors, update:all holders, or creators making their initial self-grants
     `

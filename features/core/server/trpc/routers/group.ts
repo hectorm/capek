@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 
 import type { Database } from "#layers/core/shared/schema";
 import { syncGroupRoles } from "#layers/core/server/lib/authn/sync";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -45,7 +45,7 @@ export const groupRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, "group", "read", async (trx) => {
         const group = await selectGroups(trx).where("groups.id", "=", input.id).executeTakeFirst();
 
         if (!group) {
@@ -75,7 +75,7 @@ export const groupRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, "group", "list", async (trx) => {
         let query = selectGroups(trx);
 
         if (search.length > 0) {

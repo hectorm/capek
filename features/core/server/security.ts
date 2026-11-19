@@ -1,5 +1,15 @@
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
-import { protectTable, sharesResourceWith } from "#layers/core/server/lib/database/security";
+import { protectTable, scopedSelectPolicy, sharesResourceWith } from "#layers/core/server/lib/database/security";
+
+const OWN_USER = "users.id = (SELECT security.user_id())";
+
+const MEMBER_OF_GROUP = `
+  EXISTS (
+    SELECT 1 FROM public.user_groups
+    WHERE user_groups.group_id = groups.id
+      AND user_groups.user_id = (SELECT security.user_id())
+  )
+`;
 
 export const coreSecurity: SecurityDefinition = {
   statements: (ctx) => [
@@ -10,11 +20,12 @@ export const coreSecurity: SecurityDefinition = {
         FOR SELECT
         USING (
           (SELECT security.can_any(ARRAY['user:read:all', 'user:list:all']))
-          OR (id = (SELECT security.user_id()) AND (SELECT security.can_any(ARRAY['user:read:own'])))
+          OR (${OWN_USER} AND (SELECT security.can_any(ARRAY['user:read:own'])))
           -- Implicit: editors can see users with whom they share resource access
           OR ${sharesResourceWith(ctx.sharedResources, { userId: "users.id" })}
         );
     `,
+    scopedSelectPolicy("users", "user", OWN_USER),
     `
       CREATE POLICY users_insert ON public.users
         FOR INSERT
@@ -47,16 +58,13 @@ export const coreSecurity: SecurityDefinition = {
           (SELECT security.can_any(ARRAY['group:read:all', 'group:list:all']))
           OR (
             (SELECT security.can_any(ARRAY['group:read:own', 'group:list:own']))
-            AND EXISTS (
-              SELECT 1 FROM public.user_groups
-              WHERE user_groups.group_id = groups.id
-              AND user_groups.user_id = (SELECT security.user_id())
-            )
+            AND ${MEMBER_OF_GROUP}
           )
           -- Implicit: editors can see groups with whom they share resource access
           OR ${sharesResourceWith(ctx.sharedResources, { groupId: "groups.id" })}
         );
     `,
+    scopedSelectPolicy("groups", "group", MEMBER_OF_GROUP),
     `
       CREATE POLICY groups_insert ON public.groups
         FOR INSERT
