@@ -1,3 +1,4 @@
+import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { DatasourceConnectionParams } from "#layers/datasources/server/lib/drivers";
 import { defineToolProvider } from "#layers/ai/server/lib/tools/define";
 import { TABLE_PART_MAX_ROWS } from "#layers/ai/shared/tools";
@@ -164,3 +165,5 @@ export const datasourcesToolProvider = defineToolProvider({
     };
   },
 });
+
+export default { tools: [datasourcesToolProvider] } satisfies Pick<ServerFeature, "tools">;

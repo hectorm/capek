@@ -7,7 +7,7 @@ import { executeQuery } from "#layers/datasources/server/lib/query";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
 
 // A datasource whose server never answers
-const type: ServerDatasourceType = {
+const unresponsiveType: ServerDatasourceType = {
   definition: PostgresDatasourceType,
   driver: {
     validationQuery: "SELECT 1",
@@ -22,7 +22,7 @@ const type: ServerDatasourceType = {
 
 describe("executeQuery", () => {
   it("gives up once the time to connect and run the statement is over", async () => {
-    const query = executeQuery(type, { config: {} }, "SELECT 1", {
+    const query = executeQuery(unresponsiveType, { config: {} }, "SELECT 1", {
       statementTimeoutMs: 50,
       requestTimeoutMs: 50,
     });
@@ -32,7 +32,7 @@ describe("executeQuery", () => {
   it("stops when its signal aborts", async () => {
     const controller = new AbortController();
     const stopped = new Error("stopped");
-    const query = executeQuery(type, { config: {} }, "SELECT 1", {
+    const query = executeQuery(unresponsiveType, { config: {} }, "SELECT 1", {
       statementTimeoutMs: 5_000,
       requestTimeoutMs: 5_000,
       signal: controller.signal,

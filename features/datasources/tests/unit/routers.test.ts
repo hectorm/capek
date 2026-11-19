@@ -4,11 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
+import { listResources } from "#layers/core/server/lib/authz/resources";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
+import { SourceResource } from "#layers/datasources/server/lib/resources";
 import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { sourceRouter } from "#layers/datasources/server/trpc/routers/source";
 import { DatasourcesPermissions, DatasourcesRolePermissions } from "#layers/datasources/shared/rbac";
@@ -81,6 +83,32 @@ describe("connection test", () => {
 });
 
 describe("datasource", () => {
+  it("is only visible to the users that it is shared with", async () => {
+    const visible = (granted: string[]): Promise<string[]> => {
+      return asUser({ id: mallory, permissions: granted }, async (trx) => {
+        const rows = await trx.selectFrom("datasourcesSources").select(["name"]).orderBy("name").execute();
+        return rows.map((row) => row.name);
+      });
+    };
+
+    const { SourceReadOwn, SourceListOwn, SourceListAll } = DatasourcesPermissions;
+    expect(await visible([SourceReadOwn, SourceListOwn])).toEqual(["sales"]);
+    expect(await visible([SourceListAll])).toEqual(["private", "sales"]);
+    expect(await visible([])).toEqual([]);
+  });
+
+  it("is only assignable by the users that can use it", async () => {
+    const assignable = (granted: string[]) => {
+      return asUser({ id: mallory, permissions: granted }, (trx) => {
+        return listResources(trx, SourceResource, { limit: 10 });
+      });
+    };
+    const { SourceReadOwn, SourceUseOwn } = DatasourcesPermissions;
+    expect(await assignable([SourceReadOwn, SourceUseOwn])).toEqual([{ id: sourceId, name: "sales" }]);
+    // The use permission is enough
+    expect(await assignable([SourceUseOwn])).toEqual([{ id: sourceId, name: "sales" }]);
+  });
+
   it("is read without its password", async () => {
     const source = await member.source.read({ id: sourceId });
     expect(source.config).toMatchObject({ username: "postgres", password: HTTP_REDACTED_VALUE });

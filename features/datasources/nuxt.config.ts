@@ -3,7 +3,13 @@ import { defineNuxtConfig } from "nuxt/config";
 export default defineNuxtConfig({
   $meta: {
     name: "datasources",
-    dependsOn: ["ai"],
+    integrations: {
+      ai: {
+        adapter: "server/integrations/ai.ts",
+        fallback: "server/integrations/fallback.ts",
+        files: ["tests/unit/ai-tools.test.ts"],
+      },
+    },
   },
   i18n: {
     langDir: "locales",

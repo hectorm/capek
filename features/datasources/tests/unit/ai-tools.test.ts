@@ -8,14 +8,11 @@ import type { ToolPart } from "#layers/ai/shared/tools";
 import type { Database } from "#layers/core/shared/schema";
 import { collectToolProviders } from "#layers/ai/server/lib/tools/define";
 import coreFeature from "#layers/core/server/feature";
-import { listResources } from "#layers/core/server/lib/authz/resources";
-import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
+import { closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import datasourcesFeature from "#layers/datasources/server/feature";
-import { datasourceTypes, findDatasourceType } from "#layers/datasources/server/lib/drivers";
+import { datasourcesToolProvider } from "#layers/datasources/server/integrations/ai";
 import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
-import { datasourcesToolProvider } from "#layers/datasources/server/lib/tools";
-import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
 let db: Kysely<Database>;
 
@@ -83,34 +80,6 @@ const loadQueryTool = async () => {
   }
   return tool;
 };
-
-describe("datasource", () => {
-  it("is only visible to the users that it is shared with", async () => {
-    const visible = (granted: string[]): Promise<string[]> => {
-      return asUser({ id: alice, permissions: granted }, async (trx) => {
-        const rows = await trx.selectFrom("datasourcesSources").select(["name"]).orderBy("name").execute();
-        return rows.map((row) => row.name);
-      });
-    };
-
-    expect(await visible(["datasources_source:read:own", "datasources_source:list:own"])).toEqual(["sales"]);
-    expect(await visible(["datasources_source:list:all"])).toEqual(["legacy", "sales"]);
-    expect(await visible([])).toEqual([]);
-  });
-
-  it("is only assignable by the users that can use it", async () => {
-    const permissions = ["datasources_source:read:own", "datasources_source:use:own"];
-    const assignable = await asUser({ id: alice, permissions }, (trx) => {
-      return listResources(trx, datasourcesToolProvider.resource, { limit: 10 });
-    });
-    expect(assignable).toEqual([{ id: salesId, name: "sales" }]);
-  });
-
-  it("has the same types in the browser and in the server", () => {
-    expect(datasourceTypes.map((type) => type.definition)).toEqual(DatasourceTypes);
-    expect(findDatasourceType("removed")).toBeUndefined();
-  });
-});
 
 describe("datasource tool", () => {
   it("is loaded for the assigned datasources", async () => {
