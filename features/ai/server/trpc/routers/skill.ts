@@ -8,7 +8,7 @@ import { SkillResource } from "#layers/ai/server/lib/resources";
 import { parseSkillParameters, validateSkillJSDoc, validateSkillSyntax } from "#layers/ai/server/lib/skills/validator";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -27,7 +27,7 @@ export const skillRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.SkillReadAll, AiPermissions.SkillReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, SkillResource.type, "read", async (trx) => {
         const skill = await trx
           .selectFrom("aiSkills")
           .select(["id", "name", "description", "documentation", "code"])
@@ -61,7 +61,7 @@ export const skillRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, SkillResource.type, "list", async (trx) => {
         let query = trx.selectFrom("aiSkills").select(["id", "name", "description"]);
 
         if (search.length > 0) {

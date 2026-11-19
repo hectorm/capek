@@ -7,7 +7,25 @@ import {
   McpServerResource,
   SkillResource,
 } from "#layers/ai/server/lib/resources";
-import { hasAccess, isOwner, protectTable, sharedResourcePolicies } from "#layers/core/server/lib/database/security";
+import {
+  hasAccess,
+  isOwner,
+  protectTable,
+  scopedSelectPolicy,
+  sharedResourcePolicies,
+} from "#layers/core/server/lib/database/security";
+
+const chatSelectPolicies = (table: string, own: string): string[] => [
+  `
+    CREATE POLICY ${table}_select ON public.${table}
+      FOR SELECT
+      USING (
+        (SELECT security.can_any(ARRAY['ai_chat:read:all', 'ai_chat:list:all']))
+        OR ((SELECT security.can_any(ARRAY['ai_chat:read:own', 'ai_chat:list:own'])) AND ${own})
+      );
+  `,
+  scopedSelectPolicy(table, ChatResource.type, own),
+];
 
 export const aiSecurity: SecurityDefinition = {
   ownedResources: [ChatResource, AgentExecutionResource],
@@ -52,14 +70,7 @@ export const aiSecurity: SecurityDefinition = {
 
     // Chat Sessions
     ...protectTable("ai_chat_sessions"),
-    `
-      CREATE POLICY ai_chat_sessions_select ON public.ai_chat_sessions
-        FOR SELECT
-        USING (
-          (SELECT security.can_any(ARRAY['ai_chat:read:all', 'ai_chat:list:all']))
-          OR (user_id = (SELECT security.user_id()) AND (SELECT security.can_any(ARRAY['ai_chat:read:own', 'ai_chat:list:own'])))
-        );
-    `,
+    ...chatSelectPolicies("ai_chat_sessions", "ai_chat_sessions.user_id = (SELECT security.user_id())"),
     `
       CREATE POLICY ai_chat_sessions_insert ON public.ai_chat_sessions
         FOR INSERT
@@ -112,14 +123,7 @@ export const aiSecurity: SecurityDefinition = {
 
     // Chat Messages
     ...protectTable("ai_chat_messages"),
-    `
-      CREATE POLICY ai_chat_messages_select ON public.ai_chat_messages
-        FOR SELECT
-        USING (
-          (SELECT security.can_any(ARRAY['ai_chat:read:all', 'ai_chat:list:all']))
-          OR ((SELECT security.can_any(ARRAY['ai_chat:read:own', 'ai_chat:list:own'])) AND ${isOwner(ChatResource, "ai_chat_messages.session_id")})
-        );
-    `,
+    ...chatSelectPolicies("ai_chat_messages", isOwner(ChatResource, "ai_chat_messages.session_id")),
     `
       CREATE POLICY ai_chat_messages_insert ON public.ai_chat_messages
         FOR INSERT
@@ -178,14 +182,7 @@ export const aiSecurity: SecurityDefinition = {
 
     // Chat Tables
     ...protectTable("ai_chat_tables"),
-    `
-      CREATE POLICY ai_chat_tables_select ON public.ai_chat_tables
-        FOR SELECT
-        USING (
-          (SELECT security.can_any(ARRAY['ai_chat:read:all', 'ai_chat:list:all']))
-          OR ((SELECT security.can_any(ARRAY['ai_chat:read:own', 'ai_chat:list:own'])) AND ${isOwner(ChatResource, "ai_chat_tables.session_id")})
-        );
-    `,
+    ...chatSelectPolicies("ai_chat_tables", isOwner(ChatResource, "ai_chat_tables.session_id")),
     `
       CREATE POLICY ai_chat_tables_insert ON public.ai_chat_tables
         FOR INSERT

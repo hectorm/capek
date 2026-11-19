@@ -20,7 +20,7 @@ import {
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { canAny } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess, listResources, usableResourceIds } from "#layers/core/server/lib/authz/resources";
-import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
+import { useDb, withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { syncLinks } from "#layers/core/server/lib/database/links";
 import {
@@ -137,7 +137,7 @@ export const agentRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      const agent = await withUserTransaction(ctx.user, async (trx) => {
+      const agent = await withResourceTransaction(ctx.user, AgentResource.type, "read", (trx) => {
         return trx
           .selectFrom("aiAgents")
           .select([
@@ -211,7 +211,7 @@ export const agentRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order, type } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, AgentResource.type, "list", async (trx) => {
         let query = trx
           .selectFrom("aiAgents")
           .select([
@@ -601,8 +601,8 @@ export const agentRouter = createTRPCRouter({
   listSpecialists: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ triageAgentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      const agent = await withUserTransaction(ctx.user, async (trx) => {
-        return trx.selectFrom("aiAgents").select(["id"]).where("id", "=", input.triageAgentId).executeTakeFirst();
+      const agent = await withResourceTransaction(ctx.user, AgentResource.type, "read", (trx) => {
+        return trx.selectFrom("aiAgents").select("id").where("id", "=", input.triageAgentId).executeTakeFirst();
       });
 
       if (!agent) {
@@ -631,8 +631,8 @@ export const agentRouter = createTRPCRouter({
   listMcpServers: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      const agent = await withUserTransaction(ctx.user, async (trx) => {
-        return trx.selectFrom("aiAgents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
+      const agent = await withResourceTransaction(ctx.user, AgentResource.type, "read", (trx) => {
+        return trx.selectFrom("aiAgents").select("id").where("id", "=", input.agentId).executeTakeFirst();
       });
 
       if (!agent) {
@@ -661,8 +661,8 @@ export const agentRouter = createTRPCRouter({
   listSkills: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      const agent = await withUserTransaction(ctx.user, async (trx) => {
-        return trx.selectFrom("aiAgents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
+      const agent = await withResourceTransaction(ctx.user, AgentResource.type, "read", (trx) => {
+        return trx.selectFrom("aiAgents").select("id").where("id", "=", input.agentId).executeTakeFirst();
       });
 
       if (!agent) {
@@ -726,8 +726,8 @@ export const agentRouter = createTRPCRouter({
   listToolResources: authorizedProcedure([AiPermissions.AgentReadAll, AiPermissions.AgentReadOwn])
     .input(z.object({ agentId: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      const agent = await withUserTransaction(ctx.user, async (trx) => {
-        return trx.selectFrom("aiAgents").select(["id"]).where("id", "=", input.agentId).executeTakeFirst();
+      const agent = await withResourceTransaction(ctx.user, AgentResource.type, "read", (trx) => {
+        return trx.selectFrom("aiAgents").select("id").where("id", "=", input.agentId).executeTakeFirst();
       });
 
       if (!agent) {

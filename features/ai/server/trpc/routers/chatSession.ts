@@ -3,10 +3,11 @@ import { z } from "zod/v4";
 
 import { fallbackChatTitle, LlmClient } from "#layers/ai/server/lib/llm/client";
 import { MCPManager } from "#layers/ai/server/lib/mcp/manager";
+import { ChatResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { AiPermissions } from "#layers/ai/shared/rbac";
-import { canAny } from "#layers/core/server/lib/authz/permissions";
-import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
+import { can } from "#layers/core/server/lib/authz/permissions";
+import { useDb, withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -24,7 +25,7 @@ export const chatSessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, ChatResource.type, "read", async (trx) => {
         const session = await trx
           .selectFrom("aiChatSessions")
           .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"])
@@ -58,13 +59,13 @@ export const chatSessionRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, ChatResource.type, "list", async (trx) => {
         let query = trx
           .selectFrom("aiChatSessions")
           .select(["id", "userId", "agentId", "title", "createdAt", "updatedAt"]);
 
-        // Filtering by user ID avoids scanning other users' sessions during the policy check
-        if (!canAny(ctx.user, [AiPermissions.ChatReadAll, AiPermissions.ChatListAll])) {
+        // Filter by user so the query uses the owner index
+        if (!can(ctx.user, AiPermissions.ChatListAll)) {
           query = query.where("aiChatSessions.userId", "=", ctx.user.id);
         }
 
@@ -205,6 +206,7 @@ export const chatSessionRouter = createTRPCRouter({
             "aiAgents.id as accessibleAgentId",
           ])
           .where("aiChatSessions.id", "=", input.id)
+          .forUpdate("aiChatSessions")
           .executeTakeFirst();
 
         if (!sessionRow?.accessibleAgentId) {

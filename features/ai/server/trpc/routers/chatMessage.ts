@@ -5,8 +5,9 @@ import { z } from "zod/v4";
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import type { LlmItem } from "#layers/ai/shared/llm";
 import { deleteChatMessagesFrom } from "#layers/ai/server/lib/chat-messages";
+import { ChatResource } from "#layers/ai/server/lib/resources";
 import { AiPermissions } from "#layers/ai/shared/rbac";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { ListPageSizeSchema, PageCursorSchema, paginate } from "#layers/core/server/lib/database/pagination";
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 
@@ -28,7 +29,7 @@ const toParts = (content: string, items: LlmItem[]): ChatMessagePart[] => {
 };
 
 export const chatMessageRouter = createTRPCRouter({
-  list: authorizedProcedure([AiPermissions.ChatListAll, AiPermissions.ChatListOwn])
+  list: authorizedProcedure([AiPermissions.ChatReadAll, AiPermissions.ChatReadOwn])
     .input(
       z.object({
         sessionId: z.uuid(),
@@ -39,7 +40,7 @@ export const chatMessageRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { sessionId, limit, cursor } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, ChatResource.type, "read", async (trx) => {
         const query = trx
           .selectFrom("aiChatMessages")
           .select([

@@ -10,9 +10,10 @@ import type { NewChatTable } from "#layers/ai/shared/schema";
 import type { TablePart } from "#layers/ai/shared/tools";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
+import { ChatResource } from "#layers/ai/server/lib/resources";
 import { defineToolProvider } from "#layers/ai/server/lib/tools/define";
 import { TABLE_PART_MAX_ROWS, TablePartSchema } from "#layers/ai/shared/tools";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 
 export const AI_TABLE_TOOL = "ai_table";
 
@@ -101,7 +102,7 @@ export const attachTables = async (db: Kysely<Database>, tables: ChatTablePart[]
 };
 
 export const loadTable = async (id: string, user: AuthUser): Promise<string | undefined> => {
-  const row = await withUserTransaction(user, (trx) => {
+  const row = await withResourceTransaction(user, ChatResource.type, "read", (trx) => {
     return trx.selectFrom("aiChatTables").select(["data"]).where("id", "=", id).executeTakeFirst();
   });
 

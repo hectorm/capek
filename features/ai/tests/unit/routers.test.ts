@@ -1,4 +1,5 @@
 import http from "node:http";
+import { deflateSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 
 import type { Kysely } from "kysely";
@@ -14,9 +15,12 @@ import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
 import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { agentRouter } from "#layers/ai/server/trpc/routers/agent";
 import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chatMessage";
+import { chatSessionRouter } from "#layers/ai/server/trpc/routers/chatSession";
+import { chatTableRouter } from "#layers/ai/server/trpc/routers/chatTable";
 import { llmProviderRouter } from "#layers/ai/server/trpc/routers/llmProvider";
 import { mcpServerRouter } from "#layers/ai/server/trpc/routers/mcpServer";
-import { AiRolePermissions } from "#layers/ai/shared/rbac";
+import { skillRouter } from "#layers/ai/server/trpc/routers/skill";
+import { AiPermissions, AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
   closeDb,
   createAiTestDb,
@@ -46,14 +50,21 @@ const mcpServerId = crypto.randomUUID();
 const router = createTRPCRouter({
   agent: agentRouter,
   chatMessage: chatMessageRouter,
+  chatSession: chatSessionRouter,
+  chatTable: chatTableRouter,
   llmProvider: llmProviderRouter,
   mcpServer: mcpServerRouter,
+  skill: skillRouter,
 });
 const logger = { warn: () => undefined, info: () => undefined, debug: () => undefined } as unknown as Logger;
+const caller = createCallerFactory(router);
+
+const asUser = (id: string, permissions: string[]) => {
+  return caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
+};
 
 const as = (id: string, role: RoleName) => {
-  const permissions = [...CoreRolePermissions[role], ...AiRolePermissions[role]];
-  return createCallerFactory(router)({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
+  return asUser(id, [...CoreRolePermissions[role], ...AiRolePermissions[role]]);
 };
 
 beforeAll(async () => {
@@ -264,6 +275,24 @@ describe("tool discovery", () => {
 });
 
 describe("agent", () => {
+  it("requires the read scope for details and linked resources, and the list scope for search", async () => {
+    const shared = await insertAgent(db, "scope-shared");
+    const unshared = await insertAgent(db, "scope-unshared");
+    await db.insertInto("aiAgentAccess").values({ agentId: shared, userId: mallory, role: "user" }).execute();
+
+    const { AgentListAll, AgentListOwn, AgentReadAll, AgentReadOwn } = AiPermissions;
+    const browse = asUser(mallory, [AgentListAll, AgentReadOwn]).agent;
+    await expect(browse.read({ id: shared })).resolves.toMatchObject({ id: shared });
+    await expect(browse.read({ id: unshared })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(browse.listSkills({ agentId: unshared })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const read = asUser(mallory, [AgentReadAll, AgentListOwn]).agent;
+    await expect(read.search({ search: "scope-", limit: 1 })).resolves.toEqual({
+      agents: [expect.objectContaining({ id: shared })],
+      nextCursor: undefined,
+    });
+  });
+
   it("applies specialist settings consistently when creating and updating an agent", async () => {
     const { agent } = as(alice, Roles.Admin);
     const tools = { codeInterpreter: true, toolProviders: ["ai_tables"] };
@@ -327,6 +356,92 @@ describe("agent", () => {
 });
 
 describe("shared resource", () => {
+  it("requires the read scope for details and the list scope for search", async () => {
+    const insertMcpServer = async (name: string): Promise<string> => {
+      const row = await db
+        .insertInto("aiMcpServers")
+        .values({
+          name,
+          description: "",
+          url: `${endpointUrl}/mcp`,
+          headers: encryptMcpServerHeaders([]),
+          stateful: false,
+          toolCallTimeoutSec: null,
+          cachedTools: JSON.stringify([]),
+        })
+        .returning(["id"])
+        .executeTakeFirstOrThrow();
+      return row.id;
+    };
+    // Only the first resource is shared
+    const expectScopes = async (
+      [shared, unshared]: [string, string],
+      browse: { read: (input: { id: string }) => Promise<unknown> },
+      reader: { search: (input: { search: string; limit: number }) => Promise<unknown> },
+      listed: string,
+    ): Promise<void> => {
+      await expect(browse.read({ id: shared })).resolves.toMatchObject({ id: shared });
+      await expect(browse.read({ id: unshared })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(reader.search({ search: "scope-", limit: 1 })).resolves.toEqual({
+        [listed]: [expect.objectContaining({ id: shared })],
+        nextCursor: undefined,
+      });
+    };
+    const {
+      LlmProviderListAll,
+      LlmProviderListOwn,
+      LlmProviderReadAll,
+      LlmProviderReadOwn,
+      McpServerListAll,
+      McpServerListOwn,
+      McpServerReadAll,
+      McpServerReadOwn,
+      SkillListAll,
+      SkillListOwn,
+      SkillReadAll,
+      SkillReadOwn,
+    } = AiPermissions;
+
+    const llmProviders: [string, string] = [
+      await insertLlmProvider(db, "scope-shared"),
+      await insertLlmProvider(db, "scope-unshared"),
+    ];
+    await db
+      .insertInto("aiLlmProviderAccess")
+      .values({ llmProviderId: llmProviders[0], userId: mallory, role: "user" })
+      .execute();
+    await expectScopes(
+      llmProviders,
+      asUser(mallory, [LlmProviderListAll, LlmProviderReadOwn]).llmProvider,
+      asUser(mallory, [LlmProviderReadAll, LlmProviderListOwn]).llmProvider,
+      "llmProviders",
+    );
+
+    const mcpServers: [string, string] = [
+      await insertMcpServer("scope-shared"),
+      await insertMcpServer("scope-unshared"),
+    ];
+    await db
+      .insertInto("aiMcpServerAccess")
+      .values({ mcpServerId: mcpServers[0], userId: mallory, role: "user" })
+      .execute();
+    await expectScopes(
+      mcpServers,
+      asUser(mallory, [McpServerListAll, McpServerReadOwn]).mcpServer,
+      asUser(mallory, [McpServerReadAll, McpServerListOwn]).mcpServer,
+      "mcpServers",
+    );
+
+    const skills: [string, string] = [await insertSkill(db, "scope-shared"), await insertSkill(db, "scope-unshared")];
+    await db.insertInto("aiSkillAccess").values({ skillId: skills[0], userId: mallory, role: "user" }).execute();
+    await expectScopes(
+      skills,
+      asUser(mallory, [SkillListAll, SkillReadOwn]).skill,
+      asUser(mallory, [SkillReadAll, SkillListOwn]).skill,
+      "skills",
+    );
+  });
+
   it("is saved with its access, or not at all", async () => {
     const creator = as(alice, Roles.Creator);
     const access = [
@@ -360,6 +475,52 @@ describe("access list", () => {
 
     expect(await member.llmProvider.listAccess({ llmProviderId })).toHaveLength(1);
     await expect(member.mcpServer.listAccess({ mcpServerId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("chat access", () => {
+  it("separates the scope for listing chats from the scope for reading their content", async () => {
+    const own = crypto.randomUUID();
+    const other = crypto.randomUUID();
+    const tableId = crypto.randomUUID();
+    const agentId = await insertAgent(db, "scope-chat-agent");
+    await db
+      .insertInto("aiChatSessions")
+      .values([
+        { id: own, userId: alice, title: "scope-own", agentId },
+        { id: other, userId: mallory, title: "scope-other", agentId },
+      ])
+      .execute();
+    await db
+      .insertInto("aiChatMessages")
+      .values({ sessionId: other, role: "user", content: "Private message" })
+      .execute();
+    const data = JSON.stringify({ columns: ["value"], rows: [["Private table"]] });
+    await db
+      .insertInto("aiChatTables")
+      .values({ id: tableId, sessionId: other, data: deflateSync(data), size: data.length })
+      .execute();
+
+    const { AgentReadAll, ChatListAll, ChatListOwn, ChatReadAll, ChatReadOwn, ChatUpdateOwn } = AiPermissions;
+    const browse = asUser(alice, [ChatListAll, ChatReadOwn]);
+    await expect(
+      browse.chatSession.search({ search: "scope-", orderBy: "title", order: "asc" }),
+    ).resolves.toMatchObject({
+      sessions: [{ id: other }, { id: own }],
+    });
+    await expect(browse.chatSession.read({ id: other })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(browse.chatMessage.list({ sessionId: other })).resolves.toMatchObject({ messages: [] });
+    await expect(browse.chatTable.read({ id: tableId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const read = asUser(alice, [AgentReadAll, ChatListOwn, ChatReadAll, ChatUpdateOwn]);
+    await expect(read.chatSession.search({ search: "scope-" })).resolves.toMatchObject({
+      sessions: [expect.objectContaining({ id: own })],
+    });
+    await expect(read.chatMessage.list({ sessionId: other })).resolves.toMatchObject({
+      messages: [{ content: "Private message" }],
+    });
+    await expect(read.chatTable.read({ id: tableId })).resolves.toBe(data);
+    await expect(read.chatSession.autoRename({ id: other })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 

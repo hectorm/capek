@@ -12,7 +12,7 @@ import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -54,7 +54,7 @@ export const mcpServerRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.McpServerReadAll, AiPermissions.McpServerReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, McpServerResource.type, "read", async (trx) => {
         const mcpServer = await trx
           .selectFrom("aiMcpServers")
           .select(["id", "name", "description", "url", "headers", "stateful", "toolCallTimeoutSec"])
@@ -88,7 +88,7 @@ export const mcpServerRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, McpServerResource.type, "list", async (trx) => {
         let query = trx.selectFrom("aiMcpServers").select(["id", "name", "description", "url"]);
 
         if (search.length > 0) {

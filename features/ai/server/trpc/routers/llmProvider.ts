@@ -12,7 +12,7 @@ import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -52,7 +52,7 @@ export const llmProviderRouter = createTRPCRouter({
   read: authorizedProcedure([AiPermissions.LlmProviderReadAll, AiPermissions.LlmProviderReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, LlmProviderResource.type, "read", async (trx) => {
         const llmProvider = await trx
           .selectFrom("aiLlmProviders")
           .select(["id", "name", "description", "apiUrl", "apiType", "apiKey", "headers"])
@@ -86,7 +86,7 @@ export const llmProviderRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, LlmProviderResource.type, "list", async (trx) => {
         let query = trx.selectFrom("aiLlmProviders").select(["id", "name", "description", "apiUrl"]);
 
         if (search.length > 0) {
