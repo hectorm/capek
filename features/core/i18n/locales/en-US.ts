@@ -1,7 +1,7 @@
 export default () => ({
   layouts: {
     default: {
-      description: "Conversational AI platform",
+      description: "Application workspace",
       sidebar: {
         title: "Menu",
         description: "Navigation menu",

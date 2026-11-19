@@ -31,8 +31,8 @@ describe("request body limit", () => {
   });
 
   it("is only set by a feature for its own routes", () => {
-    expect(() => collectBodyLimits([{ name: "files", bodyLimits: { "/api/ai/chat/send": 100 } }])).toThrow(
-      /Route "\/api\/ai\/chat\/send" of feature "files" must start with "\/api\/files\/"/,
+    expect(() => collectBodyLimits([{ name: "files", bodyLimits: { "/api/inventory/import": 100 } }])).toThrow(
+      /Route "\/api\/inventory\/import" of feature "files" must start with "\/api\/files\/"/,
     );
     expect(() => {
       return collectBodyLimits([

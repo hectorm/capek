@@ -3,7 +3,7 @@ import type enUS from "./en-US";
 export default (): ReturnType<typeof enUS> => ({
   layouts: {
     default: {
-      description: "Plataforma de IA conversacional",
+      description: "Espacio de trabajo",
       sidebar: {
         title: "Menú",
         description: "Menú de navegación",

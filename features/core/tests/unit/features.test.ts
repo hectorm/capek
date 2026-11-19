@@ -56,14 +56,14 @@ describe("feature registry", () => {
       assertFeaturePrefix("core", "users", "Table");
     }).not.toThrow();
     expect(() => {
-      assertFeaturePrefix("ai", "ai_agents", "Table");
+      assertFeaturePrefix("inventory", "inventory_items", "Table");
     }).not.toThrow();
     expect(() => {
-      assertFeaturePrefix("ai", "ai.quickChats", "Setting", ".");
+      assertFeaturePrefix("inventory", "inventory.pageSize", "Setting", ".");
     }).not.toThrow();
     expect(() => {
-      assertFeaturePrefix("ai", "agents", "Table");
-    }).toThrow(/Table "agents" of feature "ai" must start with "ai_"/);
+      assertFeaturePrefix("inventory", "items", "Table");
+    }).toThrow(/Table "items" of feature "inventory" must start with "inventory_"/);
 
     const resource = defineSharedResource({ type: "file", table: "files" });
     expect(() => composeSecurity([coreFeature, { name: "files", security: { sharedResources: [resource] } }])).toThrow(

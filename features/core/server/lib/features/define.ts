@@ -27,7 +27,7 @@ export interface ServerFeature {
   onUserSync?: (event: { user: User; claims: Readonly<Record<string, unknown>> }) => Promise<void>;
 }
 
-// Names outside core use the feature prefix, e.g. ai_agents or ai.quickChats
+// Names outside core use the feature prefix, e.g. inventory_items or inventory.pageSize
 export const assertFeaturePrefix = (feature: string, name: string, kind: string, separator = "_"): void => {
   if (feature !== "core" && !name.startsWith(`${feature}${separator}`)) {
     throw new Error(`${kind} "${name}" of feature "${feature}" must start with "${feature}${separator}"`);
