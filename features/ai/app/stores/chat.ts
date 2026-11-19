@@ -43,6 +43,7 @@ export const useChatStore = defineStore("ai.chat", () => {
   const isLoadingMessages = computed(() => latestMessageLoads.size > 0);
   const isCreatingSession = ref<boolean>(false);
   const sessionsNextCursor = ref<RouterOutputs["ai"]["chatSession"]["search"]["nextCursor"]>(undefined);
+  let sessionsLoaded = false;
 
   const findSession = (sessionId: string): ChatSession | undefined => {
     return (
@@ -73,12 +74,17 @@ export const useChatStore = defineStore("ai.chat", () => {
   });
 
   const fetchSessions = async (): Promise<void> => {
+    if (sessionsLoaded || isLoadingSessions.value) {
+      return;
+    }
+
     isLoadingSessions.value = true;
 
     try {
       const result = await $trpc.ai.chatSession.search.query({});
       sessions.value = result.sessions;
       sessionsNextCursor.value = result.nextCursor;
+      sessionsLoaded = true;
     } catch (error) {
       throw new Error("Failed to fetch chat sessions", { cause: error });
     } finally {

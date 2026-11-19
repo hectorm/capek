@@ -5,6 +5,7 @@ export default (): ReturnType<typeof enUS> => ({
     layouts: {
       default: {
         sidebar: {
+          history: "Historial de chats",
           deleteChat: "Eliminar chat",
         },
       },
@@ -18,6 +19,12 @@ export default (): ReturnType<typeof enUS> => ({
           enterMessage: "Escriba su mensaje aquí...",
         },
         actions: {
+          fetchAgents: {
+            error: {
+              title: "Error",
+              description: "Error al cargar los agentes",
+            },
+          },
           fetchChats: {
             error: {
               title: "Error",

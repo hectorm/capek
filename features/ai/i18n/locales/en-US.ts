@@ -3,6 +3,7 @@ export default () => ({
     layouts: {
       default: {
         sidebar: {
+          history: "Chat history",
           deleteChat: "Delete chat",
         },
       },
@@ -16,6 +17,12 @@ export default () => ({
           enterMessage: "Type your message here...",
         },
         actions: {
+          fetchAgents: {
+            error: {
+              title: "Error",
+              description: "Failed to load agents",
+            },
+          },
           fetchChats: {
             error: {
               title: "Error",

@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { useInfiniteScroll } from "@vueuse/core";
+import { useInfiniteScroll, useMounted } from "@vueuse/core";
 import { navigateTo } from "nuxt/app";
-import { computed, useTemplateRef } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
-import { NuxtLink } from "#components";
-
 import UButton from "@nuxt/ui/components/Button.vue";
-import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
+import type { ScrollAreaVirtualizeOptions } from "@nuxt/ui/components/ScrollArea.vue";
+import UScrollArea from "@nuxt/ui/components/ScrollArea.vue";
 import UTooltip from "@nuxt/ui/components/Tooltip.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
@@ -16,10 +15,11 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 import { useChatUI } from "#layers/ai/app/composables/chat-ui";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
+import { useAppFeatures } from "#layers/core/app/composables/features";
 
 import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
 
-defineProps<{
+const props = defineProps<{
   collapsed?: boolean;
 }>();
 
@@ -30,25 +30,78 @@ const toast = useToast();
 
 const agentStore = useAgentStore();
 const chatStore = useChatStore();
+const { home } = useAppFeatures();
+
+const showSessions = computed(() => home.value === "/ai" || route.path === "/ai" || route.path.startsWith("/ai/"));
+const mounted = useMounted();
+
+watch(
+  () => mounted.value && showSessions.value,
+  async (visible) => {
+    if (!visible) {
+      return;
+    }
+
+    try {
+      await chatStore.fetchSessions();
+    } catch (error) {
+      console.error("Failed to load chat sessions", error);
+      if (showSessions.value) {
+        toast.add({
+          color: "error",
+          title: i18n.t("ai.pages.welcome.actions.fetchChats.error.title"),
+          description: i18n.t("ai.pages.welcome.actions.fetchChats.error.description"),
+        });
+      }
+    }
+  },
+);
 
 const { groupedSessions } = useChatUI(computed(() => chatStore.sessions));
 
-const sessionsContainer = useTemplateRef<HTMLElement>("sessionsContainer");
+const sessionsContainer = useTemplateRef<{ $el: HTMLElement }>("sessionsContainer");
 
 const items = computed(() => {
-  return groupedSessions.value.flatMap((g) => {
-    return [
-      {
-        label: g.label,
-        type: "label" as const,
-      },
-      ...g.items.map((i) => ({
-        ...i,
-        slot: "chat" as const,
-      })),
-    ];
+  return groupedSessions.value.flatMap((group) => {
+    const chats = group.items.map((item) => ({ ...item, type: "chat" as const }));
+    return props.collapsed ? chats : [{ id: group.id, label: group.label, type: "label" as const }, ...chats];
   });
 });
+
+const focusedSession = ref<string>();
+
+const focusedIndex = computed(() => {
+  const id = focusedSession.value;
+  return id === undefined ? -1 : items.value.findIndex((item) => item.id === id);
+});
+
+const rememberFocus = (event: FocusEvent): void => {
+  const target = event.type === "focusin" ? event.target : event.relatedTarget;
+  focusedSession.value =
+    target instanceof Element ? target.closest<HTMLElement>("[data-session-id]")?.dataset.sessionId : undefined;
+};
+
+const virtualize: ScrollAreaVirtualizeOptions = {
+  estimateSize: 32,
+  getItemKey: (index) => items.value[index]?.id ?? index,
+  rangeExtractor: ({ startIndex, endIndex, overscan, count }) => {
+    const indices = new Set<number>();
+    for (let index = Math.max(0, startIndex - overscan); index <= Math.min(count - 1, endIndex + overscan); index++) {
+      indices.add(index);
+    }
+    // Keep the focused chat and its neighbors mounted across scrolls and date group boundaries
+    if (focusedIndex.value >= 0) {
+      for (
+        let index = Math.max(0, focusedIndex.value - 2);
+        index <= Math.min(count - 1, focusedIndex.value + 2);
+        index++
+      ) {
+        indices.add(index);
+      }
+    }
+    return [...indices].sort((a, b) => a - b);
+  },
+};
 
 const handleNewChat = async (): Promise<void> => {
   try {
@@ -87,7 +140,7 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
 };
 
 useInfiniteScroll(
-  sessionsContainer,
+  () => sessionsContainer.value?.$el,
   async () => {
     try {
       await chatStore.loadMoreSessions();
@@ -97,13 +150,13 @@ useInfiniteScroll(
   },
   {
     distance: 200,
-    canLoadMore: () => chatStore.hasMoreSessions && !chatStore.isLoadingSessions,
+    canLoadMore: () => showSessions.value && chatStore.hasMoreSessions && !chatStore.isLoadingSessions,
   },
 );
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col">
+  <div v-show="showSessions" class="flex min-h-0 flex-1 flex-col">
     <div v-if="!collapsed" class="border-b border-default p-4">
       <UButton
         block
@@ -131,40 +184,53 @@ useInfiniteScroll(
         @click="handleNewChat"
       />
     </div>
-    <div ref="sessionsContainer" :data-collapsed="collapsed" class="group/sessions flex-1 overflow-y-auto p-2">
-      <UNavigationMenu
-        :items="items"
-        orientation="vertical"
-        :ui="{ link: 'overflow-hidden', label: 'group-data-[collapsed=true]/sessions:hidden' }"
-      >
-        <template #chat="{ item }">
+    <UScrollArea
+      ref="sessionsContainer"
+      as="nav"
+      :items="items"
+      :virtualize="virtualize"
+      class="min-h-0 flex-1 p-2 [overflow-anchor:none]"
+      :aria-label="$t('ai.layouts.default.sidebar.history')"
+      @focusin="rememberFocus"
+      @focusout="rememberFocus"
+    >
+      <template #default="{ item }">
+        <div v-if="item.type === 'label'" class="flex h-8 items-center px-2.5 text-xs font-semibold text-highlighted">
+          {{ item.label }}
+        </div>
+        <div v-else :data-session-id="item.id" class="group/chat relative">
           <UTooltip :text="item.label" :delay-duration="300" :content="{ side: 'right', sideOffset: 24 }">
-            <NuxtLink :to="item.to" class="group/item flex w-full items-center justify-center">
-              <span class="truncate group-data-[collapsed=true]/sessions:hidden">{{ item.label }}</span>
-              <div
-                class="ms-auto -mr-1.25 flex opacity-0 transition-opacity group-hover/item:opacity-100 group-data-[collapsed=true]/sessions:hidden"
-              >
-                <UButton
-                  size="xs"
-                  tabindex="-1"
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-lucide-x"
-                  :aria-label="$t('ai.layouts.default.sidebar.deleteChat')"
-                  class="p-0.5 text-muted hover:bg-accented/50 hover:text-primary focus-visible:bg-accented/50"
-                  @click.stop.prevent="() => void openChatDeleteModal(item.id)"
-                />
-              </div>
-              <span
-                :class="{ 'bg-elevated': route.path === item.to }"
-                class="hidden truncate group-data-[collapsed=true]/sessions:inline first-letter:uppercase"
-              >
-                {{ item.label.substring(0, 3).toLowerCase() }}
+            <UButton
+              block
+              exact
+              no-prefetch
+              :to="item.to"
+              color="neutral"
+              variant="ghost"
+              class="h-8 min-w-0"
+              :aria-label="item.label"
+              active-class="bg-elevated text-primary"
+              inactive-class="text-muted hover:text-highlighted"
+              :class="collapsed ? 'justify-center' : 'justify-start pe-8'"
+            >
+              <span class="truncate" :class="{ 'first-letter:uppercase': collapsed }">
+                {{ collapsed ? item.label.substring(0, 3).toLowerCase() : item.label }}
               </span>
-            </NuxtLink>
+            </UButton>
           </UTooltip>
-        </template>
-      </UNavigationMenu>
-    </div>
+          <UButton
+            v-if="!collapsed"
+            size="xs"
+            tabindex="-1"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            :aria-label="$t('ai.layouts.default.sidebar.deleteChat')"
+            class="absolute inset-e-1 top-1/2 -translate-y-1/2 p-0.5 text-muted opacity-0 transition-opacity group-hover/chat:opacity-100 hover:bg-accented/50 hover:text-primary focus-visible:bg-accented/50 focus-visible:opacity-100"
+            @click="openChatDeleteModal(item.id)"
+          />
+        </div>
+      </template>
+    </UScrollArea>
   </div>
 </template>

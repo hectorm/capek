@@ -1,10 +1,10 @@
-import { useChatData } from "#layers/ai/app/composables/chat-data";
+import { useAgentData } from "#layers/ai/app/composables/agent-data";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { defineAppFeature } from "#layers/core/app/utils/features";
 
 export default defineAppFeature({
   name: "ai",
-  setup: useChatData,
+  setup: useAgentData,
   home: { to: "/ai" },
   sidebar: [
     {
