@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.describe("agent priority", () => {
   test("lists the agents with a priority first", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/ai");
     await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: /select agent/i }).click();
 

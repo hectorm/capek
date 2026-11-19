@@ -35,7 +35,7 @@ test.describe("agent chart", () => {
   });
 
   test("shows a chart in 3D", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/ai");
     const webgl = await page.evaluate(() => document.createElement("canvas").getContext("webgl") !== null);
     test.skip(!webgl, "WebGL is not available");
 

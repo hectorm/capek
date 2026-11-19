@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 export const startChat = async (page: Page, agent: string, prompt: string): Promise<void> => {
-  await page.goto("/");
+  await page.goto("/ai");
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: /select agent/i }).click();
   await page.getByRole("option", { name: agent }).click();
