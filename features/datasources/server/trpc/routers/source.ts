@@ -1,13 +1,15 @@
 import crypto from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
+import { sql } from "kysely";
 import { z } from "zod/v4";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerDatasourceType } from "#layers/datasources/server/lib/drivers";
 import type { DatasourceConfig } from "#layers/datasources/shared/datasource";
 import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
@@ -15,6 +17,7 @@ import {
   paginate,
   SearchTermsSchema,
 } from "#layers/core/server/lib/database/pagination";
+import { hasAccess, selectAccess } from "#layers/core/server/lib/database/security";
 import {
   ResourceAccessSchema,
   sharedResourceAccessProcedures,
@@ -27,6 +30,25 @@ import { SourceResource } from "#layers/datasources/server/lib/resources";
 import { decryptSourceConfig, encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { DatasourceConfigSchema, DatasourceSecretsError } from "#layers/datasources/shared/datasource";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
+
+const editorGrant = sql
+  .raw<boolean>(hasAccess(SourceResource, `${SourceResource.table}.id`, ["editor"]))
+  .as("isEditor");
+
+const readAccess = sql
+  .raw<boolean>(selectAccess(SourceResource.type, "read", hasAccess(SourceResource, `${SourceResource.table}.id`)))
+  .as("canRead");
+
+const sourceActions = (user: AuthUser, isEditor: boolean) => {
+  return {
+    canEdit:
+      can(user, DatasourcesPermissions.SourceUpdateAll) ||
+      (isEditor && can(user, DatasourcesPermissions.SourceUpdateOwn)),
+    canDelete:
+      can(user, DatasourcesPermissions.SourceDeleteAll) ||
+      (isEditor && can(user, DatasourcesPermissions.SourceDeleteOwn)),
+  };
+};
 
 const typedConfigShape = {
   type: z.string().min(1).max(100),
@@ -83,7 +105,7 @@ export const sourceRouter = createTRPCRouter({
   read: authorizedProcedure([DatasourcesPermissions.SourceReadAll, DatasourcesPermissions.SourceReadOwn])
     .input(z.object({ id: z.uuid() }))
     .query(async ({ ctx, input }) => {
-      return withUserTransaction(ctx.user, async (trx) => {
+      return withResourceTransaction(ctx.user, SourceResource.type, "read", async (trx) => {
         const source = await trx
           .selectFrom("datasourcesSources")
           .select(["id", "name", "description", "documentation", "type", "config"])
@@ -103,6 +125,31 @@ export const sourceRouter = createTRPCRouter({
       });
     }),
 
+  readMetadata: authorizedProcedure([DatasourcesPermissions.SourceReadAll, DatasourcesPermissions.SourceReadOwn])
+    .input(z.object({ id: z.uuid() }))
+    .query(async ({ ctx, input }) => {
+      return withResourceTransaction(ctx.user, SourceResource.type, "read", async (trx) => {
+        const source = await trx
+          .selectFrom("datasourcesSources")
+          .select(["id", "name", "description", "documentation", "type"])
+          .select(editorGrant)
+          .where("id", "=", input.id)
+          .executeTakeFirst();
+
+        if (!source) {
+          ctx.logger.warn({ sourceId: input.id }, "Datasource not found");
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Datasource not found",
+          });
+        }
+
+        const { isEditor, ...metadata } = source;
+        ctx.logger.debug({ sourceId: input.id }, "Datasource metadata retrieved");
+        return { ...metadata, ...sourceActions(ctx.user, isEditor) };
+      });
+    }),
+
   search: authorizedProcedure([DatasourcesPermissions.SourceListAll, DatasourcesPermissions.SourceListOwn])
     .input(
       z.object({
@@ -117,8 +164,11 @@ export const sourceRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { cursor, limit, searchBy, search, orderBy, order } = input;
 
-      return withUserTransaction(ctx.user, async (trx) => {
-        let query = trx.selectFrom("datasourcesSources").select(["id", "name", "description", "type"]);
+      return withResourceTransaction(ctx.user, SourceResource.type, "list", async (trx) => {
+        let query = trx
+          .selectFrom("datasourcesSources")
+          .select(["id", "name", "description", "type"])
+          .select(readAccess);
 
         if (search.length > 0) {
           query = query.where((eb) => {
