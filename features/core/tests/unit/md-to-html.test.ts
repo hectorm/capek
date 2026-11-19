@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 
-import { mdToBlocks, mdToHtml } from "#layers/ai/app/utils/md-to-html";
+import { mdToBlocks, mdToFragment, mdToHtml } from "#layers/core/app/utils/md-to-html";
 
 const render = (markdown: string): HTMLElement => {
   const container = document.createElement("div");
@@ -9,8 +9,8 @@ const render = (markdown: string): HTMLElement => {
   return container;
 };
 
-describe("message markdown", () => {
-  it("renders the formatting of an answer", () => {
+describe("markdown", () => {
+  it("renders the formatting of a text", () => {
     const html = render(
       ["# Title", "", "Some **bold** text with a [link](https://example.com).", "", "- [x] done", "- [ ] pending"].join(
         "\n",
@@ -27,7 +27,13 @@ describe("message markdown", () => {
     ]);
   });
 
-  it("splits an answer into blocks that render like the whole answer", () => {
+  it("renders single line breaks and fragments on request", () => {
+    expect(mdToHtml("one\ntwo")).not.toContain("<br>");
+    expect(mdToHtml("one\ntwo", { breaks: true })).toContain("<br>");
+    expect(mdToFragment("# Title").querySelector("h1")?.textContent).toBe("Title");
+  });
+
+  it("splits a text into blocks that render like the whole text", () => {
     const markdown = [
       "# Title",
       "",

@@ -20,12 +20,6 @@ export default defineNuxtConfig({
       exclude: [new RegExp(`^${RegExp.escape(import.meta.dirname)}/app/`)],
     },
   },
-  css: [`${import.meta.dirname}/app/assets/css/markdown.css`],
-  vite: {
-    optimizeDeps: {
-      include: ["marked", "dompurify"],
-    },
-  },
   nitro: {
     experimental: {
       wasm: true,
