@@ -10,10 +10,10 @@ import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceTable } from "#layers/core/app/composables/resource-table";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
+import { useDatasourceDelete } from "#layers/datasources/app/composables/datasource-delete";
 import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
-import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 import ResourceTable from "#layers/core/app/components/ui/ResourceTable.vue";
 import LazyUpsertModal from "#layers/datasources/app/components/sources/UpsertModal.vue";
 
@@ -25,6 +25,7 @@ type Datasource = SearchOutput["sources"][number];
 const overlay = useOverlay();
 const { $trpc } = useNuxtApp();
 const { can, canAny } = usePermissions();
+const confirmDelete = useDatasourceDelete();
 
 const table = await useResourceTable({
   key: "datasources.source.search",
@@ -56,8 +57,6 @@ const columns: ResourceTableColumn<SearchInput>[] = [
   },
 ];
 
-const deletePermissions = [DatasourcesPermissions.SourceDeleteAll, DatasourcesPermissions.SourceDeleteOwn];
-
 const getTypeLabel = (type: string): string => {
   return DatasourceTypes.find((candidate) => candidate.type === type)?.label ?? type;
 };
@@ -72,7 +71,7 @@ const canUpdate = (): boolean => {
 };
 
 const canDelete = (): boolean => {
-  return canAny(deletePermissions);
+  return canAny([DatasourcesPermissions.SourceDeleteAll, DatasourcesPermissions.SourceDeleteOwn]);
 };
 
 const handleUpsertModal = async (id?: string): Promise<void> => {
@@ -84,15 +83,7 @@ const handleUpsertModal = async (id?: string): Promise<void> => {
 };
 
 const handleDeleteModal = async (datasource: Datasource): Promise<void> => {
-  const instance = overlay.create(ConfirmDeleteModal, { destroyOnClose: true }).open({
-    i18nPrefix: "datasources.pages.studio.datasources",
-    name: datasource.name,
-    deletePermissions,
-    loadAccess: () => $trpc.datasources.source.listAccess.query({ sourceId: datasource.id }),
-    remove: () => $trpc.datasources.source.delete.mutate({ id: datasource.id }),
-  });
-  const { deleted } = (await instance.result) as { deleted: boolean };
-  if (deleted) {
+  if (await confirmDelete(datasource)) {
     await table.refresh();
   }
 };
