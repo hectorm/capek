@@ -10,7 +10,7 @@ Capek is a self-hosted conversational AI platform.
 
 ## Features
 
-- Multi-user support with RBAC and Row Level Security (RLS).
+- Multi-user support with RBAC and row-level security (RLS).
 - Single-user, OpenID Connect (OIDC) and proxy authentication modes.
 - Agent orchestration with triage and specialist patterns.
 - Support for the OpenAI Chat Completions, Open Responses and Anthropic Messages APIs.
@@ -50,6 +50,8 @@ feature. See [`features/`](./features/README.md) for how they work and the docum
 
 ### Setup
 
+Use Node.js 26 or later and the pnpm version declared in `package.json`.
+
 ```sh
 pnpm install
 pnpm dev
@@ -76,16 +78,23 @@ See `.env.example` for all available configuration options.
 
 ### Production build
 
+Set `NUXT_ENCRYPTION_KEY` in the server environment before starting. Generate the key with `openssl rand -base64 32` and
+keep it across restarts and deployments that use the same database.
+
 ```sh
 pnpm build
-pnpm start
+node .output/server/index.mjs
 ```
+
+Use `pnpm start` to preview the build locally.
 
 ### Docker
 
+This example runs a disposable container with PGlite.
+
 ```sh
 docker build -t localhost/capek:latest ./
-docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="..." localhost/capek:latest
+docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="$(openssl rand -base64 32)" localhost/capek:latest
 ```
 
 ### Selecting features
@@ -106,7 +115,7 @@ The project includes example Compose configurations for reference:
 - `compose.base.yaml`: core services (Traefik, PostgreSQL, MCP servers).
 - `compose.keycloak.yaml`: extends base with Keycloak for OIDC.
 - `compose.dex.yaml`: extends base with Dex for OIDC.
-- `compose.proxy.yaml`: extends base with proxy authentication.
+- `compose.proxy.yaml`: demonstrates proxy authentication with a fixed test identity.
 
 Start the full stack:
 

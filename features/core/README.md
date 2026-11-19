@@ -6,37 +6,61 @@ to deal with their own functionality.
 
 ## Authentication
 
-`NUXT_AUTH_MODE` selects how users sign in:
+`NUXT_AUTH_MODE` selects how users sign in.
 
-- `single-user`: there is no sign in, every request acts as the admin user configured with the `NUXT_SINGLE_USER_*`
-  variables.
-- `oidc`: users sign in with an OpenID Connect provider, configured with the `NUXT_OIDC_*` variables.
-- `proxy`: a reverse proxy authenticates users and passes their identity in headers (`X-Forwarded-User`,
-  `X-Forwarded-Email`, etc.), along with the shared secret set in `NUXT_PROXY_SECRET`.
+- `single-user` runs requests as the admin user configured with the `NUXT_SINGLE_USER_*` variables, without a sign-in
+  step.
+- `oidc` uses an OpenID Connect provider. Set `NUXT_OIDC_ISSUER`, `NUXT_OIDC_CLIENT_ID`, `NUXT_OIDC_CLIENT_SECRET` and
+  `NUXT_OIDC_ROOT_URL`. Use the public application URL as the root URL and register its `/api/login/callback` URL with
+  the provider.
+- `proxy` uses a trusted reverse proxy to authenticate users. Configure the proxy to replace incoming authentication
+  headers with the authenticated user's identity and the shared secret. The required headers default to
+  `X-Forwarded-User`, `X-Forwarded-Preferred-Username`, `X-Forwarded-Email` and `X-Proxy-Secret`. Set
+  `NUXT_PROXY_SECRET` to the same secret the proxy sends.
 
-In the `oidc` and `proxy` modes, roles and groups can also be synchronized from the token claims or the headers.
+OIDC synchronizes roles and groups from provider claims by default. Proxy mode uses local assignments by default and can
+synchronize from headers when configured. See the configuration examples in [`.env.example`](../../.env.example).
 
 ## Roles and permissions
 
-Permissions are named `<resource>:<action>`, followed by a scope when the action applies to existing rows: `all` for
-every row, `own` for the rows the user owns or was given access to, or `public` for public ones (e.g. `agent:create`,
-`user:read:own` or `settings:read:public`). Each feature defines its permissions and grants them to the built-in roles:
-`admin`, `auditor`, `creator` and `member`.
+Permissions are named `<resource>:<action>`, such as `group:create`. Actions on existing rows can add a scope such as
+`all` for every row, `own` for rows accessible through ownership, membership or sharing, or `public` for public rows.
+For example, `user:read:own` permits reading your own user record and `settings:read:public` permits reading public
+settings.
 
-## Row level security
+Features grant permissions to built-in roles such as `admin`, `auditor`, `creator` and `member`. A user's effective
+permissions combine the roles assigned directly to them and the roles assigned to their groups.
 
-Every user request runs in a transaction that sets the ID, groups and permissions of the user in session variables,
-which the policies of each table check through the functions of the `security` schema (`security.can_any()`,
-`security.has_access()`, `security.is_owner()`, etc.). Operations without a user, such as migrations and tasks, are not
-restricted. Superuser connections switch to the `app_rls` role in those transactions, so the policies still apply.
-Connections of other roles that bypass row level security are refused.
+## Row-level security
 
-See the [database section](../README.md#database) of the features guide for how features define their policies.
+User-scoped database operations set the user's ID, groups and permissions in the transaction. Row-level security (RLS)
+policies use that context to authorize rows.
+
+Superuser connections switch to the `app_rls` role during user transactions so the policies apply. Core rejects
+non-superuser connection roles with `BYPASSRLS`. Migrations and system operations without a user context run with the
+configured database role.
+
+Core applies the RLS statements for all enabled features together after migrations. It rebuilds the policies and helpers
+when those statements or the migration list changes. Disabling a feature keeps its tables and removes their policies, so
+RLS denies access from user transactions.
+
+- Enable and force RLS on application tables with `protectTable()`. Register shared resources with
+  `defineSharedResource()` and use `sharedResourcePolicies()` to generate policies for the resource and its grant table.
+  Register resources owned by one user with `defineOwnedResource()` and define their policies separately.
+- Use `hasAccess()` for grant checks and `isOwner()` for ownership checks. Wrap transaction-level checks in scalar
+  subqueries such as `(SELECT security.can_any(...))` so PostgreSQL can evaluate them once per statement. Startup
+  rejects application tables without forced RLS and policies that call session helpers directly.
+- Use `withUserTransaction()` for writes and other operations that use the caller's baseline RLS policies. Use
+  `withResourceTransaction()` for resource reads and lists so RLS also receives the resource type and action.
+  `sharedResourcePolicies()` generates policies for that scope. Add `scopedSelectPolicy()` alongside custom `SELECT`
+  policies to enforce the same distinction between read and list permissions.
 
 ## Outbound connections
 
-Direct connections to destinations that users can set only reach public IP addresses, unless
-`NUXT_ALLOWED_PRIVATE_HOSTS` lists the private hosts they can reach with the syntax of `NO_PROXY` (e.g.
-`localhost:9931, .svc.cluster.local, 10.20.0.0/16`). HTTP requests go through the proxies of `HTTP_PROXY` and
-`HTTPS_PROXY`, except for loopback hosts and those of `NO_PROXY`. Proxies resolve destinations independently and must
-enforce their own access rules.
+For direct connections to destinations users configure, Core allows public IP addresses and private destinations
+explicitly allowed by `NUXT_ALLOWED_PRIVATE_HOSTS`. This setting uses the same syntax as `NO_PROXY`, for example
+`localhost:9931, .svc.cluster.local, 10.20.0.0/16`.
+
+Core's HTTP client uses `HTTP_PROXY` and `HTTPS_PROXY` to route requests through a proxy. Loopback hosts and
+destinations in `NO_PROXY` use a direct connection and follow the same destination policy. Proxies resolve destinations
+independently and must enforce their own access rules.

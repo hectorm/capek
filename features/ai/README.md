@@ -19,11 +19,12 @@ users who can use them.
 
 ## Tools
 
-Other features give tools to the agents with the providers in the `tools` field of their server feature
-(`defineToolProvider()`), for which they depend on this feature. A provider gives the tools of the resources assigned to
-each agent, like its datasources, and only of the ones that the user who calls them can use. Without resources it is
-switched on for each agent instead. Either way, the tools are loaded with the restrictions of that user and act on their
-behalf. Providers and tools are named after their feature (`datasources_query`).
+Other features register tool providers with `defineToolProvider()` in the `tools` field of their server feature.
+Datasources provides `datasources_query` through its adapter when AI is enabled. See
+[Optional integrations](../README.md#optional-integrations).
+
+Resource-backed providers expose the resources assigned to the agent that the caller can use. Providers without a
+resource are enabled per agent. Both act on behalf of the caller. Provider and tool names use their feature's name.
 
 ## Configuration
 
@@ -37,8 +38,9 @@ Settings. The `ai` section of the seed configuration creates LLM providers, MCP 
 The code interpreter runs JavaScript code in a [QuickJS](https://bellard.org/quickjs/) WASM build with memory and
 execution time constraints, in a worker thread that is terminated when the code ends or exceeds them.
 
-Each chat session has its own in-memory Virtual File System (VFS). The `/workspace` directory is writable (up to 10 MB)
-and is kept between executions, other paths are read-only. A Node.js-like `fs` API is available for file operations.
+The interpreter uses an in-memory virtual file system (VFS). The writable `/workspace` directory holds up to 10 MiB. In
+chats, the application saves those files to the database for the session and loads them for later executions. Other
+paths are read-only. A Node.js-like `fs` API is available for file operations.
 
 Skills, MCP tools and the tools of other features are exposed as ES modules under `/skills/index.js`,
 `/servers/index.js` and `/tools/index.js`:

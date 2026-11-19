@@ -9,31 +9,35 @@ application:
 
 ## Layers
 
-Every directory in `features/` is a feature. Features are set up after the ones listed in the `$meta.dependsOn` option
-of their `nuxt.config.ts`, which have to be part of the build. A feature with the `$meta.optional` option is only part
-of the builds that select it.
+Nuxt automatically registers layers from `layers/`. Keeping features in `features/` lets each build choose which layers
+to load. Every build includes Core. The default build also includes features that leave `$meta.optional` unset or set it
+to `false`. An explicit `FEATURES` list selects the other layers, and type checking, linting and tests follow that
+selection. See [Selecting features](../README.md#selecting-features).
 
-They are kept out of the `layers/` directory, which Nuxt registers automatically, so that each build only includes the
-[selected ones](../README.md#selecting-features). Type checking, linting and tests follow the same selection.
+Declare dependencies in `$meta.dependsOn` in `nuxt.config.ts`. Select those required features in the build. Core lists
+them before the dependent feature in the generated registries.
 
-Layers import each other through the `#layers/<name>/` aliases, and `core` cannot import any other layer.
+Layers import each other through the `#layers/<name>/` aliases, and Core cannot import any other layer.
 
 ## Adding a feature
 
-A feature is a layer in `features/<name>/`, named `<name>` with the `$meta.name` option of its `nuxt.config.ts`. It
-contributes any of the following files, which the `core` layer discovers at build time and registers in the
-`#features/*` modules:
+Set `$meta.name` to the directory name in `features/<name>/nuxt.config.ts`. Core discovers these optional files at build
+time to generate the `#features/app`, `#features/server` and `#features/router` modules.
 
-| File                           | Contribution                                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `server/feature.ts`            | `defineServerFeature()`: the fields of `ServerFeature`, like migrations, permissions and settings                   |
-| `server/trpc/routers/index.ts` | `routers` object merged into the application tRPC router                                                            |
-| `app/feature.ts`               | `defineAppFeature()`: home page, main navigation, sidebar sections, user menu entries, and studio and settings tabs |
-| `shared/*.d.ts`                | Declaration merging into the core registries (e.g. the tables of the `Database` interface)                          |
-| `server/**/*.worker.ts`        | Worker thread, started with `new Worker(new URL("./<name>.worker.ts", import.meta.url))`                            |
+| File                           | Contribution                                                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `app/feature.ts`               | `defineAppFeature()` registration for the home page, navigation, sidebar, user menu, and Studio and Settings tabs |
+| `server/feature.ts`            | `defineServerFeature()` registration for fields of `ServerFeature`, such as migrations, permissions and settings  |
+| `server/trpc/routers/index.ts` | Named `routers` export merged into the application tRPC router                                                    |
+
+When features register accessible home pages, `/` redirects to the one with the lowest `order`.
+
+TypeScript picks up declaration merging in `shared/**/*.d.ts`, including tables added to the `Database` interface.
+Core's Nitro plugin emits server worker files referenced by
+`new Worker(new URL("./<name>.worker.ts", import.meta.url))`.
 
 Everything else is merged by Nuxt as usual: pages, layouts, components, plugins, middleware, server routes and tasks,
-runtime config and i18n messages (each layer declares its locales with the same `code` and `language` as `core`). A
+runtime config and i18n messages (each layer declares its locales with the same `code` and `language` as Core). A
 feature that does not need the database just omits the migrations and security definitions.
 
 Tests also live in each layer:
@@ -45,13 +49,12 @@ Tests also live in each layer:
 
 ## Naming
 
-Except in core, everything that can collide with other features starts with the name of the feature:
+Except in Core, everything that can collide with other features starts with the name of the feature:
 
-- Database tables, indexes, constraints and functions with `<feature>_` (`ai_agents`), as well as permissions and
-  resource types (`ai_agent:read:own`).
+- Database tables, indexes, constraints and functions with `<feature>_` (`inventory_items`), as well as permissions and
+  resource types (`inventory_item:read:own`).
 - tRPC routers under `$trpc.<feature>`, server routes in `server/api/<feature>/` and tasks in `server/tasks/<feature>/`.
-- Pages under `/<feature>/`, also in the Studio and Settings sections of core (`/studio/ai/agents`), while `/` redirects
-  to the `home` page with the lowest `order` among the features.
+- Pages under `/<feature>/`, `/studio/<feature>/` or `/settings/<feature>/`, such as `/studio/inventory/items`.
 - Plugins, middleware and layouts as `<feature>-*`.
 - Runtime config under `runtimeConfig.<feature>` (`NUXT_<FEATURE>_*` variables), settings as `<feature>.*` and seed
   configuration in a `<feature>` section.
@@ -63,34 +66,29 @@ The build or the startup fails when a name does not follow this rule, except for
 ## Resource pages
 
 The pages that list a resource to create, edit and delete it are built with `useResourceTable()` and `ResourceTable`,
-their dialogs with `AccessFields` and `useResourceToast()`, and the deletion with `ConfirmDeleteModal`.
+their dialogs with `AccessFields`, `ResourceLoadError` and `useResourceToast()`, and the deletion with
+`ConfirmDeleteModal`. Use `paginate()` for the API endpoints that feed these lists.
 
-They read the messages of the resource under one prefix (`ai.pages.studio.agents`): `table.<column>`,
+They read the messages of the resource under one prefix (`inventory.pages.studio.items`): `table.<column>`,
 `actions.<create|update|delete>.<success|error>.<title|description>` and `delete.<title|description|confirm>`.
 
-The `key` of a table and of `usePayloadData()` is unique to what it loads (`ai.agent.search`), since the pages that use
-the same key share its data.
+The `key` of a table and of `usePayloadData()` is unique to what it loads (`inventory.item.search`), since the pages
+that use the same key share its data.
 
 ## Database
 
-Each feature owns its database changes:
+Features register their migrations and security in `server/feature.ts`. Migrations run in dependency order and are
+tracked in a `kysely_migration_<name>` table for each feature. Qualify table names with `public` in migrations, policies
+and database functions. Application queries use unqualified table names.
 
-- Migrations are tracked per feature (`kysely_migration_<name>` table) and applied in dependency order.
-- Row level security of all features is composed into a single set of statements, reapplied whenever it changes or a
-  migration is added. Resources shared with users and groups (`defineSharedResource()`) and resources owned by a user
-  (`defineOwnedResource()`) are registered in `security.has_access()` and `security.is_owner()`, and
-  `sharedResourcePolicies()` generates their policies.
-- Policies are evaluated for each row that a statement reads, so they look up the session in a subquery, like
-  `(SELECT security.can_any(...))`, and check the access to other rows with `hasAccess()` and `isOwner()`. The server
-  refuses to start when a policy looks up the session directly.
-- Every table must have forced row level security (e.g. with `protectTable()`), otherwise the server refuses to start.
-- When a feature is removed its tables are kept, with row level security enabled and no policies, so they become
-  inaccessible.
-- Migrations, policies and functions qualify their tables with the `public` schema, queries do not.
-- Lists are paged with `paginate()`, and the ones that can be long also filter by the rows of the user, since the
-  policies alone do not use the indexes.
+Application tables require forced row-level security. Follow the [Core RLS guide](./core/README.md#row-level-security)
+for defining policies and choosing transaction scopes.
+
+The policies alone do not use the indexes. If a list can be long, filter the query by the rows of the user as well.
 
 ## Extension points
+
+Use `navigation` in `app/feature.ts` to add entries to the main sidebar.
 
 A feature can let the features that build on it extend it, by adding its own fields to the `AppFeature` and
 `ServerFeature` interfaces through declaration merging. Those features fill the fields in their `app/feature.ts` and
@@ -121,3 +119,21 @@ export default defineAppFeature({
 
 Since the feature files are imported by the `#features/*` modules, they must not import the code that reads them
 (`getFileHandlers()` above), which would be an import cycle.
+
+## Optional integrations
+
+Use a build-time adapter when one feature integrates with another only when both are enabled. Keep the imports from the
+companion feature in the adapter.
+
+Declare the integration in `$meta.integrations` in `nuxt.config.ts`, under the name of the companion feature. Paths are
+relative to the layer:
+
+| Option     | Value                                                                             |
+| ---------- | --------------------------------------------------------------------------------- |
+| `adapter`  | Module that imports the companion feature                                         |
+| `fallback` | Module with the same exports for the builds without the companion feature         |
+| `files`    | Glob patterns of the other files that import the companion feature, such as tests |
+
+Import the integration through the `#features/<feature>-<companion>` alias. Core points the alias to the adapter, or to
+the fallback when the companion feature is absent. In that case, type checking, linting and unit tests skip the adapter
+and the files.

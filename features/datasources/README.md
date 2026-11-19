@@ -9,8 +9,8 @@ datasource and it is not a hard limit, so datasources should connect with a user
 
 ## Tools
 
-Datasources provide the `datasources_query` tool to the agents of the AI feature they are assigned to, which receive
-their documentation to write the queries.
+When the AI layer is enabled, datasources provide the `datasources_query` tool to the agents they are assigned to.
+Agents receive the documentation for those datasources to write queries.
 
 ## Configuration
 
