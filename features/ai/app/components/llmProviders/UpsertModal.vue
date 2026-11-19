@@ -26,6 +26,7 @@ import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 
 type LlmProviderGetOutput = RouterOutputs["ai"]["llmProvider"]["read"];
 type LlmProviderCreateInput = RouterInputs["ai"]["llmProvider"]["create"];
@@ -50,10 +51,11 @@ const { testing, test } = useFormTest({
   error: i18n.t("ai.pages.studio.llmProviders.form.testConnection.error"),
 });
 
-let [llmProvider, currentAccess] = await Promise.all([
+const loaded = await Promise.all([
   props.id ? $trpc.ai.llmProvider.read.query({ id: props.id }) : Promise.resolve(null),
   props.id ? $trpc.ai.llmProvider.listAccess.query({ llmProviderId: props.id }) : Promise.resolve([]),
-]);
+]).catch(() => null);
+let [llmProvider, currentAccess] = loaded ?? [null, []];
 
 if (!props.id && userStore.user) {
   currentAccess = creatorAccess(userStore.user);
@@ -191,7 +193,9 @@ const onTestConnection = async () => {
     :description="$t(`ai.pages.studio.llmProviders.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

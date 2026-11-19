@@ -78,7 +78,7 @@ const rowActions = (row: R): DropdownMenuItem[] => {
   const actions: DropdownMenuItem[] = [];
   if (props.canUpdate(row)) {
     actions.push({
-      label: i18n.t("components.resourceTable.update"),
+      label: i18n.t("components.resource.update"),
       icon: "i-lucide-edit",
       color: "neutral",
       onSelect: () => {
@@ -88,7 +88,7 @@ const rowActions = (row: R): DropdownMenuItem[] => {
   }
   if (props.canDelete(row)) {
     actions.push({
-      label: i18n.t("components.resourceTable.delete"),
+      label: i18n.t("components.resource.delete"),
       icon: "i-lucide-trash-2",
       color: "error",
       onSelect: () => {
@@ -197,7 +197,7 @@ useInfiniteScroll(
             variant="outline"
             icon="i-lucide-rotate-cw"
             :disabled="table.loading.value"
-            :label="$t('components.resourceTable.retry')"
+            :label="$t('components.resource.retry')"
             @click="() => void table.retry.value?.()"
           />
         </td>
@@ -206,7 +206,7 @@ useInfiniteScroll(
     <template #empty>
       <template v-if="!table.loading.value">
         <slot name="empty" :filtered="filtered">
-          {{ filtered ? $t("components.resourceTable.noMatches") : $t("components.resourceTable.empty") }}
+          {{ filtered ? $t("components.resource.noMatches") : $t("components.resource.empty") }}
         </slot>
       </template>
       <template v-else>&nbsp;</template>

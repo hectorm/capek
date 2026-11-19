@@ -26,6 +26,7 @@ import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 
 type DatasourceGetOutput = RouterOutputs["datasources"]["source"]["read"];
 type DatasourceCreateInput = RouterInputs["datasources"]["source"]["create"];
@@ -50,10 +51,11 @@ const { testing, test } = useFormTest({
   error: i18n.t("datasources.pages.studio.datasources.form.testConnection.error"),
 });
 
-let [datasource, currentAccess] = await Promise.all([
+const loaded = await Promise.all([
   props.id ? $trpc.datasources.source.read.query({ id: props.id }) : Promise.resolve(null),
   props.id ? $trpc.datasources.source.listAccess.query({ sourceId: props.id }) : Promise.resolve([]),
-]);
+]).catch(() => null);
+let [datasource, currentAccess] = loaded ?? [null, []];
 
 if (!props.id && userStore.user) {
   currentAccess = creatorAccess(userStore.user);
@@ -231,7 +233,9 @@ watch(
     :description="$t(`datasources.pages.studio.datasources.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

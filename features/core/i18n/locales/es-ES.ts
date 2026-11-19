@@ -230,22 +230,22 @@ export default (): ReturnType<typeof enUS> => ({
         placeholder: "Buscar usuarios y grupos",
       },
     },
-    confirmDeleteModal: {
+    resource: {
       cancel: "Cancelar",
       delete: "Eliminar",
+      empty: "No hay nada que mostrar",
+      loadError: "Error al cargar los datos",
+      noMatches: "Ningún resultado coincide con el filtro",
+      retry: "Reintentar",
+      update: "Editar",
     },
     resourceTable: {
       actions: "Acciones",
       create: "Crear",
-      delete: "Eliminar",
-      empty: "No hay nada que mostrar",
       filter: "Filtrar por {column}",
       loadError: "No se pudieron cargar las filas",
-      noMatches: "Ningún resultado coincide con el filtro",
-      retry: "Reintentar",
       search: "Buscar",
       sort: "Ordenar por {column}",
-      update: "Editar",
     },
     userMenu: {
       anonymous: {

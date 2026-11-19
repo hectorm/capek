@@ -16,6 +16,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 
 type UserReadOutput = RouterOutputs["user"]["read"];
@@ -36,8 +37,12 @@ const { notify } = useResourceToast("pages.settings.users");
 const { $trpc } = useNuxtApp();
 const { can } = usePermissions();
 
-const user = ref<UserReadOutput | null>(props.id ? await $trpc.user.read.query({ id: props.id }) : null);
-const roles = ref<RoleListOutput>(await $trpc.role.list.query());
+const loaded = await Promise.all([
+  props.id ? $trpc.user.read.query({ id: props.id }) : null,
+  $trpc.role.list.query(),
+]).catch(() => null);
+const user = ref<UserReadOutput | null>(loaded?.[0] ?? null);
+const roles = ref<RoleListOutput>(loaded?.[1] ?? []);
 
 const canUpdateAllUsers = computed(() => can(CorePermissions.UserUpdateAll));
 const canCreateUser = computed(() => can(CorePermissions.UserCreate));
@@ -109,7 +114,9 @@ const onCancel = () => {
     :description="$t(`components.users.upsertModal.${props.id ? 'update' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

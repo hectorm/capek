@@ -30,6 +30,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import NumberParameterField from "#layers/core/app/components/ui/NumberParameterField.vue";
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 
 type McpServerGetOutput = RouterOutputs["ai"]["mcpServer"]["read"];
 type McpServerCreateInput = RouterInputs["ai"]["mcpServer"]["create"];
@@ -54,10 +55,11 @@ const { testing, test } = useFormTest({
   error: i18n.t("ai.pages.studio.mcpServers.form.testConnection.error"),
 });
 
-let [mcpServer, currentAccess] = await Promise.all([
+const loaded = await Promise.all([
   props.id ? $trpc.ai.mcpServer.read.query({ id: props.id }) : Promise.resolve(null),
   props.id ? $trpc.ai.mcpServer.listAccess.query({ mcpServerId: props.id }) : Promise.resolve([]),
-]);
+]).catch(() => null);
+let [mcpServer, currentAccess] = loaded ?? [null, []];
 
 if (!props.id && userStore.user) {
   currentAccess = creatorAccess(userStore.user);
@@ -195,7 +197,9 @@ const onTestConnection = async () => {
     :description="$t(`ai.pages.studio.mcpServers.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

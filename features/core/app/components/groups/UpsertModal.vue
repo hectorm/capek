@@ -17,6 +17,8 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
+
 type GroupReadOutput = RouterOutputs["group"]["read"];
 type GroupCreateInput = RouterInputs["group"]["create"];
 type GroupUpdateInput = RouterInputs["group"]["update"];
@@ -35,8 +37,12 @@ const { notify } = useResourceToast("pages.settings.groups");
 const { $trpc } = useNuxtApp();
 const { can } = usePermissions();
 
-const group = ref<GroupReadOutput | null>(props.id ? await $trpc.group.read.query({ id: props.id }) : null);
-const roles = ref<RoleListOutput>(await $trpc.role.list.query());
+const loaded = await Promise.all([
+  props.id ? $trpc.group.read.query({ id: props.id }) : null,
+  $trpc.role.list.query(),
+]).catch(() => null);
+const group = ref<GroupReadOutput | null>(loaded?.[0] ?? null);
+const roles = ref<RoleListOutput>(loaded?.[1] ?? []);
 
 const canUpdateAllGroups = computed(() => can(CorePermissions.GroupUpdateAll));
 const canCreateGroup = computed(() => can(CorePermissions.GroupCreate));
@@ -100,7 +106,9 @@ const onCancel = () => {
     :description="$t(`components.groups.upsertModal.${props.id ? 'update' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

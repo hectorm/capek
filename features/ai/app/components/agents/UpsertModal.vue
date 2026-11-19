@@ -31,6 +31,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import NumberParameterField from "#layers/core/app/components/ui/NumberParameterField.vue";
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 import SearchMenu from "#layers/core/app/components/ui/SearchMenu.vue";
 
 type AgentGetOutput = RouterOutputs["ai"]["agent"]["read"];
@@ -56,18 +57,22 @@ const { testing, test } = useFormTest({
   error: i18n.t("ai.pages.studio.agents.form.testModel.error"),
 });
 
-let [agent, currentAccess, currentMcpServers, currentSkills, currentSpecialists] = await Promise.all([
-  props.id ? $trpc.ai.agent.read.query({ id: props.id }) : Promise.resolve(null),
-  props.id ? $trpc.ai.agent.listAccess.query({ agentId: props.id }) : Promise.resolve([]),
-  props.id ? $trpc.ai.agent.listMcpServers.query({ agentId: props.id }) : Promise.resolve([]),
-  props.id ? $trpc.ai.agent.listSkills.query({ agentId: props.id }) : Promise.resolve([]),
-  props.id ? $trpc.ai.agent.listSpecialists.query({ triageAgentId: props.id }) : Promise.resolve([]),
-]);
-
-const [toolProviders, currentToolResources] = await Promise.all([
-  $trpc.ai.agent.listToolProviders.query(),
-  props.id ? $trpc.ai.agent.listToolResources.query({ agentId: props.id }) : Promise.resolve([]),
-]);
+const loaded = await Promise.all([
+  Promise.all([
+    props.id ? $trpc.ai.agent.read.query({ id: props.id }) : Promise.resolve(null),
+    props.id ? $trpc.ai.agent.listAccess.query({ agentId: props.id }) : Promise.resolve([]),
+    props.id ? $trpc.ai.agent.listMcpServers.query({ agentId: props.id }) : Promise.resolve([]),
+    props.id ? $trpc.ai.agent.listSkills.query({ agentId: props.id }) : Promise.resolve([]),
+    props.id ? $trpc.ai.agent.listSpecialists.query({ triageAgentId: props.id }) : Promise.resolve([]),
+  ]),
+  Promise.all([
+    $trpc.ai.agent.listToolProviders.query(),
+    props.id ? $trpc.ai.agent.listToolResources.query({ agentId: props.id }) : Promise.resolve([]),
+  ]),
+]).catch(() => null);
+let [agent = null, currentAccess = [], currentMcpServers = [], currentSkills = [], currentSpecialists = []] =
+  loaded?.[0] ?? [];
+const [toolProviders = [], currentToolResources = []] = loaded?.[1] ?? [];
 
 if (!props.id && userStore.user) {
   currentAccess = creatorAccess(userStore.user);
@@ -325,7 +330,9 @@ watch(
     :description="$t(`ai.pages.studio.agents.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
+      <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"

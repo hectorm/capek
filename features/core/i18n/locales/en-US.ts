@@ -228,22 +228,22 @@ export default () => ({
         placeholder: "Search users and groups",
       },
     },
-    confirmDeleteModal: {
+    resource: {
       cancel: "Cancel",
       delete: "Delete",
+      empty: "There is nothing to show",
+      loadError: "Failed to load the data",
+      noMatches: "No results match the filter",
+      retry: "Retry",
+      update: "Edit",
     },
     resourceTable: {
       actions: "Actions",
       create: "Create",
-      delete: "Delete",
-      empty: "There is nothing to show",
       filter: "Filter by {column}",
       loadError: "The rows could not be loaded",
-      noMatches: "No results match the filter",
-      retry: "Retry",
       search: "Search",
       sort: "Sort by {column}",
-      update: "Edit",
     },
     userMenu: {
       anonymous: {

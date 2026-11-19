@@ -43,4 +43,21 @@ test.describe("settings", () => {
     await expect(names).toHaveText([zulu]);
     await expect(page.getByRole("cell", { name: renamed })).toHaveCount(0);
   });
+
+  test("shows an error when a group cannot be loaded", async ({ page }) => {
+    await page.goto("/settings/groups");
+    const name = `Unloaded-${crypto.randomUUID()}`;
+    const dialog = page.getByRole("dialog");
+    await page.getByRole("button", { name: "Create" }).click();
+    await dialog.getByRole("textbox", { name: "Name" }).fill(name);
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+
+    await page.route("**/api/trpc/*group.read*", (route) => route.abort());
+    await page.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "Actions" }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+    await expect(dialog.getByRole("alert")).toHaveText(/Failed to load the data/);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+  });
 });
