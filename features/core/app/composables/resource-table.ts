@@ -34,8 +34,10 @@ export type ResourceTableColumn<Q extends ResourceTableQuery = ResourceTableQuer
 
 export interface ResourceTableState<Q extends ResourceTableQuery, R extends { id: string }> {
   query: Readonly<Ref<Q>>;
+  loadedQuery: Readonly<ShallowRef<Q>>;
   rows: Readonly<ShallowRef<R[]>>;
   loading: Readonly<Ref<boolean>>;
+  hasMore: ComputedRef<boolean>;
   canLoadMore: ComputedRef<boolean>;
   retry: Readonly<ShallowRef<(() => Promise<void>) | undefined>>;
   refresh: () => Promise<void>;
@@ -56,10 +58,11 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
   const nextCursor = shallowRef<Q["cursor"]>();
   const retry = shallowRef<() => Promise<void>>();
   // A failed first-page load restores the query for the visible rows
-  let loadedQuery = options.query;
+  const loadedQuery = shallowRef(options.query) as ShallowRef<Q>;
   let lastLoad = 0;
 
-  const canLoadMore = computed(() => nextCursor.value != null && !retry.value && !loading.value);
+  const hasMore = computed(() => nextCursor.value != null);
+  const canLoadMore = computed(() => hasMore.value && !retry.value && !loading.value);
 
   // Only the latest load applies its result or error
   const load = async (loadQuery: Q, cursor?: Q["cursor"]): Promise<void> => {
@@ -73,7 +76,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
       }
       if (cursor == null) {
         rows.value = result.rows;
-        loadedQuery = loadQuery;
+        loadedQuery.value = loadQuery;
       } else {
         // Rows can move between pages after an insert or update
         const loaded = new Set(rows.value.map((row) => row.id));
@@ -84,7 +87,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
     } catch (error) {
       if (current === lastLoad) {
         if (cursor == null) {
-          query.value = loadedQuery;
+          query.value = loadedQuery.value;
         }
         console.error("Failed to load the rows of the table", error);
         retry.value = () => load(loadQuery, cursor);
@@ -97,7 +100,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
   };
 
   const loadMore = async (): Promise<void> => {
-    if (nextCursor.value != null && !loading.value) {
+    if (canLoadMore.value) {
       await load(query.value, nextCursor.value);
     }
   };
@@ -110,14 +113,21 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
     return load({ ...query.value, searchBy: columnId, search: value });
   };
 
-  const firstPage = await usePayloadData(`resource-table:${options.key}`, () => options.search({ ...query.value }));
-  rows.value = firstPage?.rows ?? [];
-  nextCursor.value = firstPage?.nextCursor;
+  try {
+    const firstPage = await usePayloadData(`resource-table:${options.key}`, () => options.search({ ...options.query }));
+    rows.value = firstPage?.rows ?? [];
+    nextCursor.value = firstPage?.nextCursor;
+  } catch (error) {
+    console.error("Failed to load the rows of the table", error);
+    retry.value = () => load(options.query);
+  }
 
   return {
     query,
+    loadedQuery,
     rows,
     loading,
+    hasMore,
     canLoadMore,
     retry,
     refresh: () => load(query.value),
