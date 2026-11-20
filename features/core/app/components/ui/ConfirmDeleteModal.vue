@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { isTRPCClientError } from "@trpc/client";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+import type { AppRouter } from "#features/router";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
@@ -28,6 +32,7 @@ const emit = defineEmits<{
 }>();
 
 const { canAny } = usePermissions();
+const { t } = useI18n();
 const { notify } = useResourceToast(props.i18nPrefix);
 
 const access = props.loadAccess ? await props.loadAccess().catch(() => null) : [];
@@ -39,8 +44,9 @@ const onSubmit = async (_event: FormSubmitEvent<unknown>) => {
     await props.remove();
     notify("delete", "success");
     emit("close", { deleted: true });
-  } catch {
-    notify("delete", "error");
+  } catch (error) {
+    const conflict = isTRPCClientError<AppRouter>(error) && error.data?.code === "CONFLICT";
+    notify("delete", "error", conflict ? t("components.resource.deleteConflict") : undefined);
     emit("close", { deleted: false });
   }
 };

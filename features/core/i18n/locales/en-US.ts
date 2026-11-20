@@ -231,6 +231,7 @@ export default () => ({
     resource: {
       cancel: "Cancel",
       delete: "Delete",
+      deleteConflict: "Transfer ownership or remove references, then try again.",
       empty: "There is nothing to show",
       loadError: "Failed to load the data",
       noMatches: "No results match the filter",

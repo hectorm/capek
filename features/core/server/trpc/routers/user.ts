@@ -10,7 +10,7 @@ import { userPicturePath } from "#layers/core/server/lib/authn/picture";
 import { AuthModes } from "#layers/core/server/lib/authn/strategies";
 import { syncUserGroups, syncUserRoles } from "#layers/core/server/lib/authn/sync";
 import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
-import { isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
+import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import {
   ListPageSizeSchema,
   PageCursorSchema,
@@ -351,6 +351,13 @@ export const userRouter = createTRPCRouter({
 
           ctx.logger.info({ userId: input.id }, "User deleted");
         } catch (error) {
+          if (isForeignKeyViolation(error)) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Transfer ownership or remove links to this user, then try again.",
+              cause: error,
+            });
+          }
           if (isRLSViolation(error)) {
             throw new TRPCError({
               code: "FORBIDDEN",

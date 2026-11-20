@@ -7,11 +7,11 @@ export const useResourceToast = (i18nPrefix: string) => {
   const i18n = useI18n();
   const toast = useToast();
 
-  const notify = (action: "create" | "update" | "delete", outcome: "success" | "error"): void => {
+  const notify = (action: "create" | "update" | "delete", outcome: "success" | "error", description?: string): void => {
     toast.add({
       color: outcome,
       title: i18n.t(`${i18nPrefix}.actions.${action}.${outcome}.title`),
-      description: i18n.t(`${i18nPrefix}.actions.${action}.${outcome}.description`),
+      description: description ?? i18n.t(`${i18nPrefix}.actions.${action}.${outcome}.description`),
     });
   };
 

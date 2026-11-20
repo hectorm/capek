@@ -233,6 +233,7 @@ export default (): ReturnType<typeof enUS> => ({
     resource: {
       cancel: "Cancelar",
       delete: "Eliminar",
+      deleteConflict: "Transfiera la propiedad o elimine las referencias y vuelva a intentarlo.",
       empty: "No hay nada que mostrar",
       loadError: "Error al cargar los datos",
       noMatches: "Ningún resultado coincide con el filtro",
