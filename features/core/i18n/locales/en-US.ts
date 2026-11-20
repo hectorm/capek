@@ -238,6 +238,11 @@ export default () => ({
       retry: "Retry",
       update: "Edit",
     },
+    collectionLayout: {
+      layout: "Collection layout",
+      listView: "List view",
+      gridView: "Grid view",
+    },
     resourceTable: {
       actions: "Actions",
       create: "Create",

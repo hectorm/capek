@@ -240,6 +240,11 @@ export default (): ReturnType<typeof enUS> => ({
       retry: "Reintentar",
       update: "Editar",
     },
+    collectionLayout: {
+      layout: "Diseño de la colección",
+      listView: "Vista de lista",
+      gridView: "Vista de cuadrícula",
+    },
     resourceTable: {
       actions: "Acciones",
       create: "Crear",

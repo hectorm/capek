@@ -7,10 +7,11 @@ import { NuxtPage } from "#components";
 
 import type { NavigationMenuItem } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
-import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 
 import type { AppMenuItem } from "#layers/core/app/utils/features";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
+
+import SectionTabs from "#layers/core/app/components/ui/SectionTabs.vue";
 
 const props = defineProps<{
   title: string;
@@ -47,14 +48,7 @@ const menu = computed<NavigationMenuItem[]>(() => {
       <h1 class="text-xl font-bold">{{ title }}</h1>
     </header>
     <main class="flex flex-col overflow-hidden">
-      <UNavigationMenu
-        highlight
-        :items="menu"
-        orientation="horizontal"
-        highlight-color="primary"
-        class="border-b border-default px-4"
-        :ui="{ root: 'shrink-0 overflow-x-auto scrollbar-none', list: 'shrink-0', item: 'shrink-0' }"
-      />
+      <SectionTabs :items="menu" />
       <NuxtPage />
     </main>
   </div>
