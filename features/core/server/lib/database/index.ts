@@ -100,7 +100,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
         if (event.level === "error") {
           logger.debug({ error: event.error }, "Database query error");
         } else {
-          logger.trace({ query: event.query }, "Database query");
+          logger.trace({ sql: event.query.sql, durationMs: event.queryDurationMillis }, "Database query");
         }
       },
     });

@@ -5,9 +5,11 @@ import type { Worker } from "node:cluster";
 
 import type { Mock } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
+import { sql } from "kysely";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HANDOVER_MESSAGE, setupDbHandover, useDb } from "#layers/core/server/lib/database";
+import { useLogger } from "#layers/core/server/lib/logger";
 import { closeDb } from "#layers/core/tests/unit/helpers/db";
 
 vi.mock("@electric-sql/pglite", { spy: true });
@@ -28,6 +30,15 @@ afterEach(async () => {
 });
 
 describe("database", () => {
+  it("traces the statement without its bound values", async () => {
+    const trace = vi.spyOn(useLogger(), "trace");
+    const db = await useDb();
+    trace.mockClear();
+    await sql`SELECT ${"private file bytes"}::text`.execute(db);
+    const duration: unknown = expect.any(Number);
+    expect(trace).toHaveBeenCalledWith({ sql: "SELECT $1::text", durationMs: duration }, "Database query");
+  });
+
   it("is set up once for concurrent calls", async () => {
     await Promise.all([useDb(), useDb()]);
     expect(PGlite).toHaveBeenCalledTimes(1);
