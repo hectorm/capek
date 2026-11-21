@@ -1,7 +1,7 @@
 import type { ColumnType, Insertable, Selectable, Updateable } from "kysely";
 
 import type { LlmItem } from "#layers/ai/shared/llm";
-import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { LlmProviderApiType } from "#layers/ai/shared/llm-provider";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { OpenAIFunctionParameters } from "#layers/ai/shared/openai";
 import type { ResourceAccessTable } from "#layers/core/shared/schema";

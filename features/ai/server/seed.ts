@@ -6,7 +6,7 @@ import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/s
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { collectToolProviders, hasToolResources } from "#layers/ai/server/lib/tools/define";
 import { allowsAgentTools, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
-import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
+import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llm-provider";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { defineSeed, SeedAccessSchema } from "#layers/core/server/lib/seed";

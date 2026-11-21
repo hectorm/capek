@@ -8,7 +8,7 @@ import type { HttpRedactedHeader } from "#layers/core/shared/http";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { LlmProviderResource } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets, encryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
-import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llmProvider";
+import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llm-provider";
 import { AiPermissions } from "#layers/ai/shared/rbac";
 import { can } from "#layers/core/server/lib/authz/permissions";
 import { grantResourceAccess } from "#layers/core/server/lib/authz/resources";

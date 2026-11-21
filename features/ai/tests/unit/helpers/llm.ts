@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
 import type { LlmItem, LlmStreamEvent } from "#layers/ai/shared/llm";
-import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { LlmProviderApiType } from "#layers/ai/shared/llm-provider";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { decodeRequestBody } from "#layers/ai/tests/unit/helpers/http";
 import { fetchEndpoint } from "#layers/core/server/lib/http";

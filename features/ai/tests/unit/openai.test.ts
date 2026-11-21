@@ -5,7 +5,7 @@ import {
   fromChatCompletionsResponse,
   fromChatCompletionsStream,
   toChatCompletionsRequest,
-} from "#layers/ai/server/lib/openai/chatCompletions";
+} from "#layers/ai/server/lib/openai/chat-completions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import {
   chatCompletion,

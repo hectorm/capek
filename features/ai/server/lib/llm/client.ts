@@ -1,5 +1,5 @@
 import type { LlmItem, LlmRequest, LlmResponse, LlmStreamEvent } from "#layers/ai/shared/llm";
-import type { LlmProviderApiType } from "#layers/ai/shared/llmProvider";
+import type { LlmProviderApiType } from "#layers/ai/shared/llm-provider";
 import type { EndpointInit } from "#layers/core/server/lib/http";
 import type { HttpHeader } from "#layers/core/shared/http";
 import type { TestResult } from "#layers/core/shared/types";
@@ -9,7 +9,7 @@ import {
   fromChatCompletionsResponse,
   fromChatCompletionsStream,
   toChatCompletionsRequest,
-} from "#layers/ai/server/lib/openai/chatCompletions";
+} from "#layers/ai/server/lib/openai/chat-completions";
 import { fromResponsesResponse, fromResponsesStream, toResponsesRequest } from "#layers/ai/server/lib/openai/responses";
 import { sanitize } from "#layers/ai/server/lib/text";
 import { OpenAIModelsResponseSchema } from "#layers/ai/shared/openai";

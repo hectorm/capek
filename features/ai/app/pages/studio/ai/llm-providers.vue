@@ -13,7 +13,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 import ResourceTable from "#layers/core/app/components/ui/ResourceTable.vue";
-import LazyUpsertModal from "#layers/ai/app/components/llmProviders/UpsertModal.vue";
+import LazyUpsertModal from "#layers/ai/app/components/llm-providers/UpsertModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["ai"]["llmProvider"]["search"], void>>;
 type SearchOutput = RouterOutputs["ai"]["llmProvider"]["search"];
