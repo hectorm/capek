@@ -2,6 +2,9 @@ import { createError } from "h3";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { PermissionName } from "#layers/core/shared/rbac";
+import { useLogger } from "#layers/core/server/lib/logger";
+
+const logger = useLogger();
 
 export const can = (user: AuthUser, permissions: PermissionName | PermissionName[]): boolean => {
   return Array.isArray(permissions)
@@ -21,6 +24,7 @@ export const requirePermissions = (
   strict = false,
 ): AuthUser => {
   if (!user) {
+    logger.warn("Authentication required but no user in context");
     throw createError({
       statusCode: 401,
       message: "Authentication required",
@@ -28,6 +32,7 @@ export const requirePermissions = (
   }
 
   if (!(strict ? can : canAny)(user, permissions)) {
+    logger.warn({ userId: user.id, permissions, strict }, "Permission denied");
     throw createError({
       statusCode: 403,
       message: "Insufficient permissions",

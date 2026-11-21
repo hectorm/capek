@@ -35,32 +35,32 @@ export default (): ReturnType<typeof enUS> => ({
         fields: {
           "branding.name": {
             label: "Nombre de la aplicación",
-            description: "El nombre que se muestra en el título del navegador y la navegación.",
+            description: "El nombre que se muestra en el título del navegador y la navegación",
             placeholder: "Introduzca el nombre de la aplicación",
           },
           "branding.logo": {
             label: "Logotipo de la aplicación",
-            description: "Logotipo completo que se muestra en la barra lateral expandida.",
+            description: "Logotipo completo que se muestra en la barra lateral expandida",
             placeholder: "Cargar imagen (máx. {size} KB)",
           },
           "branding.icon": {
             label: "Icono de la aplicación",
-            description: "Icono cuadrado para la barra lateral colapsada y favicon.",
+            description: "Icono cuadrado para la barra lateral colapsada y favicon",
             placeholder: "Cargar imagen (máx. {size} KB)",
           },
           "branding.primaryColor": {
             label: "Color primario",
-            description: "Color principal utilizado para botones, enlaces y elementos importantes.",
+            description: "Color principal utilizado para botones, enlaces y elementos importantes",
             placeholder: "Seleccione un color",
           },
           "branding.neutralColor": {
             label: "Color neutral",
-            description: "Color utilizado para texto, bordes y fondos.",
+            description: "Color utilizado para texto, bordes y fondos",
             placeholder: "Seleccione un color",
           },
           "branding.radius": {
             label: "Radio de borde",
-            description: "Redondeo de las esquinas de los componentes.",
+            description: "Redondeo de las esquinas de los componentes",
             placeholder: "Seleccione el radio de borde",
           },
         },
@@ -233,14 +233,14 @@ export default (): ReturnType<typeof enUS> => ({
     resource: {
       cancel: "Cancelar",
       delete: "Eliminar",
-      deleteConflict: "Transfiera la propiedad o elimine las referencias y vuelva a intentarlo.",
+      deleteConflict: "Transfiera la propiedad o elimine las referencias y vuelva a intentarlo",
       empty: "No hay nada que mostrar",
       loadError: "Error al cargar los datos",
       noMatches: "Ningún resultado coincide con el filtro",
       retry: "Reintentar",
       update: "Editar",
     },
-    collectionLayout: {
+    collectionLayoutToggle: {
       layout: "Diseño de la colección",
       listView: "Vista de lista",
       gridView: "Vista de cuadrícula",
@@ -249,7 +249,7 @@ export default (): ReturnType<typeof enUS> => ({
       actions: "Acciones",
       create: "Crear",
       filter: "Filtrar por {column}",
-      loadError: "No se pudieron cargar las filas",
+      loadError: "Error al cargar las filas",
       search: "Buscar",
       sort: "Ordenar por {column}",
     },
@@ -285,11 +285,11 @@ export default (): ReturnType<typeof enUS> => ({
       upsertModal: {
         create: {
           title: "Crear usuario",
-          description: "Proporcione los detalles para añadir un nuevo usuario",
+          description: "Añadir un nuevo usuario",
         },
         update: {
           title: "Editar usuario",
-          description: "Modifique los detalles de un usuario existente",
+          description: "Actualizar los datos del usuario",
         },
         form: {
           username: {
@@ -320,11 +320,11 @@ export default (): ReturnType<typeof enUS> => ({
       upsertModal: {
         create: {
           title: "Crear grupo",
-          description: "Proporcione los detalles para añadir un nuevo grupo",
+          description: "Añadir un nuevo grupo",
         },
         update: {
           title: "Editar grupo",
-          description: "Modifique los detalles de un grupo existente",
+          description: "Actualizar los datos del grupo",
         },
         form: {
           name: {

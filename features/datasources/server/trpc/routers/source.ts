@@ -39,7 +39,7 @@ const readAccess = sql
   .raw<boolean>(selectAccess(SourceResource.type, "read", hasAccess(SourceResource, `${SourceResource.table}.id`)))
   .as("canRead");
 
-const sourceActions = (user: AuthUser, isEditor: boolean) => {
+const sourceActions = (user: AuthUser, isEditor: boolean): { canEdit: boolean; canDelete: boolean } => {
   return {
     canEdit:
       can(user, DatasourcesPermissions.SourceUpdateAll) ||
@@ -90,7 +90,10 @@ const unredactConfig = (
     );
   } catch (error) {
     if (error instanceof DatasourceSecretsError) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
     }
     throw error;
   }
@@ -145,6 +148,7 @@ export const sourceRouter = createTRPCRouter({
         }
 
         const { isEditor, ...metadata } = source;
+
         ctx.logger.debug({ sourceId: input.id }, "Datasource metadata retrieved");
         return { ...metadata, ...sourceActions(ctx.user, isEditor) };
       });

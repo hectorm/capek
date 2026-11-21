@@ -89,7 +89,16 @@ export const createSeedContext = (
     );
 
     for (const entry of entries) {
-      logger.info(`Granted ${entry.access.role} access to ${entry.access.type}: ${entry.name}`);
+      logger.info(
+        {
+          resource: resource.type,
+          resourceId,
+          principal: entry.name,
+          type: entry.access.type,
+          role: entry.access.role,
+        },
+        "Access granted",
+      );
     }
   };
 

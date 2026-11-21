@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useNuxtApp } from "nuxt/app";
-import { reactive, ref } from "vue";
+import { reactive } from "vue";
 import { z } from "zod/v4";
 
 import type { FormSubmitEvent } from "@nuxt/ui";
@@ -10,10 +10,11 @@ import UFormField from "@nuxt/ui/components/FormField.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
 import UModal from "@nuxt/ui/components/Modal.vue";
 
-import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import type { RouterInputs } from "#layers/core/app/types/trpc";
 import { useChatStore } from "#layers/ai/app/stores/chat";
 
-type ChatSessionReadOutput = RouterOutputs["ai"]["chatSession"]["read"];
+import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
+
 type ChatSessionUpdateInput = RouterInputs["ai"]["chatSession"]["update"];
 
 const props = defineProps<{
@@ -27,7 +28,7 @@ const emit = defineEmits<{
 const { $trpc } = useNuxtApp();
 const chatStore = useChatStore();
 
-const session = ref<ChatSessionReadOutput>(await $trpc.ai.chatSession.read.query({ id: props.id }));
+const session = await $trpc.ai.chatSession.read.query({ id: props.id }).catch(() => null);
 
 const schema = z.object({
   id: z.uuid(),
@@ -37,17 +38,12 @@ const schema = z.object({
 type Schema = z.infer<typeof schema>;
 
 const state = reactive<Partial<ChatSessionUpdateInput>>({
-  id: session.value.id,
-  title: session.value.title,
+  id: session?.id,
+  title: session?.title,
 });
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
-    if (!event.data.id) {
-      emit("close", { renamed: false, error: new Error("Session ID is required") });
-      return;
-    }
-
     await chatStore.updateSession(event.data.id, { title: event.data.title });
     emit("close", { renamed: true, error: null });
   } catch (error) {
@@ -55,7 +51,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { renamed: false, error: null });
 };
 </script>
@@ -68,7 +64,9 @@ const onCancel = () => {
     :description="$t('ai.components.chat.renameModal.description')"
   >
     <template #body>
+      <ResourceLoadError v-if="!session" @cancel="onCancel" />
       <UForm
+        v-else
         :state="state"
         :schema="schema"
         :validate-on="['change']"
@@ -88,7 +86,7 @@ const onCancel = () => {
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
             {{ $t("ai.components.chat.renameModal.form.cancel.label") }}
           </UButton>
-          <UButton type="submit" color="primary" variant="solid" icon="i-lucide-save">
+          <UButton loading-auto type="submit" color="primary" variant="solid" icon="i-lucide-save">
             {{ $t("ai.components.chat.renameModal.form.save.label") }}
           </UButton>
         </div>

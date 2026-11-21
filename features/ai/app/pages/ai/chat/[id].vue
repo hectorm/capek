@@ -27,14 +27,14 @@ import UTextarea from "@nuxt/ui/components/Textarea.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
+import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import { useAnswerError } from "#layers/ai/app/composables/answer-error";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { copyToClipboard } from "#layers/core/app/utils/clipboard";
-import type { ChatMessagePart } from "#layers/ai/shared/chat";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
-import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import ChartFrame from "#layers/ai/app/components/chat/ChartFrame.vue";
 import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
@@ -67,9 +67,6 @@ const toast = useToast();
 const overlay = useOverlay();
 
 const sidebar = inject(sidebarKey);
-
-const chatDeleteModal = overlay.create(LazyDeleteModal);
-const chatRenameModal = overlay.create(LazyRenameModal);
 
 const input = ref<string>("");
 const edit = ref<MessageEdit>();
@@ -190,6 +187,10 @@ const actionItems = computed(() => [
   },
 ]);
 
+useSeoMeta({
+  title,
+});
+
 const groupToolCalls = (parts: ChatMessagePart[]): DisplayedPart[] => {
   const grouped: DisplayedPart[] = [];
   for (const part of parts) {
@@ -221,7 +222,7 @@ const toolCallsSuffix = (calls: ToolCallPart[]): string | undefined => {
   return i18n.t("ai.pages.chat.toolCalls.calls", { count: calls.length });
 };
 
-const loadSession = async (id: string) => {
+const loadSession = async (id: string): Promise<void> => {
   edit.value = undefined;
   if (!id) {
     return;
@@ -253,11 +254,11 @@ const loadSession = async (id: string) => {
   }
 };
 
-const handleStopGeneration = () => {
+const handleStopGeneration = (): void => {
   chatStore.abortStream(sessionId.value);
 };
 
-const handleSubmit = async (draft?: MessageEdit) => {
+const handleSubmit = async (draft?: MessageEdit): Promise<void> => {
   const content = (draft?.text ?? input.value).trim();
   if (!content || content === draft?.original.trim() || chatStatus.value === "streaming") {
     return;
@@ -282,7 +283,7 @@ const handleSubmit = async (draft?: MessageEdit) => {
 };
 
 const handleRenameSession = async (): Promise<void> => {
-  const instance = chatRenameModal.open({ id: sessionId.value });
+  const instance = overlay.create(LazyRenameModal, { destroyOnClose: true }).open({ id: sessionId.value });
   const result = (await instance.result) as { renamed: boolean; error: Error | null };
   if (result.renamed) {
     toast.add({
@@ -300,7 +301,7 @@ const handleRenameSession = async (): Promise<void> => {
 };
 
 const handleDeleteSession = async (): Promise<void> => {
-  const instance = chatDeleteModal.open({ id: sessionId.value });
+  const instance = overlay.create(LazyDeleteModal, { destroyOnClose: true }).open({ id: sessionId.value });
   const result = (await instance.result) as { deleted: boolean; error: Error | null };
   if (result.deleted) {
     toast.add({
@@ -318,7 +319,7 @@ const handleDeleteSession = async (): Promise<void> => {
   }
 };
 
-const handleCopyMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
+const handleCopyMessage = async (_event: MouseEvent, message: { id: string; parts: MessagePart[] }): Promise<void> => {
   const success = await copyToClipboard(() => {
     return message.parts
       .filter((p): p is Required<MessagePart> => p.type === "text" && typeof p.text === "string")
@@ -336,14 +337,14 @@ const handleCopyMessage = async (_e: MouseEvent, message: { id: string; parts: M
   }
 };
 
-const handleEditMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
+const handleEditMessage = async (_event: MouseEvent, message: { id: string; parts: MessagePart[] }): Promise<void> => {
   const original = message.parts[0]?.text ?? "";
   edit.value = { id: message.id, original, text: original };
   await nextTick();
   editField.value?.textareaRef?.focus();
 };
 
-const handleRetryMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
+const handleRetryMessage = async (_event: MouseEvent, message: { id: string; parts: MessagePart[] }): Promise<void> => {
   try {
     await chatStore.retryMessage(sessionId.value, message.id);
   } catch (error) {
@@ -356,7 +357,10 @@ const handleRetryMessage = async (_e: MouseEvent, message: { id: string; parts: 
   }
 };
 
-const handleRegenerateMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
+const handleRegenerateMessage = async (
+  _event: MouseEvent,
+  message: { id: string; parts: MessagePart[] },
+): Promise<void> => {
   try {
     await chatStore.regenerateMessage(sessionId.value, message.id);
   } catch (error) {
@@ -369,7 +373,10 @@ const handleRegenerateMessage = async (_e: MouseEvent, message: { id: string; pa
   }
 };
 
-const handleDeleteMessage = async (_e: MouseEvent, message: { id: string; parts: MessagePart[] }) => {
+const handleDeleteMessage = async (
+  _event: MouseEvent,
+  message: { id: string; parts: MessagePart[] },
+): Promise<void> => {
   try {
     await chatStore.deleteMessage(sessionId.value, message.id);
   } catch (error) {
@@ -382,7 +389,7 @@ const handleDeleteMessage = async (_e: MouseEvent, message: { id: string; parts:
   }
 };
 
-const handleBeforeUnload = () => {
+const handleBeforeUnload = (): void => {
   chatStore.abortStream(sessionId.value);
 };
 
@@ -420,10 +427,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("beforeunload", handleBeforeUnload);
-});
-
-useSeoMeta({
-  title,
 });
 
 definePageMeta({

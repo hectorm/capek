@@ -4,18 +4,18 @@ import { useNuxtApp } from "nuxt/app";
 import UBadge from "@nuxt/ui/components/Badge.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
-import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import { useAgentStore } from "#layers/ai/app/stores/agent";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceTable } from "#layers/core/app/composables/resource-table";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
-import { useAgentStore } from "#layers/ai/app/stores/agent";
-import { AiPermissions } from "#layers/ai/shared/rbac";
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 
+import LazyUpsertModal from "#layers/ai/app/components/agents/UpsertModal.vue";
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 import ResourceTable from "#layers/core/app/components/ui/ResourceTable.vue";
-import LazyUpsertModal from "#layers/ai/app/components/agents/UpsertModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["ai"]["agent"]["search"], void>>;
 type SearchOutput = RouterOutputs["ai"]["agent"]["search"];

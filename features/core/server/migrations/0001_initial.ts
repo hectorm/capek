@@ -129,7 +129,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
 
   await db.schema.createIndex("accountsUserIdIdx").on("public.accounts").column("userId").execute();
 
-  await db.schema.createIndex("accountsIssSubIdx").unique().on("public.accounts").columns(["iss", "sub"]).execute();
+  await db.schema.createIndex("accountsUniqueIssSub").unique().on("public.accounts").columns(["iss", "sub"]).execute();
 
   ////////////////////////////////
 

@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, SelectQueryBuilder } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { z } from "zod/v4";
@@ -16,7 +16,14 @@ import {
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
-const selectGroups = (db: Kysely<Database>) => {
+interface GroupRow {
+  id: string;
+  name: string;
+  description: string;
+  roles: string[] | null;
+}
+
+const selectGroups = (db: Kysely<Database>): SelectQueryBuilder<Database, "groups", GroupRow> => {
   return db.selectFrom("groups").select([
     "groups.id",
     "groups.name",
@@ -35,7 +42,10 @@ const selectGroups = (db: Kysely<Database>) => {
 };
 
 // COALESCE returns a list even when the inferred subquery type allows null
-const withNames = <G extends { roles: string[] | null }>(group: G) => ({ ...group, roles: group.roles ?? [] });
+const withNames = <G extends { roles: string[] | null }>(group: G): Omit<G, "roles"> & { roles: string[] } => ({
+  ...group,
+  roles: group.roles ?? [],
+});
 
 export const groupRouter = createTRPCRouter({
   read: authorizedProcedure([CorePermissions.GroupReadAll, CorePermissions.GroupReadOwn])

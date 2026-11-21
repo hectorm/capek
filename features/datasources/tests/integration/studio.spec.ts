@@ -8,11 +8,13 @@ test.describe("datasource studio", () => {
 
     const name = `orders-${crypto.randomUUID()}`;
     const dialog = page.getByRole("dialog");
-    await dialog.getByPlaceholder(/datasource name/i).fill(name);
-    await dialog.getByRole("combobox").first().click();
+    await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
+    await dialog.getByRole("combobox", { name: "Type" }).click();
     await expect(page.getByRole("option")).toHaveText(["ClickHouse", "MariaDB / MySQL", "PostgreSQL", "SQL Server"]);
     await page.getByRole("option", { name: "PostgreSQL" }).click();
-    await dialog.getByPlaceholder("postgres://<host>:5432/<database>").fill("postgres://db.example.com:5432/orders");
+    const connectionString = dialog.getByRole("textbox", { name: "Connection string" });
+    await expect(connectionString).toHaveAttribute("placeholder", "postgres://<host>:5432/<database>");
+    await connectionString.fill("postgres://db.example.com:5432/orders");
     await dialog.getByRole("button", { name: /^create$/i }).click();
 
     await expect(dialog).toBeHidden();

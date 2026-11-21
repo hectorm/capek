@@ -8,6 +8,8 @@ import { SourceResource } from "#layers/datasources/server/lib/resources";
 export const up = async (db: Kysely<Database>): Promise<void> => {
   const naturalCs = await naturalCollation(db);
 
+  ////////////////////////////////
+
   await db.schema
     .createTable("public.datasourcesSources")
     .addColumn("id", "uuid", (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
@@ -19,6 +21,8 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addColumn("updatedAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .execute();
+
+  ////////////////////////////////
 
   await createAccessTable(db, SourceResource);
 };

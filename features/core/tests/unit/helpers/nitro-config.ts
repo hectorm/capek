@@ -7,4 +7,4 @@ export const runtimeConfig: Record<string, unknown> = {
   logLevel: "silent",
 };
 
-export const useRuntimeConfig = () => runtimeConfig;
+export const useRuntimeConfig = (): Record<string, unknown> => runtimeConfig;

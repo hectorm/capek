@@ -12,11 +12,11 @@ import UModal from "@nuxt/ui/components/Modal.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
@@ -110,7 +110,7 @@ const state = reactive<
   ...toPrincipalIds(currentAccess),
 });
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     const access = fromPrincipalIds(event.data);
 
@@ -143,7 +143,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { skill: null });
 };
 </script>

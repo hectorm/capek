@@ -15,11 +15,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ "update:modelValue": [number | null] }>();
 
-const toggle = (enabled: boolean) => {
+const toggle = (enabled: boolean): void => {
   emit("update:modelValue", enabled ? props.default : null);
 };
 
-const commit = (value: unknown) => {
+const commit = (value: unknown): void => {
   if (typeof value === "number" && Number.isFinite(value)) {
     emit("update:modelValue", value);
   }

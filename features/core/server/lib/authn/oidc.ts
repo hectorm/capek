@@ -157,7 +157,7 @@ export class OIDC {
       this.discoveryCache.set(issuer, { as, expiresAt });
     }
 
-    const pick = (c: string | undefined, d: string | undefined) => (c !== "" ? c : d);
+    const pick = (c: string | undefined, d: string | undefined): string | undefined => (c !== "" ? c : d);
 
     this.as = {
       ...configured,
@@ -260,7 +260,7 @@ export class OIDC {
     return tokens;
   }
 
-  public async getUserProfile(idTokenClaims: IDToken, accessToken: string): Promise<OIDCUserProfile | null> {
+  public async findUserProfile(idTokenClaims: IDToken, accessToken: string): Promise<OIDCUserProfile | null> {
     const profile: Partial<OIDCUserProfile> = {};
 
     if (jmespath.search(idTokenClaims, this.allowedPath) === true) {

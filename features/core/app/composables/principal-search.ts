@@ -5,7 +5,14 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
-export const usePrincipalSearch = () => {
+export interface PrincipalSearch {
+  search: (query?: string) => Promise<string[]>;
+  getLabel: (id: string) => string;
+  getIcon: (id: string) => string | undefined;
+  preload: (accessList: Principal[]) => void;
+}
+
+export const usePrincipalSearch = (): PrincipalSearch => {
   const { $trpc } = useNuxtApp();
   const { canAny } = usePermissions();
   const cache = new Map<string, { label: string; icon: string }>();
@@ -38,7 +45,7 @@ export const usePrincipalSearch = () => {
     return cache.get(id)?.icon;
   };
 
-  const preload = (accessList: Principal[]) => {
+  const preload = (accessList: Principal[]): void => {
     accessList.forEach((item) => {
       if (item.type === "group") {
         cache.set(`group:${item.id}`, { label: item.groupname, icon: "i-lucide-users" });

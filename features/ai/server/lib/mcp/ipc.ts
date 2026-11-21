@@ -72,7 +72,7 @@ export class MCPIPCClient {
     return new Promise((resolve, reject) => {
       let abortListener: (() => void) | null = null;
 
-      const cleanup = () => {
+      const cleanup = (): void => {
         clearTimeout(timeoutId);
         this.pendingRequests.delete(requestId);
         if (signal && abortListener) {

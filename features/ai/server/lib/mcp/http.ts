@@ -1,4 +1,4 @@
-import { setTimeout as sleep } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 
 import { z } from "zod/v4";
 
@@ -142,7 +142,7 @@ const readStreamResponse = async (
     if (!options.resumable || lastEventId === null) {
       throw new Error("The MCP server did not send a valid JSON-RPC response in its stream");
     }
-    await sleep(Math.max(stream.retryMs, STREAM_RETRY_MIN_MS), undefined, { signal });
+    await setTimeout(Math.max(stream.retryMs, STREAM_RETRY_MIN_MS), undefined, { signal });
 
     const headers = new Headers(options.headers);
     headers.set("Accept", "text/event-stream");

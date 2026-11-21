@@ -28,7 +28,7 @@ export class DatasourceSecretsError extends Error {
   }
 }
 
-export const defineDatasourceType = <S extends z.ZodType>(def: {
+export const defineDatasourceType = <S extends z.ZodType>(definition: {
   type: string;
   label: string;
   placeholder: string;
@@ -37,19 +37,19 @@ export const defineDatasourceType = <S extends z.ZodType>(def: {
   redact: (parsed: z.infer<S>) => DatasourceConfig;
   unredact: (incoming: z.infer<S>, stored: z.infer<S> | undefined) => DatasourceConfig;
 }): DatasourceTypeDefinition<S> => ({
-  type: def.type,
-  label: def.label,
-  placeholder: def.placeholder,
-  authTypes: def.authTypes,
-  configSchema: def.configSchema,
+  type: definition.type,
+  label: definition.label,
+  placeholder: definition.placeholder,
+  authTypes: definition.authTypes,
+  configSchema: definition.configSchema,
   redact: (config) => {
-    const parsedConfig = def.configSchema.safeParse(config);
-    return parsedConfig.success ? def.redact(parsedConfig.data) : {};
+    const parsedConfig = definition.configSchema.safeParse(config);
+    return parsedConfig.success ? definition.redact(parsedConfig.data) : {};
   },
   unredact: (incoming, stored) => {
-    const parsedIncoming = def.configSchema.parse(incoming);
-    const parsedStored = def.configSchema.safeParse(stored);
-    const config = def.unredact(parsedIncoming, parsedStored.success ? parsedStored.data : undefined);
+    const parsedIncoming = definition.configSchema.parse(incoming);
+    const parsedStored = definition.configSchema.safeParse(stored);
+    const config = definition.unredact(parsedIncoming, parsedStored.success ? parsedStored.data : undefined);
 
     // Reusing stored secrets requires the same connection string
     const taken = Object.entries(config).some(
@@ -81,13 +81,13 @@ export const UrlDatasourceConfigSchema = z.discriminatedUnion("authType", [
 
 export type UrlDatasourceConfig = z.infer<typeof UrlDatasourceConfigSchema>;
 
-export const defineUrlDatasourceType = (def: {
+export const defineUrlDatasourceType = (definition: {
   type: string;
   label: string;
   placeholder: string;
 }): DatasourceTypeDefinition<typeof UrlDatasourceConfigSchema> => {
   return defineDatasourceType({
-    ...def,
+    ...definition,
     authTypes: ["basic", "none"],
     configSchema: UrlDatasourceConfigSchema,
     redact: (parsed) => (parsed.authType === "basic" ? { ...parsed, password: HTTP_REDACTED_VALUE } : parsed),

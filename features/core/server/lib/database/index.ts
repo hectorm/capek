@@ -11,7 +11,7 @@ import pg from "pg";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ResourceSelectAction } from "#layers/core/server/lib/database/security";
 import type { Database } from "#layers/core/shared/schema";
-import { bypassesRls, FALLBACK_ROLE, isSuperuser } from "#layers/core/server/lib/database/rls";
+import { canBypassRls, FALLBACK_ROLE, isSuperuser } from "#layers/core/server/lib/database/rls";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const config = useRuntimeConfig();
@@ -24,7 +24,7 @@ const usingPGlite = databaseUrl.protocol === "file:" || databaseUrl.protocol ===
 
 let connIsSuperuser = false;
 
-pg.types.setTypeParser(pg.types.builtins.JSONB, (val: string) => JSON.parse(val) as unknown);
+pg.types.setTypeParser(pg.types.builtins.JSONB, (value: string) => JSON.parse(value) as unknown);
 
 export const HANDOVER_MESSAGE = "core:database-handover";
 
@@ -107,7 +107,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
 
     try {
       connIsSuperuser = await isSuperuser(database);
-      if (!connIsSuperuser && (await bypassesRls(database))) {
+      if (!connIsSuperuser && (await canBypassRls(database))) {
         throw new Error(
           "Database connection is a role with the BYPASSRLS attribute, which bypasses row-level security. " +
             "Connect as a role without it.",

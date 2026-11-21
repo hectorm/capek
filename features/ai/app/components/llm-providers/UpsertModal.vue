@@ -16,14 +16,14 @@ import UTextarea from "@nuxt/ui/components/Textarea.vue";
 
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import type { HttpHeader } from "#layers/core/shared/http";
+import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llm-provider";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
-import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llm-provider";
-import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
@@ -119,15 +119,15 @@ const apiTypeOptions = [
   { value: "messages", label: i18n.t("ai.pages.studio.llmProviders.form.apiType.messages") },
 ];
 
-const addHeader = () => {
+const onAddHeader = (): void => {
   state.headers.push({ name: "", value: "" });
 };
 
-const removeHeader = (index: number) => {
+const onRemoveHeader = (index: number): void => {
   state.headers.splice(index, 1);
 };
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     const access = fromPrincipalIds(event.data);
 
@@ -164,18 +164,18 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { llmProvider: null });
 };
 
-const onTestConnection = async () => {
+const onTestConnection = async (): Promise<void> => {
   if (!state.apiUrl) {
     return;
   }
 
   await test(
     $trpc.ai.llmProvider.testConnection.mutate({
-      id: props.id ?? undefined,
+      id: props.id,
       apiUrl: state.apiUrl,
       apiType: state.apiType,
       apiKey: state.apiKey,
@@ -284,7 +284,7 @@ const onTestConnection = async () => {
                 variant="outline"
                 icon="i-lucide-trash-2"
                 :aria-label="$t('ai.pages.studio.llmProviders.form.headers.remove')"
-                @click="removeHeader(index)"
+                @click="onRemoveHeader(index)"
               />
             </UFieldGroup>
             <UFieldGroup>
@@ -295,7 +295,7 @@ const onTestConnection = async () => {
                 icon="i-lucide-plus"
                 :disabled="!canModify"
                 :label="$t('ai.pages.studio.llmProviders.form.headers.add')"
-                @click="addHeader"
+                @click="onAddHeader"
               />
             </UFieldGroup>
           </div>

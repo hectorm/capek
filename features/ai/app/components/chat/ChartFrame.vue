@@ -52,15 +52,15 @@ const optionContent = computed(() => {
   });
 });
 
-const send = (message: Record<string, unknown>) => {
+const send = (message: Record<string, unknown>): void => {
   frame.value?.contentWindow?.postMessage(message, "*");
 };
 
-const draw = () => {
+const draw = (): void => {
   send({ type: "draw", option: props.chart.option, dark: colorMode.value === "dark", locale: i18n.locale.value });
 };
 
-const exportImage = (format: ExportFormat) => {
+const exportImage = (format: ExportFormat): void => {
   exportFormat = format;
   send({ type: "export", format });
 };

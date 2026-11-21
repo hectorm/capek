@@ -130,6 +130,7 @@ const getUtf8Header = (event: H3Event, name: string): string | undefined => {
 
 export class ProxyStrategy implements AuthStrategy {
   public async getUserFromEvent(event: H3Event): Promise<AuthUser | null> {
+    // An empty secret would match the requests without the header, so it is rejected here as well as at startup
     const expectedSecret = config.proxy.secret;
     if (!expectedSecret.trim()) {
       logger.error("NUXT_PROXY_SECRET must be set to authenticate through a proxy");

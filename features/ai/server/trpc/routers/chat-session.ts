@@ -189,7 +189,7 @@ export const chatSessionRouter = createTRPCRouter({
       });
     }),
 
-  autoRename: authorizedProcedure([AiPermissions.ChatUpdateAll, AiPermissions.ChatUpdateOwn])
+  generateTitle: authorizedProcedure([AiPermissions.ChatUpdateAll, AiPermissions.ChatUpdateOwn])
     .input(z.object({ id: z.uuid() }))
     .mutation(async ({ ctx, input }) => {
       const { chatSession, agentId, firstUserMessageContent } = await withUserTransaction(ctx.user, async (trx) => {
@@ -237,7 +237,7 @@ export const chatSessionRouter = createTRPCRouter({
       });
 
       if (!firstUserMessageContent) {
-        ctx.logger.debug({ sessionId: input.id }, "No user message found, skipping auto-rename");
+        ctx.logger.debug({ sessionId: input.id }, "No user message found, title not generated");
         return chatSession;
       }
 
@@ -258,7 +258,7 @@ export const chatSessionRouter = createTRPCRouter({
         .executeTakeFirst();
 
       if (!agentLlmConfig) {
-        ctx.logger.debug({ sessionId: input.id }, "No LLM provider configured, skipping auto-rename");
+        ctx.logger.debug({ sessionId: input.id }, "No LLM provider configured, title not generated");
         return chatSession;
       }
 
@@ -295,7 +295,7 @@ export const chatSessionRouter = createTRPCRouter({
           });
         }
 
-        ctx.logger.info({ sessionId: input.id, title }, "Chat session auto-renamed");
+        ctx.logger.info({ sessionId: input.id, title }, "Chat session title generated");
         return updatedSession;
       });
     }),

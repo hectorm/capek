@@ -6,8 +6,15 @@ import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { decodeRequestBody } from "#layers/ai/tests/unit/helpers/http";
 import { fetchEndpoint } from "#layers/core/server/lib/http";
 
+export interface TestClient {
+  client: LlmClient;
+  sent: Record<string, unknown>[];
+  paths: string[];
+  headers: Headers[];
+}
+
 // The requests of the client are answered by the given function and kept, in tests that mock the HTTP module
-export const createClient = (respond: () => Response, apiType?: LlmProviderApiType) => {
+export const createClient = (respond: () => Response, apiType?: LlmProviderApiType): TestClient => {
   const sent: Record<string, unknown>[] = [];
   const paths: string[] = [];
   const headers: Headers[] = [];
@@ -64,7 +71,9 @@ export const chatCompletionStream = (
 };
 
 // Reads a translated stream the way the agents do
-export const readStream = async (stream: ReadableStream<LlmStreamEvent>) => {
+export const readStream = async (
+  stream: ReadableStream<LlmStreamEvent>,
+): Promise<{ text: string; output: LlmItem[] }> => {
   let text = "";
   let output: LlmItem[] = [];
 

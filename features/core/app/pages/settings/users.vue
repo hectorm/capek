@@ -4,7 +4,6 @@ import { storeToRefs } from "pinia";
 
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
-import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePayloadData } from "#layers/core/app/composables/payload-data";
@@ -12,6 +11,7 @@ import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceTable } from "#layers/core/app/composables/resource-table";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import { CorePermissions } from "#layers/core/shared/rbac";
 
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";

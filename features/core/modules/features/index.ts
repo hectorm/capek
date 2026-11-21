@@ -62,7 +62,7 @@ export default defineNuxtModule({
     checkFeatureIdentity(features);
     await checkFeatureNames(nuxt.options.rootDir, features);
 
-    // Nuxt lists higher-priority layers first. Reverse them before sorting by dependency
+    // Reverse the layers before sorting by dependency because Nuxt lists higher-priority layers first
     const ordered = orderFeatures(features.toReversed());
 
     // Tools can read the feature selection without loading Nuxt

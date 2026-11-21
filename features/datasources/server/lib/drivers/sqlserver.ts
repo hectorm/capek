@@ -152,9 +152,9 @@ export class SqlServerDriver implements DatasourceDriver {
     try {
       settings.signal?.throwIfAborted();
       await new Promise<void>((resolve, reject) => {
-        connection.once("connect", (err?: Error) => {
-          if (err) {
-            reject(err);
+        connection.once("connect", (error?: Error) => {
+          if (error) {
+            reject(error);
           } else {
             resolve();
           }
@@ -170,9 +170,9 @@ export class SqlServerDriver implements DatasourceDriver {
         let bytes = 0;
         let hasResultSet = false;
         let cancelled = false;
-        const request = new Request(sql, (err) => {
-          if (err && !cancelled) {
-            reject(err);
+        const request = new Request(sql, (error) => {
+          if (error && !cancelled) {
+            reject(error);
           } else if (!hasResultSet) {
             reject(new Error("The statement returned no result, and changes to data are not kept"));
           } else {
@@ -258,18 +258,18 @@ export class SqlServerDriver implements DatasourceDriver {
         case "data source": {
           // Parse "[tcp:]host[\instance][,port]"
           let host = value.trim().replace(/^tcp:\s*/i, "");
-          const commaIdx = host.lastIndexOf(",");
-          if (commaIdx >= 0) {
-            const port = Number.parseInt(host.slice(commaIdx + 1).trim(), 10);
+          const commaIndex = host.lastIndexOf(",");
+          if (commaIndex >= 0) {
+            const port = Number.parseInt(host.slice(commaIndex + 1).trim(), 10);
             if (!Number.isNaN(port)) {
               target.options.port = port;
-              host = host.slice(0, commaIdx).trim();
+              host = host.slice(0, commaIndex).trim();
             }
           }
-          const bsIdx = host.indexOf("\\");
-          if (bsIdx >= 0) {
-            target.options.instanceName = host.slice(bsIdx + 1).trim();
-            host = host.slice(0, bsIdx).trim();
+          const backslashIndex = host.indexOf("\\");
+          if (backslashIndex >= 0) {
+            target.options.instanceName = host.slice(backslashIndex + 1).trim();
+            host = host.slice(0, backslashIndex).trim();
           }
           target.server = host;
           break;
@@ -315,14 +315,14 @@ export class SqlServerDriver implements DatasourceDriver {
     if (/^(false|no|0)$/i.test(trimmed)) {
       return false;
     }
-    throw new Error(`Invalid boolean value in connection string: ${value}`);
+    throw new Error(`The value "${value}" of the connection string is not a boolean`);
   }
 
   private toNumber(value: string): number {
-    const n = Number(value.trim());
-    if (!Number.isFinite(n)) {
-      throw new Error(`Invalid numeric value in connection string: ${value}`);
+    const parsed = Number(value.trim());
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`The value "${value}" of the connection string is not a number`);
     }
-    return n;
+    return parsed;
   }
 }

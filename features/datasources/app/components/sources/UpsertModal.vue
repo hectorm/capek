@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { WritableComputedRef } from "vue";
 import { useNuxtApp } from "nuxt/app";
 import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -22,8 +23,8 @@ import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
 import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { DatasourceConfigSchema } from "#layers/datasources/shared/datasource";
-import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
+import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
@@ -144,15 +145,15 @@ const typeOptions = DatasourceTypes.map((type) => ({
 const definition = computed(() => DatasourceTypes.find((type) => type.type === state.type));
 
 const authTypeOptions = computed(() => {
-  return (definition.value?.authTypes ?? []).map((t) => ({
-    label: i18n.t(`datasources.pages.studio.datasources.form.authType.options.${t}`),
-    value: t,
+  return (definition.value?.authTypes ?? []).map((value) => ({
+    label: i18n.t(`datasources.pages.studio.datasources.form.authType.options.${value}`),
+    value,
   }));
 });
 
-const useConfigField = <T,>(key: string, def: T) => {
+const useConfigField = <T,>(key: string, defaultValue: T): WritableComputedRef<T> => {
   return computed<T>({
-    get: () => (state.config[key] as T | undefined) ?? def,
+    get: () => (state.config[key] as T | undefined) ?? defaultValue,
     set: (v) => (state.config = { ...state.config, [key]: v }),
   });
 };
@@ -165,7 +166,7 @@ const azureTenantId = useConfigField<string>("azureTenantId", "");
 const azureClientId = useConfigField<string>("azureClientId", "");
 const azureClientSecret = useConfigField<string>("azureClientSecret", "");
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     const access = fromPrincipalIds(event.data);
 
@@ -200,11 +201,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { datasource: null });
 };
 
-const onTestConnection = async () => {
+const onTestConnection = async (): Promise<void> => {
   await test(
     $trpc.datasources.source.testConnection.mutate({
       id: state.id,

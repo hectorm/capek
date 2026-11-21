@@ -17,10 +17,10 @@ export const toRow = (names: readonly string[], values: readonly unknown[]): Rec
   const reserved = new Set(names);
   const used = new Set<string>();
   return Object.fromEntries(
-    values.map((value, i) => {
-      let name = names[i];
+    values.map((value, index) => {
+      let name = names[index];
       if (!name || used.has(name)) {
-        const base = `column${String(i + 1)}`;
+        const base = `column${String(index + 1)}`;
         name = base;
         for (let suffix = 2; reserved.has(name) || used.has(name); suffix++) {
           name = `${base}_${String(suffix)}`;

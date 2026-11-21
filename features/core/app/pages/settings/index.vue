@@ -61,24 +61,24 @@ const fieldKey = (setting: SettingDefinition, name: string): string => {
   return featureMessageKey(setting.feature, `pages.settings.general.fields['${setting.key}'].${name}`);
 };
 
-const updateSettingValue = (setting: SettingDefinition, value: SettingValue): void => {
+const handleUpdateSettingValue = (setting: SettingDefinition, value: SettingValue): void => {
   formValues.value[setting.key] = value;
   markSettingAsChanged(setting);
 };
 
-const addSettingListItem = (setting: SettingDefinition): void => {
+const handleAddSettingListItem = (setting: SettingDefinition): void => {
   const current = formValues.value[setting.key] as string[];
   formValues.value[setting.key] = [...current, ""];
   markSettingAsChanged(setting);
 };
 
-const removeSettingListItem = (setting: SettingDefinition, index: number): void => {
+const handleRemoveSettingListItem = (setting: SettingDefinition, index: number): void => {
   const current = formValues.value[setting.key] as string[];
   formValues.value[setting.key] = current.filter((_, i) => i !== index);
   markSettingAsChanged(setting);
 };
 
-const updateSettingListItem = (setting: SettingDefinition, index: number, value: string): void => {
+const handleUpdateSettingListItem = (setting: SettingDefinition, index: number, value: string): void => {
   const current = formValues.value[setting.key] as string[];
   const updated = [...current];
   updated[index] = value;
@@ -121,7 +121,7 @@ const handleFileUpload = (setting: SettingDefinition, event: Event): void => {
   const reader = new FileReader();
   reader.onload = (): void => {
     const base64String = reader.result as string;
-    updateSettingValue(setting, base64String);
+    handleUpdateSettingValue(setting, base64String);
   };
   reader.onerror = (): void => {
     console.error("Failed to read file", reader.error);
@@ -147,7 +147,7 @@ const markSettingAsChanged = (setting: SettingDefinition): void => {
 
 const areSettingValuesEqual = (a?: SettingValue, b?: SettingValue): boolean => {
   if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((val, idx) => val === b[idx]);
+    return a.length === b.length && a.every((value, index) => value === b[index]);
   }
   return a === b;
 };
@@ -292,7 +292,7 @@ definePageMeta({
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
                 :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
-                @update:model-value="updateSettingValue(settingItem, $event)"
+                @update:model-value="handleUpdateSettingValue(settingItem, $event)"
               />
               <UButton
                 v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"
@@ -319,7 +319,7 @@ definePageMeta({
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
                 :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
-                @update:model-value="updateSettingValue(settingItem, $event)"
+                @update:model-value="handleUpdateSettingValue(settingItem, $event)"
               />
               <UButton
                 v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"
@@ -347,7 +347,7 @@ definePageMeta({
                   :required="settingItem.config.itemMinLength > 0"
                   :disabled="!can(CorePermissions.SettingsUpdateAll)"
                   :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
-                  @update:model-value="updateSettingListItem(settingItem, index, $event)"
+                  @update:model-value="handleUpdateSettingListItem(settingItem, index, $event)"
                 />
                 <UButton
                   v-if="can(CorePermissions.SettingsUpdateAll)"
@@ -359,7 +359,7 @@ definePageMeta({
                     !can(CorePermissions.SettingsUpdateAll) ||
                     (formValues[settingItem.key] as string[])?.length <= settingItem.config.minItems
                   "
-                  @click="removeSettingListItem(settingItem, index)"
+                  @click="handleRemoveSettingListItem(settingItem, index)"
                 />
               </UFieldGroup>
               <UFieldGroup>
@@ -373,7 +373,7 @@ definePageMeta({
                     !can(CorePermissions.SettingsUpdateAll) ||
                     (formValues[settingItem.key] as string[])?.length >= settingItem.config.maxItems
                   "
-                  @click="addSettingListItem(settingItem)"
+                  @click="handleAddSettingListItem(settingItem)"
                 />
                 <UButton
                   v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"
@@ -397,7 +397,7 @@ definePageMeta({
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="formValues[settingItem.key] as string"
                 :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
-                @update:model-value="(value) => updateSettingValue(settingItem, String(value ?? ''))"
+                @update:model-value="(value) => handleUpdateSettingValue(settingItem, String(value ?? ''))"
               />
               <UButton
                 v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"
@@ -419,7 +419,7 @@ definePageMeta({
                 :step="settingItem.config.step"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="(formValues[settingItem.key] as number) ?? 0"
-                @update:model-value="updateSettingValue(settingItem, $event)"
+                @update:model-value="handleUpdateSettingValue(settingItem, $event)"
               />
               <UButton
                 v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"
@@ -438,7 +438,7 @@ definePageMeta({
                 color="primary"
                 :disabled="!can(CorePermissions.SettingsUpdateAll)"
                 :model-value="(formValues[settingItem.key] as boolean) ?? false"
-                @update:model-value="updateSettingValue(settingItem, $event)"
+                @update:model-value="handleUpdateSettingValue(settingItem, $event)"
               />
               <UButton
                 v-if="settingItem.isOverridden && can(CorePermissions.SettingsUpdateAll)"

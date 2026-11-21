@@ -31,19 +31,18 @@ import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/c
 
 const CONNECTION_TEST_TIMEOUT_MS = 10_000;
 
-interface WithRedactedValues {
+type WithRedactedHeaders<T> = Omit<T, "headers"> & {
   headers: HttpRedactedHeader[];
-  [key: string]: unknown;
-}
+};
 
-const redactSecrets = <T extends { headers: string }>(mcpServer: T) => {
+const redactSecrets = <T extends { headers: string }>(mcpServer: T): WithRedactedHeaders<T> => {
   return {
     ...mcpServer,
     headers: decryptMcpServerHeaders(mcpServer.headers).map((h) => ({
       name: h.name,
       value: HTTP_REDACTED_VALUE,
     })),
-  } satisfies WithRedactedValues;
+  };
 };
 
 const storedEndpoint = (stored: { url: string; headers: string }): Endpoint => {

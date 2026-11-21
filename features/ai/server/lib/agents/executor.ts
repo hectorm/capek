@@ -188,7 +188,7 @@ export class AgentExecutor {
     } catch (error) {
       if (
         isUniqueViolation(error) &&
-        (error as { constraint?: string }).constraint === "ai_agent_executions_session_running_uniq_idx"
+        (error as { constraint?: string }).constraint === "ai_agent_executions_unique_running_session"
       ) {
         throw new ConcurrentExecutionError();
       }
@@ -529,7 +529,7 @@ export class AgentExecutor {
 
     if (!agentTool) {
       const errorMessage = `Tool "${toolName}" not found`;
-      logger.error({ toolName, executionId: this.executionId }, errorMessage);
+      logger.error({ toolName, executionId: this.executionId }, "Tool not found");
       await this.saveToolCall(functionCall, null, null, errorMessage);
       items.push({ type: "function_call_output", call_id: functionCall.call_id, output: `Error: ${errorMessage}` });
       return;
@@ -544,7 +544,7 @@ export class AgentExecutor {
       args = raw as Record<string, unknown>;
     } catch (parseError) {
       const errorMessage = `Failed to parse tool arguments: ${functionCall.arguments}`;
-      logger.error({ toolName, executionId: this.executionId, parseError }, errorMessage);
+      logger.error({ toolName, executionId: this.executionId, parseError }, "Failed to parse tool arguments");
       await this.saveToolCall(functionCall, agentTool, null, errorMessage);
       items.push({ type: "function_call_output", call_id: functionCall.call_id, output: `Error: ${errorMessage}` });
       return;

@@ -6,6 +6,7 @@ import type { Kysely } from "kysely";
 import { createApp, eventHandler, toNodeListener } from "h3";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage } from "#layers/ai/shared/schema";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
 import send from "#layers/ai/server/api/ai/chat/send";
@@ -71,7 +72,7 @@ const sendMessage = (
   });
 };
 
-const messages = (sessionId: string) => {
+const messages = (sessionId: string): Promise<Pick<ChatMessage, "id">[]> => {
   return db.selectFrom("aiChatMessages").select(["id"]).where("sessionId", "=", sessionId).orderBy("id").execute();
 };
 
@@ -94,6 +95,10 @@ describe("chat send route", () => {
       reply.resolve(undefined);
       stream.mockRestore();
     }
+  });
+
+  it("rejects a request with an invalid body", async () => {
+    expect((await sendMessage("not-a-session")).status).toBe(400);
   });
 
   it("rejects a chat whose agent the user cannot use", async () => {

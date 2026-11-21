@@ -3,8 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import type { FeatureToolProvider } from "#layers/ai/server/lib/tools/define";
 import type { ChatTablePart } from "#layers/ai/shared/chat";
-import type { OpenAICompletionRequest } from "#layers/ai/shared/openai";
-import type { NewAgent } from "#layers/ai/shared/schema";
+import type { OpenAICompletionRequest, OpenAIToolCall } from "#layers/ai/shared/openai";
+import type { AgentExecution, AgentToolCall, ChatMessage, ChatTable, NewAgent } from "#layers/ai/shared/schema";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
@@ -107,10 +107,10 @@ const member = {
 const readNote = { id: "call-1", type: "function", function: { name: "notes_read", arguments: '{"note":"a"}' } };
 const countNotes = { id: "call-2", type: "function", function: { name: "notes_count", arguments: "{}" } };
 const chartNotes = { id: "call-3", type: "function", function: { name: "notes_chart", arguments: "{}" } };
-const listNotes = (rows: number) => {
+const listNotes = (rows: number): OpenAIToolCall => {
   return { id: "call-4", type: "function", function: { name: "notes_table", arguments: JSON.stringify({ rows }) } };
 };
-const callSkill = (name: string) => {
+const callSkill = (name: string): OpenAIToolCall => {
   return { id: "call-5", type: "function", function: { name: `skill_${name}`, arguments: "{}" } };
 };
 
@@ -171,7 +171,13 @@ const streamedAnswer = (deltas: Record<string, unknown>[]): Response => {
 
 const decoder = new TextDecoder();
 
-const send = async ({ sessionId, agentId, user }: TestChat, message: string) => {
+interface TestAnswer {
+  tokens: string;
+  parts: unknown[];
+  error: unknown;
+}
+
+const send = async ({ sessionId, agentId, user }: TestChat, message: string): Promise<TestAnswer> => {
   const executor = new AgentExecutor({ sessionId, user, message });
 
   let tokens = "";
@@ -193,7 +199,7 @@ const send = async ({ sessionId, agentId, user }: TestChat, message: string) => 
   return { tokens, parts, error };
 };
 
-const answers = ({ sessionId }: TestChat) => {
+const answers = ({ sessionId }: TestChat): Promise<Pick<ChatMessage, "content" | "items">[]> => {
   return db
     .selectFrom("aiChatMessages")
     .select(["content", "items"])
@@ -203,7 +209,7 @@ const answers = ({ sessionId }: TestChat) => {
     .execute();
 };
 
-const executions = ({ sessionId }: TestChat) => {
+const executions = ({ sessionId }: TestChat): Promise<Pick<AgentExecution, "status" | "errorMessage">[]> => {
   return db
     .selectFrom("aiAgentExecutions")
     .select(["status", "errorMessage"])
@@ -212,11 +218,13 @@ const executions = ({ sessionId }: TestChat) => {
     .execute();
 };
 
-const tables = ({ sessionId }: TestChat) => {
+const tables = ({ sessionId }: TestChat): Promise<Pick<ChatTable, "id">[]> => {
   return db.selectFrom("aiChatTables").select(["id"]).where("sessionId", "=", sessionId).execute();
 };
 
-const notesToolCalls = ({ sessionId }: TestChat) => {
+const notesToolCalls = ({
+  sessionId,
+}: TestChat): Promise<Pick<AgentToolCall, "toolName" | "arguments" | "result" | "errorMessage">[]> => {
   return db
     .selectFrom("aiAgentToolCalls")
     .innerJoin("aiAgentExecutions", "aiAgentExecutions.id", "aiAgentToolCalls.executionId")
@@ -518,7 +526,7 @@ describe("agent executor", () => {
 
   it("limits the size of what the tool calls show", async () => {
     const chat = await createChat({ maxToolPartsChars: 1000 });
-    const chartManyNotes = (id: string) => {
+    const chartManyNotes = (id: string): OpenAIToolCall => {
       return { id, type: "function", function: { name: "notes_chart", arguments: '{"points":300}' } };
     };
 
@@ -633,7 +641,7 @@ describe("agent executor", () => {
   it("fails the executions that stopped reporting activity", async () => {
     const chat = await createChat();
     const { sessionId, agentId } = chat;
-    const execution = (lastActivityAt: Date) => {
+    const execution = (lastActivityAt: Date): Promise<Pick<AgentExecution, "id">> => {
       return db
         .insertInto("aiAgentExecutions")
         .values({ sessionId, agentId, userId: alice, status: "running", startedAt: lastActivityAt, lastActivityAt })

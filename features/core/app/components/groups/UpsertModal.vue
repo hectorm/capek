@@ -70,7 +70,7 @@ const state = reactive<Partial<GroupCreateOrUpdateInput>>({
   roles: group.value?.roles ?? [],
 });
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     if ("id" in event.data && event.data.id) {
       group.value = await $trpc.group.update.mutate({
@@ -93,7 +93,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { group: null });
 };
 </script>

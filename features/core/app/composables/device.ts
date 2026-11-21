@@ -2,7 +2,11 @@ import { useRequestHeaders } from "nuxt/app";
 
 const MOBILE_PATTERN = /Mobile|Android|iP(hone|ad)/i;
 
-export const useDevice = () => {
+export interface Device {
+  isMobile: boolean;
+}
+
+export const useDevice = (): Device => {
   let isMobile = false;
 
   if (import.meta.server) {

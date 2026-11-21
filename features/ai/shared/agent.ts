@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import type { Agent } from "#layers/ai/shared/schema";
 
-export const allowsAgentTools = (
+export const canAgentUseTools = (
   agent: Pick<Agent, "type" | "codeInterpreter">,
   hasToolProviders: boolean,
 ): boolean => {

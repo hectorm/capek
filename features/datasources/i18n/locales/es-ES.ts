@@ -61,20 +61,20 @@ export default (): ReturnType<typeof enUS> => ({
           form: {
             name: {
               label: "Nombre",
-              placeholder: "Introduce el nombre de la fuente de datos",
+              placeholder: "Introduzca el nombre de la fuente de datos",
             },
             description: {
               label: "Descripción",
-              placeholder: "Introduce la descripción de la fuente de datos",
+              placeholder: "Introduzca la descripción de la fuente de datos",
             },
             documentation: {
               label: "Documentación",
               placeholder:
-                "Describe el esquema de la fuente de datos, las relaciones y ejemplos de consultas para ayudar al agente a generar consultas correctas",
+                "Describa el esquema de la fuente de datos, las relaciones y ejemplos de consultas para ayudar al agente a generar consultas correctas",
             },
             type: {
               label: "Tipo",
-              placeholder: "Selecciona un tipo de fuente de datos",
+              placeholder: "Seleccione un tipo de fuente de datos",
               unsupported: "Este tipo de fuente de datos no está soportado",
             },
             connectionString: {
@@ -82,7 +82,7 @@ export default (): ReturnType<typeof enUS> => ({
             },
             authType: {
               label: "Autenticación",
-              placeholder: "Selecciona un tipo de autenticación",
+              placeholder: "Seleccione un tipo de autenticación",
               options: {
                 basic: "Usuario y contraseña",
                 "azure-service-principal": "Service principal de Microsoft Entra ID",
@@ -92,23 +92,23 @@ export default (): ReturnType<typeof enUS> => ({
             },
             username: {
               label: "Nombre de usuario",
-              placeholder: "Introduce el nombre de usuario de la fuente de datos",
+              placeholder: "Introduzca el nombre de usuario de la fuente de datos",
             },
             password: {
               label: "Contraseña",
-              placeholder: "Introduce la contraseña de la fuente de datos",
+              placeholder: "Introduzca la contraseña de la fuente de datos",
             },
             azureTenantId: {
               label: "Tenant ID",
-              placeholder: "Introduce el tenant ID de Microsoft Entra ID",
+              placeholder: "Introduzca el tenant ID de Microsoft Entra ID",
             },
             azureClientId: {
               label: "Client ID",
-              placeholder: "Introduce el client ID de Microsoft Entra ID",
+              placeholder: "Introduzca el client ID de Microsoft Entra ID",
             },
             azureClientSecret: {
               label: "Client secret",
-              placeholder: "Introduce el client secret de Microsoft Entra ID",
+              placeholder: "Introduzca el client secret de Microsoft Entra ID",
             },
             testConnection: {
               label: "Probar conexión",

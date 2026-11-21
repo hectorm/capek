@@ -2,14 +2,6 @@ import type enUS from "./en-US";
 
 export default (): ReturnType<typeof enUS> => ({
   ai: {
-    layouts: {
-      default: {
-        sidebar: {
-          history: "Historial de chats",
-          deleteChat: "Eliminar chat",
-        },
-      },
-    },
     pages: {
       welcome: {
         title: "Bienvenido/a",
@@ -174,7 +166,7 @@ export default (): ReturnType<typeof enUS> => ({
           },
           create: {
             title: "Crear agente",
-            description: "Crear un nuevo agente de IA",
+            description: "Añadir un nuevo agente",
           },
           edit: {
             title: "Editar agente",
@@ -188,15 +180,15 @@ export default (): ReturnType<typeof enUS> => ({
           form: {
             name: {
               label: "Nombre",
-              placeholder: "Introduce el nombre del agente",
+              placeholder: "Introduzca el nombre del agente",
             },
             description: {
               label: "Descripción",
-              placeholder: "Introduce la descripción del agente",
+              placeholder: "Introduzca la descripción del agente",
             },
             instructions: {
               label: "Instrucciones",
-              placeholder: "Proporciona instrucciones específicas para el comportamiento y respuestas del agente",
+              placeholder: "Proporcione instrucciones específicas para el comportamiento y respuestas del agente",
             },
             greetingMessage: {
               label: "Mensaje de bienvenida",
@@ -213,11 +205,11 @@ export default (): ReturnType<typeof enUS> => ({
             },
             specialists: {
               label: "Especialistas",
-              placeholder: "Seleccionar especialistas (solo triaje)",
+              placeholder: "Seleccione especialistas (solo triaje)",
             },
             llmProvider: {
               label: "Proveedor de LLM",
-              placeholder: "Seleccionar un proveedor de LLM",
+              placeholder: "Seleccione un proveedor de LLM",
             },
             model: {
               label: "Modelo",
@@ -225,24 +217,24 @@ export default (): ReturnType<typeof enUS> => ({
             },
             summaryModel: {
               label: "Modelo de resumen",
-              placeholder: "Dejar vacío para usar el modelo principal",
+              placeholder: "Déjalo vacío para usar el modelo principal",
             },
             reasoningEffort: {
               label: "Esfuerzo de razonamiento",
-              placeholder: "Dejar vacío para usar el predeterminado del modelo",
+              placeholder: "Déjalo vacío para usar el predeterminado del modelo",
             },
             mcpServers: {
               label: "Servidores MCP",
-              placeholder: "Seleccionar servidores MCP",
+              placeholder: "Seleccione servidores MCP",
               hint: "Servidores MCP que los agentes pueden usar durante la ejecución",
             },
             skills: {
               label: "Habilidades",
-              placeholder: "Seleccionar habilidades",
+              placeholder: "Seleccione habilidades",
               hint: "Habilidades disponibles para el agente durante la ejecución",
             },
             toolResources: {
-              placeholder: "Seleccionar recursos",
+              placeholder: "Seleccione recursos",
               hint: "Recursos cuyas herramientas están disponibles para el agente durante la ejecución",
             },
             codeInterpreter: {
@@ -370,11 +362,11 @@ export default (): ReturnType<typeof enUS> => ({
           form: {
             name: {
               label: "Nombre",
-              placeholder: "Introduce el nombre del proveedor de LLM",
+              placeholder: "Introduzca el nombre del proveedor de LLM",
             },
             description: {
               label: "Descripción",
-              placeholder: "Introduce la descripción del proveedor de LLM",
+              placeholder: "Introduzca la descripción del proveedor de LLM",
             },
             apiUrl: {
               label: "URL de API",
@@ -388,7 +380,7 @@ export default (): ReturnType<typeof enUS> => ({
             },
             apiKey: {
               label: "Clave de API",
-              placeholder: "Introduce la clave de API",
+              placeholder: "Introduzca la clave de API",
             },
             headers: {
               label: "Cabeceras personalizadas",
@@ -465,11 +457,11 @@ export default (): ReturnType<typeof enUS> => ({
           form: {
             name: {
               label: "Nombre",
-              placeholder: "Introduce el nombre del servidor MCP",
+              placeholder: "Introduzca el nombre del servidor MCP",
             },
             description: {
               label: "Descripción",
-              placeholder: "Introduce la descripción del servidor MCP",
+              placeholder: "Introduzca la descripción del servidor MCP",
             },
             url: {
               label: "URL",
@@ -562,26 +554,19 @@ export default (): ReturnType<typeof enUS> => ({
           form: {
             name: {
               label: "Nombre",
-              placeholder: "Introduce el nombre de la habilidad",
+              placeholder: "Introduzca el nombre de la habilidad",
             },
             description: {
               label: "Descripción",
-              placeholder: "Introduce la descripción de la habilidad",
-            },
-            parameters: {
-              label: "Parámetros",
-              name: "Nombre",
-              description: "Descripción",
-              required: "Requerido",
-              add: "Añadir parámetro",
+              placeholder: "Introduzca la descripción de la habilidad",
             },
             documentation: {
               label: "Documentación",
-              placeholder: "Introduce la documentación",
+              placeholder: "Introduzca la documentación",
             },
             code: {
               label: "Código",
-              placeholder: "Introduce el código JavaScript",
+              placeholder: "Introduzca el código JavaScript",
             },
             cancel: "Cancelar",
             create: "Crear",
@@ -597,7 +582,7 @@ export default (): ReturnType<typeof enUS> => ({
           fields: {
             "ai.quickChats": {
               label: "Prompts rápidos",
-              description: "Prompts predefinidos que se muestran en la página de bienvenida.",
+              description: "Prompts predefinidos que se muestran en la página de bienvenida",
               placeholder: "Introduzca un prompt",
               add: "Añadir prompt",
               remove: "Eliminar prompt",
@@ -629,7 +614,7 @@ export default (): ReturnType<typeof enUS> => ({
         },
         deleteModal: {
           title: "Eliminar sesión de chat",
-          description: "Confirme la eliminación permanente de esta sesión de chat",
+          description: "Confirmar la eliminación permanente de esta sesión de chat",
           form: {
             message: '¿Está seguro de que desea eliminar la sesión de chat "{title}"?',
             delete: {
@@ -672,6 +657,10 @@ export default (): ReturnType<typeof enUS> => ({
             title: "Error",
             description: "No se pudo cargar la tabla",
           },
+        },
+        sessionsSidebar: {
+          history: "Historial de chats",
+          deleteChat: "Eliminar chat",
         },
       },
     },

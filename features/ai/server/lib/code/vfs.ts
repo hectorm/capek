@@ -76,11 +76,11 @@ export class VirtualFileSystem {
   }
 
   public exists(path: string): boolean {
-    return this.getNode(path) !== null;
+    return this.findNode(path) !== null;
   }
 
   public isDirectory(path: string): boolean {
-    const node = this.getNode(path);
+    const node = this.findNode(path);
     return node !== null && VirtualFileSystem.isDir(node);
   }
 
@@ -98,7 +98,7 @@ export class VirtualFileSystem {
   }
 
   public stat(path: string): { isFile: () => boolean; isDirectory: () => boolean; size: number; mode: number } | null {
-    const node = this.getNode(path);
+    const node = this.findNode(path);
     if (!node) {
       return null;
     }
@@ -113,7 +113,7 @@ export class VirtualFileSystem {
   }
 
   public readFile(path: string): string | null {
-    const node = this.getNode(path);
+    const node = this.findNode(path);
     if (!node || !VirtualFileSystem.isFile(node)) {
       return null;
     }
@@ -121,7 +121,7 @@ export class VirtualFileSystem {
   }
 
   public readdir(path: string): string[] | null {
-    const node = this.getNode(path);
+    const node = this.findNode(path);
     if (!node || !VirtualFileSystem.isDir(node)) {
       return null;
     }
@@ -134,7 +134,7 @@ export class VirtualFileSystem {
   }
 
   public mkdir(path: string): boolean {
-    const node = this.getNode(path);
+    const node = this.findNode(path);
     if (node && VirtualFileSystem.isFile(node)) {
       return false;
     }
@@ -156,7 +156,7 @@ export class VirtualFileSystem {
     }
     const dirPath = `/${parts.join("/")}`;
 
-    const existingNode = this.getNode(normalized);
+    const existingNode = this.findNode(normalized);
     if (existingNode && (VirtualFileSystem.isDir(existingNode) || existingNode.readonly)) {
       return false;
     }
@@ -196,7 +196,7 @@ export class VirtualFileSystem {
 
   public unlink(path: string): boolean {
     const normalized = this.normalizePath(path);
-    const info = this.getParent(normalized);
+    const info = this.findParent(normalized);
     if (!info) {
       return false;
     }
@@ -219,7 +219,7 @@ export class VirtualFileSystem {
       return false;
     }
 
-    const info = this.getParent(normalized);
+    const info = this.findParent(normalized);
     if (!info) {
       return false;
     }
@@ -240,7 +240,7 @@ export class VirtualFileSystem {
       return false;
     }
 
-    const node = this.getNode(normalized);
+    const node = this.findNode(normalized);
     if (!node) {
       return options?.force === true;
     }
@@ -270,13 +270,13 @@ export class VirtualFileSystem {
   }
 
   public rename(oldPath: string, newPath: string): boolean {
-    const oldNorm = this.normalizePath(oldPath);
-    const newNorm = this.normalizePath(newPath);
-    if (newNorm.startsWith(`${oldNorm}/`)) {
+    const oldNormalized = this.normalizePath(oldPath);
+    const newNormalized = this.normalizePath(newPath);
+    if (newNormalized.startsWith(`${oldNormalized}/`)) {
       return false;
     }
 
-    const oldInfo = this.getParent(oldNorm);
+    const oldInfo = this.findParent(oldNormalized);
     if (!oldInfo) {
       return false;
     }
@@ -286,7 +286,7 @@ export class VirtualFileSystem {
       return false;
     }
 
-    const newParts = newNorm.split("/").filter((p) => p !== "");
+    const newParts = newNormalized.split("/").filter((p) => p !== "");
     const newName = newParts.at(-1);
     if (!newName) {
       return false;
@@ -299,7 +299,7 @@ export class VirtualFileSystem {
     }
 
     const growth =
-      VirtualFileSystem.workspaceBytesOf(node, newNorm) - VirtualFileSystem.workspaceBytesOf(node, oldNorm);
+      VirtualFileSystem.workspaceBytesOf(node, newNormalized) - VirtualFileSystem.workspaceBytesOf(node, oldNormalized);
     this.assertWorkspaceSpace(growth);
 
     oldInfo.parent.entries.delete(oldInfo.name);
@@ -366,7 +366,7 @@ export class VirtualFileSystem {
     return { version: 1, files };
   }
 
-  private getNode(path: string): VFSNode | null {
+  private findNode(path: string): VFSNode | null {
     const normalized = this.normalizePath(path);
     if (normalized === "/") {
       return this.root;
@@ -389,7 +389,7 @@ export class VirtualFileSystem {
     return current;
   }
 
-  private getParent(normalized: string): { parent: VFSDirNode; name: string } | null {
+  private findParent(normalized: string): { parent: VFSDirNode; name: string } | null {
     const parts = normalized.split("/").filter((p) => p !== "");
     const name = parts.at(-1);
     if (!name) {
@@ -398,7 +398,7 @@ export class VirtualFileSystem {
 
     parts.pop();
     const parentPath = `/${parts.join("/")}`;
-    const parent = this.getNode(parentPath);
+    const parent = this.findNode(parentPath);
 
     if (!parent || !VirtualFileSystem.isDir(parent)) {
       return null;

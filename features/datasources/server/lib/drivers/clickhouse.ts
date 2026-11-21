@@ -43,7 +43,7 @@ export class ClickhouseDriver implements DatasourceDriver {
     });
 
     const queryId = crypto.randomUUID();
-    const exec = async (clickhouseSettings: ClickHouseSettings) => {
+    const sendQuery = async (clickhouseSettings: ClickHouseSettings): Promise<AsyncIterable<Uint8Array>> => {
       const result = await client.exec({
         query: `${sql.trim().replace(/;+$/, "")} \nFORMAT JSONEachRow`,
         query_id: queryId,
@@ -59,7 +59,7 @@ export class ClickhouseDriver implements DatasourceDriver {
       }
       const body = await readErrorBody(result.stream);
       const statusText = `${String(status)} ${STATUS_CODES[status] ?? ""}`.trim();
-      throw this.toError(body, ok ? INVALID_RESPONSE_ERROR : `ClickHouse request failed: ${statusText}`);
+      throw this.toError(body, ok ? INVALID_RESPONSE_ERROR : `The ClickHouse request failed with status ${statusText}`);
     };
 
     const limits: ClickHouseSettings = {
@@ -81,20 +81,20 @@ export class ClickhouseDriver implements DatasourceDriver {
     let limited = true as boolean;
 
     try {
-      const stream = await exec({ ...limits, readonly: "1" }).catch(async (error: unknown) => {
+      const stream = await sendQuery({ ...limits, readonly: "1" }).catch(async (error: unknown) => {
         if ((error as { code?: string }).code !== READONLY_ERROR) {
           throw error;
         }
         // Read-only users cannot set their mode again
-        const mode = await this.readonlyMode(client);
+        const mode = await this.getReadonlyMode(client);
         if (mode === 0) {
           throw error;
         }
         limited = mode !== 1;
-        return exec(limited ? limits : {});
+        return sendQuery(limited ? limits : {});
       });
 
-      return await this.readRows(stream as AsyncIterable<Uint8Array>, settings);
+      return await this.readRows(stream, settings);
     } finally {
       if (!limited) {
         await client.command({ query: `KILL QUERY WHERE query_id = '${queryId}'` }).catch(() => undefined);
@@ -103,7 +103,7 @@ export class ClickhouseDriver implements DatasourceDriver {
     }
   }
 
-  private async readonlyMode(client: ClickHouseClient): Promise<number> {
+  private async getReadonlyMode(client: ClickHouseClient): Promise<number> {
     const result = await client.query({ query: "SELECT getSetting('readonly') AS readonly", format: "JSONEachRow" });
     const [row] = await result.json<{ readonly: string }>();
     return Number(row?.readonly);

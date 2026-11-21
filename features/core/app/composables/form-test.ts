@@ -1,16 +1,22 @@
+import type { Ref } from "vue";
 import { onBeforeUnmount, ref } from "vue";
 
 import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { TestResult } from "#layers/core/shared/types";
 
-export const useFormTest = (titles: { success: string; error: string }) => {
+export interface FormTest {
+  testing: Ref<boolean>;
+  test: (run: Promise<TestResult>) => Promise<void>;
+}
+
+export const useFormTest = (titles: { success: string; error: string }): FormTest => {
   const toast = useToast();
 
-  const testing = ref(false);
+  const testing = ref<boolean>(false);
   let toastId: string | number | undefined;
 
-  const removeToast = () => {
+  const removeToast = (): void => {
     if (toastId !== undefined) {
       toast.remove(toastId);
     }

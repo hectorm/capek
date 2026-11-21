@@ -18,7 +18,18 @@ const sidebarSections = features
 
 const layoutSetups = features.flatMap((feature) => (feature.setup ? [feature.setup] : []));
 
-export const useAppFeatures = () => {
+export interface AppFeatures {
+  resolveItems: (items: readonly AppMenuItem[]) => AppMenuItem[];
+  home: ComputedRef<string | undefined>;
+  navigation: ComputedRef<AppMenuItem[]>;
+  layoutSetups: (() => void)[];
+  sidebarSections: ComputedRef<{ component: Component }[]>;
+  userMenu: ComputedRef<AppMenuItem[]>;
+  settingsTabs: ComputedRef<AppMenuItem[]>;
+  studioTabs: ComputedRef<AppMenuItem[]>;
+}
+
+export const useAppFeatures = (): AppFeatures => {
   const { canAny } = usePermissions();
 
   const isAllowed = (item: { permissions?: AppMenuItem["permissions"] }): boolean => {

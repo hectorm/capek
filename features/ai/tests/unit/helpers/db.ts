@@ -1,9 +1,9 @@
 import type { Kysely } from "kysely";
 
-import type { NewAgent, NewLlmProvider, NewSkill } from "#layers/ai/shared/schema";
+import type { NewAgent, NewLlmProvider, NewMcpServer, NewSkill } from "#layers/ai/shared/schema";
 import type { Database } from "#layers/core/shared/schema";
 import aiFeature from "#layers/ai/server/feature";
-import { encryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
+import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { createTestDb } from "#layers/core/tests/unit/helpers/db";
 
 export { asUser, closeDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
@@ -23,6 +23,28 @@ export const insertLlmProvider = async (
       apiUrl: "http://llm.localhost/v1",
       apiType: "chat-completions",
       ...encryptLlmProviderSecrets({ apiKey, headers: [] }),
+      ...values,
+    })
+    .returning(["id"])
+    .executeTakeFirstOrThrow();
+  return row.id;
+};
+
+export const insertMcpServer = async (
+  db: Kysely<Database>,
+  name: string,
+  values: Partial<NewMcpServer> = {},
+): Promise<string> => {
+  const row = await db
+    .insertInto("aiMcpServers")
+    .values({
+      name,
+      description: "",
+      url: "http://mcp.localhost/mcp",
+      headers: encryptMcpServerHeaders([]),
+      stateful: false,
+      toolCallTimeoutSec: null,
+      cachedTools: JSON.stringify([]),
       ...values,
     })
     .returning(["id"])

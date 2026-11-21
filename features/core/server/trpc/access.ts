@@ -1,9 +1,10 @@
+import type { TRPCQueryProcedure } from "@trpc/server";
 import type { Kysely } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
-import type { PermissionName, PrincipalAccess } from "#layers/core/shared/rbac";
+import type { PermissionName, Principal, PrincipalAccess } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { listResourceAccess, listResources, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withResourceTransaction } from "#layers/core/server/lib/database";
@@ -48,6 +49,10 @@ export const syncSharedResourceAccess = async (
   }
 };
 
+export interface SharedResourceAccessProcedures<K extends string> {
+  listAccess: TRPCQueryProcedure<{ input: Record<K, string>; output: Principal[]; meta: object }>;
+}
+
 // Creates the procedure to list the access entries of a shared resource
 export const sharedResourceAccessProcedures = <K extends string>(options: {
   resource: SharedResource;
@@ -56,17 +61,17 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
   // Human readable name of the resource type, used in logs and errors
   label: string;
   readPermissions: PermissionName[];
-}) => {
+}): SharedResourceAccessProcedures<K> => {
   const { resource, idKey, label } = options;
   const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
 
   // zod cannot infer the output of a generic shape, so the resource ID is read through a cast
-  const idShape = { [idKey]: z.uuid() } as Record<K, z.ZodUUID>;
   const resourceIdOf = (input: object): string => (input as Record<K, string>)[idKey];
 
-  const ListAccessInputSchema = z.object(idShape).transform((input) => ({
-    resourceId: resourceIdOf(input),
-  }));
+  // The type of the input takes any key, which the return type of the function narrows to the ID key
+  const ListAccessInputSchema: z.ZodType<{ resourceId: string }, Record<string, string>> = z
+    .object({ [idKey]: z.uuid() })
+    .transform((input) => ({ resourceId: resourceIdOf(input) }));
 
   return {
     listAccess: authorizedProcedure(options.readPermissions)

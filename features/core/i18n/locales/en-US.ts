@@ -33,32 +33,32 @@ export default () => ({
         fields: {
           "branding.name": {
             label: "Application name",
-            description: "The name displayed in the browser title and navigation.",
+            description: "The name displayed in the browser title and navigation",
             placeholder: "Enter application name",
           },
           "branding.logo": {
             label: "Application logo",
-            description: "Full logo displayed in expanded sidebar.",
+            description: "Full logo displayed in expanded sidebar",
             placeholder: "Upload image (max. {size} KB)",
           },
           "branding.icon": {
             label: "Application icon",
-            description: "Square icon for collapsed sidebar and favicon.",
+            description: "Square icon for collapsed sidebar and favicon",
             placeholder: "Upload image (max. {size} KB)",
           },
           "branding.primaryColor": {
             label: "Primary color",
-            description: "Main color used for buttons, links, and important elements.",
+            description: "Main color used for buttons, links, and important elements",
             placeholder: "Select a color",
           },
           "branding.neutralColor": {
             label: "Neutral color",
-            description: "Color used for text, borders, and backgrounds.",
+            description: "Color used for text, borders, and backgrounds",
             placeholder: "Select a color",
           },
           "branding.radius": {
             label: "Border radius",
-            description: "Roundness of component corners.",
+            description: "Roundness of component corners",
             placeholder: "Select border radius",
           },
         },
@@ -231,14 +231,14 @@ export default () => ({
     resource: {
       cancel: "Cancel",
       delete: "Delete",
-      deleteConflict: "Transfer ownership or remove references, then try again.",
+      deleteConflict: "Transfer ownership or remove references, then try again",
       empty: "There is nothing to show",
       loadError: "Failed to load the data",
       noMatches: "No results match the filter",
       retry: "Retry",
       update: "Edit",
     },
-    collectionLayout: {
+    collectionLayoutToggle: {
       layout: "Collection layout",
       listView: "List view",
       gridView: "Grid view",
@@ -247,7 +247,7 @@ export default () => ({
       actions: "Actions",
       create: "Create",
       filter: "Filter by {column}",
-      loadError: "The rows could not be loaded",
+      loadError: "Failed to load the rows",
       search: "Search",
       sort: "Sort by {column}",
     },
@@ -283,11 +283,11 @@ export default () => ({
       upsertModal: {
         create: {
           title: "Create user",
-          description: "Provide details to add a new user",
+          description: "Add a new user",
         },
         update: {
           title: "Edit user",
-          description: "Modify the details of an existing user",
+          description: "Update user details",
         },
         form: {
           username: {
@@ -318,11 +318,11 @@ export default () => ({
       upsertModal: {
         create: {
           title: "Create group",
-          description: "Provide details to add a new group",
+          description: "Add a new group",
         },
         update: {
           title: "Edit group",
-          description: "Modify the details of an existing group",
+          description: "Update group details",
         },
         form: {
           name: {

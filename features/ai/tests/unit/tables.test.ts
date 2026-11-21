@@ -42,7 +42,7 @@ describe("table tool", () => {
 
 describe("table cell comparison", () => {
   it("sorts numbers and dates given as text by their value", () => {
-    const sorted = (cells: unknown[]) => cells.toSorted(compareCells);
+    const sorted = (cells: unknown[]): unknown[] => cells.toSorted(compareCells);
 
     expect(sorted(["10.5", "-3", 9, "3.10", "3.9", "1e3"])).toEqual(["-3", "3.10", "3.9", 9, "10.5", "1e3"]);
     expect(sorted(["9007199254740993", "-1", "9007199254740992"])).toEqual([

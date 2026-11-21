@@ -21,7 +21,7 @@ export const coreSecurity: SecurityDefinition = {
         USING (
           (SELECT security.can_any(ARRAY['user:read:all', 'user:list:all']))
           OR (${OWN_USER} AND (SELECT security.can_any(ARRAY['user:read:own'])))
-          -- Implicit: editors can see users with whom they share resource access
+          -- Editors also see the users who have access to the resources that they edit
           OR ${sharesResourceWith(ctx.sharedResources, { userId: "users.id" })}
         );
     `,
@@ -60,7 +60,7 @@ export const coreSecurity: SecurityDefinition = {
             (SELECT security.can_any(ARRAY['group:read:own', 'group:list:own']))
             AND ${MEMBER_OF_GROUP}
           )
-          -- Implicit: editors can see groups with whom they share resource access
+          -- Editors also see the groups that have access to the resources that they edit
           OR ${sharesResourceWith(ctx.sharedResources, { groupId: "groups.id" })}
         );
     `,
@@ -187,7 +187,7 @@ export const coreSecurity: SecurityDefinition = {
     `
       CREATE POLICY settings_select ON public.settings
         FOR SELECT
-        -- Note: public vs private filtering is handled at application level
+        -- The application filters the private settings, since only their definitions say which ones are public
         USING ((SELECT security.can_any(ARRAY['settings:read:all', 'settings:list:all', 'settings:read:public', 'settings:list:public'])));
     `,
     `

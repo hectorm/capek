@@ -30,7 +30,7 @@ export const datasourcesSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`Datasource "${sourceConfig.name}" already exists, skipping`);
+        logger.info({ name: sourceConfig.name }, "Datasource already exists, skipping");
         continue;
       }
 
@@ -51,9 +51,9 @@ export const datasourcesSeed = defineSeed({
         .returning(["id", "name"])
         .executeTakeFirstOrThrow();
 
-      logger.info(`Created datasource: ${source.name}`);
-
       await grantAccess(SourceResource, source.id, sourceConfig.access);
+
+      logger.info({ sourceId: source.id, name: source.name }, "Datasource created");
     }
   },
 });

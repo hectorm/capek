@@ -72,36 +72,6 @@ export const chatMessageRouter = createTRPCRouter({
       });
     }),
 
-  create: authorizedProcedure([AiPermissions.ChatCreate])
-    .input(
-      z.object({
-        sessionId: z.uuid(),
-        role: z.literal("user"),
-        content: z.string().trim().min(1).max(100000),
-      }),
-    )
-    .mutation(() => {
-      throw new TRPCError({
-        code: "NOT_IMPLEMENTED",
-        message: "Message creation is not implemented",
-      });
-    }),
-
-  update: authorizedProcedure([AiPermissions.ChatUpdateAll, AiPermissions.ChatUpdateOwn])
-    .input(
-      z.object({
-        id: z.uuid(),
-        sessionId: z.uuid(),
-        content: z.string().trim().min(1).max(100000),
-      }),
-    )
-    .mutation(() => {
-      throw new TRPCError({
-        code: "NOT_IMPLEMENTED",
-        message: "Message editing is not implemented",
-      });
-    }),
-
   delete: authorizedProcedure([AiPermissions.ChatDeleteAll, AiPermissions.ChatDeleteOwn])
     .input(
       z.object({

@@ -171,6 +171,7 @@ export default withNuxt(
   {
     files: ["features/**/*.ts", "features/**/*.vue"],
     rules: {
+      "@typescript-eslint/explicit-function-return-type": ["error", { allowExpressions: true }],
       "no-restricted-imports": ["error", { patterns: [...virtualModulePatterns, ...layerImportPatterns] }],
     },
   },
@@ -201,6 +202,13 @@ export default withNuxt(
           message: "Scope request database access with withUserTransaction.",
         },
       ],
+    },
+  },
+  {
+    // The messages of a locale give their type to the other locales
+    files: ["features/*/i18n/locales/*.ts"],
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off",
     },
   },
   {

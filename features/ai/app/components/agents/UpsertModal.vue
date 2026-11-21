@@ -19,15 +19,15 @@ import URadioGroup from "@nuxt/ui/components/RadioGroup.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import UTextarea from "@nuxt/ui/components/Textarea.vue";
 
-import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import { AgentExecutorParameters, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { useFormTest } from "#layers/core/app/composables/form-test";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceToast } from "#layers/core/app/composables/resource-toast";
 import { useUserStore } from "#layers/core/app/stores/user";
 import { creatorAccess, fromPrincipalIds, toOwnerIds, toPrincipalIds } from "#layers/core/app/utils/access";
-import { AgentExecutorParameters, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
-import { AiPermissions } from "#layers/ai/shared/rbac";
+import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 
 import AccessFields from "#layers/core/app/components/ui/AccessFields.vue";
 import NumberParameterField from "#layers/core/app/components/ui/NumberParameterField.vue";
@@ -173,38 +173,38 @@ const llmProviderLabels = new Map<string, string>();
 if (agent?.llmProviderId && agent.llmProviderName) {
   llmProviderLabels.set(agent.llmProviderId, agent.llmProviderName);
 }
-const searchLlmProviders = async (query?: string) => {
+const searchLlmProviders = async (query?: string): Promise<string[]> => {
   const result = await $trpc.ai.llmProvider.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.llmProviders.forEach((provider) => {
     llmProviderLabels.set(provider.id, provider.name);
   });
   return result.llmProviders.map((provider) => provider.id);
 };
-const getLlmProviderLabel = (id: string) => {
+const getLlmProviderLabel = (id: string): string => {
   return llmProviderLabels.get(id) ?? id;
 };
 
 const mcpServerLabels = new Map(currentMcpServers.map((server) => [server.id, server.name]));
-const searchMcpServers = async (query?: string) => {
+const searchMcpServers = async (query?: string): Promise<string[]> => {
   const result = await $trpc.ai.mcpServer.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.mcpServers.forEach((server) => {
     mcpServerLabels.set(server.id, server.name);
   });
   return result.mcpServers.map((server) => server.id);
 };
-const getMcpServerLabel = (id: string) => {
+const getMcpServerLabel = (id: string): string => {
   return mcpServerLabels.get(id) ?? id;
 };
 
 const skillLabels = new Map(currentSkills.map((skill) => [skill.id, skill.name]));
-const searchSkills = async (query?: string) => {
+const searchSkills = async (query?: string): Promise<string[]> => {
   const result = await $trpc.ai.skill.search.query({ search: query, limit: SEARCH_SUGGESTION_LIMIT });
   result.skills.forEach((skill) => {
     skillLabels.set(skill.id, skill.name);
   });
   return result.skills.map((skill) => skill.id);
 };
-const getSkillLabel = (id: string) => {
+const getSkillLabel = (id: string): string => {
   return skillLabels.get(id) ?? id;
 };
 
@@ -231,7 +231,7 @@ const toolResources = reactive<Record<string, string[]>>(
   ),
 );
 const toolResourceLabels = new Map(currentToolResources.map((resource) => [resource.id, resource.name]));
-const searchToolResources = async (provider: string, query?: string) => {
+const searchToolResources = async (provider: string, query?: string): Promise<string[]> => {
   const resources = await $trpc.ai.agent.searchToolResources.query({
     provider,
     search: query,
@@ -242,12 +242,12 @@ const searchToolResources = async (provider: string, query?: string) => {
   });
   return resources.map((resource) => resource.id);
 };
-const getToolResourceLabel = (id: string) => {
+const getToolResourceLabel = (id: string): string => {
   return toolResourceLabels.get(id) ?? id;
 };
 
 const specialistLabels = new Map(currentSpecialists.map((specialist) => [specialist.id, specialist.name]));
-const searchSpecialists = async (query?: string) => {
+const searchSpecialists = async (query?: string): Promise<string[]> => {
   const result = await $trpc.ai.agent.search.query({
     search: query,
     type: "specialist",
@@ -258,11 +258,11 @@ const searchSpecialists = async (query?: string) => {
   });
   return result.agents.map((specialist) => specialist.id);
 };
-const getSpecialistLabel = (id: string) => {
+const getSpecialistLabel = (id: string): string => {
   return specialistLabels.get(id) ?? id;
 };
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     const { id, type, mcpServers, skills, specialists, editors, users, ...settings } = event.data;
     const data = {
@@ -288,11 +288,11 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { agent: null });
 };
 
-const onTestModel = async () => {
+const onTestModel = async (): Promise<void> => {
   if (!state.llmProviderId || !state.model) {
     return;
   }

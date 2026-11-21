@@ -2,7 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { PageCursor } from "#layers/core/server/lib/database/pagination";
+import type { Page, PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Database } from "#layers/core/shared/schema";
 import { paginate, SearchTermsSchema } from "#layers/core/server/lib/database/pagination";
 import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
@@ -24,7 +24,11 @@ afterAll(async () => {
   await closeDb();
 });
 
-const page = (orderBy: string, order: "asc" | "desc", cursor?: PageCursor) => {
+const page = (
+  orderBy: string,
+  order: "asc" | "desc",
+  cursor?: PageCursor,
+): Promise<Page<{ id: string; username: string }>> => {
   const query = db.selectFrom("users").select(["users.id", "users.username"]).where("users.fullname", "=", "Page");
   return paginate(query, { table: "users", orderBy, order, limit: 3, cursor });
 };

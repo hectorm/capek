@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LlmRequest } from "#layers/ai/shared/llm";
+import type { OpenAIStreamDeltaToolCall } from "#layers/ai/shared/openai";
 import {
   fromChatCompletionsResponse,
   fromChatCompletionsStream,
@@ -220,7 +221,7 @@ describe("OpenAI Chat Completions API", () => {
   });
 
   it("joins streamed arguments that repeat the ID and the name of the call", async () => {
-    const toolCall = (index: number, id: string, args: string) => {
+    const toolCall = (index: number, id: string, args: string): OpenAIStreamDeltaToolCall => {
       return { index, id, type: "function", function: { name: "get_weather", arguments: args } };
     };
     const stream = chatCompletionStream(

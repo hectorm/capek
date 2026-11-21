@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, SelectQueryBuilder } from "kysely";
 import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
@@ -22,7 +22,16 @@ import { CorePermissions } from "#layers/core/shared/rbac";
 
 const config = useRuntimeConfig();
 
-const selectUsers = (db: Kysely<Database>) => {
+interface UserRow {
+  id: string;
+  username: string;
+  fullname: string;
+  email: string;
+  groups: string[] | null;
+  roles: string[] | null;
+}
+
+const selectUsers = (db: Kysely<Database>): SelectQueryBuilder<Database, "users", UserRow> => {
   return db.selectFrom("users").select([
     "users.id",
     "users.username",
@@ -54,14 +63,16 @@ const selectUsers = (db: Kysely<Database>) => {
 };
 
 // COALESCE returns a list even when the inferred subquery type allows null
-const withNames = <U extends { groups: string[] | null; roles: string[] | null }>(user: U) => ({
+const withNames = <U extends { groups: string[] | null; roles: string[] | null }>(
+  user: U,
+): Omit<U, "groups" | "roles"> & { groups: string[]; roles: string[] } => ({
   ...user,
   groups: user.groups ?? [],
   roles: user.roles ?? [],
 });
 
 export const userRouter = createTRPCRouter({
-  me: publicProcedure.query(
+  readOwn: publicProcedure.query(
     ({ ctx }): (Omit<AuthUser, "lastLoginAt" | "createdAt" | "updatedAt"> & { canLogOut: boolean }) | null => {
       if (!ctx.user) {
         return null;
@@ -183,10 +194,10 @@ export const userRouter = createTRPCRouter({
             .executeTakeFirstOrThrow();
 
           if ((input.roles && input.roles.length > 0) || (input.groups && input.groups.length > 0)) {
-            const insertOps = [];
+            const inserts = [];
             if (input.roles && input.roles.length > 0) {
               const roles = input.roles;
-              insertOps.push(
+              inserts.push(
                 trx
                   .insertInto("userRoles")
                   .columns(["userId", "roleId"])
@@ -201,7 +212,7 @@ export const userRouter = createTRPCRouter({
             }
             if (input.groups && input.groups.length > 0) {
               const groups = input.groups;
-              insertOps.push(
+              inserts.push(
                 trx
                   .insertInto("userGroups")
                   .columns(["userId", "groupId"])
@@ -214,7 +225,7 @@ export const userRouter = createTRPCRouter({
                   .execute(),
               );
             }
-            await Promise.all(insertOps);
+            await Promise.all(inserts);
           }
 
           const user = await selectUsers(trx).where("users.id", "=", insertedUser.id).executeTakeFirstOrThrow();
@@ -286,14 +297,14 @@ export const userRouter = createTRPCRouter({
           }
 
           if (input.roles != null || input.groups != null) {
-            const syncOps = [];
+            const syncs = [];
             if (input.roles != null) {
-              syncOps.push(syncUserRoles(input.id, input.roles, trx));
+              syncs.push(syncUserRoles(input.id, input.roles, trx));
             }
             if (input.groups != null) {
-              syncOps.push(syncUserGroups(input.id, input.groups, trx));
+              syncs.push(syncUserGroups(input.id, input.groups, trx));
             }
-            await Promise.all(syncOps);
+            await Promise.all(syncs);
           }
 
           const user = await selectUsers(trx).where("users.id", "=", input.id).executeTakeFirstOrThrow();

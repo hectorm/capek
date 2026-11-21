@@ -58,7 +58,7 @@ const getSelectedValues = (): string[] => {
   return Array.isArray(props.modelValue) ? props.modelValue : [props.modelValue];
 };
 
-const doSearch = async (value?: string) => {
+const doSearch = async (value?: string): Promise<void> => {
   const searchId = ++latestSearch;
   try {
     loading.value = true;
@@ -90,7 +90,7 @@ const doSearch = async (value?: string) => {
   }
 };
 
-const initializeItemsFromModel = () => {
+const initializeItemsFromModel = (): void => {
   if (!props.modelValue) {
     return;
   }

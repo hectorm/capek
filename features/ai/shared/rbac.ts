@@ -64,8 +64,8 @@ export const AiPermissions = {
   AgentExecutionReadOwn: "ai_agent_execution:read:own",
   AgentExecutionListAll: "ai_agent_execution:list:all",
   AgentExecutionListOwn: "ai_agent_execution:list:own",
-  AgentExecutionCancelAll: "ai_agent_execution:cancel:all",
-  AgentExecutionCancelOwn: "ai_agent_execution:cancel:own",
+  AgentExecutionUpdateAll: "ai_agent_execution:update:all",
+  AgentExecutionUpdateOwn: "ai_agent_execution:update:own",
 } as const;
 
 export type AiPermissionName = (typeof AiPermissions)[keyof typeof AiPermissions];
@@ -112,9 +112,9 @@ export const AiRolePermissions = {
     AiPermissions.SkillDeleteAll,
     AiPermissions.SkillUseAll,
 
-    AiPermissions.AgentExecutionReadAll,
-    AiPermissions.AgentExecutionListAll,
-    AiPermissions.AgentExecutionCancelAll,
+    AiPermissions.AgentExecutionReadOwn,
+    AiPermissions.AgentExecutionListOwn,
+    AiPermissions.AgentExecutionUpdateOwn,
   ],
   [Roles.Auditor]: [
     AiPermissions.ChatReadOwn,
@@ -147,9 +147,9 @@ export const AiRolePermissions = {
     AiPermissions.SkillDeleteOwn,
     AiPermissions.SkillUseOwn,
 
-    AiPermissions.AgentExecutionReadAll,
-    AiPermissions.AgentExecutionListAll,
-    AiPermissions.AgentExecutionCancelOwn,
+    AiPermissions.AgentExecutionReadOwn,
+    AiPermissions.AgentExecutionListOwn,
+    AiPermissions.AgentExecutionUpdateOwn,
   ],
   [Roles.Creator]: [
     AiPermissions.ChatReadOwn,
@@ -188,7 +188,7 @@ export const AiRolePermissions = {
 
     AiPermissions.AgentExecutionReadOwn,
     AiPermissions.AgentExecutionListOwn,
-    AiPermissions.AgentExecutionCancelOwn,
+    AiPermissions.AgentExecutionUpdateOwn,
   ],
   [Roles.Member]: [
     AiPermissions.ChatReadOwn,
@@ -223,6 +223,6 @@ export const AiRolePermissions = {
 
     AiPermissions.AgentExecutionReadOwn,
     AiPermissions.AgentExecutionListOwn,
-    AiPermissions.AgentExecutionCancelOwn,
+    AiPermissions.AgentExecutionUpdateOwn,
   ],
 } as const satisfies Record<RoleName, readonly AiPermissionName[]>;

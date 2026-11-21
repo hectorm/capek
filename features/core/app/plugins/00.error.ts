@@ -6,7 +6,7 @@ import { useToast } from "@nuxt/ui/composables/useToast";
 export default defineNuxtPlugin((nuxtApp) => {
   const toast = useToast();
 
-  const errorHandler = (...args: unknown[]) => {
+  const errorHandler = (...args: unknown[]): void => {
     console.error(...args);
 
     let errorTitle;

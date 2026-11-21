@@ -62,6 +62,13 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   ////////////////////////////////
 
   await db.schema
+    .alterTable("public.aiChatMessages")
+    .addCheckConstraint("ai_chat_messages_role_check", sql`role IN ('app', 'user', 'assistant', 'system', 'tool')`)
+    .execute();
+
+  ////////////////////////////////
+
+  await db.schema
     .createTable("public.aiChatSessionVfs")
     .addColumn("sessionId", "uuid", (col) => {
       return col.primaryKey().references("public.aiChatSessions.id").onDelete("cascade");
@@ -178,7 +185,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .addColumn("reasoningEffort", sql`varchar(20) COLLATE ${naturalCs}`, (col) => col.notNull().defaultTo(sql`''`))
     .addColumn("codeInterpreter", "boolean", (col) => col.notNull().defaultTo(false))
     .addColumn("showToolCalls", "boolean", (col) => col.notNull().defaultTo(true))
-    .addColumn("toolProviders", sql`varchar(100)[]`, (col) => col.notNull().defaultTo(sql`'{}'`))
+    .addColumn("toolProviders", sql`varchar(100)[] COLLATE "C"`, (col) => col.notNull().defaultTo(sql`'{}'`))
     .addColumn("streaming", "boolean", (col) => col.notNull().defaultTo(true))
     .addColumn("temperature", "real")
     .addColumn("maxTokens", "integer")
@@ -256,7 +263,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
   await db.schema
     .createTable("public.aiAgentToolResources")
     .addColumn("agentId", "uuid", (col) => col.references("public.aiAgents.id").onDelete("cascade").notNull())
-    .addColumn("resourceType", "varchar(100)", (col) => col.notNull())
+    .addColumn("resourceType", sql`varchar(100) COLLATE ${naturalCs}`, (col) => col.notNull())
     .addColumn("resourceId", "uuid", (col) => col.notNull())
     .addColumn("createdAt", "timestamptz", (col) => col.defaultTo(sql`CURRENT_TIMESTAMP`).notNull())
     .addPrimaryKeyConstraint("aiAgentToolResourcesPk", ["agentId", "resourceType", "resourceId"])
@@ -338,11 +345,21 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
     .execute();
 
   await db.schema
-    .createIndex("aiAgentExecutionsSessionRunningUniqIdx")
+    .createIndex("aiAgentExecutionsUniqueRunningSession")
     .on("public.aiAgentExecutions")
     .column("sessionId")
     .where(sql.ref("status"), "=", sql.lit("running"))
     .unique()
+    .execute();
+
+  ////////////////////////////////
+
+  await db.schema
+    .alterTable("public.aiAgentExecutions")
+    .addCheckConstraint(
+      "ai_agent_executions_status_check",
+      sql`status IN ('pending', 'running', 'completed', 'failed', 'cancelled')`,
+    )
     .execute();
 
   ////////////////////////////////

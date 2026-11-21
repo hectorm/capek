@@ -40,20 +40,17 @@ export default defineEventHandler(async (event) => {
 
   const user = requirePermissions(event.context.user, [AiPermissions.ChatCreate]);
 
-  let body: z.infer<typeof BodySchema>;
-  try {
-    const rawBody: unknown = await readBody(event);
-    body = BodySchema.parse(rawBody);
-  } catch (error) {
-    logger.warn({ userId: user.id, error }, "Invalid chat request body");
+  const body = BodySchema.safeParse(await readBody<unknown>(event));
+  if (!body.success) {
+    logger.warn({ userId: user.id, error: body.error }, "Invalid chat request body");
     throw createError({
       statusCode: 400,
       message: "Invalid request body",
     });
   }
+  const { sessionId, replaceMessageId } = body.data;
 
-  const { sessionId } = body;
-  if (body.replaceMessageId) {
+  if (replaceMessageId) {
     requirePermissions(user, [AiPermissions.ChatDeleteAll, AiPermissions.ChatDeleteOwn]);
   }
 
@@ -111,12 +108,6 @@ export default defineEventHandler(async (event) => {
           statusCode: 404,
           message: "Chat session not found or has no agent assigned",
         });
-      default:
-        logger.error({ sessionId, userId: user.id }, "Unknown error retrieving chat session");
-        throw createError({
-          statusCode: 500,
-          message: "Failed to retrieve chat session",
-        });
     }
   }
 
@@ -129,14 +120,17 @@ export default defineEventHandler(async (event) => {
     abortController.abort();
   }
 
-  const executor = new AgentExecutor({ ...body, user });
+  const executor = new AgentExecutor({ ...body.data, user });
 
   try {
     await executor.createExecution(session.agentId);
   } catch (error) {
     if (error instanceof ChatMessageNotFoundError) {
-      logger.warn({ sessionId, userId: user.id, messageId: body.replaceMessageId }, error.message);
-      throw createError({ statusCode: 404, message: error.message });
+      logger.warn({ sessionId, userId: user.id, messageId: replaceMessageId }, "Chat message to replace was not found");
+      throw createError({
+        statusCode: 404,
+        message: error.message,
+      });
     }
     if (error instanceof ConcurrentExecutionError) {
       logger.warn({ sessionId, userId: user.id }, "An execution is already in progress for this session");

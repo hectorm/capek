@@ -1,4 +1,4 @@
-import { setTimeout as sleep } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 import { parentPort, workerData } from "node:worker_threads";
 
 import type { QuickJSAsyncContext, QuickJSAsyncRuntime, QuickJSContext, QuickJSHandle } from "quickjs-emscripten-core";
@@ -127,18 +127,18 @@ const execute = async (): Promise<unknown> => {
         throw new Error(extractError(context, scope.manage(promiseState.error)));
       }
 
-      await sleep(JOB_POLL_INTERVAL_MS);
+      await setTimeout(JOB_POLL_INTERVAL_MS);
     }
     throw new Error("Execution timeout");
   });
 };
 
 const extractError = (context: QuickJSContext, handle: QuickJSHandle): string => {
-  const errorObj = context.dump(handle) as Record<string, unknown> | string | null;
-  if (typeof errorObj === "object" && errorObj && "message" in errorObj) {
-    return String(errorObj.message);
+  const errorObject = context.dump(handle) as Record<string, unknown> | string | null;
+  if (typeof errorObject === "object" && errorObject && "message" in errorObject) {
+    return String(errorObject.message);
   }
-  return typeof errorObj === "string" ? errorObj : "Unknown error";
+  return typeof errorObject === "string" ? errorObject : "Unknown error";
 };
 
 const setupModuleLoader = (runtime: QuickJSAsyncRuntime): void => {
@@ -157,7 +157,7 @@ const setupModuleLoader = (runtime: QuickJSAsyncRuntime): void => {
 };
 
 const setupConsoleAPI = (context: QuickJSAsyncContext, scope: Scope): void => {
-  const consoleObj = scope.manage(context.newObject());
+  const consoleObject = scope.manage(context.newObject());
   const levels = ["log", "warn", "error", "debug", "info"] as const;
 
   for (const level of levels) {
@@ -180,14 +180,14 @@ const setupConsoleAPI = (context: QuickJSAsyncContext, scope: Scope): void => {
         consoleLogs.push(log);
       }),
     );
-    context.setProp(consoleObj, level, fn);
+    context.setProp(consoleObject, level, fn);
   }
-  context.setProp(context.global, "console", consoleObj);
+  context.setProp(context.global, "console", consoleObject);
 };
 
 const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Promise<void>[]): void => {
-  const fsObj = scope.manage(context.newObject());
-  const promisesObj = scope.manage(context.newObject());
+  const fsObject = scope.manage(context.newObject());
+  const promisesObject = scope.manage(context.newObject());
 
   const checkWritePermission = (path: string): string | null => {
     const normalized = vfs.normalizePath(path);
@@ -197,9 +197,9 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return null;
   };
 
-  const register = (name: string, fn: (...args: QuickJSHandle[]) => QuickJSHandle) => {
+  const register = (name: string, fn: (...args: QuickJSHandle[]) => QuickJSHandle): void => {
     const syncFn = scope.manage(context.newFunction(`${name}Sync`, fn));
-    context.setProp(fsObj, `${name}Sync`, syncFn);
+    context.setProp(fsObject, `${name}Sync`, syncFn);
 
     const asyncFn = scope.manage(
       context.newFunction(name, (...args: QuickJSHandle[]) => {
@@ -210,10 +210,10 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
           if (result !== context.undefined && result !== context.true && result !== context.false) {
             result.dispose();
           }
-        } catch (err) {
-          const error = context.newError(err instanceof Error ? err.message : String(err));
-          promise.reject(error);
-          error.dispose();
+        } catch (error) {
+          const errorHandle = context.newError(error instanceof Error ? error.message : String(error));
+          promise.reject(errorHandle);
+          errorHandle.dispose();
         }
         if (pendingCalls.length < MAX_TRACKED_FS_CALLS) {
           pendingCalls.push(promise.settled.then(() => void context.runtime.executePendingJobs()));
@@ -221,16 +221,16 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
         return promise.handle;
       }),
     );
-    context.setProp(promisesObj, name, asyncFn);
+    context.setProp(promisesObject, name, asyncFn);
   };
 
-  register("exists", (pathH) => {
-    const path = context.getString(pathH);
+  register("exists", (pathHandle) => {
+    const path = context.getString(pathHandle);
     return marshallToQuickJS(context, vfs.exists(path));
   });
 
-  register("stat", (pathH) => {
-    const path = context.getString(pathH);
+  register("stat", (pathHandle) => {
+    const path = context.getString(pathHandle);
     const stats = vfs.stat(path);
     if (!stats) {
       throw new Error(`ENOENT: no such file, stat '${path}'`);
@@ -238,8 +238,8 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return marshallToQuickJS(context, stats);
   });
 
-  register("readFile", (pathH) => {
-    const path = context.getString(pathH);
+  register("readFile", (pathHandle) => {
+    const path = context.getString(pathHandle);
     const content = vfs.readFile(path);
     if (content === null) {
       throw new Error(`ENOENT: no such file, open '${path}'`);
@@ -247,8 +247,8 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return marshallToQuickJS(context, content);
   });
 
-  register("readdir", (pathH) => {
-    const path = context.getString(pathH);
+  register("readdir", (pathHandle) => {
+    const path = context.getString(pathHandle);
     const entries = vfs.readdir(path);
     if (entries === null) {
       throw new Error(`ENOENT: no such directory, scandir '${path}'`);
@@ -256,16 +256,16 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return marshallToQuickJS(context, entries);
   });
 
-  register("glob", (patternH) => {
-    const pattern = context.getString(patternH);
+  register("glob", (patternHandle) => {
+    const pattern = context.getString(patternHandle);
     return marshallToQuickJS(context, vfs.glob(pattern));
   });
 
-  register("mkdir", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("mkdir", (pathHandle) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
     if (!vfs.mkdir(path)) {
       throw new Error(`EEXIST: already exists, mkdir '${path}'`);
@@ -273,48 +273,48 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return context.undefined;
   });
 
-  register("writeFile", (pathH, dataH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("writeFile", (pathHandle, dataHandle) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
-    if (!vfs.writeFile(path, context.getString(dataH))) {
+    if (!vfs.writeFile(path, context.getString(dataHandle))) {
       throw new Error(`EISDIR: is a directory, open '${path}'`);
     }
     return context.undefined;
   });
 
-  register("appendFile", (pathH, dataH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("appendFile", (pathHandle, dataHandle) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
-    if (!vfs.appendFile(path, context.getString(dataH))) {
+    if (!vfs.appendFile(path, context.getString(dataHandle))) {
       throw new Error(`EISDIR: is a directory, open '${path}'`);
     }
     return context.undefined;
   });
 
-  register("copyFile", (srcH, destH) => {
-    const src = context.getString(srcH);
-    const dest = context.getString(destH);
-    const permErr = checkWritePermission(dest);
-    if (permErr) {
-      throw new Error(permErr);
+  register("copyFile", (sourceHandle, destinationHandle) => {
+    const source = context.getString(sourceHandle);
+    const destination = context.getString(destinationHandle);
+    const permissionError = checkWritePermission(destination);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
-    if (!vfs.copyFile(src, dest)) {
-      throw new Error(`ENOENT: copyFile failed '${src}'`);
+    if (!vfs.copyFile(source, destination)) {
+      throw new Error(`ENOENT: copyFile failed '${source}'`);
     }
     return context.undefined;
   });
 
-  register("unlink", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("unlink", (pathHandle) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
     if (!vfs.unlink(path)) {
       throw new Error(`ENOENT: no such file, unlink '${path}'`);
@@ -322,11 +322,11 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return context.undefined;
   });
 
-  register("rmdir", (pathH) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("rmdir", (pathHandle) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
     if (!vfs.rmdir(path)) {
       throw new Error(`ENOTEMPTY: directory not empty, rmdir '${path}'`);
@@ -334,16 +334,16 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return context.undefined;
   });
 
-  register("rename", (oldH, newH) => {
-    const oldPath = context.getString(oldH);
-    const newPath = context.getString(newH);
-    const oldPermErr = checkWritePermission(oldPath);
-    if (oldPermErr) {
-      throw new Error(oldPermErr);
+  register("rename", (oldPathHandle, newPathHandle) => {
+    const oldPath = context.getString(oldPathHandle);
+    const newPath = context.getString(newPathHandle);
+    const oldPathError = checkWritePermission(oldPath);
+    if (oldPathError) {
+      throw new Error(oldPathError);
     }
-    const newPermErr = checkWritePermission(newPath);
-    if (newPermErr) {
-      throw new Error(newPermErr);
+    const newPathError = checkWritePermission(newPath);
+    if (newPathError) {
+      throw new Error(newPathError);
     }
     if (!vfs.rename(oldPath, newPath)) {
       throw new Error(`ENOENT: rename failed '${oldPath}' -> '${newPath}'`);
@@ -351,15 +351,15 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return context.undefined;
   });
 
-  register("rm", (pathH, optionsH?) => {
-    const path = context.getString(pathH);
-    const permErr = checkWritePermission(path);
-    if (permErr) {
-      throw new Error(permErr);
+  register("rm", (pathHandle, optionsHandle?) => {
+    const path = context.getString(pathHandle);
+    const permissionError = checkWritePermission(path);
+    if (permissionError) {
+      throw new Error(permissionError);
     }
     let options: { recursive?: boolean; force?: boolean } | undefined;
-    if (optionsH && context.typeof(optionsH) === "object") {
-      options = context.dump(optionsH) as { recursive?: boolean; force?: boolean };
+    if (optionsHandle && context.typeof(optionsHandle) === "object") {
+      options = context.dump(optionsHandle) as { recursive?: boolean; force?: boolean };
     }
     const success = vfs.rm(path, options);
     if (!success && !options?.force) {
@@ -368,8 +368,8 @@ const setupFsAPI = (context: QuickJSAsyncContext, scope: Scope, pendingCalls: Pr
     return context.undefined;
   });
 
-  context.setProp(fsObj, "promises", promisesObj);
-  context.setProp(context.global, "fs", fsObj);
+  context.setProp(fsObject, "promises", promisesObject);
+  context.setProp(context.global, "fs", fsObject);
   context.setProp(context.global, "globalThis", context.global);
   context.setProp(context.global, "global", context.global);
 };
@@ -398,8 +398,8 @@ const setupHostCall = (
           const resultHandle = context.newString(await callHost(hostFunction, args));
           deferred.resolve(resultHandle);
           resultHandle.dispose();
-        } catch (err) {
-          const errorHandle = context.newError(err instanceof Error ? err.message : String(err));
+        } catch (error) {
+          const errorHandle = context.newError(error instanceof Error ? error.message : String(error));
           deferred.reject(errorHandle);
           errorHandle.dispose();
         } finally {
@@ -433,39 +433,39 @@ const marshallToQuickJS = (context: QuickJSContext, value: unknown): QuickJSHand
   }
 
   if (Array.isArray(value)) {
-    const arr = context.newArray();
-    value.forEach((item, i) => {
-      Scope.withScope((s) => {
-        context.setProp(arr, i, s.manage(marshallToQuickJS(context, item)));
+    const array = context.newArray();
+    value.forEach((item, index) => {
+      Scope.withScope((itemScope) => {
+        context.setProp(array, index, itemScope.manage(marshallToQuickJS(context, item)));
       });
     });
-    return arr;
+    return array;
   }
 
   if (typeof value === "object" && "isFile" in value && typeof value.isFile === "function") {
     const stats = value as { size: number; mode: number; isFile: () => boolean; isDirectory: () => boolean };
-    const obj = context.newObject();
-    context.setProp(obj, "size", context.newNumber(stats.size));
-    context.setProp(obj, "mode", context.newNumber(stats.mode));
-    const isFileVal = stats.isFile();
-    const isDirVal = stats.isDirectory();
-    const isFileFn = context.newFunction("isFile", () => (isFileVal ? context.true : context.false));
-    const isDirFn = context.newFunction("isDirectory", () => (isDirVal ? context.true : context.false));
-    context.setProp(obj, "isFile", isFileFn);
-    context.setProp(obj, "isDirectory", isDirFn);
-    isFileFn.dispose();
-    isDirFn.dispose();
-    return obj;
+    const object = context.newObject();
+    context.setProp(object, "size", context.newNumber(stats.size));
+    context.setProp(object, "mode", context.newNumber(stats.mode));
+    const isFile = stats.isFile();
+    const isDirectory = stats.isDirectory();
+    const isFileHandle = context.newFunction("isFile", () => (isFile ? context.true : context.false));
+    const isDirectoryHandle = context.newFunction("isDirectory", () => (isDirectory ? context.true : context.false));
+    context.setProp(object, "isFile", isFileHandle);
+    context.setProp(object, "isDirectory", isDirectoryHandle);
+    isFileHandle.dispose();
+    isDirectoryHandle.dispose();
+    return object;
   }
 
   if (typeof value === "object") {
-    const obj = context.newObject();
-    for (const [key, val] of Object.entries(value)) {
-      Scope.withScope((s) => {
-        context.setProp(obj, key, s.manage(marshallToQuickJS(context, val)));
+    const object = context.newObject();
+    for (const [key, property] of Object.entries(value)) {
+      Scope.withScope((propertyScope) => {
+        context.setProp(object, key, propertyScope.manage(marshallToQuickJS(context, property)));
       });
     }
-    return obj;
+    return object;
   }
 
   return context.undefined;
@@ -492,21 +492,21 @@ const marshallFromQuickJS = (context: QuickJSContext, handle: QuickJSHandle): un
 
 const main = async (): Promise<void> => {
   let result: unknown = null;
-  let error: string | null = null;
+  let errorMessage: string | null = null;
   try {
     result = await execute();
-  } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : String(error);
   }
 
   const workspace = vfs.getWorkspaceFiles();
   try {
-    send({ type: "done", result, error, consoleLogs, workspace });
-  } catch (err) {
+    send({ type: "done", result, error: errorMessage, consoleLogs, workspace });
+  } catch (error) {
     send({
       type: "done",
       result: null,
-      error: error ?? `The result cannot be returned: ${err instanceof Error ? err.message : String(err)}`,
+      error: errorMessage ?? `The result cannot be returned: ${error instanceof Error ? error.message : String(error)}`,
       consoleLogs: [],
       workspace,
     });

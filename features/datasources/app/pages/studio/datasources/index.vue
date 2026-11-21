@@ -4,15 +4,15 @@ import { useNuxtApp } from "nuxt/app";
 import UBadge from "@nuxt/ui/components/Badge.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
-import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceTable } from "#layers/core/app/composables/resource-table";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import { useDatasourceDelete } from "#layers/datasources/app/composables/datasource-delete";
-import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 import { DatasourceTypes } from "#layers/datasources/shared/definitions";
+import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 
 import ResourceTable from "#layers/core/app/components/ui/ResourceTable.vue";
 import LazyUpsertModal from "#layers/datasources/app/components/sources/UpsertModal.vue";

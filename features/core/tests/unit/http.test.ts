@@ -117,7 +117,9 @@ describe("bounded responses", () => {
 });
 
 describe("failed response", () => {
-  const describeFailure = (body: string, status: number) => readErrorMessage(new Response(body, { status }));
+  const describeFailure = (body: string, status: number): Promise<string> => {
+    return readErrorMessage(new Response(body, { status }));
+  };
 
   it("is described by the message of an API error", async () => {
     const bodies = [

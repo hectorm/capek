@@ -21,7 +21,7 @@ afterEach(() => {
 describe("MariaDB driver", () => {
   it("rejects connection options that would read files or allow writes", async () => {
     vi.mocked(mariadb.createConnection).mockRejectedValue(new Error("Unexpected connection attempt"));
-    const run = (options: string) => {
+    const run = (options: string): Promise<Record<string, unknown>[]> => {
       const config = { connectionString: `mariadb://db.example.com/sales?${options}`, authType: "none" };
       return new MariaDBDriver().execute({ config }, "SELECT 1", {});
     };

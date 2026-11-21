@@ -1,13 +1,5 @@
 export default () => ({
   ai: {
-    layouts: {
-      default: {
-        sidebar: {
-          history: "Chat history",
-          deleteChat: "Delete chat",
-        },
-      },
-    },
     pages: {
       welcome: {
         title: "Welcome",
@@ -172,7 +164,7 @@ export default () => ({
           },
           create: {
             title: "Create agent",
-            description: "Create a new AI agent",
+            description: "Add a new agent",
           },
           edit: {
             title: "Edit agent",
@@ -485,7 +477,7 @@ export default () => ({
               description: "Server maintains state across requests",
             },
             advancedSettings: {
-              label: "Advanced Settings",
+              label: "Advanced settings",
               customized: "{count} customized",
               default: "Default: {value}",
             },
@@ -505,7 +497,7 @@ export default () => ({
           },
         },
         skills: {
-          title: "Skills management",
+          title: "Skill management",
           description: "Manage skills for agents",
           tab: "Skills",
           table: {
@@ -566,13 +558,6 @@ export default () => ({
               label: "Description",
               placeholder: "Enter skill description",
             },
-            parameters: {
-              label: "Parameters",
-              name: "Name",
-              description: "Description",
-              required: "Required",
-              add: "Add parameter",
-            },
             documentation: {
               label: "Documentation",
               placeholder: "Enter documentation",
@@ -595,7 +580,7 @@ export default () => ({
           fields: {
             "ai.quickChats": {
               label: "Quick chat prompts",
-              description: "Predefined prompts shown on the welcome page.",
+              description: "Predefined prompts shown on the welcome page",
               placeholder: "Enter a prompt",
               add: "Add prompt",
               remove: "Remove prompt",
@@ -670,6 +655,10 @@ export default () => ({
             title: "Error",
             description: "Failed to load the table",
           },
+        },
+        sessionsSidebar: {
+          history: "Chat history",
+          deleteChat: "Delete chat",
         },
       },
     },

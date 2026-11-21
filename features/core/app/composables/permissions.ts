@@ -1,7 +1,12 @@
 import type { PermissionName } from "#layers/core/shared/rbac";
 import { useUserStore } from "#layers/core/app/stores/user";
 
-export const usePermissions = () => {
+export interface PermissionChecks {
+  can: (permissions: PermissionName | PermissionName[], ownerIds?: string[]) => boolean;
+  canAny: (permissions: PermissionName | PermissionName[], ownerIds?: string[]) => boolean;
+}
+
+export const usePermissions = (): PermissionChecks => {
   const userStore = useUserStore();
 
   const check = (

@@ -407,7 +407,8 @@ export const sharedResourcePolicies = (
         USING (${canEdit("delete")});
     `,
     ...protectTable(accessTable),
-    // Readers and updaters can inspect grants. The other :own permissions only expose the caller's own grants
+    // Readers and updaters can inspect grants. The other :own permissions only expose the caller's own grants. A grant
+    // only holds IDs, so its policy stays simple and does not check which resources the reader can reach
     `
       CREATE POLICY ${accessTable}_select ON public.${accessTable}
         FOR SELECT
@@ -425,7 +426,7 @@ export const sharedResourcePolicies = (
         FOR INSERT
         WITH CHECK (
           ${canShare}
-          -- Implicit creator self-grant: only for the resources that they are creating, while nobody else has access
+          -- Creators grant themselves access to a resource that they are creating while nobody else has access
           OR (
             ${canAny("create")}
             AND user_id = (SELECT security.user_id())

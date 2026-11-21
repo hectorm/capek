@@ -6,7 +6,7 @@ test.describe("agent chart", () => {
   test("shows the chart of a tool call", async ({ page }) => {
     await startChat(page, "Mock specialist chart agent", "Show me a chart and end slowly.");
 
-    const frame = answer(page, "This is a mock response").locator("iframe");
+    const frame = answer(page, "This is a mock response").getByTitle("Chart", { exact: true });
     const chart = frame.contentFrame().locator("canvas");
     await expect(frame).toHaveAttribute("sandbox", "allow-scripts");
     await expect(chart).toBeVisible();
@@ -22,9 +22,10 @@ test.describe("agent chart", () => {
     await expect(chart).toHaveAttribute("data-drawn", "once");
 
     await page.reload();
-    await expect(page.locator("article iframe").contentFrame().locator("canvas")).toBeVisible();
+    const reloaded = page.getByRole("article").getByTitle("Chart", { exact: true });
+    await expect(reloaded.contentFrame().locator("canvas")).toBeVisible();
     for (const format of ["png", "svg"]) {
-      await page.locator("article iframe").hover();
+      await reloaded.hover();
       await page.getByRole("button", { name: /download/i }).click();
       const [download] = await Promise.all([
         page.waitForEvent("download"),
@@ -41,7 +42,7 @@ test.describe("agent chart", () => {
 
     await startChat(page, "Mock specialist chart agent", "Show me a chart in 3D.");
 
-    const frame = answer(page, "This is a mock response").locator("iframe");
+    const frame = answer(page, "This is a mock response").getByTitle("Chart", { exact: true });
     await expect(frame.contentFrame().locator("canvas")).toBeVisible();
 
     // A chart in 3D is drawn with WebGL, which has no SVG export

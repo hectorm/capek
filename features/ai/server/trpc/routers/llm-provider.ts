@@ -29,19 +29,18 @@ import {
 import { authorizedProcedure, createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE, HttpHeadersSchema, HttpUrlSchema } from "#layers/core/shared/http";
 
-interface WithRedactedValues {
+type WithRedactedSecrets<T> = Omit<T, "apiKey" | "headers"> & {
   apiKey: HttpRedactedHeader["value"];
   headers: HttpRedactedHeader[];
-  [key: string]: unknown;
-}
+};
 
-const redactSecrets = <T extends { apiKey: string; headers: string }>(llmProvider: T) => {
+const redactSecrets = <T extends { apiKey: string; headers: string }>(llmProvider: T): WithRedactedSecrets<T> => {
   const { headers } = decryptLlmProviderSecrets(llmProvider);
   return {
     ...llmProvider,
     apiKey: HTTP_REDACTED_VALUE,
     headers: headers.map((h) => ({ name: h.name, value: HTTP_REDACTED_VALUE })),
-  } satisfies WithRedactedValues;
+  };
 };
 
 const storedEndpoint = (stored: { url: string; apiKey: string; headers: string }): Endpoint => {
@@ -267,7 +266,7 @@ export const llmProviderRouter = createTRPCRouter({
           if (isForeignKeyViolation(error)) {
             throw new TRPCError({
               code: "CONFLICT",
-              message: "Cannot delete LLM provider: it is referenced by other resources",
+              message: "This LLM provider is used by other resources and cannot be deleted",
             });
           }
           throw error;

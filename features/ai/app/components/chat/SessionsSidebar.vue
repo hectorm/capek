@@ -5,8 +5,8 @@ import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
-import UButton from "@nuxt/ui/components/Button.vue";
 import type { ScrollAreaVirtualizeOptions } from "@nuxt/ui/components/ScrollArea.vue";
+import UButton from "@nuxt/ui/components/Button.vue";
 import UScrollArea from "@nuxt/ui/components/ScrollArea.vue";
 import UTooltip from "@nuxt/ui/components/Tooltip.vue";
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
@@ -31,35 +31,13 @@ const toast = useToast();
 const agentStore = useAgentStore();
 const chatStore = useChatStore();
 const { home } = useAppFeatures();
-
-const showSessions = computed(() => home.value === "/ai" || route.path === "/ai" || route.path.startsWith("/ai/"));
+const { groupedSessions } = useChatUI(computed(() => chatStore.sessions));
 const mounted = useMounted();
 
-watch(
-  () => mounted.value && showSessions.value,
-  async (visible) => {
-    if (!visible) {
-      return;
-    }
-
-    try {
-      await chatStore.fetchSessions();
-    } catch (error) {
-      console.error("Failed to load chat sessions", error);
-      if (showSessions.value) {
-        toast.add({
-          color: "error",
-          title: i18n.t("ai.pages.welcome.actions.fetchChats.error.title"),
-          description: i18n.t("ai.pages.welcome.actions.fetchChats.error.description"),
-        });
-      }
-    }
-  },
-);
-
-const { groupedSessions } = useChatUI(computed(() => chatStore.sessions));
-
 const sessionsContainer = useTemplateRef<{ $el: HTMLElement }>("sessionsContainer");
+const focusedSession = ref<string>();
+
+const showSessions = computed(() => home.value === "/ai" || route.path === "/ai" || route.path.startsWith("/ai/"));
 
 const items = computed(() => {
   return groupedSessions.value.flatMap((group) => {
@@ -68,18 +46,10 @@ const items = computed(() => {
   });
 });
 
-const focusedSession = ref<string>();
-
 const focusedIndex = computed(() => {
   const id = focusedSession.value;
   return id === undefined ? -1 : items.value.findIndex((item) => item.id === id);
 });
-
-const rememberFocus = (event: FocusEvent): void => {
-  const target = event.type === "focusin" ? event.target : event.relatedTarget;
-  focusedSession.value =
-    target instanceof Element ? target.closest<HTMLElement>("[data-session-id]")?.dataset.sessionId : undefined;
-};
 
 const virtualize: ScrollAreaVirtualizeOptions = {
   estimateSize: 32,
@@ -103,7 +73,13 @@ const virtualize: ScrollAreaVirtualizeOptions = {
   },
 };
 
-const handleNewChat = async (): Promise<void> => {
+const onFocusChange = (event: FocusEvent): void => {
+  const target = event.type === "focusin" ? event.target : event.relatedTarget;
+  focusedSession.value =
+    target instanceof Element ? target.closest<HTMLElement>("[data-session-id]")?.dataset.sessionId : undefined;
+};
+
+const onNewChat = async (): Promise<void> => {
   try {
     const session = await chatStore.createSession();
     await navigateTo(`/ai/chat/${session.id}`);
@@ -117,7 +93,7 @@ const handleNewChat = async (): Promise<void> => {
   }
 };
 
-const openChatDeleteModal = async (id: string): Promise<void> => {
+const onDeleteChat = async (id: string): Promise<void> => {
   // The mobile slideover remounts the sidebar on each open, so the modal is created on demand
   const instance = overlay.create(LazyDeleteModal, { destroyOnClose: true }).open({ id });
   const result = (await instance.result) as { deleted: boolean; error: Error | null };
@@ -138,6 +114,28 @@ const openChatDeleteModal = async (id: string): Promise<void> => {
     });
   }
 };
+
+watch(
+  () => mounted.value && showSessions.value,
+  async (visible) => {
+    if (!visible) {
+      return;
+    }
+
+    try {
+      await chatStore.fetchSessions();
+    } catch (error) {
+      console.error("Failed to load chat sessions", error);
+      if (showSessions.value) {
+        toast.add({
+          color: "error",
+          title: i18n.t("ai.pages.welcome.actions.fetchChats.error.title"),
+          description: i18n.t("ai.pages.welcome.actions.fetchChats.error.description"),
+        });
+      }
+    }
+  },
+);
 
 useInfiniteScroll(
   () => sessionsContainer.value?.$el,
@@ -165,7 +163,7 @@ useInfiniteScroll(
         icon="i-lucide-plus"
         :disabled="!agentStore.hasAgents"
         :loading="chatStore.isCreatingSession"
-        @click="handleNewChat"
+        @click="onNewChat"
       >
         {{ $t("ai.pages.welcome.newChat") }}
       </UButton>
@@ -181,7 +179,7 @@ useInfiniteScroll(
         :disabled="!agentStore.hasAgents"
         :loading="chatStore.isCreatingSession"
         :aria-label="$t('ai.pages.welcome.newChat')"
-        @click="handleNewChat"
+        @click="onNewChat"
       />
     </div>
     <UScrollArea
@@ -190,9 +188,9 @@ useInfiniteScroll(
       :items="items"
       :virtualize="virtualize"
       class="min-h-0 flex-1 p-2 [overflow-anchor:none]"
-      :aria-label="$t('ai.layouts.default.sidebar.history')"
-      @focusin="rememberFocus"
-      @focusout="rememberFocus"
+      :aria-label="$t('ai.components.chat.sessionsSidebar.history')"
+      @focusin="onFocusChange"
+      @focusout="onFocusChange"
     >
       <template #default="{ item }">
         <div v-if="item.type === 'label'" class="flex h-8 items-center px-2.5 text-xs font-semibold text-highlighted">
@@ -225,9 +223,9 @@ useInfiniteScroll(
             color="neutral"
             variant="ghost"
             icon="i-lucide-x"
-            :aria-label="$t('ai.layouts.default.sidebar.deleteChat')"
+            :aria-label="$t('ai.components.chat.sessionsSidebar.deleteChat')"
             class="absolute inset-e-1 top-1/2 -translate-y-1/2 p-0.5 text-muted opacity-0 transition-opacity group-hover/chat:opacity-100 hover:bg-accented/50 hover:text-primary focus-visible:bg-accented/50 focus-visible:opacity-100"
-            @click="openChatDeleteModal(item.id)"
+            @click="onDeleteChat(item.id)"
           />
         </div>
       </template>

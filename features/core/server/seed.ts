@@ -32,7 +32,7 @@ export const coreSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`User "${userConfig.username}" already exists, skipping`);
+        logger.info({ username: userConfig.username }, "User already exists, skipping");
       } else {
         const user = await db
           .insertInto("users")
@@ -44,7 +44,7 @@ export const coreSeed = defineSeed({
           .returning(["id", "username"])
           .executeTakeFirstOrThrow();
 
-        logger.info(`Created user: ${user.username}`);
+        logger.info({ userId: user.id, username: user.username }, "User created");
         userIds.set(user.username, user.id);
 
         for (const roleName of userConfig.roles) {
@@ -58,7 +58,7 @@ export const coreSeed = defineSeed({
             .values({ userId: user.id, roleId: role.id })
             .onConflict((oc) => oc.doNothing())
             .execute();
-          logger.info(`Assigned role "${roleName}" to user "${user.username}"`);
+          logger.info({ username: user.username, role: roleName }, "Role assigned to user");
         }
       }
     }
@@ -73,7 +73,7 @@ export const coreSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`Group "${groupConfig.name}" already exists, skipping`);
+        logger.info({ name: groupConfig.name }, "Group already exists, skipping");
         groupIds.set(groupConfig.name, existing.id);
       } else {
         const group = await db
@@ -85,7 +85,7 @@ export const coreSeed = defineSeed({
           .returning(["id", "name"])
           .executeTakeFirstOrThrow();
 
-        logger.info(`Created group: ${group.name}`);
+        logger.info({ groupId: group.id, name: group.name }, "Group created");
         groupIds.set(group.name, group.id);
 
         for (const roleName of groupConfig.roles) {
@@ -99,7 +99,7 @@ export const coreSeed = defineSeed({
             .values({ groupId: group.id, roleId: role.id })
             .onConflict((oc) => oc.doNothing())
             .execute();
-          logger.info(`Assigned role "${roleName}" to group "${group.name}"`);
+          logger.info({ name: group.name, role: roleName }, "Role assigned to group");
         }
       }
     }
@@ -131,7 +131,7 @@ export const coreSeed = defineSeed({
           .values({ userId, groupId: resolvedGroupId })
           .onConflict((oc) => oc.doNothing())
           .execute();
-        logger.info(`Added user "${userConfig.username}" to group "${groupname}"`);
+        logger.info({ username: userConfig.username, group: groupname }, "User added to group");
       }
     }
   },

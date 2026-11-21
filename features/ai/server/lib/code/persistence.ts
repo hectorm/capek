@@ -3,7 +3,8 @@ import { deflate, inflate } from "node:zlib";
 
 import type { VFSSnapshot, VirtualFileSystem } from "#layers/ai/server/lib/code/vfs";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
-import { withUserTransaction } from "#layers/core/server/lib/database";
+import { ChatResource } from "#layers/ai/server/lib/resources";
+import { withResourceTransaction, withUserTransaction } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
 
 const logger = useLogger();
@@ -18,7 +19,7 @@ export const loadSessionWorkspace = async (
   sessionId: string,
   user: AuthUser,
 ): Promise<void> => {
-  await withUserTransaction(user, async (trx) => {
+  await withResourceTransaction(user, ChatResource.type, "read", async (trx) => {
     const row = await trx
       .selectFrom("aiChatSessionVfs")
       .select(["data"])

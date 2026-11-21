@@ -1,3 +1,4 @@
+import type { ComputedRef, Ref, ShallowRef } from "vue";
 import { useNuxtApp } from "nuxt/app";
 import { defineStore } from "pinia";
 import { computed, ref, shallowReactive, shallowRef, triggerRef } from "vue";
@@ -28,7 +29,36 @@ export class ChatAnswerError extends Error {
   }
 }
 
-export const useChatStore = defineStore("ai.chat", () => {
+export interface ChatStore {
+  sessions: Ref<ChatSession[]>;
+  currentSessionId: Ref<string | null>;
+  messages: ShallowRef<Map<string, ChatMessage[]>>;
+  activeStreams: Ref<Map<string, StreamState>>;
+  currentSession: ComputedRef<ChatSession | null>;
+  currentMessages: ComputedRef<ChatMessage[]>;
+  isLoadingSessions: Ref<boolean>;
+  isLoadingMessages: ComputedRef<boolean>;
+  isCreatingSession: Ref<boolean>;
+  hasMoreSessions: ComputedRef<boolean>;
+  fetchSessions: () => Promise<void>;
+  loadMoreSessions: () => Promise<void>;
+  createSession: (title?: string, agentId?: string) => Promise<ChatSession>;
+  updateSession: (sessionId: string, data: { title?: string; agentId?: string | null }) => Promise<void>;
+  generateSessionTitle: (sessionId: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  selectSession: (sessionId: string, signal?: AbortSignal) => Promise<void>;
+  fetchMessages: (sessionId: string, signal?: AbortSignal) => Promise<void>;
+  loadOlderMessages: (sessionId: string) => Promise<void>;
+  hasOlderMessages: (sessionId: string) => boolean;
+  sendMessage: (sessionId: string, content: string, replaceMessageId?: string) => Promise<boolean>;
+  retryMessage: (sessionId: string, messageId: string) => Promise<void>;
+  regenerateMessage: (sessionId: string, messageId: string) => Promise<void>;
+  deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
+  getStream: (sessionId: string) => StreamState | undefined;
+  abortStream: (sessionId: string) => boolean;
+}
+
+export const useChatStore = defineStore("ai.chat", (): ChatStore => {
   const { $trpc } = useNuxtApp();
 
   const sessions = ref<ChatSession[]>([]);
@@ -150,16 +180,16 @@ export const useChatStore = defineStore("ai.chat", () => {
     }
   };
 
-  const autoRenameSession = async (sessionId: string): Promise<void> => {
+  const generateSessionTitle = async (sessionId: string): Promise<void> => {
     if (!findSession(sessionId)) {
       throw new Error("Session not found");
     }
 
     try {
-      const session = await $trpc.ai.chatSession.autoRename.mutate({ id: sessionId });
+      const session = await $trpc.ai.chatSession.generateTitle.mutate({ id: sessionId });
       replaceSession(session);
     } catch (error) {
-      throw new Error("Failed to auto-rename chat session", { cause: error });
+      throw new Error("Failed to generate chat session title", { cause: error });
     }
   };
 
@@ -206,14 +236,14 @@ export const useChatStore = defineStore("ai.chat", () => {
       if (signal?.aborted || latestMessageLoads.get(sessionId) !== load) {
         return;
       }
-      const msgs = messages.value.get(sessionId) ?? [];
+      const sessionMessages = messages.value.get(sessionId) ?? [];
       if (cursor) {
-        messages.value.set(sessionId, [...result.messages, ...msgs]);
+        messages.value.set(sessionId, [...result.messages, ...sessionMessages]);
         messagesNextCursors.value.set(sessionId, result.nextCursor);
       } else {
-        const index = msgs.findIndex((m) => m.id === result.messages[0]?.id);
+        const index = sessionMessages.findIndex((m) => m.id === result.messages[0]?.id);
         if (index > 0) {
-          messages.value.set(sessionId, [...msgs.slice(0, index), ...result.messages]);
+          messages.value.set(sessionId, [...sessionMessages.slice(0, index), ...result.messages]);
         } else {
           messages.value.set(sessionId, result.messages);
           messagesNextCursors.value.set(sessionId, result.nextCursor);
@@ -244,23 +274,27 @@ export const useChatStore = defineStore("ai.chat", () => {
 
   const hasOlderMessages = (sessionId: string): boolean => messagesNextCursors.value.get(sessionId) != null;
 
-  const replaceMessagesFrom = (sessionId: string, messageId: string | undefined, ...replacement: ChatMessage[]) => {
-    const msgs = messages.value.get(sessionId) ?? [];
-    const index = messageId ? msgs.findIndex((m) => m.id === messageId) : msgs.length;
+  const replaceMessagesFrom = (
+    sessionId: string,
+    messageId: string | undefined,
+    ...replacement: ChatMessage[]
+  ): void => {
+    const sessionMessages = messages.value.get(sessionId) ?? [];
+    const index = messageId ? sessionMessages.findIndex((m) => m.id === messageId) : sessionMessages.length;
     if (index >= 0) {
-      messages.value.set(sessionId, [...msgs.slice(0, index), ...replacement]);
+      messages.value.set(sessionId, [...sessionMessages.slice(0, index), ...replacement]);
       triggerRef(messages);
     }
   };
 
   const sendMessage = async (sessionId: string, content: string, replaceMessageId?: string): Promise<boolean> => {
-    const currentMsgs = messages.value.get(sessionId) ?? [];
-    if (replaceMessageId && !currentMsgs.some((m) => m.id === replaceMessageId && m.role === "user")) {
+    const previousMessages = messages.value.get(sessionId) ?? [];
+    if (replaceMessageId && !previousMessages.some((m) => m.id === replaceMessageId && m.role === "user")) {
       throw new Error("Message to replace was not found");
     }
     const replacingUnsent = replaceMessageId !== undefined && unsentMessageIds.has(replaceMessageId);
-    const firstUserMessage = currentMsgs.find((m) => m.role === "user");
-    const shouldAutoRename =
+    const firstUserMessage = previousMessages.find((m) => m.role === "user");
+    const shouldGenerateTitle =
       currentSession.value?.title === "" && (!firstUserMessage || firstUserMessage.id === replaceMessageId);
     latestMessageLoads.delete(sessionId);
     const controller = new AbortController();
@@ -303,7 +337,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     let accepted = false;
     let textEnded = false;
 
-    const onStreamComplete = () => {
+    const onStreamComplete = (): void => {
       const active = activeStreams.value.get(sessionId);
       if (active && active.controller !== controller) {
         return;
@@ -316,9 +350,9 @@ export const useChatStore = defineStore("ai.chat", () => {
       if (session) {
         sessions.value = [{ ...session, updatedAt: new Date() }, ...sessions.value.filter((s) => s.id !== sessionId)];
       }
-      if (shouldAutoRename) {
-        autoRenameSession(sessionId).catch((error: unknown) => {
-          console.warn("Failed to auto-rename chat session", error);
+      if (shouldGenerateTitle) {
+        generateSessionTitle(sessionId).catch((error: unknown) => {
+          console.warn("Failed to generate chat session title", error);
         });
       }
     };
@@ -359,34 +393,34 @@ export const useChatStore = defineStore("ai.chat", () => {
             }
           },
           onChunk: (chunk) => {
-            const msgs = messages.value.get(sessionId);
-            if (!msgs) {
+            const sessionMessages = messages.value.get(sessionId);
+            if (!sessionMessages) {
               return;
             }
 
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg?.id === tempAssistantMessageId) {
-              const lastPart = lastMsg.parts.at(-1);
+            const lastMessage = sessionMessages[sessionMessages.length - 1];
+            if (lastMessage?.id === tempAssistantMessageId) {
+              const lastPart = lastMessage.parts.at(-1);
               const parts: ChatMessagePart[] =
                 lastPart?.type === "text" && !textEnded
-                  ? [...lastMsg.parts.slice(0, -1), { type: "text", text: lastPart.text + chunk }]
-                  : [...lastMsg.parts, { type: "text", text: chunk }];
+                  ? [...lastMessage.parts.slice(0, -1), { type: "text", text: lastPart.text + chunk }]
+                  : [...lastMessage.parts, { type: "text", text: chunk }];
               textEnded = false;
-              const updatedMsg = { ...lastMsg, content: lastMsg.content + chunk, parts };
-              messages.value.set(sessionId, [...msgs.slice(0, -1), updatedMsg]);
+              const updatedMessage = { ...lastMessage, content: lastMessage.content + chunk, parts };
+              messages.value.set(sessionId, [...sessionMessages.slice(0, -1), updatedMessage]);
               triggerRef(messages);
             }
           },
           onPart: (part) => {
-            const msgs = messages.value.get(sessionId);
-            if (!msgs) {
+            const sessionMessages = messages.value.get(sessionId);
+            if (!sessionMessages) {
               return;
             }
 
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg?.id === tempAssistantMessageId) {
-              const updatedMsg = { ...lastMsg, parts: [...lastMsg.parts, part] };
-              messages.value.set(sessionId, [...msgs.slice(0, -1), updatedMsg]);
+            const lastMessage = sessionMessages[sessionMessages.length - 1];
+            if (lastMessage?.id === tempAssistantMessageId) {
+              const updatedMessage = { ...lastMessage, parts: [...lastMessage.parts, part] };
+              messages.value.set(sessionId, [...sessionMessages.slice(0, -1), updatedMessage]);
               triggerRef(messages);
             }
           },
@@ -416,10 +450,10 @@ export const useChatStore = defineStore("ai.chat", () => {
 
       await fetchMessages(sessionId).catch(() => {
         if (activeStreams.value.get(sessionId)?.controller === controller) {
-          const msgs = messages.value.get(sessionId) ?? [];
+          const sessionMessages = messages.value.get(sessionId) ?? [];
           messages.value.set(
             sessionId,
-            msgs.filter((m) => m.id !== tempAssistantMessageId && (accepted || m.id !== tempUserMessageId)),
+            sessionMessages.filter((m) => m.id !== tempAssistantMessageId && (accepted || m.id !== tempUserMessageId)),
           );
           triggerRef(messages);
         }
@@ -428,9 +462,9 @@ export const useChatStore = defineStore("ai.chat", () => {
         return accepted;
       }
 
-      const updatedMsgs = messages.value.get(sessionId) ?? [];
-      if (!updatedMsgs.some((m) => m.id === tempUserMessageId)) {
-        messages.value.set(sessionId, [...updatedMsgs, tempUserMessage]);
+      const updatedMessages = messages.value.get(sessionId) ?? [];
+      if (!updatedMessages.some((m) => m.id === tempUserMessageId)) {
+        messages.value.set(sessionId, [...updatedMessages, tempUserMessage]);
         triggerRef(messages);
         if (!accepted) {
           unsentMessageIds.add(tempUserMessageId);
@@ -452,8 +486,8 @@ export const useChatStore = defineStore("ai.chat", () => {
   };
 
   const retryMessage = async (sessionId: string, messageId: string): Promise<void> => {
-    const msgs = messages.value.get(sessionId) ?? [];
-    const message = msgs.find((m) => m.id === messageId);
+    const sessionMessages = messages.value.get(sessionId) ?? [];
+    const message = sessionMessages.find((m) => m.id === messageId);
     if (!message) {
       throw new Error("Message not found");
     }
@@ -461,14 +495,14 @@ export const useChatStore = defineStore("ai.chat", () => {
   };
 
   const regenerateMessage = async (sessionId: string, messageId: string): Promise<void> => {
-    const msgs = messages.value.get(sessionId) ?? [];
-    const messageIndex = msgs.findLastIndex((m) => m.id === messageId);
+    const sessionMessages = messages.value.get(sessionId) ?? [];
+    const messageIndex = sessionMessages.findLastIndex((m) => m.id === messageId);
 
     if (messageIndex === -1) {
       throw new Error("Message not found");
     }
 
-    const previousUserMessage = msgs.slice(0, messageIndex).findLast((m) => m.role === "user");
+    const previousUserMessage = sessionMessages.slice(0, messageIndex).findLast((m) => m.role === "user");
     if (!previousUserMessage) {
       // An agent greeting has no user message to retry
       return;
@@ -478,8 +512,8 @@ export const useChatStore = defineStore("ai.chat", () => {
   };
 
   const deleteMessage = async (sessionId: string, messageId: string): Promise<void> => {
-    const msgs = messages.value.get(sessionId) ?? [];
-    if (!msgs.some((m) => m.id === messageId)) {
+    const sessionMessages = messages.value.get(sessionId) ?? [];
+    if (!sessionMessages.some((m) => m.id === messageId)) {
       throw new Error("Message not found");
     }
 
@@ -506,8 +540,8 @@ export const useChatStore = defineStore("ai.chat", () => {
     streamState.status = "";
     streamState.controller.abort();
 
-    const msgs = messages.value.get(sessionId) ?? [];
-    const filtered = msgs.filter(
+    const sessionMessages = messages.value.get(sessionId) ?? [];
+    const filtered = sessionMessages.filter(
       (m) => m.id !== streamState.tempUserMessageId && m.id !== streamState.tempAssistantMessageId,
     );
     messages.value.set(sessionId, filtered);
@@ -612,7 +646,7 @@ export const useChatStore = defineStore("ai.chat", () => {
     loadMoreSessions,
     createSession,
     updateSession,
-    autoRenameSession,
+    generateSessionTitle,
     deleteSession,
     selectSession,
     fetchMessages,

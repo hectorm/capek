@@ -28,7 +28,7 @@ const selectedAgent = ref<string | null>(null);
 
 const quickChats = computed(() => settingsStore.get("ai.quickChats")?.value ?? []);
 
-const handleCreateChat = async (prompt: string) => {
+const onCreateChat = async (prompt: string): Promise<void> => {
   const userInput = prompt.trim();
   if (!userInput || chatStore.isCreatingSession) {
     return;
@@ -69,7 +69,7 @@ const handleCreateChat = async (prompt: string) => {
       :disabled="!agentStore.hasAgents"
       class="[view-transition-name:chat-prompt]"
       :placeholder="$t('ai.pages.welcome.prompt.enterMessage')"
-      @submit.prevent="handleCreateChat(input)"
+      @submit.prevent="onCreateChat(input)"
     >
       <UChatPromptSubmit
         color="neutral"
@@ -94,7 +94,7 @@ const handleCreateChat = async (prompt: string) => {
         icon="i-lucide-message-square"
         :ui="{ label: 'whitespace-normal text-left' }"
         :disabled="!agentStore.hasAgents || chatStore.isCreatingSession"
-        @click="handleCreateChat(quickChat)"
+        @click="onCreateChat(quickChat)"
       />
     </div>
   </div>

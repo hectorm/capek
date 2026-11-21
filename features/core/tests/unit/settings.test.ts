@@ -79,7 +79,7 @@ describe("setting", () => {
   });
 
   it("is stored encrypted and only read by the server when it is a secret", async () => {
-    await admin.upsert([{ key: SETTING_KEY, value: "hunter2" }]);
+    await admin.update({ settings: [{ key: SETTING_KEY, value: "hunter2" }] });
 
     const stored = await db
       .selectFrom("settings")

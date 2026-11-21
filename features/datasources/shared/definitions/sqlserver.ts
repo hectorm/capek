@@ -32,35 +32,35 @@ export const SqlServerDatasourceType = defineDatasourceType({
       authType: z.literal("none"),
     }),
   ]),
-  redact: (p) => {
-    switch (p.authType) {
+  redact: (parsed) => {
+    switch (parsed.authType) {
       case "basic":
-        return { ...p, password: HTTP_REDACTED_VALUE };
+        return { ...parsed, password: HTTP_REDACTED_VALUE };
       case "azure-service-principal":
-        return { ...p, azureClientSecret: HTTP_REDACTED_VALUE };
+        return { ...parsed, azureClientSecret: HTTP_REDACTED_VALUE };
       case "azure-managed-identity":
       case "none":
-        return p;
+        return parsed;
     }
   },
-  unredact: (i, s) => {
-    switch (i.authType) {
+  unredact: (incoming, stored) => {
+    switch (incoming.authType) {
       case "basic":
-        if (i.password !== HTTP_REDACTED_VALUE) {
-          return i;
+        if (incoming.password !== HTTP_REDACTED_VALUE) {
+          return incoming;
         }
-        return { ...i, password: s?.authType === "basic" ? s.password : "" };
+        return { ...incoming, password: stored?.authType === "basic" ? stored.password : "" };
       case "azure-service-principal":
-        if (i.azureClientSecret !== HTTP_REDACTED_VALUE) {
-          return i;
+        if (incoming.azureClientSecret !== HTTP_REDACTED_VALUE) {
+          return incoming;
         }
         return {
-          ...i,
-          azureClientSecret: s?.authType === "azure-service-principal" ? s.azureClientSecret : "",
+          ...incoming,
+          azureClientSecret: stored?.authType === "azure-service-principal" ? stored.azureClientSecret : "",
         };
       case "azure-managed-identity":
       case "none":
-        return i;
+        return incoming;
     }
   },
 });

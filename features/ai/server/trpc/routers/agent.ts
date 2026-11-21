@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 
+import type { FeatureToolProvider, ResourceToolProvider } from "#layers/ai/server/lib/tools/define";
 import type { Database } from "#layers/core/shared/schema";
 import { LlmClient } from "#layers/ai/server/lib/llm/client";
 import { AgentResource, LlmProviderResource } from "#layers/ai/server/lib/resources";
@@ -14,7 +15,7 @@ import { hasToolResources } from "#layers/ai/server/lib/tools/define";
 import {
   AgentExecutorParametersSchema,
   AgentSettingsSchema,
-  allowsAgentTools,
+  canAgentUseTools,
   NewAgentSettingsSchema,
 } from "#layers/ai/shared/agent";
 import { AiPermissions } from "#layers/ai/shared/rbac";
@@ -51,7 +52,7 @@ const checkSwitchableToolProviders = (names: readonly string[]): void => {
   }
 };
 
-const findResourceToolProvider = (name: string) => {
+const requireResourceToolProvider = (name: string): FeatureToolProvider & ResourceToolProvider => {
   const provider = getToolProviders().find((candidate) => candidate.name === name);
   if (!provider || !hasToolResources(provider)) {
     throw new TRPCError({
@@ -124,7 +125,7 @@ const syncAgentAssignments = async (
     await syncLinks(trx, "ai_agent_skills", { agent_id: agentId }, "skill_id", skillIds);
   }
   for (const [provider, resourceIds] of Object.entries(toolResources ?? {})) {
-    await syncAgentToolResources(trx, agentId, findResourceToolProvider(provider), resourceIds);
+    await syncAgentToolResources(trx, agentId, requireResourceToolProvider(provider), resourceIds);
   }
   if (specialistIds) {
     await checkSpecialists(trx, agent, specialistIds);
@@ -253,7 +254,7 @@ export const agentRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const allowTools = allowsAgentTools(input, input.toolProviders.length > 0);
+      const allowTools = canAgentUseTools(input, input.toolProviders.length > 0);
       const toolProviders = allowTools ? [...new Set(input.toolProviders)] : [];
       checkSwitchableToolProviders(toolProviders);
 
@@ -714,7 +715,7 @@ export const agentRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const provider = findResourceToolProvider(input.provider);
+      const provider = requireResourceToolProvider(input.provider);
 
       return withUserTransaction(ctx.user, async (trx) => {
         const resources = await listResources(trx, provider.resource, { search: input.search, limit: input.limit });

@@ -31,18 +31,10 @@ export const settingsRouter = createTRPCRouter({
   list: authorizedProcedure([CorePermissions.SettingsListAll, CorePermissions.SettingsListPublic]).query(
     async ({ ctx }) => {
       return withUserTransaction(ctx.user, async (trx): Promise<Partial<SettingsOutput>> => {
-        const settingDefinitions = useSettingDefinitions();
-        let allowedDefinitions;
-        if (canAny(ctx.user, [CorePermissions.SettingsListAll])) {
-          allowedDefinitions = Object.entries(settingDefinitions);
-        } else if (canAny(ctx.user, [CorePermissions.SettingsListPublic])) {
-          allowedDefinitions = Object.entries(settingDefinitions).filter(([, def]) => def.isPublic);
-        } else {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "You do not have permission to read settings.",
-          });
-        }
+        const settingDefinitions = Object.entries(useSettingDefinitions());
+        const allowedDefinitions = canAny(ctx.user, [CorePermissions.SettingsListAll])
+          ? settingDefinitions
+          : settingDefinitions.filter(([, definition]) => definition.isPublic);
 
         const allowedKeys = allowedDefinitions.map(([key]) => key);
         if (allowedKeys.length === 0) {
@@ -83,23 +75,25 @@ export const settingsRouter = createTRPCRouter({
     },
   ),
 
-  upsert: authorizedProcedure([
+  update: authorizedProcedure([
     CorePermissions.SettingsCreate,
     CorePermissions.SettingsUpdateAll,
     CorePermissions.SettingsDeleteAll,
   ])
     .input(
-      z
-        .array(
-          z.object({
-            key: z.string().refine((key) => Object.hasOwn(useSettingDefinitions(), key), "Unknown setting"),
-            value: z.union([z.string(), z.array(z.string()), z.number(), z.boolean()]).nullish(),
-          }),
-        )
-        .max(100),
+      z.object({
+        settings: z
+          .array(
+            z.object({
+              key: z.string().refine((key) => Object.hasOwn(useSettingDefinitions(), key), "Unknown setting"),
+              value: z.union([z.string(), z.array(z.string()), z.number(), z.boolean()]).nullish(),
+            }),
+          )
+          .max(100),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      for (const item of input) {
+      for (const item of input.settings) {
         const definition = useSettingDefinitions()[item.key];
         if (definition && item.value != null) {
           try {
@@ -115,8 +109,8 @@ export const settingsRouter = createTRPCRouter({
       }
 
       return withUserTransaction(ctx.user, async (trx) => {
-        const itemsToDelete = input.filter((item) => item.value == null);
-        const itemsToUpsert = input.filter((item) => item.value != null);
+        const itemsToDelete = input.settings.filter((item) => item.value == null);
+        const itemsToUpsert = input.settings.filter((item) => item.value != null);
 
         if (itemsToDelete.length > 0) {
           await trx

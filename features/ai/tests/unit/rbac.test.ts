@@ -15,6 +15,12 @@ describe("RBAC", () => {
     }
   });
 
+  it("keeps executions personal for every role", () => {
+    for (const permissions of Object.values(AiRolePermissions)) {
+      expect(permissions.filter((name) => /^ai_agent_execution:.*:all$/.test(name))).toEqual([]);
+    }
+  });
+
   it("only gives auditors more reading than members", () => {
     const member: readonly string[] = AiRolePermissions[Roles.Member];
     const extra = AiRolePermissions[Roles.Auditor].filter((name) => !member.includes(name));

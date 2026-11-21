@@ -6,13 +6,15 @@ import { DatasourcesPermissions } from "#layers/datasources/shared/rbac";
 
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 
+export type DatasourceDelete = (datasource: { id: string; name: string }) => Promise<boolean>;
+
 const datasourceDeletePermissions = [DatasourcesPermissions.SourceDeleteAll, DatasourcesPermissions.SourceDeleteOwn];
 
-export const useDatasourceDelete = () => {
+export const useDatasourceDelete = (): DatasourceDelete => {
   const { $trpc } = useNuxtApp();
   const overlay = useOverlay();
 
-  return async ({ id, name }: { id: string; name: string }): Promise<boolean> => {
+  return async ({ id, name }) => {
     const confirmation = overlay.create(ConfirmDeleteModal, { destroyOnClose: true }).open({
       i18nPrefix: "datasources.pages.studio.datasources",
       name,

@@ -34,10 +34,10 @@ export default defineEventHandler(async (event) => {
   const callbackErrorDescription = callbackUrl.searchParams.get("error_description");
 
   if (callbackError) {
-    logger.error({ error: callbackError, errorDescription: callbackErrorDescription }, "OIDC callback error");
+    logger.warn({ error: callbackError, errorDescription: callbackErrorDescription }, "OIDC callback error");
     throw createError({
       statusCode: 400,
-      message: `Authentication failed: ${callbackError}`,
+      message: "Authentication failed",
     });
   }
 
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
   const storedNonce = getCookie(event, oidc.nonceCookieName);
 
   if (!storedCodeVerifier || !storedState || !storedNonce) {
-    logger.error("Authorization callback cookies missing");
+    logger.warn("Authorization callback cookies missing");
     throw createError({
       statusCode: 400,
       message: "Missing session data",
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
   try {
     tokens = await oidc.validateAuthorizationCallback(callbackUrl, storedCodeVerifier, storedState, storedNonce);
   } catch (error) {
-    logger.error({ error }, "Authorization code validation failed");
+    logger.warn({ error }, "Authorization code validation failed");
     throw createError({
       statusCode: 400,
       message: "Failed to validate callback",
@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
 
   // The token issuer must match the configured OIDC provider
   if (tokens.idTokenClaims.iss !== oidc.as.issuer) {
-    logger.error({ issuer: tokens.idTokenClaims.iss }, "Token issuer unexpected");
+    logger.warn({ issuer: tokens.idTokenClaims.iss }, "Token issuer unexpected");
     throw createError({
       statusCode: 403,
       message: "Unexpected issuer in token",
@@ -80,7 +80,7 @@ export default defineEventHandler(async (event) => {
 
   let profile;
   try {
-    profile = await oidc.getUserProfile(tokens.idTokenClaims, tokens.accessToken);
+    profile = await oidc.findUserProfile(tokens.idTokenClaims, tokens.accessToken);
   } catch (error) {
     logger.error({ error }, "User profile retrieval failed");
     throw createError({
@@ -90,7 +90,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!profile) {
-    logger.error("User profile empty");
+    logger.warn("User profile empty");
     throw createError({
       statusCode: 403,
       message: "Not allowed to authenticate",

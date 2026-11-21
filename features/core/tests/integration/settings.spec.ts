@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { createGroup, openGroupEditor } from "#layers/core/tests/integration/groups";
+
 test.describe("settings", () => {
   test("shows the general settings", async ({ page }) => {
     await page.goto("/settings");
@@ -23,20 +25,16 @@ test.describe("settings", () => {
     await search.press("Enter");
     await search.press("Escape");
 
-    const dialog = page.getByRole("dialog");
     const alpha = `Alpha-${suffix}`;
     const zulu = `Zulu-${suffix}`;
     for (const name of [alpha, zulu]) {
-      await page.getByRole("button", { name: "Create" }).click();
-      await dialog.getByRole("textbox", { name: "Name" }).fill(name);
-      await dialog.getByRole("button", { name: "Save" }).click();
-      await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+      await createGroup(page, name);
     }
     const names = page.getByRole("cell", { name: new RegExp(suffix) });
     await expect(names).toHaveText([alpha, zulu]);
 
-    await page.getByRole("row").filter({ hasText: alpha }).getByRole("button", { name: "Actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit" }).click();
+    await openGroupEditor(page, alpha);
+    const dialog = page.getByRole("dialog");
     const renamed = `Renamed-${crypto.randomUUID()}`;
     await dialog.getByRole("textbox", { name: "Name" }).fill(renamed);
     await dialog.getByRole("button", { name: "Save" }).click();
@@ -47,15 +45,11 @@ test.describe("settings", () => {
   test("shows an error when a group cannot be loaded", async ({ page }) => {
     await page.goto("/settings/groups");
     const name = `Unloaded-${crypto.randomUUID()}`;
-    const dialog = page.getByRole("dialog");
-    await page.getByRole("button", { name: "Create" }).click();
-    await dialog.getByRole("textbox", { name: "Name" }).fill(name);
-    await dialog.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+    await createGroup(page, name);
 
     await page.route("**/api/trpc/*group.read*", (route) => route.abort());
-    await page.getByRole("row").filter({ hasText: name }).getByRole("button", { name: "Actions" }).click();
-    await page.getByRole("menuitem", { name: "Edit" }).click();
+    await openGroupEditor(page, name);
+    const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("alert")).toHaveText(/Failed to load the data/);
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toBeHidden();

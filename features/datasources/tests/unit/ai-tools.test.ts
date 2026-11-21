@@ -3,7 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ToolContext } from "#layers/ai/server/lib/tools/define";
+import type { Tool, ToolContext } from "#layers/ai/server/lib/tools/define";
 import type { ToolPart } from "#layers/ai/shared/tools";
 import type { Database } from "#layers/core/shared/schema";
 import { collectToolProviders } from "#layers/ai/server/lib/tools/define";
@@ -73,7 +73,7 @@ afterAll(async () => {
   await salesDb.close();
 });
 
-const loadQueryTool = async () => {
+const loadQueryTool = async (): Promise<Tool> => {
   const [tool] = (await datasourcesToolProvider.load(db, [salesId, legacyId])).tools;
   if (!tool) {
     throw new Error("Query tool not found");
@@ -109,7 +109,9 @@ describe("datasource tool", () => {
   it("shows the rows of a query as a table", async () => {
     const tool = await loadQueryTool();
     const parts: ToolPart[] = [];
-    const show = (part: ToolPart) => parts.push(part);
+    const show = (part: ToolPart): void => {
+      parts.push(part);
+    };
 
     const series = { datasource: "sales", sql: "SELECT generate_series(1, 101) AS id", show: true };
     expect(await tool.execute({ ...series, name: "Series" }, { ...context, show })).toBe(

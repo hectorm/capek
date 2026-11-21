@@ -5,7 +5,7 @@ import { AgentResource, LlmProviderResource, McpServerResource, SkillResource } 
 import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { parseSkillParameters } from "#layers/ai/server/lib/skills/validator";
 import { collectToolProviders, hasToolResources } from "#layers/ai/server/lib/tools/define";
-import { allowsAgentTools, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
+import { canAgentUseTools, NewAgentSettingsSchema } from "#layers/ai/shared/agent";
 import { LlmProviderApiTypeSchema } from "#layers/ai/shared/llm-provider";
 import { MCPServerParametersSchema } from "#layers/ai/shared/mcp";
 import { listResources } from "#layers/core/server/lib/authz/resources";
@@ -51,7 +51,7 @@ const SeedAgentSchema = NewAgentSettingsSchema.extend({
     .default({}),
   access: SeedAccessSchema,
 }).refine((agent) => {
-  return allowsAgentTools(agent, Object.values(agent.tools).includes(true));
+  return canAgentUseTools(agent, Object.values(agent.tools).includes(true));
 }, "Only specialist agents can enable the code interpreter or switch on tool providers");
 
 export const aiSeed = defineSeed({
@@ -72,7 +72,7 @@ export const aiSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`LLM provider "${llmProviderConfig.name}" already exists, skipping`);
+        logger.info({ name: llmProviderConfig.name }, "LLM provider already exists");
         llmProviderIds.set(llmProviderConfig.name, existing.id);
       } else {
         const llmProvider = await db
@@ -90,7 +90,7 @@ export const aiSeed = defineSeed({
           .returning(["id", "name"])
           .executeTakeFirstOrThrow();
 
-        logger.info(`Created LLM provider: ${llmProvider.name}`);
+        logger.info({ llmProviderId: llmProvider.id, name: llmProvider.name }, "LLM provider created");
         llmProviderIds.set(llmProvider.name, llmProvider.id);
 
         await grantAccess(LlmProviderResource, llmProvider.id, llmProviderConfig.access);
@@ -107,7 +107,7 @@ export const aiSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`MCP server "${mcpConfig.name}" already exists, skipping`);
+        logger.info({ name: mcpConfig.name }, "MCP server already exists");
         mcpServerIds.set(mcpConfig.name, existing.id);
       } else {
         const mcpServer = await db
@@ -124,7 +124,7 @@ export const aiSeed = defineSeed({
           .returning(["id", "name"])
           .executeTakeFirstOrThrow();
 
-        logger.info(`Created MCP server: ${mcpServer.name} (tools will be discovered on first use)`);
+        logger.info({ mcpServerId: mcpServer.id, name: mcpServer.name }, "MCP server created");
         mcpServerIds.set(mcpServer.name, mcpServer.id);
 
         await grantAccess(McpServerResource, mcpServer.id, mcpConfig.access);
@@ -141,7 +141,7 @@ export const aiSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`Skill "${skillConfig.name}" already exists, skipping`);
+        logger.info({ name: skillConfig.name }, "Skill already exists");
         skillIds.set(skillConfig.name, existing.id);
       } else {
         const jsdocParsed = skillConfig.code ? parseSkillParameters(skillConfig.code) : null;
@@ -159,7 +159,7 @@ export const aiSeed = defineSeed({
           .returning(["id", "name"])
           .executeTakeFirstOrThrow();
 
-        logger.info(`Created skill: ${skill.name}`);
+        logger.info({ skillId: skill.id, name: skill.name }, "Skill created");
         skillIds.set(skill.name, skill.id);
 
         await grantAccess(SkillResource, skill.id, skillConfig.access);
@@ -177,7 +177,7 @@ export const aiSeed = defineSeed({
         .executeTakeFirst();
 
       if (existing) {
-        logger.info(`Agent "${agentConfig.name}" already exists, skipping`);
+        logger.info({ name: agentConfig.name }, "Agent already exists");
         agentIds.set(agentConfig.name, existing.id);
         continue;
       }
@@ -217,7 +217,7 @@ export const aiSeed = defineSeed({
         .returning(["id", "name", "type"])
         .executeTakeFirstOrThrow();
 
-      logger.info(`Created agent: ${agent.name} (${agent.type})`);
+      logger.info({ agentId: agent.id, name: agent.name, type: agent.type }, "Agent created");
       agentIds.set(agent.name, agent.id);
 
       for (const mcpName of agentConfig.mcpServers) {
@@ -230,7 +230,7 @@ export const aiSeed = defineSeed({
           .values({ agentId: agent.id, mcpServerId })
           .onConflict((oc) => oc.doNothing())
           .execute();
-        logger.info(`Assigned MCP server "${mcpName}" to agent "${agent.name}"`);
+        logger.info({ agentId: agent.id, mcpServerId }, "MCP server assigned to agent");
       }
 
       for (const skillName of agentConfig.skills) {
@@ -243,7 +243,7 @@ export const aiSeed = defineSeed({
           .values({ agentId: agent.id, skillId })
           .onConflict((oc) => oc.doNothing())
           .execute();
-        logger.info(`Assigned skill "${skillName}" to agent "${agent.name}"`);
+        logger.info({ agentId: agent.id, skillId }, "Skill assigned to agent");
       }
 
       await grantAccess(AgentResource, agent.id, agentConfig.access);
@@ -260,7 +260,10 @@ export const aiSeed = defineSeed({
               .values({ triageAgentId: agent.id, specialistAgentId: specialistId })
               .onConflict((oc) => oc.doNothing())
               .execute();
-            logger.info(`Assigned specialist "${specialistName}" to triage "${agentConfig.name}"`);
+            logger.info(
+              { triageAgentId: agent.id, specialistAgentId: specialistId },
+              "Specialist assigned to triage agent",
+            );
           }
         });
       }
@@ -284,7 +287,7 @@ export const aiSeed = defineSeed({
               .where("id", "=", agent.id)
               .where(sql<boolean>`NOT (${providerName} = ANY(tool_providers))`)
               .execute();
-            logger.info(`Switched on "${providerName}" for agent "${agentConfig.name}"`);
+            logger.info({ agentId: agent.id, toolProvider: providerName }, "Tool provider switched on for agent");
             continue;
           }
           if (!hasToolResources(provider)) {
@@ -306,7 +309,10 @@ export const aiSeed = defineSeed({
               .values({ agentId: agent.id, resourceType: provider.resource.type, resourceId: resource.id })
               .onConflict((oc) => oc.doNothing())
               .execute();
-            logger.info(`Assigned "${resourceName}" of "${providerName}" to agent "${agentConfig.name}"`);
+            logger.info(
+              { agentId: agent.id, toolProvider: providerName, resourceId: resource.id },
+              "Tool resource assigned to agent",
+            );
           }
         }
       });

@@ -3,17 +3,17 @@ import { useNuxtApp } from "nuxt/app";
 
 import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 
-import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 import type { ResourceTableColumn } from "#layers/core/app/composables/resource-table";
 import type { RouterInputs, RouterOutputs } from "#layers/core/app/types/trpc";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import { usePermissions } from "#layers/core/app/composables/permissions";
 import { useResourceTable } from "#layers/core/app/composables/resource-table";
 import { definePageMeta } from "#layers/core/app/utils/page-meta";
-import { AiPermissions } from "#layers/ai/shared/rbac";
+import { MAX_PAGE_SIZE } from "#layers/core/shared/pagination";
 
+import LazyUpsertModal from "#layers/ai/app/components/skills/UpsertModal.vue";
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 import ResourceTable from "#layers/core/app/components/ui/ResourceTable.vue";
-import LazyUpsertModal from "#layers/ai/app/components/skills/UpsertModal.vue";
 
 type SearchInput = NonNullable<Exclude<RouterInputs["ai"]["skill"]["search"], void>>;
 type SearchOutput = RouterOutputs["ai"]["skill"]["search"];

@@ -74,7 +74,7 @@ const state = reactive<Partial<UserCreateOrUpdateInput>>({
   groups: user.value?.groups ?? [],
 });
 
-const onSubmit = async (event: FormSubmitEvent<Schema>) => {
+const onSubmit = async (event: FormSubmitEvent<Schema>): Promise<void> => {
   try {
     if ("id" in event.data && event.data.id) {
       user.value = await $trpc.user.update.mutate({
@@ -101,7 +101,7 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { user: null });
 };
 </script>

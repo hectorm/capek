@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 
 import { useRuntimeConfig } from "nitropack/runtime/config";
 
+import type { Session, User } from "#layers/core/shared/schema";
 import { useDb } from "#layers/core/server/lib/database";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { useSecrets } from "#layers/core/server/lib/secrets";
@@ -15,6 +16,16 @@ export interface SessionsOptions {
   cookieName: string;
   durationSec: number;
   maxDurationSec: number;
+}
+
+export interface UserSession extends Session {
+  user: User;
+}
+
+export interface SessionValidation {
+  session: UserSession | null;
+  // The expiration has been extended, so the client needs a new cookie
+  fresh: boolean;
 }
 
 export class Sessions {
@@ -33,7 +44,7 @@ export class Sessions {
     return Buffer.from(bytes).toString("base64url");
   }
 
-  public async createSession(userId: string, sid?: string | null, idToken?: string | null) {
+  public async createSession(userId: string, sid?: string | null, idToken?: string | null): Promise<UserSession> {
     const db = await useDb();
 
     const token = this.generateSessionToken();
@@ -71,7 +82,7 @@ export class Sessions {
     return { ...result.session, idToken: idToken ?? null, token, user: result.user };
   }
 
-  public async validateSession(token: string) {
+  public async validateSession(token: string): Promise<SessionValidation> {
     const db = await useDb();
 
     const tokenHash = await this.hashToken(token);
@@ -100,11 +111,11 @@ export class Sessions {
       .executeTakeFirst();
 
     if (!result) {
-      logger.debug("Session validation failed: not found");
+      logger.debug("Session not found");
       return { session: null, fresh: false };
     }
 
-    const session: Awaited<ReturnType<Sessions["createSession"]>> = {
+    const session: UserSession = {
       id: result.id,
       token: result.token,
       userId: result.userId,

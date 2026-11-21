@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
+import type { ResourceName } from "#layers/core/server/lib/authz/resources";
 import type { Database } from "#layers/core/shared/schema";
 import { listResources } from "#layers/core/server/lib/authz/resources";
 import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
@@ -29,7 +30,9 @@ const router = createTRPCRouter({ source: sourceRouter });
 const logger = { warn: () => undefined, debug: () => undefined } as unknown as Logger;
 const permissions = [...CoreRolePermissions[Roles.Member], ...DatasourcesRolePermissions[Roles.Member]];
 const caller = createCallerFactory(router);
-const asMember = (id: string) => caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
+const asMember = (id: string): ReturnType<typeof caller> => {
+  return caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
+};
 const member = asMember(mallory);
 const editor = asMember(alice);
 
@@ -98,7 +101,7 @@ describe("datasource", () => {
   });
 
   it("is only assignable by the users that can use it", async () => {
-    const assignable = (granted: string[]) => {
+    const assignable = (granted: string[]): Promise<ResourceName[]> => {
       return asUser({ id: mallory, permissions: granted }, (trx) => {
         return listResources(trx, SourceResource, { limit: 10 });
       });
@@ -117,7 +120,7 @@ describe("datasource", () => {
   it("enforces list and read scopes separately for direct and group grants", async () => {
     const { SourceListAll, SourceListOwn, SourceReadAll, SourceReadOwn, SourceUpdateAll, SourceDeleteAll } =
       DatasourcesPermissions;
-    const asCaller = (granted: string[], groups: string[] = []) => {
+    const asCaller = (granted: string[], groups: string[] = []): ReturnType<typeof caller> => {
       return caller({ logger, user: { id: mallory, groups, permissions: granted } as AuthUser });
     };
 

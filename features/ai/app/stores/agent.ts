@@ -1,3 +1,4 @@
+import type { ComputedRef, Ref } from "vue";
 import { useNuxtApp } from "nuxt/app";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -7,12 +8,22 @@ import { SEARCH_SUGGESTION_LIMIT } from "#layers/core/shared/pagination";
 
 export type InvocableAgent = RouterOutputs["ai"]["agent"]["listInvocable"][number];
 
-export const useAgentStore = defineStore("ai.agent", () => {
+export interface AgentStore {
+  agents: Ref<InvocableAgent[]>;
+  isLoaded: Ref<boolean>;
+  hasAgents: ComputedRef<boolean>;
+  fetch: () => Promise<void>;
+  search: (query?: string) => Promise<InvocableAgent[]>;
+  get: (id: string) => InvocableAgent | undefined;
+  resolve: (id: string) => Promise<InvocableAgent | undefined>;
+}
+
+export const useAgentStore = defineStore("ai.agent", (): AgentStore => {
   const { $trpc } = useNuxtApp();
   const cache = new Map<string, InvocableAgent>();
 
   const agents = ref<InvocableAgent[]>([]);
-  const isLoaded = ref(false);
+  const isLoaded = ref<boolean>(false);
 
   const hasAgents = computed(() => agents.value.length > 0);
 

@@ -191,7 +191,11 @@ const inTransaction = async (
   }
 };
 
-const logChanges = (context: Record<string, string>, changes: { added: number; removed: number }, message: string) => {
+const logChanges = (
+  context: Record<string, string>,
+  changes: { added: number; removed: number },
+  message: string,
+): void => {
   if (changes.added > 0 || changes.removed > 0) {
     logger.debug({ ...context, ...changes }, message);
   }

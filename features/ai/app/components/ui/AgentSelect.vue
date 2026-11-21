@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useCookie } from "nuxt/app";
 import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 
 import type { InvocableAgent } from "#layers/ai/app/stores/agent";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
@@ -23,10 +22,9 @@ const emit = defineEmits<{
   "update:modelValue": [value: string | null];
 }>();
 
-const { t } = useI18n();
 const agentStore = useAgentStore();
 
-const selectedAgentCookie = useCookie<string | null>("selected_agent", {
+const selectedAgentCookie = useCookie<string | null>("ai_selected_agent", {
   maxAge: 365 * 24 * 60 * 60,
   sameSite: "lax",
   watch: true,
@@ -41,17 +39,17 @@ const selectedAgent = ref<InvocableAgent>();
 
 const selectedAgentIcon = computed(() => icons[selectedAgent.value?.type ?? "specialist"]);
 
-const searchAgents = async (query?: string) => {
+const searchAgents = async (query?: string): Promise<string[]> => {
   const agents = await agentStore.search(query);
   return agents.map((agent) => agent.id);
 };
-const getAgentLabel = (id: string) => {
+const getAgentLabel = (id: string): string => {
   return agentStore.get(id)?.name ?? id;
 };
-const getAgentIcon = (id: string) => {
+const getAgentIcon = (id: string): string => {
   return icons[agentStore.get(id)?.type ?? "specialist"];
 };
-const getAgentDescription = (id: string) => {
+const getAgentDescription = (id: string): string | undefined => {
   return agentStore.get(id)?.description;
 };
 
@@ -93,7 +91,7 @@ watch(
     :search-fn="searchAgents"
     :model-value="selectedAgent?.id"
     :description-fn="getAgentDescription"
-    :aria-label="t('ai.components.agentSelect.label')"
+    :aria-label="$t('ai.components.agentSelect.label')"
     class="hover:bg-default focus:bg-default data-[state=open]:bg-default"
     :ui="{
       content: 'w-fit max-w-[min(600px,95vw)]',

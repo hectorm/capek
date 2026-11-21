@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { TableColumn } from "@nuxt/ui";
 import { useFullscreen } from "@vueuse/core";
 import { useNuxtApp } from "nuxt/app";
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 
+import type { TableColumn } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UFieldGroup from "@nuxt/ui/components/FieldGroup.vue";
 import UInput from "@nuxt/ui/components/Input.vue";
@@ -54,7 +54,7 @@ const columns = computed<TableColumn<unknown[]>[]>(() => {
   }));
 });
 
-const load = async (): Promise<boolean> => {
+const onLoadAll = async (): Promise<boolean> => {
   if (complete.value) {
     return true;
   }
@@ -77,14 +77,14 @@ const load = async (): Promise<boolean> => {
   }
 };
 
-const releaseCsv = () => {
+const releaseCsv = (): void => {
   if (csvUrl) {
     URL.revokeObjectURL(csvUrl);
   }
 };
 
-const sort = async (index: number) => {
-  if (await load()) {
+const onSort = async (index: number): Promise<void> => {
+  if (await onLoadAll()) {
     const id = String(index);
     const [current] = sorting.value;
     sorting.value = [{ id, desc: current?.id === id && !current.desc }];
@@ -99,8 +99,8 @@ const sortIcon = (index: number): string => {
   return current.desc ? "i-lucide-arrow-down-wide-narrow" : "i-lucide-arrow-up-narrow-wide";
 };
 
-const exportCsv = async () => {
-  if (!(await load())) {
+const onExport = async (): Promise<void> => {
+  if (!(await onLoadAll())) {
     return;
   }
 
@@ -136,7 +136,7 @@ onBeforeUnmount(releaseCsv);
             variant="ghost"
             :trailing-icon="sortIcon(index)"
             :aria-label="$t('ai.components.chat.tableView.sort', { column: name })"
-            @click="() => void sort(index)"
+            @click="() => void onSort(index)"
           />
           <UPopover :ui="{ content: 'z-10' }" :portal="container ?? undefined">
             <UButton
@@ -144,7 +144,7 @@ onBeforeUnmount(releaseCsv);
               variant="ghost"
               :aria-label="$t('ai.components.chat.tableView.filter', { column: name })"
               :icon="filters[index] ? 'i-lucide-list-filter-plus' : 'i-lucide-list-filter'"
-              @click="() => void load()"
+              @click="() => void onLoadAll()"
             />
             <template #content>
               <UInput
@@ -173,7 +173,7 @@ onBeforeUnmount(releaseCsv);
       <span v-else>
         {{ $t("ai.components.chat.tableView.rows", { total: table.rowCount }) }}
       </span>
-      <UButton v-if="!complete" size="sm" variant="link" :loading="loading" @click="() => void load()">
+      <UButton v-if="!complete" size="sm" variant="link" :loading="loading" @click="() => void onLoadAll()">
         {{ $t("ai.components.chat.tableView.showAll") }}
       </UButton>
       <UButton
@@ -184,7 +184,7 @@ onBeforeUnmount(releaseCsv);
         variant="ghost"
         icon="i-lucide-download"
         :aria-label="$t('ai.components.chat.tableView.export.label')"
-        @click="() => void exportCsv()"
+        @click="() => void onExport()"
       />
       <UButton
         v-if="canFullscreen"

@@ -1,11 +1,54 @@
-import type { InferResult, Kysely } from "kysely";
+import type { Kysely, SelectQueryBuilder } from "kysely";
 
+import type { Agent, LlmProvider } from "#layers/ai/shared/schema";
+import type { HttpHeader } from "#layers/core/shared/http";
 import type { Database } from "#layers/core/shared/schema";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
 import { AgentExecutorParameters } from "#layers/ai/shared/agent";
 import { useDb } from "#layers/core/server/lib/database";
 
-const selectAgents = (db: Kysely<Database>) => {
+type StoredAgentConfig = Pick<
+  Agent,
+  | "id"
+  | "name"
+  | "description"
+  | "instructions"
+  | "type"
+  | "model"
+  | "summaryModel"
+  | "reasoningEffort"
+  | "codeInterpreter"
+  | "showToolCalls"
+  | "streaming"
+  | "temperature"
+  | "maxTokens"
+  | "topP"
+  | "frequencyPenalty"
+  | "presencePenalty"
+  | "maxIterations"
+  | "timeoutSec"
+  | "maxContextChars"
+  | "maxToolResponseChars"
+  | "maxToolPartsChars"
+> &
+  Pick<LlmProvider, "apiUrl" | "apiType" | "apiKey" | "headers">;
+
+// The limits of an agent fall back to their defaults
+export type AgentConfig = Omit<
+  StoredAgentConfig,
+  "headers" | "maxIterations" | "timeoutSec" | "maxContextChars" | "maxToolResponseChars" | "maxToolPartsChars"
+> & {
+  headers: HttpHeader[];
+  maxIterations: number;
+  timeoutSec: number;
+  maxContextChars: number;
+  maxToolResponseChars: number;
+  maxToolPartsChars: number;
+};
+
+const selectAgents = (
+  db: Kysely<Database>,
+): SelectQueryBuilder<Database, "aiAgents" | "aiLlmProviders", StoredAgentConfig> => {
   return db
     .selectFrom("aiAgents")
     .innerJoin("aiLlmProviders", "aiLlmProviders.id", "aiAgents.llmProviderId")
@@ -38,9 +81,7 @@ const selectAgents = (db: Kysely<Database>) => {
     ]);
 };
 
-type StoredAgentConfig = InferResult<ReturnType<typeof selectAgents>>[number];
-
-const toAgentConfig = (agent: StoredAgentConfig) => ({
+const toAgentConfig = (agent: StoredAgentConfig): AgentConfig => ({
   ...agent,
   ...decryptLlmProviderSecrets(agent),
   maxIterations: agent.maxIterations ?? AgentExecutorParameters.maxIterations.default,
@@ -49,8 +90,6 @@ const toAgentConfig = (agent: StoredAgentConfig) => ({
   maxToolResponseChars: agent.maxToolResponseChars ?? AgentExecutorParameters.maxToolResponseChars.default,
   maxToolPartsChars: agent.maxToolPartsChars ?? AgentExecutorParameters.maxToolPartsChars.default,
 });
-
-export type AgentConfig = ReturnType<typeof toAgentConfig>;
 
 export const loadAgent = async (agentId: string): Promise<AgentConfig> => {
   const db = await useDb();

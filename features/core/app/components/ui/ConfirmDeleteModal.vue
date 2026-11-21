@@ -31,27 +31,27 @@ const emit = defineEmits<{
   close: [{ deleted: boolean }];
 }>();
 
-const { canAny } = usePermissions();
-const { t } = useI18n();
+const i18n = useI18n();
 const { notify } = useResourceToast(props.i18nPrefix);
+const { canAny } = usePermissions();
 
 const access = props.loadAccess ? await props.loadAccess().catch(() => null) : [];
 
 const canDelete = computed(() => access !== null && canAny(props.deletePermissions, toOwnerIds(access)));
 
-const onSubmit = async (_event: FormSubmitEvent<unknown>) => {
+const onSubmit = async (_event: FormSubmitEvent<unknown>): Promise<void> => {
   try {
     await props.remove();
     notify("delete", "success");
     emit("close", { deleted: true });
   } catch (error) {
     const conflict = isTRPCClientError<AppRouter>(error) && error.data?.code === "CONFLICT";
-    notify("delete", "error", conflict ? t("components.resource.deleteConflict") : undefined);
+    notify("delete", "error", conflict ? i18n.t("components.resource.deleteConflict") : undefined);
     emit("close", { deleted: false });
   }
 };
 
-const onCancel = () => {
+const onCancel = (): void => {
   emit("close", { deleted: false });
 };
 </script>

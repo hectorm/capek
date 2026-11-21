@@ -3,11 +3,12 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import type { Kysely } from "kysely";
-import { createApp, eventHandler, toNodeListener } from "h3";
+import { createApp, createRouter, eventHandler, toNodeListener } from "h3";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "#layers/core/shared/schema";
+import branding from "#layers/core/server/api/branding/[type].get";
 import backchannelLogout from "#layers/core/server/api/logout/backchannel.post";
 import logout from "#layers/core/server/api/logout/index.get";
 import { useSessions } from "#layers/core/server/lib/authn/sessions";
@@ -35,6 +36,7 @@ beforeAll(async () => {
   );
   app.use("/api/logout/backchannel", backchannelLogout);
   app.use("/api/logout", logout);
+  app.use(createRouter().get("/api/branding/:type", branding));
   app.use(
     "/api/me",
     eventHandler((event) => {
@@ -113,7 +115,7 @@ describe("proxy authentication", () => {
     await db.insertInto("roles").values({ name: "admin" }).execute();
   });
 
-  const roles = (username: string) => {
+  const roles = (username: string): Promise<{ name: string }[]> => {
     return db
       .selectFrom("userRoles")
       .innerJoin("users", "users.id", "userRoles.userId")
@@ -160,7 +162,9 @@ describe("proxy authentication", () => {
   });
 
   it("rejects the writes from other sites", async () => {
-    const post = (site: string) => request("/api/me", { method: "POST", headers: { "Sec-Fetch-Site": site } });
+    const post = (site: string): Promise<Response> => {
+      return request("/api/me", { method: "POST", headers: { "Sec-Fetch-Site": site } });
+    };
     expect((await post("cross-site")).status).toBe(403);
     expect((await post("same-origin")).status).toBe(200);
   });
@@ -210,5 +214,25 @@ describe("OIDC logout", () => {
 
     expect(await backchannel(await logoutToken(provider.privateKey))).toBe(204);
     expect(await sessionIds()).toEqual(["sid-2"]);
+  });
+});
+
+describe("branding", () => {
+  beforeAll(() => {
+    Object.assign(runtimeConfig, { branding: { logo: "/acme/logo.svg", icon: "/api/logout" } });
+  });
+
+  it("redirects to the image of the public directory that the configuration names", async () => {
+    const response = await request("/api/branding/logo");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/acme/logo.svg");
+  });
+
+  it("does not redirect to a path that is not an image", async () => {
+    const response = await request("/api/branding/icon");
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Location")).toBeNull();
   });
 });

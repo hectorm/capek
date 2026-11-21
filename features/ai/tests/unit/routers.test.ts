@@ -59,11 +59,13 @@ const router = createTRPCRouter({
 const logger = { warn: () => undefined, info: () => undefined, debug: () => undefined } as unknown as Logger;
 const caller = createCallerFactory(router);
 
-const asUser = (id: string, permissions: string[]) => {
+type Caller = ReturnType<typeof caller>;
+
+const asUser = (id: string, permissions: string[]): Caller => {
   return caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
 };
 
-const as = (id: string, role: RoleName) => {
+const as = (id: string, role: RoleName): Caller => {
   return asUser(id, [...CoreRolePermissions[role], ...AiRolePermissions[role]]);
 };
 
@@ -520,7 +522,7 @@ describe("chat access", () => {
       messages: [{ content: "Private message" }],
     });
     await expect(read.chatTable.read({ id: tableId })).resolves.toBe(data);
-    await expect(read.chatSession.autoRename({ id: other })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(read.chatSession.generateTitle({ id: other })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 

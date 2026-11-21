@@ -1,4 +1,4 @@
-export const copyToClipboard = async (getText: () => string | Promise<string>) => {
+export const copyToClipboard = async (getText: () => string | Promise<string>): Promise<boolean> => {
   let copied = false;
   if ("ClipboardItem" in globalThis) {
     try {

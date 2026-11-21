@@ -1,20 +1,25 @@
-import type { H3Event } from "h3";
+import type { H3Event, H3EventContext } from "h3";
+import type { Logger } from "pino";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 
+import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { PermissionName } from "#layers/core/shared/rbac";
 import { can, canAny } from "#layers/core/server/lib/authz/permissions";
 import { isRLSViolation } from "#layers/core/server/lib/database/errors";
 
-export const createTRPCContext = (event: H3Event) => {
+export type TRPCContext = H3EventContext & {
+  logger: Logger;
+  user: AuthUser | null;
+};
+
+export const createTRPCContext = (event: H3Event): TRPCContext => {
   return {
     ...event.context,
     logger: event.context.logger,
     user: event.context.user,
   };
 };
-
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
@@ -56,7 +61,8 @@ const authnMiddleware = t.middleware(async ({ ctx, next }) => {
   });
 });
 
-const authzMiddleware = (permissions: PermissionName[], strict = false) => {
+// Gives the procedures the same context as the authentication middleware
+const authzMiddleware = (permissions: PermissionName[], strict = false): typeof authnMiddleware => {
   return t.middleware(async ({ ctx, next }) => {
     if (!ctx.user) {
       ctx.logger.warn("Authentication required but no user in context");
@@ -99,4 +105,6 @@ const procedure = t.procedure.use(databaseMiddleware);
 
 export const publicProcedure = procedure;
 export const protectedProcedure = procedure.use(authnMiddleware);
-export const authorizedProcedure = (permissions: PermissionName[]) => procedure.use(authzMiddleware(permissions));
+export const authorizedProcedure = (permissions: PermissionName[]): typeof protectedProcedure => {
+  return procedure.use(authzMiddleware(permissions));
+};

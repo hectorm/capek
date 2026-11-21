@@ -1,5 +1,5 @@
-import type { Ref } from "vue";
-import { computed, ref } from "vue";
+import type { ComputedRef, Ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
 import type { ChatSession } from "#layers/ai/shared/schema";
@@ -17,26 +17,20 @@ export interface ChatItem {
   updatedAt: Date;
 }
 
-export const useChatUI = (sessions: Ref<ChatSession[]>) => {
+export interface ChatUI {
+  groupedSessions: ComputedRef<ChatGroup[]>;
+}
+
+export const useChatUI = (sessions: Ref<ChatSession[]>): ChatUI => {
   const i18n = useI18n();
-  const searchQuery = ref<string>("");
 
   const formattedSessions = computed(() => {
-    return sessions.value.map((s: ChatSession) => ({
-      id: s.id,
-      label: s.title || i18n.t("ai.pages.chat.untitled"),
-      to: `/ai/chat/${s.id}`,
-      updatedAt: s.updatedAt,
+    return sessions.value.map((session) => ({
+      id: session.id,
+      label: session.title || i18n.t("ai.pages.chat.untitled"),
+      to: `/ai/chat/${session.id}`,
+      updatedAt: session.updatedAt,
     }));
-  });
-
-  const filteredSessions = computed(() => {
-    if (!searchQuery.value) {
-      return formattedSessions.value;
-    }
-
-    const query = searchQuery.value.toLowerCase();
-    return formattedSessions.value.filter((s: ChatItem) => s.label.toLowerCase().includes(query));
   });
 
   const groupedSessions = computed(() => {
@@ -56,21 +50,21 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
     const lastMonth: ChatItem[] = [];
     const older: Record<string, ChatItem[]> = {};
 
-    filteredSessions.value.forEach((s: ChatItem) => {
-      const sessionDate = new Date(s.updatedAt);
+    formattedSessions.value.forEach((item) => {
+      const sessionDate = new Date(item.updatedAt);
 
       if (sessionDate >= todayStart) {
-        today.push(s);
+        today.push(item);
       } else if (sessionDate >= yesterdayStart) {
-        yesterday.push(s);
+        yesterday.push(item);
       } else if (sessionDate >= oneWeekAgo) {
-        lastWeek.push(s);
+        lastWeek.push(item);
       } else if (sessionDate >= oneMonthAgo) {
-        lastMonth.push(s);
+        lastMonth.push(item);
       } else {
         const monthYear = sessionDate.toLocaleDateString(i18n.locale.value, { month: "long", year: "numeric" });
         older[monthYear] ??= [];
-        older[monthYear].push(s);
+        older[monthYear].push(item);
       }
     });
 
@@ -105,9 +99,6 @@ export const useChatUI = (sessions: Ref<ChatSession[]>) => {
   });
 
   return {
-    searchQuery,
-    formattedSessions,
-    filteredSessions,
     groupedSessions,
   };
 };
