@@ -1,11 +1,8 @@
 # Features
 
 Each directory is a [Nuxt layer](https://nuxt.com/docs/guide/going-further/layers) that provides one feature of the
-application:
-
-- [`core`](./core/README.md): the platform every feature builds on.
-- [`ai`](./ai/README.md): the conversational AI feature.
-- [`datasources`](./datasources/README.md): the databases that users connect to.
+application and describes it in its `README.md`. [`core`](./core/README.md) is the platform that every feature builds
+on.
 
 ## Layers
 
@@ -36,20 +33,52 @@ TypeScript picks up declaration merging in `shared/**/*.d.ts`, including tables 
 Core's Nitro plugin emits server worker files referenced by
 `new Worker(new URL("./<name>.worker.ts", import.meta.url))`.
 
-Everything else is merged by Nuxt as usual: pages, layouts, components, plugins, middleware, server routes and tasks,
-runtime config and i18n messages (each layer declares its locales with the same `code` and `language` as Core). A
-feature that does not need the database just omits the migrations and security definitions.
+Nuxt merges everything else as usual, which covers pages, layouts, components, plugins, middleware, server routes and
+tasks, runtime config and i18n messages. Each feature declares its locales with the same `code` and `language` as Core.
+A feature that does not need the database just omits the migrations and security definitions.
 
-Tests also live in each layer:
+Each feature also has its tests and its documentation.
 
-- `tests/unit/`: Vitest tests, run as a project named after the layer (`pnpm test:unit --project <name>`).
-- `tests/integration/`: Playwright tests, run against the whole application (`pnpm test:chromium features/<name>`). The
-  default export of `setup.ts` provides the seed data, environment variables and request headers they need, merged with
-  the ones of other layers, and `global-setup.ts` can start mock services.
+- Unit tests live in `tests/unit/` and run with Vitest as a project named after the feature
+  (`pnpm test:unit --project <name>`).
+- Integration tests live in `tests/integration/` and run with Playwright against the whole application
+  (`pnpm test:chromium features/<name>`). The default export of `setup.ts` provides the seed data, environment variables
+  and request headers they need, merged with the ones of other features, and `global-setup.ts` can start mock services.
+- `README.md` says what the feature does for its users. It then has the Access, Configuration and Extending sections
+  that apply to the feature, in that order, with any section of its own between Access and Configuration.
+
+### Layout
+
+A feature keeps its files in these places.
+
+```text
+features/<name>/
+  nuxt.config.ts                $meta.name, i18n locales, runtimeConfig.<name>, tasks
+  README.md
+  app/feature.ts                defineAppFeature()
+  app/components/<resources>/   <Thing>.vue, UpsertModal.vue, <Action>Modal.vue
+  app/components/ui/            components that the other directories share
+  app/composables/              use<Thing>()
+  app/pages/                    <name>/, studio/<name>/ or settings/<name>/ with a page for each resource
+  app/integrations/, app/stores/, app/utils/
+  i18n/locales/en-US.ts, es-ES.ts
+  server/feature.ts             defineServerFeature()
+  server/security.ts            resources, functions and policies
+  server/seed.ts, settings.ts
+  server/migrations/NNNN_<name>.ts
+  server/lib/                   resources.ts holds the resource definitions
+  server/integrations/          adapters of the optional integrations
+  server/trpc/routers/          <resource>.ts for each resource, index.ts
+  server/api/<name>/            streams, multipart bodies and downloads
+  server/plugins/<name>-*.ts, server/tasks/<name>/
+  shared/                       rbac.ts, schema.ts, database.d.ts
+  tests/unit/                   *.test.ts, helpers/
+  tests/integration/            *.spec.ts, helper modules, setup.ts, global-setup.ts, mocks/
+```
 
 ## Naming
 
-Except in Core, everything that can collide with other features starts with the name of the feature:
+Except in Core, everything that can collide with other features starts with the name of the feature.
 
 - Database tables, indexes, constraints and functions with `<feature>_` (`inventory_items`), as well as permissions and
   resource types (`inventory_item:read:own`).
@@ -69,8 +98,10 @@ The pages that list a resource to create, edit and delete it are built with `use
 their dialogs with `AccessFields`, `ResourceLoadError` and `useResourceToast()`, and the deletion with
 `ConfirmDeleteModal`. Use `paginate()` for the API endpoints that feed these lists.
 
-They read the messages of the resource under one prefix (`inventory.pages.studio.items`): `table.<column>`,
-`actions.<create|update|delete>.<success|error>.<title|description>` and `delete.<title|description|confirm>`.
+They read the messages of the resource under one prefix, such as `inventory.pages.studio.items`. Its keys are `title`,
+`description`, `tab`, `table.<column>`, `actions.<create|update|delete>.<success|error>.<title|description>`,
+`create.<title|description>`, `edit.<title|description>`, `delete.<title|description|confirm>` and
+`form.<field>.<label|placeholder>`, with `form.cancel` and `form.save` for the buttons.
 
 The `key` of a table and of `usePayloadData()` is unique to what it loads (`inventory.item.search`), since the pages
 that use the same key share its data.
@@ -93,32 +124,11 @@ Use `navigation` in `app/feature.ts` to add entries to the main sidebar.
 A feature can let the features that build on it extend it, by adding its own fields to the `AppFeature` and
 `ServerFeature` interfaces through declaration merging. Those features fill the fields in their `app/feature.ts` and
 `server/feature.ts` files, and the feature collects them with `getAppFeatures()` and `getServerFeatures()`. For example,
-a file browser can let other features handle their own file types:
-
-```ts
-// features/files/app/utils/handlers.ts
-export interface FileHandler {
-  extension: string;
-  viewer: AsyncComponentLoader<Component>;
-}
-
-declare module "#layers/core/app/utils/features" {
-  interface AppFeature {
-    fileHandlers?: FileHandler[];
-  }
-}
-
-export const getFileHandlers = (): FileHandler[] => getAppFeatures().flatMap((feature) => feature.fileHandlers ?? []);
-
-// features/reports/app/feature.ts
-export default defineAppFeature({
-  name: "reports",
-  fileHandlers: [{ extension: "report", viewer: () => import("#layers/reports/app/components/ReportViewer.vue") }],
-});
-```
+an `inventory` feature can let other features add importers through an `inventoryImporters` field that its
+`getInventoryImporters()` collects.
 
 Since the feature files are imported by the `#features/*` modules, they must not import the code that reads them
-(`getFileHandlers()` above), which would be an import cycle.
+(`getInventoryImporters()` above). That would be an import cycle.
 
 ## Optional integrations
 
@@ -126,7 +136,7 @@ Use a build-time adapter when one feature integrates with another only when both
 companion feature in the adapter.
 
 Declare the integration in `$meta.integrations` in `nuxt.config.ts`, under the name of the companion feature. Paths are
-relative to the layer:
+relative to the declaring layer.
 
 | Option     | Value                                                                             |
 | ---------- | --------------------------------------------------------------------------------- |

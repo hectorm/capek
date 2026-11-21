@@ -61,18 +61,29 @@ The application runs in single-user mode at `http://localhost:3000` and automati
 
 ### Configuration
 
-Copy `.env.example` to `.env` and adjust as needed. Key variables:
+Copy `.env.example` to `.env` and adjust it as needed. These are the main variables.
 
 | Variable                       | Description                                                           | Default                 |
 | ------------------------------ | --------------------------------------------------------------------- | ----------------------- |
 | `NUXT_DATABASE_URL`            | PostgreSQL connection string or PGlite file path                      | `file://./.data/pglite` |
-| `NUXT_AUTH_MODE`               | Authentication mode: `single-user`, `oidc`, `proxy`                   | `single-user`           |
+| `NUXT_AUTH_MODE`               | Authentication mode (`single-user`, `oidc` or `proxy`)                | `single-user`           |
 | `NUXT_ENCRYPTION_KEY`          | Encryption key, 32 bytes in base64                                    |                         |
 | `NUXT_ENCRYPTION_PREVIOUS_KEY` | Previous encryption key, used while rotating it                       |                         |
+| `NUXT_SEED_CONFIG`             | Data to create at startup, as a file path or inline YAML or JSON      |                         |
 | `NUXT_ALLOWED_PRIVATE_HOSTS`   | Private hosts that outbound connections can reach (`NO_PROXY` syntax) |                         |
-| `NUXT_LOG_LEVEL`               | Log level: `fatal`, `error`, `warn`, `info`, `debug`                  | `info`                  |
+| `NUXT_LOG_LEVEL`               | Log level (`fatal`, `error`, `warn`, `info`, `debug` or `trace`)      | `info`                  |
 
-See `.env.example` for all available configuration options.
+The [README of each feature](./features/README.md) describes its own configuration, and `.env.example` has examples.
+
+### Checks
+
+```sh
+pnpm run lint
+pnpm test:unit
+pnpm test:chromium
+```
+
+`pnpm run format` applies the fixes that lint can make.
 
 ## Deployment
 
@@ -101,7 +112,7 @@ docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="$(openssl
 
 Builds include all features by default, except the [optional ones](./features/README.md#layers). The `FEATURES`
 environment variable, or build argument in Docker, selects the ones to include as a comma-separated list, and `core` is
-always included. For example, to build only the core platform:
+always included. This example builds only the core platform.
 
 ```sh
 FEATURES=core pnpm build
@@ -110,14 +121,17 @@ docker build --build-arg FEATURES=core -t localhost/capek:core ./
 
 ### Docker Compose
 
-The project includes example Compose configurations for reference:
+The project includes example Compose configurations for reference.
 
-- `compose.base.yaml`: core services (Traefik, PostgreSQL, MCP servers).
-- `compose.keycloak.yaml`: extends base with Keycloak for OIDC.
-- `compose.dex.yaml`: extends base with Dex for OIDC.
-- `compose.proxy.yaml`: demonstrates proxy authentication with a fixed test identity.
+| File                     | Contents                                                    |
+| ------------------------ | ----------------------------------------------------------- |
+| `compose.base.yaml`      | Base services, such as Traefik and PostgreSQL               |
+| `compose.simpleidp.yaml` | Base services with Simple IdP for OIDC                      |
+| `compose.keycloak.yaml`  | Base services with Keycloak for OIDC                        |
+| `compose.dex.yaml`       | Base services with Dex for OIDC                             |
+| `compose.proxy.yaml`     | Base services with proxy authentication for a test identity |
 
-Start the full stack:
+This command starts the full stack with Keycloak.
 
 ```sh
 docker compose -f ./compose.keycloak.yaml up -d
