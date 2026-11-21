@@ -288,6 +288,14 @@ export default (): ReturnType<typeof enUS> => ({
       retry: "Reintentar",
       update: "Editar",
     },
+    confirmDeleteModal: {
+      form: {
+        name: {
+          label: 'Escriba "{name}" para confirmar',
+          mismatch: "El nombre no coincide",
+        },
+      },
+    },
     collectionLayoutToggle: {
       layout: "Diseño de la colección",
       listView: "Vista de lista",

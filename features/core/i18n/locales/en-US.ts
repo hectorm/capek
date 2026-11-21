@@ -286,6 +286,14 @@ export default () => ({
       retry: "Retry",
       update: "Edit",
     },
+    confirmDeleteModal: {
+      form: {
+        name: {
+          label: 'Type "{name}" to confirm',
+          mismatch: "The name does not match",
+        },
+      },
+    },
     collectionLayoutToggle: {
       layout: "Collection layout",
       listView: "List view",
