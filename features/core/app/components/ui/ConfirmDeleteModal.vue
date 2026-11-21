@@ -110,12 +110,11 @@ const onCancel = (): void => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <div>
+        <div v-if="!props.requireName">
           {{ $t(`${props.i18nPrefix}.delete.confirm`, { name: props.name }) }}
         </div>
         <UFormField
-          v-if="props.requireName"
-          required
+          v-else
           name="name"
           :ui="{ label: 'wrap-anywhere' }"
           :label="$t('components.confirmDeleteModal.form.name.label', { name: props.name })"
