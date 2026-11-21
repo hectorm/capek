@@ -27,22 +27,31 @@ export default () => ({
               description: "Failed to create chat session",
             },
           },
-          deleteChat: {
-            success: {
-              title: "Success",
-              description: "Chat session deleted successfully",
-            },
-            error: {
-              title: "Error",
-              description: "Failed to delete chat session",
-            },
-          },
         },
       },
       chat: {
         title: "Chat",
         description: "Chat session",
         untitled: "Untitled",
+        session: {
+          actions: {
+            delete: {
+              success: {
+                title: "Success",
+                description: "Chat session deleted successfully",
+              },
+              error: {
+                title: "Error",
+                description: "Failed to delete chat session",
+              },
+            },
+          },
+          delete: {
+            title: "Delete chat session",
+            description: "Confirm the permanent removal of this chat session",
+            confirm: 'Are you sure you want to delete the chat session "{name}"?',
+          },
+        },
         toolCalls: {
           calls: "{count} calls",
           tools: "{count} tool calls",
@@ -604,19 +613,6 @@ export default () => ({
             },
             save: {
               label: "Save",
-            },
-            cancel: {
-              label: "Cancel",
-            },
-          },
-        },
-        deleteModal: {
-          title: "Delete chat session",
-          description: "Confirm the permanent removal of this chat session",
-          form: {
-            message: 'Are you sure you want to delete the chat session "{title}"?',
-            delete: {
-              label: "Delete",
             },
             cancel: {
               label: "Cancel",

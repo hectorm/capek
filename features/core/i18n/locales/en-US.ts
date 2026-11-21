@@ -147,10 +147,37 @@ export default () => ({
             },
           },
         },
+        create: {
+          title: "Create user",
+          description: "Add a new user",
+        },
+        edit: {
+          title: "Edit user",
+          description: "Update user details",
+        },
         delete: {
           title: "Delete user",
           description: "Confirm the permanent removal of this user",
           confirm: 'Are you sure you want to delete the user "{name}"?',
+        },
+        form: {
+          username: {
+            label: "Username",
+          },
+          fullname: {
+            label: "Full name",
+          },
+          email: {
+            label: "Email",
+          },
+          roles: {
+            label: "Roles",
+          },
+          groups: {
+            label: "Groups",
+          },
+          save: "Save",
+          cancel: "Cancel",
         },
       },
       groups: {
@@ -194,10 +221,31 @@ export default () => ({
             },
           },
         },
+        create: {
+          title: "Create group",
+          description: "Add a new group",
+        },
+        edit: {
+          title: "Edit group",
+          description: "Update group details",
+        },
         delete: {
           title: "Delete group",
           description: "Confirm the permanent removal of this group",
           confirm: 'Are you sure you want to delete the group "{name}"?',
+        },
+        form: {
+          name: {
+            label: "Name",
+          },
+          description: {
+            label: "Description",
+          },
+          roles: {
+            label: "Roles",
+          },
+          save: "Save",
+          cancel: "Cancel",
         },
       },
     },
@@ -277,70 +325,6 @@ export default () => ({
       },
       logOut: {
         label: "Log out",
-      },
-    },
-    users: {
-      upsertModal: {
-        create: {
-          title: "Create user",
-          description: "Add a new user",
-        },
-        update: {
-          title: "Edit user",
-          description: "Update user details",
-        },
-        form: {
-          username: {
-            label: "Username",
-          },
-          fullname: {
-            label: "Full name",
-          },
-          email: {
-            label: "Email",
-          },
-          roles: {
-            label: "Roles",
-          },
-          groups: {
-            label: "Groups",
-          },
-          save: {
-            label: "Save",
-          },
-          cancel: {
-            label: "Cancel",
-          },
-        },
-      },
-    },
-    groups: {
-      upsertModal: {
-        create: {
-          title: "Create group",
-          description: "Add a new group",
-        },
-        update: {
-          title: "Edit group",
-          description: "Update group details",
-        },
-        form: {
-          name: {
-            label: "Name",
-          },
-          description: {
-            label: "Description",
-          },
-          roles: {
-            label: "Roles",
-          },
-          save: {
-            label: "Save",
-          },
-          cancel: {
-            label: "Cancel",
-          },
-        },
       },
     },
   },

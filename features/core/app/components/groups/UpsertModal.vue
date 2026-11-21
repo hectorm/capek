@@ -102,8 +102,8 @@ const onCancel = (): void => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`components.groups.upsertModal.${props.id ? 'update' : 'create'}.title`)"
-    :description="$t(`components.groups.upsertModal.${props.id ? 'update' : 'create'}.description`)"
+    :title="$t(`pages.settings.groups.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`pages.settings.groups.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
@@ -115,25 +115,25 @@ const onCancel = (): void => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="name" :label="$t('components.groups.upsertModal.form.name.label')">
+        <UFormField required name="name" :label="$t('pages.settings.groups.form.name.label')">
           <UInput v-model="state.name" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField name="description" :label="$t('components.groups.upsertModal.form.description.label')">
+        <UFormField name="description" :label="$t('pages.settings.groups.form.description.label')">
           <UTextarea v-model="state.description" autoresize :maxrows="3" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField name="roles" :label="$t('components.groups.upsertModal.form.roles.label')">
+        <UFormField name="roles" :label="$t('pages.settings.groups.form.roles.label')">
           <USelectMenu
             v-model="state.roles"
             multiple
             class="w-full"
             :disabled="!canModify"
             :items="roles.map((r) => r.name)"
-            :aria-label="$t('components.groups.upsertModal.form.roles.label')"
+            :aria-label="$t('pages.settings.groups.form.roles.label')"
           />
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("components.groups.upsertModal.form.cancel.label") }}
+            {{ $t("pages.settings.groups.form.cancel") }}
           </UButton>
           <UButton
             loading-auto
@@ -143,7 +143,7 @@ const onCancel = (): void => {
             icon="i-lucide-save"
             :disabled="!canModify"
           >
-            {{ $t("components.groups.upsertModal.form.save.label") }}
+            {{ $t("pages.settings.groups.form.save") }}
           </UButton>
         </div>
       </UForm>

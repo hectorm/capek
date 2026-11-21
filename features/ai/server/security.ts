@@ -27,6 +27,14 @@ const chatSelectPolicies = (table: string, own: string): string[] => [
   scopedSelectPolicy(table, ChatResource.type, own),
 ];
 
+const CAN_WRITE_CHAT_FILES = `
+  (SELECT security.can_any(ARRAY['ai_chat:update:all']))
+  OR (
+    (SELECT security.can_any(ARRAY['ai_chat:update:own']))
+    AND ${isOwner(ChatResource, "ai_chat_session_vfs.session_id")}
+  )
+`;
+
 export const aiSecurity: SecurityDefinition = {
   ownedResources: [ChatResource, AgentExecutionResource],
   sharedResources: [AgentResource, LlmProviderResource, McpServerResource, SkillResource],
@@ -158,26 +166,23 @@ export const aiSecurity: SecurityDefinition = {
 
     // Chat Session VFS
     ...protectTable("ai_chat_session_vfs"),
-    `
-      CREATE POLICY ai_chat_session_vfs_select ON public.ai_chat_session_vfs
-        FOR SELECT
-        USING (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")});
-    `,
+    ...chatSelectPolicies("ai_chat_session_vfs", isOwner(ChatResource, "ai_chat_session_vfs.session_id")),
+    // The files of a chat change with it, so writing them takes the permission to update the chat
     `
       CREATE POLICY ai_chat_session_vfs_insert ON public.ai_chat_session_vfs
         FOR INSERT
-        WITH CHECK (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")});
+        WITH CHECK (${CAN_WRITE_CHAT_FILES});
     `,
     `
       CREATE POLICY ai_chat_session_vfs_update ON public.ai_chat_session_vfs
         FOR UPDATE
-        USING (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")})
-        WITH CHECK (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")});
+        USING (${CAN_WRITE_CHAT_FILES})
+        WITH CHECK (${CAN_WRITE_CHAT_FILES});
     `,
     `
       CREATE POLICY ai_chat_session_vfs_delete ON public.ai_chat_session_vfs
         FOR DELETE
-        USING (${isOwner(ChatResource, "ai_chat_session_vfs.session_id")});
+        USING (${CAN_WRITE_CHAT_FILES});
     `,
 
     // Chat Tables

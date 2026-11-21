@@ -28,6 +28,7 @@ import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
 import type { ChatMessagePart } from "#layers/ai/shared/chat";
+import { useChatSessionDelete } from "#layers/ai/app/composables/chat-session-delete";
 import { useAnswerError } from "#layers/ai/app/composables/answer-error";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
@@ -37,7 +38,6 @@ import { definePageMeta } from "#layers/core/app/utils/page-meta";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 
 import ChartFrame from "#layers/ai/app/components/chat/ChartFrame.vue";
-import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
 import MessageContent from "#layers/ai/app/components/chat/MessageContent.vue";
 import LazyRenameModal from "#layers/ai/app/components/chat/RenameModal.vue";
 import TableView from "#layers/ai/app/components/chat/TableView.vue";
@@ -65,6 +65,7 @@ const chatStore = useChatStore();
 const { describeAnswerError } = useAnswerError();
 const toast = useToast();
 const overlay = useOverlay();
+const confirmDelete = useChatSessionDelete();
 
 const sidebar = inject(sidebarKey);
 
@@ -301,21 +302,8 @@ const handleRenameSession = async (): Promise<void> => {
 };
 
 const handleDeleteSession = async (): Promise<void> => {
-  const instance = overlay.create(LazyDeleteModal, { destroyOnClose: true }).open({ id: sessionId.value });
-  const result = (await instance.result) as { deleted: boolean; error: Error | null };
-  if (result.deleted) {
-    toast.add({
-      color: "success",
-      title: i18n.t("ai.pages.welcome.actions.deleteChat.success.title"),
-      description: i18n.t("ai.pages.welcome.actions.deleteChat.success.description"),
-    });
+  if (await confirmDelete({ id: sessionId.value, title: chatStore.currentSession?.title })) {
     await navigateTo("/ai");
-  } else if (result.error) {
-    toast.add({
-      color: "error",
-      title: i18n.t("ai.pages.welcome.actions.deleteChat.error.title"),
-      description: i18n.t("ai.pages.welcome.actions.deleteChat.error.description"),
-    });
   }
 };
 

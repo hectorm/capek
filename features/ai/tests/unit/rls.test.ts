@@ -534,6 +534,31 @@ describe("chat policies", () => {
     await expect(asMember(heidi, (trx) => deleteRows(trx, "ai_chat_session_vfs", files))).resolves.toBe(1n);
   });
 
+  it("asks the owner of a chat for the permission to update it before changing its files", async () => {
+    const files = { session_id: sessionId };
+    const asOwner = <T>(permissions: string[], callback: (trx: Transaction<Database>) => Promise<T>): Promise<T> => {
+      return asUser({ id: heidi, permissions }, callback);
+    };
+    const writer = [...reader, "ai_chat:update:own"];
+
+    await expect(
+      asOwner(reader, (trx) => insertRow(trx, "ai_chat_session_vfs", { ...files, data: Buffer.from("") })),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asOwner(writer, (trx) => insertRow(trx, "ai_chat_session_vfs", { ...files, data: Buffer.from("") })),
+    ).resolves.toBeUndefined();
+
+    await expect(asOwner([], (trx) => countRows(trx, "ai_chat_session_vfs", files))).resolves.toBe(0);
+    await expect(asOwner(reader, (trx) => countRows(trx, "ai_chat_session_vfs", files))).resolves.toBe(1);
+
+    const saved = { updated_at: new Date() };
+    await expect(asOwner(reader, (trx) => updateRows(trx, "ai_chat_session_vfs", saved, files))).resolves.toBe(0n);
+    await expect(asOwner(writer, (trx) => updateRows(trx, "ai_chat_session_vfs", saved, files))).resolves.toBe(1n);
+
+    await expect(asOwner(reader, (trx) => deleteRows(trx, "ai_chat_session_vfs", files))).resolves.toBe(0n);
+    await expect(asOwner(writer, (trx) => deleteRows(trx, "ai_chat_session_vfs", files))).resolves.toBe(1n);
+  });
+
   it("lets the server write the tables of a chat for its owner", async () => {
     const write = (userId: string): Promise<InsertResult[]> => {
       return asUserWith({ id: userId, permissions: member }, { trustedWrites: true }, (trx) => {

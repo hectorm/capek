@@ -24,6 +24,8 @@ const props = defineProps<{
   deletePermissions: PermissionName[];
   // Omitted for resources without owners, which only the ":all" permissions can delete
   loadAccess?: () => Promise<Principal[]>;
+  // Set for a resource that the user owns or reaches through inherited access, which no access list tells
+  isOwner?: boolean;
   remove: () => Promise<unknown>;
 }>();
 
@@ -37,7 +39,12 @@ const { canAny } = usePermissions();
 
 const access = props.loadAccess ? await props.loadAccess().catch(() => null) : [];
 
-const canDelete = computed(() => access !== null && canAny(props.deletePermissions, toOwnerIds(access)));
+const canDelete = computed(() => {
+  if (props.isOwner) {
+    return canAny(props.deletePermissions);
+  }
+  return access !== null && canAny(props.deletePermissions, toOwnerIds(access));
+});
 
 const onSubmit = async (_event: FormSubmitEvent<unknown>): Promise<void> => {
   try {

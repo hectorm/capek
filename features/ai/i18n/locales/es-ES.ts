@@ -29,22 +29,31 @@ export default (): ReturnType<typeof enUS> => ({
               description: "Error al crear la sesión de chat",
             },
           },
-          deleteChat: {
-            success: {
-              title: "Éxito",
-              description: "Sesión de chat eliminada correctamente",
-            },
-            error: {
-              title: "Error",
-              description: "Error al eliminar la sesión de chat",
-            },
-          },
         },
       },
       chat: {
         title: "Chat",
         description: "Sesión de chat",
         untitled: "Sin título",
+        session: {
+          actions: {
+            delete: {
+              success: {
+                title: "Éxito",
+                description: "Sesión de chat eliminada correctamente",
+              },
+              error: {
+                title: "Error",
+                description: "Error al eliminar la sesión de chat",
+              },
+            },
+          },
+          delete: {
+            title: "Eliminar sesión de chat",
+            description: "Confirmar la eliminación permanente de esta sesión de chat",
+            confirm: '¿Está seguro de que desea eliminar la sesión de chat "{name}"?',
+          },
+        },
         toolCalls: {
           calls: "{count} llamadas",
           tools: "{count} llamadas a herramientas",
@@ -606,19 +615,6 @@ export default (): ReturnType<typeof enUS> => ({
             },
             save: {
               label: "Guardar",
-            },
-            cancel: {
-              label: "Cancelar",
-            },
-          },
-        },
-        deleteModal: {
-          title: "Eliminar sesión de chat",
-          description: "Confirmar la eliminación permanente de esta sesión de chat",
-          form: {
-            message: '¿Está seguro de que desea eliminar la sesión de chat "{title}"?',
-            delete: {
-              label: "Eliminar",
             },
             cancel: {
               label: "Cancelar",

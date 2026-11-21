@@ -110,8 +110,8 @@ const onCancel = (): void => {
   <UModal
     :close="false"
     :dismissible="false"
-    :title="$t(`components.users.upsertModal.${props.id ? 'update' : 'create'}.title`)"
-    :description="$t(`components.users.upsertModal.${props.id ? 'update' : 'create'}.description`)"
+    :title="$t(`pages.settings.users.${props.id ? 'edit' : 'create'}.title`)"
+    :description="$t(`pages.settings.users.${props.id ? 'edit' : 'create'}.description`)"
   >
     <template #body>
       <ResourceLoadError v-if="!loaded" @cancel="onCancel" />
@@ -123,32 +123,32 @@ const onCancel = (): void => {
         class="w-full max-w-150 space-y-4"
         @submit="onSubmit"
       >
-        <UFormField required name="username" :label="$t('components.users.upsertModal.form.username.label')">
+        <UFormField required name="username" :label="$t('pages.settings.users.form.username.label')">
           <UInput v-model="state.username" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField required name="fullname" :label="$t('components.users.upsertModal.form.fullname.label')">
+        <UFormField required name="fullname" :label="$t('pages.settings.users.form.fullname.label')">
           <UInput v-model="state.fullname" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField required name="email" :label="$t('components.users.upsertModal.form.email.label')">
+        <UFormField required name="email" :label="$t('pages.settings.users.form.email.label')">
           <UInput v-model="state.email" class="w-full" :disabled="!canModify" />
         </UFormField>
-        <UFormField name="roles" :label="$t('components.users.upsertModal.form.roles.label')">
+        <UFormField name="roles" :label="$t('pages.settings.users.form.roles.label')">
           <USelectMenu
             v-model="state.roles"
             multiple
             class="w-full"
             :disabled="!canModify"
             :items="roles.map((r) => r.name)"
-            :aria-label="$t('components.users.upsertModal.form.roles.label')"
+            :aria-label="$t('pages.settings.users.form.roles.label')"
           />
         </UFormField>
-        <UFormField name="groups" :label="$t('components.users.upsertModal.form.groups.label')">
+        <UFormField name="groups" :label="$t('pages.settings.users.form.groups.label')">
           <SearchMenu
             v-model="state.groups"
             multiple
             class="w-full"
             :disabled="!canModify"
-            :aria-label="$t('components.users.upsertModal.form.groups.label')"
+            :aria-label="$t('pages.settings.users.form.groups.label')"
             :search-fn="
               async (search) => {
                 const result = await $trpc.group.search.query({ search });
@@ -159,7 +159,7 @@ const onCancel = (): void => {
         </UFormField>
         <div class="flex justify-end gap-2">
           <UButton type="button" color="neutral" variant="subtle" icon="i-lucide-ban" @click="onCancel">
-            {{ $t("components.users.upsertModal.form.cancel.label") }}
+            {{ $t("pages.settings.users.form.cancel") }}
           </UButton>
           <UButton
             loading-auto
@@ -169,7 +169,7 @@ const onCancel = (): void => {
             icon="i-lucide-save"
             :disabled="!canModify"
           >
-            {{ $t("components.users.upsertModal.form.save.label") }}
+            {{ $t("pages.settings.users.form.save") }}
           </UButton>
         </div>
       </UForm>

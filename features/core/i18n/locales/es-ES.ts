@@ -149,10 +149,37 @@ export default (): ReturnType<typeof enUS> => ({
             },
           },
         },
+        create: {
+          title: "Crear usuario",
+          description: "Añadir un nuevo usuario",
+        },
+        edit: {
+          title: "Editar usuario",
+          description: "Actualizar los datos del usuario",
+        },
         delete: {
           title: "Eliminar usuario",
           description: "Confirmar la eliminación permanente de este usuario",
           confirm: '¿Está seguro de que desea eliminar al usuario "{name}"?',
+        },
+        form: {
+          username: {
+            label: "Nombre de usuario",
+          },
+          fullname: {
+            label: "Nombre completo",
+          },
+          email: {
+            label: "Email",
+          },
+          roles: {
+            label: "Roles",
+          },
+          groups: {
+            label: "Grupos",
+          },
+          save: "Guardar",
+          cancel: "Cancelar",
         },
       },
       groups: {
@@ -196,10 +223,31 @@ export default (): ReturnType<typeof enUS> => ({
             },
           },
         },
+        create: {
+          title: "Crear grupo",
+          description: "Añadir un nuevo grupo",
+        },
+        edit: {
+          title: "Editar grupo",
+          description: "Actualizar los datos del grupo",
+        },
         delete: {
           title: "Eliminar grupo",
           description: "Confirmar la eliminación permanente de este grupo",
           confirm: '¿Está seguro de que desea eliminar el grupo "{name}"?',
+        },
+        form: {
+          name: {
+            label: "Nombre",
+          },
+          description: {
+            label: "Descripción",
+          },
+          roles: {
+            label: "Roles",
+          },
+          save: "Guardar",
+          cancel: "Cancelar",
         },
       },
     },
@@ -279,70 +327,6 @@ export default (): ReturnType<typeof enUS> => ({
       },
       logOut: {
         label: "Cerrar sesión",
-      },
-    },
-    users: {
-      upsertModal: {
-        create: {
-          title: "Crear usuario",
-          description: "Añadir un nuevo usuario",
-        },
-        update: {
-          title: "Editar usuario",
-          description: "Actualizar los datos del usuario",
-        },
-        form: {
-          username: {
-            label: "Nombre de usuario",
-          },
-          fullname: {
-            label: "Nombre completo",
-          },
-          email: {
-            label: "Email",
-          },
-          roles: {
-            label: "Roles",
-          },
-          groups: {
-            label: "Grupos",
-          },
-          save: {
-            label: "Guardar",
-          },
-          cancel: {
-            label: "Cancelar",
-          },
-        },
-      },
-    },
-    groups: {
-      upsertModal: {
-        create: {
-          title: "Crear grupo",
-          description: "Añadir un nuevo grupo",
-        },
-        update: {
-          title: "Editar grupo",
-          description: "Actualizar los datos del grupo",
-        },
-        form: {
-          name: {
-            label: "Nombre",
-          },
-          description: {
-            label: "Descripción",
-          },
-          roles: {
-            label: "Roles",
-          },
-          save: {
-            label: "Guardar",
-          },
-          cancel: {
-            label: "Cancelar",
-          },
-        },
       },
     },
   },

@@ -9,22 +9,20 @@ import type { ScrollAreaVirtualizeOptions } from "@nuxt/ui/components/ScrollArea
 import UButton from "@nuxt/ui/components/Button.vue";
 import UScrollArea from "@nuxt/ui/components/ScrollArea.vue";
 import UTooltip from "@nuxt/ui/components/Tooltip.vue";
-import { useOverlay } from "@nuxt/ui/composables/useOverlay";
 import { useToast } from "@nuxt/ui/composables/useToast";
 
+import { useChatSessionDelete } from "#layers/ai/app/composables/chat-session-delete";
 import { useChatUI } from "#layers/ai/app/composables/chat-ui";
 import { useAgentStore } from "#layers/ai/app/stores/agent";
 import { useChatStore } from "#layers/ai/app/stores/chat";
 import { useAppFeatures } from "#layers/core/app/composables/features";
-
-import LazyDeleteModal from "#layers/ai/app/components/chat/DeleteModal.vue";
 
 const props = defineProps<{
   collapsed?: boolean;
 }>();
 
 const i18n = useI18n();
-const overlay = useOverlay();
+const confirmDelete = useChatSessionDelete();
 const route = useRoute();
 const toast = useToast();
 
@@ -93,25 +91,9 @@ const onNewChat = async (): Promise<void> => {
   }
 };
 
-const onDeleteChat = async (id: string): Promise<void> => {
-  // The mobile slideover remounts the sidebar on each open, so the modal is created on demand
-  const instance = overlay.create(LazyDeleteModal, { destroyOnClose: true }).open({ id });
-  const result = (await instance.result) as { deleted: boolean; error: Error | null };
-  if (result.deleted) {
-    toast.add({
-      color: "success",
-      title: i18n.t("ai.pages.welcome.actions.deleteChat.success.title"),
-      description: i18n.t("ai.pages.welcome.actions.deleteChat.success.description"),
-    });
-    if (route.name === "ai-chat-id" && route.params.id === id) {
-      void navigateTo("/ai");
-    }
-  } else if (result.error) {
-    toast.add({
-      color: "error",
-      title: i18n.t("ai.pages.welcome.actions.deleteChat.error.title"),
-      description: i18n.t("ai.pages.welcome.actions.deleteChat.error.description"),
-    });
+const onDeleteChat = async (session: { id: string; title: string }): Promise<void> => {
+  if ((await confirmDelete(session)) && route.name === "ai-chat-id" && route.params.id === session.id) {
+    void navigateTo("/ai");
   }
 };
 
@@ -225,7 +207,7 @@ useInfiniteScroll(
             icon="i-lucide-x"
             :aria-label="$t('ai.components.chat.sessionsSidebar.deleteChat')"
             class="absolute inset-e-1 top-1/2 -translate-y-1/2 p-0.5 text-muted opacity-0 transition-opacity group-hover/chat:opacity-100 hover:bg-accented/50 hover:text-primary focus-visible:bg-accented/50 focus-visible:opacity-100"
-            @click="onDeleteChat(item.id)"
+            @click="onDeleteChat({ id: item.id, title: item.label })"
           />
         </div>
       </template>
