@@ -3,13 +3,13 @@ import type enUS from "./en-US";
 export default (): ReturnType<typeof enUS> => ({
   layouts: {
     default: {
-      description: "Espacio de trabajo",
+      description: "Área de trabajo de la aplicación",
       sidebar: {
         title: "Menú",
         description: "Menú de navegación",
-        toggle: "Alternar menú lateral",
+        toggle: "Mostrar u ocultar la barra lateral",
         label: "Barra lateral",
-        homeLink: "Ir a inicio",
+        homeLink: "Ir al inicio",
       },
     },
   },
@@ -35,18 +35,18 @@ export default (): ReturnType<typeof enUS> => ({
         fields: {
           "branding.name": {
             label: "Nombre de la aplicación",
-            description: "El nombre que se muestra en el título del navegador y la navegación",
+            description: "Nombre que se muestra en el título del navegador y en la navegación",
             placeholder: "Introduzca el nombre de la aplicación",
           },
           "branding.logo": {
             label: "Logotipo de la aplicación",
             description: "Logotipo completo que se muestra en la barra lateral expandida",
-            placeholder: "Cargar imagen (máx. {size} KB)",
+            placeholder: "Subir imagen (máx. {size} KB)",
           },
           "branding.icon": {
             label: "Icono de la aplicación",
-            description: "Icono cuadrado para la barra lateral colapsada y favicon",
-            placeholder: "Cargar imagen (máx. {size} KB)",
+            description: "Icono cuadrado para la barra lateral contraída y el favicon",
+            placeholder: "Subir imagen (máx. {size} KB)",
           },
           "branding.primaryColor": {
             label: "Color primario",
@@ -54,20 +54,20 @@ export default (): ReturnType<typeof enUS> => ({
             placeholder: "Seleccione un color",
           },
           "branding.neutralColor": {
-            label: "Color neutral",
+            label: "Color neutro",
             description: "Color utilizado para texto, bordes y fondos",
             placeholder: "Seleccione un color",
           },
           "branding.radius": {
             label: "Radio de borde",
             description: "Redondeo de las esquinas de los componentes",
-            placeholder: "Seleccione el radio de borde",
+            placeholder: "Seleccione un radio de borde",
           },
         },
         actions: {
           save: "Guardar",
           reset: "Restablecer valor predeterminado",
-          usingDefault: "Usando valor predeterminado",
+          usingDefault: "Se usa el valor predeterminado",
           overridden: "Valor personalizado establecido",
         },
         messages: {
@@ -86,18 +86,18 @@ export default (): ReturnType<typeof enUS> => ({
           },
           resetSuccess: {
             title: "Éxito",
-            description: "Configuración restablecida al valor predeterminado",
+            description: "Ajuste restablecido al valor predeterminado",
           },
           resetError: {
             title: "Error",
-            description: "Error al restablecer la configuración",
+            description: "Error al restablecer el ajuste",
           },
           fileTooLarge: {
             title: "Archivo demasiado grande",
             description: "El tamaño del archivo supera el tamaño máximo permitido de {maxSize} KB",
           },
           invalidFileType: {
-            title: "Tipo de archivo inválido",
+            title: "Tipo de archivo no válido",
             description: "El tipo de archivo debe ser uno de: {accept}",
           },
           fileReadError: {
@@ -111,9 +111,9 @@ export default (): ReturnType<typeof enUS> => ({
         description: "Gestionar usuarios y asignar roles",
         tab: "Usuarios",
         table: {
-          username: "Usuario",
+          username: "Nombre de usuario",
           fullname: "Nombre completo",
-          email: "Email",
+          email: "Correo electrónico",
           roles: "Roles",
           groups: "Grupos",
         },
@@ -170,7 +170,7 @@ export default (): ReturnType<typeof enUS> => ({
             label: "Nombre completo",
           },
           email: {
-            label: "Email",
+            label: "Correo electrónico",
           },
           roles: {
             label: "Roles",
@@ -253,7 +253,7 @@ export default (): ReturnType<typeof enUS> => ({
     },
     error: {
       title: "Error",
-      description: "Ocurrió un error",
+      description: "Se ha producido un error",
       back: "Volver a la aplicación",
       message: {
         400: "Solicitud incorrecta",
@@ -339,10 +339,10 @@ export default (): ReturnType<typeof enUS> => ({
     },
   },
   errors: {
-    secretRequired: "La conexión ha cambiado, introduzca este valor de nuevo",
+    secretRequired: "La conexión ha cambiado. Vuelva a introducir este valor.",
     unexpected: {
       title: "Error inesperado",
-      description: "Ocurrió un error inesperado. Por favor, actualice la página.",
+      description: "Se ha producido un error inesperado. Por favor, actualice la página.",
     },
   },
 });

@@ -61,7 +61,7 @@ export default (): ReturnType<typeof enUS> => ({
         errors: {
           timeout: "La respuesta ha tardado más de lo que se le permite al agente",
           maxIterations: "El agente ha alcanzado su número máximo de pasos sin terminar la respuesta",
-          refusal: "El modelo ha rechazado responder a esta petición",
+          refusal: "El modelo se ha negado a responder a esta solicitud",
           maxOutputTokens: "La respuesta se ha cortado porque ha alcanzado el número máximo de tokens",
         },
         editMessage: "Editar mensaje",
@@ -179,7 +179,7 @@ export default (): ReturnType<typeof enUS> => ({
           },
           edit: {
             title: "Editar agente",
-            description: "Actualizar configuración del agente",
+            description: "Actualizar la configuración del agente",
           },
           delete: {
             title: "Eliminar agente",
@@ -197,7 +197,7 @@ export default (): ReturnType<typeof enUS> => ({
             },
             instructions: {
               label: "Instrucciones",
-              placeholder: "Proporcione instrucciones específicas para el comportamiento y respuestas del agente",
+              placeholder: "Proporcione instrucciones específicas para el comportamiento y las respuestas del agente",
             },
             greetingMessage: {
               label: "Mensaje de bienvenida",
@@ -222,20 +222,20 @@ export default (): ReturnType<typeof enUS> => ({
             },
             model: {
               label: "Modelo",
-              placeholder: "Modelo a usar para este agente",
+              placeholder: "Modelo que usará este agente",
             },
             summaryModel: {
               label: "Modelo de resumen",
-              placeholder: "Déjalo vacío para usar el modelo principal",
+              placeholder: "Déjelo vacío para usar el modelo principal",
             },
             reasoningEffort: {
               label: "Esfuerzo de razonamiento",
-              placeholder: "Déjalo vacío para usar el predeterminado del modelo",
+              placeholder: "Déjelo vacío para usar el valor predeterminado del modelo",
             },
             mcpServers: {
               label: "Servidores MCP",
               placeholder: "Seleccione servidores MCP",
-              hint: "Servidores MCP que los agentes pueden usar durante la ejecución",
+              hint: "Servidores MCP disponibles para el agente durante la ejecución",
             },
             skills: {
               label: "Habilidades",
@@ -260,15 +260,15 @@ export default (): ReturnType<typeof enUS> => ({
             },
             advancedSettings: {
               label: "Configuración avanzada",
-              customized: "{count} personalizados",
-              default: "Por defecto: {value}",
+              customized: "{count} personalizado | {count} personalizados",
+              default: "Predeterminado: {value}",
             },
             temperature: {
               label: "Temperatura",
-              hint: "Controla la aleatoriedad (0 = enfocado, 2 = creativo)",
+              hint: "Controla la aleatoriedad (0 = preciso, 2 = creativo)",
             },
             maxTokens: {
-              label: "Tokens máximos",
+              label: "Máximo de tokens",
               hint: "Longitud máxima de respuesta",
             },
             topP: {
@@ -284,24 +284,24 @@ export default (): ReturnType<typeof enUS> => ({
               hint: "Fomenta nuevos temas",
             },
             maxIterations: {
-              label: "Iteraciones máximas",
+              label: "Máximo de iteraciones",
               hint: "Número máximo de iteraciones de llamadas a herramientas por ejecución del agente",
             },
             timeoutSec: {
               label: "Tiempo de espera (segundos)",
-              hint: "Tiempo máximo de ejecución en segundos antes de que se termine el agente",
+              hint: "Tiempo máximo de ejecución en segundos antes de detener el agente",
             },
             maxContextChars: {
-              label: "Caracteres máximos de contexto",
-              hint: "Caracteres totales máximos para el contexto de mensajes enviado al modelo",
+              label: "Máximo de caracteres de contexto",
+              hint: "Número máximo total de caracteres del contexto de mensajes enviado al modelo",
             },
             maxToolResponseChars: {
-              label: "Caracteres máximos de respuesta de herramienta",
-              hint: "Caracteres máximos para una respuesta de herramienta antes del truncamiento",
+              label: "Máximo de caracteres por respuesta de herramienta",
+              hint: "Número máximo de caracteres de una respuesta de herramienta antes de truncarla",
             },
             maxToolPartsChars: {
-              label: "Caracteres máximos de partes de herramienta",
-              hint: "Caracteres totales máximos para lo que las herramientas muestran en una respuesta, como los gráficos",
+              label: "Máximo de caracteres de partes de herramienta",
+              hint: "Número máximo total de caracteres de lo que muestran las herramientas en una respuesta, como los gráficos",
             },
             testModel: {
               label: "Probar modelo",
@@ -315,9 +315,9 @@ export default (): ReturnType<typeof enUS> => ({
           },
         },
         llmProviders: {
-          title: "Gestión de proveedores LLM",
-          description: "Gestionar proveedores LLM",
-          tab: "Proveedores LLM",
+          title: "Gestión de proveedores de LLM",
+          description: "Gestionar proveedores de LLM",
+          tab: "Proveedores de LLM",
           table: {
             name: "Nombre",
             description: "Descripción",
@@ -327,46 +327,46 @@ export default (): ReturnType<typeof enUS> => ({
             create: {
               success: {
                 title: "Éxito",
-                description: "Proveedor LLM creado correctamente",
+                description: "Proveedor de LLM creado correctamente",
               },
               error: {
                 title: "Error",
-                description: "Error al crear el proveedor LLM",
+                description: "Error al crear el proveedor de LLM",
               },
             },
             update: {
               success: {
                 title: "Éxito",
-                description: "Proveedor LLM actualizado correctamente",
+                description: "Proveedor de LLM actualizado correctamente",
               },
               error: {
                 title: "Error",
-                description: "Error al actualizar el proveedor LLM",
+                description: "Error al actualizar el proveedor de LLM",
               },
             },
             delete: {
               success: {
                 title: "Éxito",
-                description: "Proveedor LLM eliminado correctamente",
+                description: "Proveedor de LLM eliminado correctamente",
               },
               error: {
                 title: "Error",
-                description: "Error al eliminar el proveedor LLM",
+                description: "Error al eliminar el proveedor de LLM",
               },
             },
           },
           create: {
-            title: "Crear proveedor LLM",
-            description: "Añadir un nuevo proveedor LLM",
+            title: "Crear proveedor de LLM",
+            description: "Añadir un nuevo proveedor de LLM",
           },
           edit: {
-            title: "Editar proveedor LLM",
-            description: "Actualizar la configuración del proveedor LLM",
+            title: "Editar proveedor de LLM",
+            description: "Actualizar la configuración del proveedor de LLM",
           },
           delete: {
-            title: "Eliminar proveedor LLM",
-            description: "Confirmar la eliminación permanente de este proveedor LLM",
-            confirm: '¿Está seguro de que desea eliminar el proveedor LLM "{name}"?',
+            title: "Eliminar proveedor de LLM",
+            description: "Confirmar la eliminación permanente de este proveedor de LLM",
+            confirm: '¿Está seguro de que desea eliminar el proveedor de LLM "{name}"?',
           },
           form: {
             name: {
@@ -396,7 +396,7 @@ export default (): ReturnType<typeof enUS> => ({
               namePlaceholder: "Nombre de cabecera",
               valuePlaceholder: "Valor de cabecera",
               add: "Añadir cabecera",
-              remove: "Eliminar cabecera",
+              remove: "Quitar cabecera",
             },
             testConnection: {
               label: "Probar conexión",
@@ -481,7 +481,7 @@ export default (): ReturnType<typeof enUS> => ({
               namePlaceholder: "Nombre de cabecera",
               valuePlaceholder: "Valor de cabecera",
               add: "Añadir cabecera",
-              remove: "Eliminar cabecera",
+              remove: "Quitar cabecera",
             },
             stateful: {
               label: "Sesión con estado",
@@ -489,8 +489,8 @@ export default (): ReturnType<typeof enUS> => ({
             },
             advancedSettings: {
               label: "Configuración avanzada",
-              customized: "{count} personalizados",
-              default: "Por defecto: {value}",
+              customized: "{count} personalizado | {count} personalizados",
+              default: "Predeterminado: {value}",
             },
             toolCallTimeoutSec: {
               label: "Tiempo de espera de llamada a herramienta (segundos)",
@@ -553,7 +553,7 @@ export default (): ReturnType<typeof enUS> => ({
           },
           edit: {
             title: "Editar habilidad",
-            description: "Actualizar configuración de la habilidad",
+            description: "Actualizar la configuración de la habilidad",
           },
           delete: {
             title: "Eliminar habilidad",
@@ -594,7 +594,7 @@ export default (): ReturnType<typeof enUS> => ({
               description: "Prompts predefinidos que se muestran en la página de bienvenida",
               placeholder: "Introduzca un prompt",
               add: "Añadir prompt",
-              remove: "Eliminar prompt",
+              remove: "Quitar prompt",
             },
           },
         },
@@ -607,7 +607,7 @@ export default (): ReturnType<typeof enUS> => ({
       chat: {
         renameModal: {
           title: "Renombrar sesión de chat",
-          description: "Introduzca un nuevo título para esta sesión de chat",
+          description: "Introducir un nuevo título para esta sesión de chat",
           form: {
             title: {
               label: "Título",
@@ -623,7 +623,7 @@ export default (): ReturnType<typeof enUS> => ({
         },
         chartFrame: {
           title: "Gráfico",
-          error: "No se pudo mostrar el gráfico",
+          error: "No se ha podido mostrar el gráfico",
           export: {
             label: "Descargar",
             png: "Imagen PNG",
@@ -651,7 +651,7 @@ export default (): ReturnType<typeof enUS> => ({
           },
           error: {
             title: "Error",
-            description: "No se pudo cargar la tabla",
+            description: "Error al cargar la tabla",
           },
         },
         sessionsSidebar: {

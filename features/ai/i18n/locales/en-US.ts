@@ -224,16 +224,16 @@ export default () => ({
             },
             summaryModel: {
               label: "Summary model",
-              placeholder: "Leave empty to use main model",
+              placeholder: "Leave empty to use the main model",
             },
             reasoningEffort: {
               label: "Reasoning effort",
-              placeholder: "Leave empty to use model default",
+              placeholder: "Leave empty to use the model default",
             },
             mcpServers: {
               label: "MCP servers",
               placeholder: "Select MCP servers",
-              hint: "MCP servers that agents can use during execution",
+              hint: "MCP servers available to the agent during execution",
             },
             skills: {
               label: "Skills",
@@ -286,12 +286,12 @@ export default () => ({
               hint: "Maximum number of tool call iterations per agent execution",
             },
             timeoutSec: {
-              label: "Timeout",
-              hint: "Maximum execution time in seconds before agent is terminated",
+              label: "Timeout (seconds)",
+              hint: "Maximum execution time in seconds before the agent is terminated",
             },
             maxContextChars: {
               label: "Max context characters",
-              hint: "Maximum total characters for message context sent to the model",
+              hint: "Maximum total characters for the message context sent to the model",
             },
             maxToolResponseChars: {
               label: "Max tool response characters",
@@ -491,7 +491,7 @@ export default () => ({
               default: "Default: {value}",
             },
             toolCallTimeoutSec: {
-              label: "Tool call timeout",
+              label: "Tool call timeout (seconds)",
               hint: "Maximum time in seconds to wait for a tool call response",
             },
             testConnection: {

@@ -33,17 +33,17 @@ export default () => ({
         fields: {
           "branding.name": {
             label: "Application name",
-            description: "The name displayed in the browser title and navigation",
+            description: "Name displayed in the browser title and the navigation",
             placeholder: "Enter application name",
           },
           "branding.logo": {
             label: "Application logo",
-            description: "Full logo displayed in expanded sidebar",
+            description: "Full logo displayed in the expanded sidebar",
             placeholder: "Upload image (max. {size} KB)",
           },
           "branding.icon": {
             label: "Application icon",
-            description: "Square icon for collapsed sidebar and favicon",
+            description: "Square icon for the collapsed sidebar and the favicon",
             placeholder: "Upload image (max. {size} KB)",
           },
           "branding.primaryColor": {
@@ -59,7 +59,7 @@ export default () => ({
           "branding.radius": {
             label: "Border radius",
             description: "Roundness of component corners",
-            placeholder: "Select border radius",
+            placeholder: "Select a border radius",
           },
         },
         actions: {
@@ -337,7 +337,7 @@ export default () => ({
     },
   },
   errors: {
-    secretRequired: "The connection has changed, enter this value again",
+    secretRequired: "The connection has changed. Enter this value again.",
     unexpected: {
       title: "Unexpected error",
       description: "An unexpected error occurred. Please refresh the page.",

@@ -70,12 +70,12 @@ export default (): ReturnType<typeof enUS> => ({
             documentation: {
               label: "Documentación",
               placeholder:
-                "Describa el esquema de la fuente de datos, las relaciones y ejemplos de consultas para ayudar al agente a generar consultas correctas",
+                "Describa el esquema de la fuente de datos y sus relaciones, e incluya ejemplos de consultas para ayudar al agente a generar consultas correctas",
             },
             type: {
               label: "Tipo",
               placeholder: "Seleccione un tipo de fuente de datos",
-              unsupported: "Este tipo de fuente de datos no está soportado",
+              unsupported: "Este tipo de fuente de datos no se admite",
             },
             connectionString: {
               label: "Cadena de conexión",
@@ -86,7 +86,7 @@ export default (): ReturnType<typeof enUS> => ({
               options: {
                 basic: "Usuario y contraseña",
                 "azure-service-principal": "Service principal de Microsoft Entra ID",
-                "azure-managed-identity": "Identidad administrada de Microsoft Entra ID",
+                "azure-managed-identity": "Managed identity de Microsoft Entra ID",
                 none: "Sin autenticación",
               },
             },
