@@ -24,7 +24,7 @@ export interface UserSession extends Session {
 
 export interface SessionValidation {
   session: UserSession | null;
-  // The expiration has been extended, so the client needs a new cookie
+  // Set when the expiration was extended and the client needs a new cookie
   fresh: boolean;
 }
 

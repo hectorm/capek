@@ -113,7 +113,7 @@ describe("chat send route", () => {
     await db.insertInto("aiAgentAccess").values({ agentId, userId: alice, role: "user" }).execute();
     const sessionId = await createSession(agentId);
     const otherSessionId = await createSession(agentId);
-    // Messages inserted together have the same timestamp, so their IDs determine their order
+    // The IDs break the tie between messages inserted with the same timestamp
     const target = "00000000-0000-4000-8000-000000000001";
     const answer = "00000000-0000-4000-8000-000000000002";
     const other = crypto.randomUUID();

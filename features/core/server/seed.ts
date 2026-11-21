@@ -107,7 +107,7 @@ export const coreSeed = defineSeed({
     for (const userConfig of config.users) {
       const userId = userIds.get(userConfig.username);
       if (!userId) {
-        continue; // User already existed, skip group assignment
+        continue; // An existing user keeps their groups
       }
 
       for (const groupname of userConfig.groups) {

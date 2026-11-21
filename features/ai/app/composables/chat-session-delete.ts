@@ -21,7 +21,7 @@ export const useChatSessionDelete = (): ChatSessionDelete => {
       i18nPrefix: "ai.pages.chat.session",
       name: title ?? i18n.t("ai.pages.chat.untitled"),
       deletePermissions: chatSessionDeletePermissions,
-      // A chat belongs to one user, so no access list says who can delete it
+      // A chat belongs to one user and has no access list
       isOwner: true,
       remove: () => chatStore.deleteSession(id),
     });

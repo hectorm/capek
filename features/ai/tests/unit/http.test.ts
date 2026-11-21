@@ -62,7 +62,7 @@ describe("AI HTTP responses", () => {
         closed.resolve(undefined);
       });
       res.writeHead(200, { "Content-Type": "application/json" });
-      // The stream stays open so the client must enforce its byte limit as chunks arrive
+      // The open stream makes the client enforce its byte limit as chunks arrive
       res.write('{"padding":"');
       res.write("x".repeat(RESPONSE_MAX_BYTES));
     };

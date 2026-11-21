@@ -31,7 +31,7 @@ const setups = await Promise.all(
     }),
 );
 
-// Seed data of different features is merged, concatenating the lists under the same key
+// Merging the seed data of the features concatenates the lists under the same key
 const mergeSeed = (target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> => {
   for (const [key, value] of Object.entries(source)) {
     const current = target[key];

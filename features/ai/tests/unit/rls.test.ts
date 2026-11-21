@@ -85,7 +85,7 @@ const matching = (filter: Record<string, string>): RawBuilder<unknown> => {
   return sql.join([sql`TRUE`, ...conditions], sql` AND `);
 };
 
-// The policies of the tables are checked with plain SQL, so the same cases apply to every table of a kind
+// Plain SQL lets the same cases check the policies of every table of a kind
 const countRows = async (
   trx: Kysely<Database>,
   table: string,

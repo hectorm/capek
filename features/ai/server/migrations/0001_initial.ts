@@ -259,7 +259,7 @@ export const up = async (db: Kysely<Database>): Promise<void> => {
 
   ////////////////////////////////
 
-  // Resources of other features are referenced by type instead of with a foreign key, since those features are optional
+  // Tool resources are referenced by type and ID without a foreign key to their optional features
   await db.schema
     .createTable("public.aiAgentToolResources")
     .addColumn("agentId", "uuid", (col) => col.references("public.aiAgents.id").onDelete("cascade").notNull())

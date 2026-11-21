@@ -17,7 +17,7 @@ describe("content security policy", () => {
       [
         "default-src 'self'",
         "img-src 'self' data: https://cdn.example.com",
-        // Starts from the sources of "default-src", which the directive no longer falls back to
+        // Copies the sources of "default-src" that the directive would no longer inherit
         "frame-src 'self' https://example.com https://reports.example.com",
       ].join("; "),
     );

@@ -58,17 +58,17 @@ export const sharedResourceAccessProcedures = <K extends string>(options: {
   resource: SharedResource;
   // Name of the input field holding the resource ID
   idKey: K;
-  // Human readable name of the resource type, used in logs and errors
+  // Human readable name of the resource type for logs and errors
   label: string;
   readPermissions: PermissionName[];
 }): SharedResourceAccessProcedures<K> => {
   const { resource, idKey, label } = options;
   const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
 
-  // zod cannot infer the output of a generic shape, so the resource ID is read through a cast
+  // zod cannot infer the output of a generic shape
   const resourceIdOf = (input: object): string => (input as Record<K, string>)[idKey];
 
-  // The type of the input takes any key, which the return type of the function narrows to the ID key
+  // The return type of the function narrows this input of any key to the ID key
   const ListAccessInputSchema: z.ZodType<{ resourceId: string }, Record<string, string>> = z
     .object({ [idKey]: z.uuid() })
     .transform((input) => ({ resourceId: resourceIdOf(input) }));

@@ -181,7 +181,7 @@ export const withUserTransaction = async <T>(
         set_config('app.user_permissions', ARRAY[${sql.join(user.permissions)}]::TEXT[]::TEXT, true),
         set_config('app.trusted_write', ${options.trustedWrites ? "on" : "off"}, true),
         set_config('app.resource_scope', ${options.resourceScope ?? ""}, true),
-        -- The policies trigger JIT compilation in short queries, which is slower than running them
+        -- JIT compilation of the policies takes longer than the short queries that trigger it
         set_config('jit', 'off', true)
     `.execute(trx);
     return callback(trx);

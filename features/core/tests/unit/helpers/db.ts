@@ -40,7 +40,7 @@ export const asUser = <T>(
   return withUserTransaction(user, callback);
 };
 
-// Users are named by the keys of the object and take its values as IDs, so `{ alice }` adds "alice"
+// `{ alice }` adds a user named "alice" whose ID is the value of `alice`
 export const insertUsers = async (db: Kysely<Database>, users: Record<string, string>): Promise<void> => {
   const rows = Object.entries(users).map(([username, id]) => {
     return { id, username, fullname: username, email: `${username}@example.com` };

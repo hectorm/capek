@@ -29,7 +29,7 @@ import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 vi.mock("#layers/core/server/lib/http", { spy: true });
 vi.mock("#layers/ai/server/lib/tools", { spy: true });
 
-// Tools that stand in for the ones of another feature, one telling what it does and others showing a chart or a table
+// Stand-in tools of another feature include one that tells what it does and others that show a chart or a table
 const provider: FeatureToolProvider = {
   name: "notes",
   feature: "notes",
@@ -134,7 +134,7 @@ interface TestChat {
   user: AuthUser;
 }
 
-// A chat with a new agent of the given settings, which answers briefly with the tools of the notes
+// A chat with a new agent that answers briefly with the tools of the notes unless the settings say otherwise
 const createChat = async (settings: Partial<NewAgent> = {}, user: AuthUser = admin): Promise<TestChat> => {
   const agentId = await insertAgent(db, `agent-${crypto.randomUUID()}`, {
     instructions: "Be brief.",

@@ -45,7 +45,7 @@ test.describe("agent chart", () => {
     const frame = answer(page, "This is a mock response").getByTitle("Chart", { exact: true });
     await expect(frame.contentFrame().locator("canvas")).toBeVisible();
 
-    // A chart in 3D is drawn with WebGL, which has no SVG export
+    // A chart in 3D drawn with WebGL has no SVG export
     await frame.hover();
     await page.getByRole("button", { name: /download/i }).click();
     await expect(page.getByRole("menuitem", { name: "png image" })).toBeVisible();

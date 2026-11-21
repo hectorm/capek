@@ -98,7 +98,7 @@ const request = (path: string, init: RequestInit = {}): Promise<Response> => {
   return fetch(`${baseUrl}${path}`, { redirect: "manual", ...init });
 };
 
-// Proxies send UTF-8, which the headers of a request carry as one character per byte
+// The headers of a request carry the UTF-8 that proxies send as one character per byte
 const utf8 = (value: string): string => Buffer.from(value, "utf8").toString("latin1");
 
 describe("proxy authentication", () => {

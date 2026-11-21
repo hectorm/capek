@@ -71,7 +71,7 @@ const page = (nonce: string): string => `<!doctype html>
             const lineStyle = { color: "#b7b9be" };
             chart.setOption({ grid3D: { axisLine: { lineStyle }, axisPointer: { lineStyle } } });
           }
-          // Only what zrender draws on its own layers, which the charts in 3D do not use, has an SVG or more pixels
+          // A chart in 3D draws on a layer that zrender cannot export as SVG or at a higher pixel ratio
           flat = Object.values(chart.getZr().painter.getLayers()).every((layer) => layer.__builtin__);
           parent.postMessage({ type: "drawn", formats: flat ? ["png", "svg"] : ["png"] }, "*");
         } catch (error) {

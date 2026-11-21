@@ -18,7 +18,7 @@ type SettingsOutput = {
   [K in SettingKey]: SettingDefinitions[K] extends infer D
     ? D extends SettingDefinition
       ? Pick<D, "type" | "category" | "config"> & {
-          // Feature that defines the setting, whose messages hold its translations
+          // Feature whose messages hold the translations of the setting
           feature: string;
           value: SettingValueMap[K] | null;
           isOverridden: boolean;

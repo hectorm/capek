@@ -66,7 +66,7 @@ const checkFormatters = (value: unknown, path: string, parent: string): void => 
   }
 };
 
-// The browser renders after the tool returns, so options must be validated here
+// Errors that the browser finds after the tool returns never reach the agent
 const checkOption = (option: Record<string, unknown>): void => {
   const series: unknown[] = Array.isArray(option.series) ? option.series : [option.series];
   if (series.length === 0 || !series.every(isSeries)) {

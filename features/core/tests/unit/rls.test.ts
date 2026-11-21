@@ -248,7 +248,7 @@ describe("row-level security", () => {
   });
 });
 
-// Updates and deletes skip the rows that their policies hide, so the tests below count the rows that they change
+// Updates and deletes skip the rows that their policies hide without an error
 describe("users policies", () => {
   it("lets the holders of user:create insert users", async () => {
     const insert = (permissions: string[]): Promise<unknown> => {

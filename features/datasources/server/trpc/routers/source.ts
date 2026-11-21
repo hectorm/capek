@@ -99,7 +99,7 @@ const unredactConfig = (
   }
 };
 
-// An unknown type has no redactor, so its configuration stays hidden
+// The whole configuration of an unknown type stays hidden
 const redactConfig = (source: { type: string; config: string }): DatasourceConfig => {
   return findDatasourceType(source.type)?.definition.redact(decryptSourceConfig(source.config)) ?? {};
 };

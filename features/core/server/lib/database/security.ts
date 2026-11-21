@@ -19,9 +19,9 @@
 //
 // Writing a policy
 // - Use USING to check existing rows and WITH CHECK to validate the row an insert or update would store.
-// - Wrap transaction lookups in scalar subqueries, e.g. (SELECT security.user_id()), so PostgreSQL can run them once.
+// - PostgreSQL runs a transaction lookup once when a scalar subquery wraps it, e.g. (SELECT security.user_id()).
 // - Use isOwner() or hasAccess() for row-dependent checks so the planner can hash the matching rows.
-// - Qualify the outer column, e.g. isOwner(parent, "items.parent_id"), so the subquery checks the intended row.
+// - A qualified outer column, e.g. isOwner(parent, "items.parent_id"), makes the subquery check the intended row.
 // - Access-table policies use security.has_access() when an inline check would recurse into the same policy.
 // - When replacing grants, insert new entries before revoking old ones so an editor can finish transferring access.
 //
@@ -52,7 +52,7 @@ export interface OwnedResource {
   readonly ownerColumn: string;
 }
 
-// Describe an owned table for policy generation, using user_id as the default owner column
+// Describe an owned table for policy generation
 export const defineOwnedResource = (resource: {
   type: string;
   table: string;
@@ -273,7 +273,7 @@ export const isOwner = (resource: OwnedResource, column: string): string => {
   `;
 };
 
-// Build an EXISTS check for a user or group grant, optionally restricted to specific roles
+// Build an EXISTS check for a user or group grant
 export const hasAccess = (resource: SharedResource, column: string, roles?: readonly PrincipalRole[]): string => {
   assertQualified(column);
   return `
@@ -371,7 +371,7 @@ export const sharedResourcePolicies = (
             ${canAny("read:own", "list:own", "update:own", "delete:own", "use:own")}
             AND ${hasAccess(resource, `${table}.id`)}
           )
-          -- Let creators see the rows that they are creating, so they can insert their initial self-access rows
+          -- A creator has to see the rows that they are creating to insert their initial self-access rows
           OR (
             ${canAny("create")}
             AND pg_current_xact_id_if_assigned() IS NOT NULL
@@ -407,8 +407,8 @@ export const sharedResourcePolicies = (
         USING (${canEdit("delete")});
     `,
     ...protectTable(accessTable),
-    // Readers and updaters can inspect grants. The other :own permissions only expose the caller's own grants. A grant
-    // only holds IDs, so its policy stays simple and does not check which resources the reader can reach
+    // Readers and updaters can inspect grants. The other :own permissions only expose the caller's own grants. Grants
+    // hold only IDs and their policy does not check whether the reader can reach the resource
     `
       CREATE POLICY ${accessTable}_select ON public.${accessTable}
         FOR SELECT

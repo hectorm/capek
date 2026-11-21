@@ -187,7 +187,7 @@ export const coreSecurity: SecurityDefinition = {
     `
       CREATE POLICY settings_select ON public.settings
         FOR SELECT
-        -- The application filters the private settings, since only their definitions say which ones are public
+        -- The application uses the setting definitions to filter out the private settings that this policy lets through
         USING ((SELECT security.can_any(ARRAY['settings:read:all', 'settings:list:all', 'settings:read:public', 'settings:list:public'])));
     `,
     `

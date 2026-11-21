@@ -39,7 +39,7 @@ export const aiSecurity: SecurityDefinition = {
   ownedResources: [ChatResource, AgentExecutionResource],
   sharedResources: [AgentResource, LlmProviderResource, McpServerResource, SkillResource],
   statements: () => [
-    // Function to check whether an agent already links to a resource, which gives no access to it from other agents
+    // Function that lets an agent keep a linked resource without giving other agents access to it
     `
       CREATE FUNCTION security.ai_agent_has_linked_resource(agent_id UUID, resource_type TEXT, resource_id UUID)
       RETURNS BOOLEAN
@@ -59,7 +59,7 @@ export const aiSecurity: SecurityDefinition = {
       $$;
     `,
 
-    // Function to check whether a chat session already has an agent, which its user may no longer have access to
+    // Function that lets a chat session keep an agent that its user may no longer have access to
     `
       CREATE FUNCTION security.ai_chat_session_has_agent(session_id UUID, session_agent_id UUID)
       RETURNS BOOLEAN
@@ -167,7 +167,7 @@ export const aiSecurity: SecurityDefinition = {
     // Chat Session VFS
     ...protectTable("ai_chat_session_vfs"),
     ...chatSelectPolicies("ai_chat_session_vfs", isOwner(ChatResource, "ai_chat_session_vfs.session_id")),
-    // The files of a chat change with it, so writing them takes the permission to update the chat
+    // Writing the files of a chat counts as an update of the chat
     `
       CREATE POLICY ai_chat_session_vfs_insert ON public.ai_chat_session_vfs
         FOR INSERT

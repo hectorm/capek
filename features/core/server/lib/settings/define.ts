@@ -81,7 +81,7 @@ export type SettingDefinition<V = unknown> =
 
 export const defineSetting = <V>(def: SettingDefinition<V>): SettingDefinition<V> => def;
 
-// Setting definitions of each feature, registered through declaration merging
+// Each feature registers its setting definitions here through declaration merging
 export interface SettingRegistry {
   core: typeof coreSettings;
 }

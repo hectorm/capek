@@ -7,7 +7,7 @@ import { RLSViolationError } from "#layers/core/server/lib/database/errors";
 
 // Resource shared with users and groups through an access table, as "editor" (manage) or "user" (read and use)
 export interface SharedResource {
-  // Resource type, used as permission prefix (e.g. `<type>:read:own`) and by `security.has_access()`
+  // Prefix of the permissions (e.g. `<type>:read:own`) and first argument of `security.has_access()`
   readonly type: string;
   readonly table: string;
   readonly accessTable: string;

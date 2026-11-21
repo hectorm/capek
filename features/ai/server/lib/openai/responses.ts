@@ -71,7 +71,7 @@ export const toResponsesRequest = (request: LlmRequest): OpenAIResponsesRequest 
     model: request.model,
     input,
     stream: request.stream,
-    // Each request carries the full history, so the provider can skip storing the response
+    // Each request carries the full history
     store: false,
     include: ["reasoning.encrypted_content"],
     max_output_tokens: request.max_output_tokens,

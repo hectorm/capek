@@ -168,7 +168,7 @@ export type ResourceAccessTable<K extends string> = {
 
 ////////////////////////////////
 
-// Database tables of each feature, registered through declaration merging
+// Each feature registers its database tables here through declaration merging
 export interface Database {
   users: UsersTable;
   groups: GroupsTable;

@@ -18,13 +18,13 @@ import { toOwnerIds } from "#layers/core/app/utils/access";
 import ResourceLoadError from "#layers/core/app/components/ui/ResourceLoadError.vue";
 
 const props = defineProps<{
-  // Prefix of the resource messages, used for its "delete.*" and "actions.delete.*" keys
+  // Prefix of the "delete.*" and "actions.delete.*" messages of the resource
   i18nPrefix: string;
   name: string;
   deletePermissions: PermissionName[];
-  // Omitted for resources without owners, which only the ":all" permissions can delete
+  // Omitted when only the ":all" permissions can delete the resource
   loadAccess?: () => Promise<Principal[]>;
-  // Set for a resource that the user owns or reaches through inherited access, which no access list tells
+  // Set when the user owns the resource or reaches it through inherited access
   isOwner?: boolean;
   remove: () => Promise<unknown>;
 }>();

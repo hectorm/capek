@@ -37,7 +37,7 @@ export const CorePermissions = {
 
 export type CorePermissionName = (typeof CorePermissions)[keyof typeof CorePermissions];
 
-// Permission names of each feature, registered through declaration merging
+// Each feature registers its permission names here through declaration merging
 export interface PermissionRegistry {
   core: CorePermissionName;
 }
@@ -114,7 +114,7 @@ export interface GroupPrincipal {
 
 export type Principal = UserPrincipal | GroupPrincipal;
 
-// Access entry of a shared resource, as received when it is saved
+// Access entry that a client sends to save the access of a shared resource
 export const PrincipalAccessSchema = z.object({
   id: z.uuid(),
   type: z.enum(["user", "group"]),

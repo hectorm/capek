@@ -62,7 +62,7 @@ const notesProvider = defineToolProvider({
     };
   },
 });
-// Provider without resources, switched on for each agent
+// Provider without resources that an agent switches on in its settings
 const profileProvider = defineToolProvider({
   name: "notes_profile",
   label: "notes.tools.profile.label",

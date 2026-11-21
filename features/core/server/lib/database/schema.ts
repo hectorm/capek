@@ -4,7 +4,7 @@ import { sql } from "kysely";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { Database } from "#layers/core/shared/schema";
 
-// Natural sort collation for user facing text, created by the core migrations if ICU is available
+// The core migrations create this natural sort collation for user facing text if ICU is available
 export const naturalCollation = async (db: Kysely<Database>): Promise<RawBuilder<unknown>> => {
   const result = await sql<{ found: boolean }>`
     SELECT EXISTS (SELECT 1 FROM pg_collation WHERE collname = 'natural_cs') AS found
