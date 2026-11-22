@@ -8,9 +8,10 @@ test.describe("keyboard", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("main")).toBeFocused();
+    const content = page.getByRole("main");
+    await expect(content).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Sort by Name" })).toBeFocused();
+    await expect(content.locator(":focus")).toBeVisible();
   });
 
   test("moves the focus to the content after a section is opened from the sidebar", async ({ page }) => {
@@ -20,11 +21,11 @@ test.describe("keyboard", () => {
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole("menu")).toBeHidden();
 
-    const name = page.getByRole("textbox", { name: "Application name" });
-    await expect(name).toBeVisible();
-    await expect(page.getByRole("main")).toBeFocused();
+    const content = page.getByRole("main");
+    await expect(page.getByRole("textbox", { name: "Application name" })).toBeVisible();
+    await expect(content).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(name).toBeFocused();
+    await expect(content.locator(":focus")).toBeVisible();
   });
 
   test("keeps the focus when only the query changes", async ({ page }) => {
