@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isTRPCClientError } from "@trpc/client";
 import { computed, reactive } from "vue";
-import { useI18n } from "vue-i18n";
+import { Translation, useI18n } from "vue-i18n";
 import { z } from "zod/v4";
 
 import type { AppRouter } from "#features/router";
@@ -113,12 +113,14 @@ const onCancel = (): void => {
         <div v-if="!props.requireName">
           {{ $t(`${props.i18nPrefix}.delete.confirm`, { name: props.name }) }}
         </div>
-        <UFormField
-          v-else
-          name="name"
-          :ui="{ label: 'wrap-anywhere' }"
-          :label="$t('components.confirmDeleteModal.form.name.label', { name: props.name })"
-        >
+        <UFormField v-else name="name" :ui="{ label: 'wrap-anywhere' }">
+          <template #label>
+            <Translation scope="global" keypath="components.confirmDeleteModal.form.name.label">
+              <template #name>
+                <span class="cursor-text select-all" @click.prevent @mousedown.stop>{{ props.name }}</span>
+              </template>
+            </Translation>
+          </template>
           <UInput v-model="state.name" autofocus type="text" class="w-full" autocomplete="off" :disabled="!canDelete" />
         </UFormField>
         <div class="flex justify-end gap-2">
