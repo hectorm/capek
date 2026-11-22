@@ -42,6 +42,7 @@ export interface ResourceTableState<Q extends ResourceTableQuery, R extends { id
   retry: Readonly<ShallowRef<(() => Promise<void>) | undefined>>;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
+  setQuery: (query: Q) => Promise<void>;
   setOrder: (columnId: string, order: "asc" | "desc") => Promise<void>;
   setFilter: (columnId: string, value: string | string[]) => Promise<void>;
 }
@@ -132,6 +133,7 @@ export const useResourceTable = async <Q extends ResourceTableQuery, R extends {
     retry,
     refresh: () => load(query.value),
     loadMore,
+    setQuery: (nextQuery) => load(nextQuery),
     setOrder,
     setFilter,
   };
