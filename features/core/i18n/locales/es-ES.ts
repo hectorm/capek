@@ -4,6 +4,7 @@ export default (): ReturnType<typeof enUS> => ({
   layouts: {
     default: {
       description: "Área de trabajo de la aplicación",
+      skipToContent: "Saltar al contenido",
       sidebar: {
         title: "Menú",
         description: "Menú de navegación",

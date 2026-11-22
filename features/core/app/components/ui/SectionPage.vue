@@ -47,8 +47,8 @@ const menu = computed<NavigationMenuItem[]>(() => {
       />
       <h1 class="text-xl font-bold">{{ title }}</h1>
     </header>
+    <SectionTabs :items="menu" />
     <main class="flex flex-col overflow-hidden">
-      <SectionTabs :items="menu" />
       <NuxtPage />
     </main>
   </div>

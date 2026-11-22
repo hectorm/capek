@@ -11,6 +11,7 @@ import UDropdownMenu from "@nuxt/ui/components/DropdownMenu.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
 import { useUserStore } from "#layers/core/app/stores/user";
+import { keepMovedFocus } from "#layers/core/app/utils/focus";
 import { locales } from "#layers/core/app/utils/locales";
 
 defineProps<{
@@ -117,8 +118,8 @@ onMounted(() => {
 <template>
   <UDropdownMenu
     :items="items"
-    :content="{ align: 'center', collisionPadding: 12 }"
     :ui="{ content: collapsed ? 'w-48' : 'w-(--reka-dropdown-menu-trigger-width)' }"
+    :content="{ align: 'center', collisionPadding: 12, onCloseAutoFocus: keepMovedFocus }"
   >
     <UButton
       color="neutral"

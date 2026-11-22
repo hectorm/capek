@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { breakpointsTailwind, createReusableTemplate, useBreakpoints } from "@vueuse/core";
-import { useCookie } from "nuxt/app";
-import { computed, provide, readonly, ref, watch } from "vue";
+import { useCookie, useNuxtApp } from "nuxt/app";
+import { computed, provide, readonly, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
@@ -13,11 +13,13 @@ import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 import USlideover from "@nuxt/ui/components/Slideover.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
+import { keepMovedFocus } from "#layers/core/app/utils/focus";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 
 import AppLogo from "#layers/core/app/components/ui/AppLogo.vue";
 import UserMenu from "#layers/core/app/components/ui/UserMenu.vue";
 
+const nuxtApp = useNuxtApp();
 const i18n = useI18n();
 const route = useRoute();
 
@@ -34,6 +36,7 @@ const sidebarOpen = useCookie(`sidebar_open`, {
   sameSite: "lax",
 });
 const slideoverOpen = ref<boolean>(false);
+const page = useTemplateRef<HTMLElement>("page");
 const open = computed({
   get: () => (lgAndLarger.value ? sidebarOpen.value : slideoverOpen.value),
   set: (value) => ((lgAndLarger.value ? sidebarOpen : slideoverOpen).value = value),
@@ -56,6 +59,17 @@ const toggle = (): void => {
 };
 provide(sidebarKey, { open: readonly(open), toggle });
 
+const focusContent = (): void => {
+  const content = page.value?.querySelector("main") ?? page.value;
+  if (!content || content.contains(document.activeElement)) {
+    return;
+  }
+
+  content.tabIndex = -1;
+  content.classList.add("outline-none");
+  content.focus({ preventScroll: true });
+};
+
 for (const setup of layoutSetups) {
   setup();
 }
@@ -66,12 +80,21 @@ watch(
     if (!lgAndLarger.value && slideoverOpen.value) {
       slideoverOpen.value = false;
     }
+    // A timeout lets the page focus its own control first
+    nuxtApp.hooks.hookOnce("page:loading:end", () => void setTimeout(focusContent));
   },
 );
 </script>
 
 <template>
   <div class="flex h-screen flex-row">
+    <a
+      href="#"
+      class="fixed inset-s-4 top-4 z-50 rounded-md bg-default px-3 py-2 text-sm font-medium text-highlighted not-focus:sr-only"
+      @click.prevent="focusContent"
+    >
+      {{ $t("layouts.default.skipToContent") }}
+    </a>
     <DefineMenu>
       <div class="flex flex-row items-center gap-2 p-4">
         <UButton
@@ -123,6 +146,7 @@ watch(
         v-model:open="slideoverOpen"
         side="left"
         :title="$t('layouts.default.sidebar.title')"
+        :content="{ onCloseAutoFocus: keepMovedFocus }"
         :description="$t('layouts.default.sidebar.description')"
       >
         <template #content>
@@ -130,6 +154,8 @@ watch(
         </template>
       </USlideover>
     </template>
-    <slot />
+    <div ref="page" class="flex min-w-0 flex-1">
+      <slot />
+    </div>
   </div>
 </template>

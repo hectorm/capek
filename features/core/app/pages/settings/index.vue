@@ -344,6 +344,7 @@ definePageMeta({
                   :pattern="settingItem.config.itemPattern"
                   :maxlength="settingItem.config.itemMaxLength"
                   :minlength="settingItem.config.itemMinLength"
+                  :aria-label="$t(fieldKey(settingItem, 'label'))"
                   :required="settingItem.config.itemMinLength > 0"
                   :disabled="!can(CorePermissions.SettingsUpdateAll)"
                   :placeholder="$t(fieldKey(settingItem, 'placeholder'))"
@@ -412,6 +413,7 @@ definePageMeta({
             </UFieldGroup>
             <UFieldGroup v-else-if="settingItem.type === SettingType.Number">
               <UInputNumber
+                :id="settingItem.key"
                 color="neutral"
                 variant="outline"
                 :max="settingItem.config.max"

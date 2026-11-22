@@ -2,6 +2,7 @@ export default () => ({
   layouts: {
     default: {
       description: "Application workspace",
+      skipToContent: "Skip to content",
       sidebar: {
         title: "Menu",
         description: "Navigation menu",
