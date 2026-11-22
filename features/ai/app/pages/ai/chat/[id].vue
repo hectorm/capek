@@ -15,6 +15,7 @@ import {
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
+import type { DropdownMenuItem } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
 import UChatMessages from "@nuxt/ui/components/ChatMessages.vue";
 import UChatPrompt from "@nuxt/ui/components/ChatPrompt.vue";
@@ -175,16 +176,17 @@ const assistantProps = computed(() => ({
       : [],
 }));
 
-const actionItems = computed(() => [
+const actionItems = computed<DropdownMenuItem[]>(() => [
   {
     label: i18n.t("ai.pages.chat.actions.rename"),
     icon: "i-lucide-pencil",
-    onSelect: handleRenameSession,
+    onSelect: () => void handleRenameSession(),
   },
   {
     label: i18n.t("ai.pages.chat.actions.delete"),
     icon: "i-lucide-trash-2",
-    onSelect: handleDeleteSession,
+    color: "error",
+    onSelect: () => void handleDeleteSession(),
   },
 ]);
 
@@ -302,7 +304,7 @@ const handleRenameSession = async (): Promise<void> => {
 };
 
 const handleDeleteSession = async (): Promise<void> => {
-  if (await confirmDelete({ id: sessionId.value, title: chatStore.currentSession?.title })) {
+  if (await confirmDelete({ id: sessionId.value, title: chatStore.currentSession?.title ?? "" })) {
     await navigateTo("/ai");
   }
 };

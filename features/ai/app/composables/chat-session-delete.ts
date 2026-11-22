@@ -7,7 +7,7 @@ import { AiPermissions } from "#layers/ai/shared/rbac";
 
 import ConfirmDeleteModal from "#layers/core/app/components/ui/ConfirmDeleteModal.vue";
 
-export type ChatSessionDelete = (session: { id: string; title?: string | null }) => Promise<boolean>;
+export type ChatSessionDelete = (session: { id: string; title: string }) => Promise<boolean>;
 
 const chatSessionDeletePermissions = [AiPermissions.ChatDeleteAll, AiPermissions.ChatDeleteOwn];
 
@@ -19,7 +19,7 @@ export const useChatSessionDelete = (): ChatSessionDelete => {
   return async ({ id, title }) => {
     const confirmation = overlay.create(ConfirmDeleteModal, { destroyOnClose: true }).open({
       i18nPrefix: "ai.pages.chat.session",
-      name: title ?? i18n.t("ai.pages.chat.untitled"),
+      name: title || i18n.t("ai.pages.chat.untitled"),
       deletePermissions: chatSessionDeletePermissions,
       // A chat belongs to one user and has no access list
       isOwner: true,
