@@ -56,8 +56,6 @@ jobs:
           key: "cache-${{ matrix.runner }}-${{ matrix.features.id }}-${{ github.sha }}"
           restore-keys: "cache-${{ matrix.runner }}-${{ matrix.features.id }}-"
       - name: "Run linter"
-        env:
-          NODE_OPTIONS: "--disable-warning=ESLintPoorConcurrencyWarning"
         run: "pnpm run lint"
       - name: "Install Playwright browsers"
         run: "pnpm exec playwright install --with-deps chromium firefox webkit"

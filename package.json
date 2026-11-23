@@ -23,7 +23,7 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "start": "nuxt start",
-    "lint": "nuxt prepare && run-p --aggregate-output lint:typecheck lint:eslint lint:prettier",
+    "lint": "nuxt prepare && run-s lint:typecheck lint:eslint lint:prettier",
     "lint:typecheck": "vue-tsc -b --noEmit",
     "lint:eslint": "eslint --max-warnings 0 --cache --cache-strategy content --cache-location .cache/eslint/ ./",
     "lint:prettier": "prettier --cache --cache-strategy content --cache-location .cache/prettier --list-different ./",
