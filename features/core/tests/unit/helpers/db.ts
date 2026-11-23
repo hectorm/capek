@@ -1,3 +1,5 @@
+import process from "node:process";
+
 import type { AnyRouter } from "@trpc/server";
 import type { Kysely, Transaction } from "kysely";
 import { z } from "zod/v4";
@@ -18,6 +20,11 @@ export { closeDb } from "#layers/core/server/lib/database";
 export { isSuperuser } from "#layers/core/server/lib/database/rls";
 
 export const createTestDb = async (features: readonly ServerFeature[] = []): Promise<Kysely<Database>> => {
+  if (process.env.TEST_DATABASE_URL) {
+    const { createPostgresDatabase } = await import("#layers/core/tests/unit/helpers/postgres");
+    await createPostgresDatabase();
+  }
+
   const db = await useDb();
   await migrateToLatest(db, [coreFeature, ...features]);
   await loadEncryptionKeys();

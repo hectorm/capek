@@ -14,6 +14,12 @@ import { closeDb } from "#layers/core/tests/unit/helpers/db";
 
 vi.mock("@electric-sql/pglite", { spy: true });
 
+// The lifecycle tests exercise the embedded driver
+await vi.hoisted(async () => {
+  const { runtimeConfig } = await import("#layers/core/tests/unit/helpers/nitro-config");
+  runtimeConfig.databaseUrl = "memory://";
+});
+
 const { isWorker } = cluster;
 
 const createWorker = (): { worker: Worker; send: Mock } => {

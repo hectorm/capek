@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { defaultExclude, defineConfig } from "vitest/config";
@@ -26,6 +27,7 @@ export default defineConfig({
     env: { HTTP_PROXY: "", HTTPS_PROXY: "", NO_PROXY: "", http_proxy: "", https_proxy: "", no_proxy: "" },
     testTimeout: 30000,
     hookTimeout: 30000,
+    setupFiles: process.env.TEST_DATABASE_URL ? [`${rootDir}features/core/tests/unit/helpers/postgres.ts`] : [],
     exclude: [...defaultExclude, ...selection.excludedFiles],
     projects: projects.map((name) => ({
       extends: true,
