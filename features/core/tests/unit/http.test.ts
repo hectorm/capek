@@ -154,6 +154,7 @@ describe("endpoint request", () => {
   let server: http.Server;
   let port: string;
   let requests: number;
+  let lastRequest: http.IncomingMessage | undefined;
   let respond: (req: http.IncomingMessage, res: http.ServerResponse) => void;
   let addresses: LookupAddress[];
   const destinations: LookupAddress[] = [];
@@ -167,6 +168,7 @@ describe("endpoint request", () => {
   beforeAll(async () => {
     server = http.createServer((req, res) => {
       requests++;
+      lastRequest = req;
       res.setHeader("Connection", "close");
       respond(req, res);
     });
@@ -176,10 +178,11 @@ describe("endpoint request", () => {
 
   beforeEach(() => {
     requests = 0;
+    lastRequest = undefined;
     destinations.length = 0;
     addresses = [publicAddress];
     allowHosts("");
-    respond = (req, res) => res.end(req.headers.host);
+    respond = (_req, res) => res.end();
     resolveDns.mockReset().mockImplementation((_hostname, _options, callback) => {
       callback(null, addresses);
     });
@@ -331,12 +334,12 @@ describe("endpoint request", () => {
       } else if (req.url === "/next") {
         res.writeHead(301, { Location: new URL("/final", urlOf("cdn.example")).href }).end();
       } else {
-        res.end(req.headers.host);
+        res.end();
       }
     };
     const init = { method: "POST", headers: { "X-Token": "secret" }, body: "{}", redirect: "follow" } as const;
-    const response = await fetchEndpoint(urlOf("pictures.example"), init);
-    expect(await response.text()).toBe(`cdn.example:${port}`);
+    await fetchEndpoint(urlOf("pictures.example"), init);
+    expect(lastRequest?.headers.host).toBe(`cdn.example:${port}`);
     expect(seen).toEqual(["POST /endpoint secret", "GET /next undefined", "GET /final undefined"]);
     expect(resolveDns).toHaveBeenCalledTimes(3);
     expect(destinations).toEqual([publicAddress, publicAddress, publicAddress]);
@@ -364,15 +367,14 @@ describe("endpoint request", () => {
   ])("reaches $label", async ({ list, host }) => {
     allowHosts(list);
     addresses = [privateAddress];
-    const response = await fetchEndpoint(urlOf(host));
-    expect(await response.text()).toBe(`${host}:${port}`);
+    await fetchEndpoint(urlOf(host));
+    expect(lastRequest?.headers.host).toBe(`${host}:${port}`);
   });
 
   it("is sent through the proxy of the environment after checking the addresses of its host", async () => {
     vi.stubEnv("HTTP_PROXY", `http://127.0.0.1:${port}`);
-    respond = (req, res) => res.end(req.url);
-    const response = await fetchEndpoint(urlOf("llm.example"));
-    expect(await response.text()).toBe(urlOf("llm.example"));
+    await fetchEndpoint(urlOf("llm.example"));
+    expect(lastRequest?.url).toBe(urlOf("llm.example"));
     expect(resolveDns).toHaveBeenCalledWith("llm.example", { all: true }, expect.any(Function));
     expect(destinations).toEqual([]);
   });
@@ -389,9 +391,8 @@ describe("endpoint request", () => {
     resolveDns.mockImplementation((hostname, _options, callback) => {
       callback(Object.assign(new Error(`getaddrinfo ENOTFOUND ${hostname}`), { code: "ENOTFOUND" }), "");
     });
-    respond = (req, res) => res.end(req.url);
-    const response = await fetchEndpoint(urlOf("llm.example"));
-    expect(await response.text()).toBe(urlOf("llm.example"));
+    await fetchEndpoint(urlOf("llm.example"));
+    expect(lastRequest?.url).toBe(urlOf("llm.example"));
   });
 
   it("is not sent through the proxy when its signal aborts while checking its host", async () => {
@@ -421,16 +422,14 @@ describe("endpoint request", () => {
     { label: "with an uppercase scheme", proxy: "HTTP://127.0.0.1:{port}" },
   ])("is sent through a proxy $label", async ({ proxy }) => {
     vi.stubEnv("HTTP_PROXY", proxy.replace("{port}", port));
-    respond = (req, res) => res.end(req.url);
-    const response = await fetchEndpoint(urlOf("llm.example"));
-    expect(await response.text()).toBe(urlOf("llm.example"));
+    await fetchEndpoint(urlOf("llm.example"));
+    expect(lastRequest?.url).toBe(urlOf("llm.example"));
   });
 
   it("is sent through the lowercase proxy variable when the uppercase one is empty", async () => {
     vi.stubEnv("http_proxy", `http://127.0.0.1:${port}`);
-    respond = (req, res) => res.end(req.url);
-    const response = await fetchEndpoint(urlOf("llm.example"));
-    expect(await response.text()).toBe(urlOf("llm.example"));
+    await fetchEndpoint(urlOf("llm.example"));
+    expect(lastRequest?.url).toBe(urlOf("llm.example"));
   });
 
   it("is not sent through a proxy that is not an HTTP or HTTPS URL", async () => {
@@ -441,9 +440,9 @@ describe("endpoint request", () => {
 
   it("is sent through the proxy to the host of its URL, whatever its Host header", async () => {
     vi.stubEnv("HTTP_PROXY", `http://127.0.0.1:${port}`);
-    respond = (req, res) => res.end(`${String(req.url)} ${String(req.headers.host)}`);
-    const response = await fetchEndpoint(urlOf("llm.example"), { headers: { Host: "127.0.0.1" } });
-    expect(await response.text()).toBe(`${urlOf("llm.example")} llm.example:${port}`);
+    await fetchEndpoint(urlOf("llm.example"), { headers: { Host: "127.0.0.1" } });
+    expect(lastRequest?.url).toBe(urlOf("llm.example"));
+    expect(lastRequest?.headers.host).toBe(`llm.example:${port}`);
   });
 
   it.each([
@@ -453,15 +452,15 @@ describe("endpoint request", () => {
     vi.stubEnv("HTTP_PROXY", "http://127.0.0.1:9");
     allowHosts(`${host}:{port}`);
     addresses = [{ address: "127.0.0.1", family: 4 }];
-    const response = await fetchEndpoint(urlOf(host));
-    expect(await response.text()).toBe(`${host}:${port}`);
+    await fetchEndpoint(urlOf(host));
+    expect(lastRequest?.headers.host).toBe(`${host}:${port}`);
   });
 
   it("is not sent through the proxy to the hosts of NO_PROXY", async () => {
     vi.stubEnv("HTTP_PROXY", "http://127.0.0.1:9");
     vi.stubEnv("NO_PROXY", "localhost, 192.168.*, <local>, .example");
-    const response = await fetchEndpoint(urlOf("llm.example"));
-    expect(await response.text()).toBe(`llm.example:${port}`);
+    await fetchEndpoint(urlOf("llm.example"));
+    expect(lastRequest?.headers.host).toBe(`llm.example:${port}`);
     expect(destinations).toEqual([publicAddress]);
   });
 
