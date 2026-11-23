@@ -34,9 +34,17 @@ jobs:
             name: "core feature"
             value: "core"
             tests: "test:unit test:chromium"
+    services:
+      postgres:
+        image: "docker.io/postgres:18-alpine"
+        env:
+          POSTGRES_HOST_AUTH_METHOD: "trust"
+        ports: ["5432:5432"]
+        options: "--health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10"
     env:
       FEATURES: "${{ matrix.features.value }}"
       PLAYWRIGHT_BROWSERS_PATH: "${{ github.workspace }}/.cache/ms-playwright/"
+      TEST_DATABASE_URL: "postgresql://postgres@localhost:5432/postgres"
     steps:
       - name: "Checkout"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
