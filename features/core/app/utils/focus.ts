@@ -1,8 +1,14 @@
+let navigating = false;
+
 // Overlays that a navigation closes leave the focus in the new page
 export const keepMovedFocus = (event: Event): void => {
-  if (!(event.target as Element).contains(document.activeElement)) {
+  if (navigating || !(event.target as Element).contains(document.activeElement)) {
     event.preventDefault();
   }
+};
+
+export const setNavigating = (value: boolean): void => {
+  navigating = value;
 };
 
 // A closing menu takes the focus back when the pointer leaves one of its items

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { breakpointsTailwind, createReusableTemplate, useBreakpoints, useEventListener } from "@vueuse/core";
 import { useCookie, useNuxtApp } from "nuxt/app";
-import { computed, provide, readonly, ref, useTemplateRef, watch } from "vue";
+import { computed, onScopeDispose, provide, readonly, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
@@ -13,7 +13,7 @@ import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 import USlideover from "@nuxt/ui/components/Slideover.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
-import { ignoreClosingMenu, keepMovedFocus } from "#layers/core/app/utils/focus";
+import { ignoreClosingMenu, keepMovedFocus, setNavigating } from "#layers/core/app/utils/focus";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 
 import AppLogo from "#layers/core/app/components/ui/AppLogo.vue";
@@ -59,6 +59,8 @@ const toggle = (): void => {
 };
 provide(sidebarKey, { open: readonly(open), toggle });
 
+let focusedPath = route.path;
+
 const focusContent = (): void => {
   const content = page.value?.querySelector("main") ?? page.value;
   if (!content || content.contains(document.activeElement)) {
@@ -82,9 +84,26 @@ watch(
     if (!lgAndLarger.value && slideoverOpen.value) {
       slideoverOpen.value = false;
     }
-    // A timeout lets the page focus its own control first
-    nuxtApp.hooks.hookOnce("page:loading:end", () => void setTimeout(focusContent));
   },
+);
+
+onScopeDispose(
+  nuxtApp.hook("page:loading:start", () => {
+    setNavigating(true);
+  }),
+);
+
+onScopeDispose(
+  nuxtApp.hook("page:loading:end", () => {
+    // A timeout lets the page focus its own control first
+    setTimeout(() => {
+      if (route.path !== focusedPath) {
+        focusedPath = route.path;
+        focusContent();
+      }
+      setNavigating(false);
+    });
+  }),
 );
 </script>
 
