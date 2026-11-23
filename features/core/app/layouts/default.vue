@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { breakpointsTailwind, createReusableTemplate, useBreakpoints } from "@vueuse/core";
+import { breakpointsTailwind, createReusableTemplate, useBreakpoints, useEventListener } from "@vueuse/core";
 import { useCookie, useNuxtApp } from "nuxt/app";
 import { computed, provide, readonly, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -13,7 +13,7 @@ import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 import USlideover from "@nuxt/ui/components/Slideover.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
-import { keepMovedFocus } from "#layers/core/app/utils/focus";
+import { ignoreClosingMenu, keepMovedFocus } from "#layers/core/app/utils/focus";
 import { sidebarKey } from "#layers/core/app/utils/symbols";
 
 import AppLogo from "#layers/core/app/components/ui/AppLogo.vue";
@@ -69,6 +69,8 @@ const focusContent = (): void => {
   content.classList.add("outline-none");
   content.focus({ preventScroll: true });
 };
+
+useEventListener("pointerleave", ignoreClosingMenu, { capture: true });
 
 for (const setup of layoutSetups) {
   setup();
