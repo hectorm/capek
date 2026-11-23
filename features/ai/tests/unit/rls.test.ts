@@ -5,9 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { UserTransactionOptions } from "#layers/core/server/lib/database";
 import type { ResourceSelectAction } from "#layers/core/server/lib/database/security";
+import type { PermissionName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
-import aiFeature from "#layers/ai/server/feature";
 import {
   AgentResource,
   ChatResource,
@@ -16,21 +16,20 @@ import {
   SkillResource,
 } from "#layers/ai/server/lib/resources";
 import { decryptLlmProviderSecrets } from "#layers/ai/server/lib/secrets";
-import { AiRolePermissions } from "#layers/ai/shared/rbac";
+import { AiPermissions, AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
   asUser,
   closeDb,
   createAiTestDb,
   insertAgent,
+  insertChatSession,
   insertLlmProvider,
   insertMcpServer,
   insertSkill,
   insertUsers,
 } from "#layers/ai/tests/unit/helpers/db";
-import coreFeature from "#layers/core/server/feature";
 import { grantResourceAccess, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
 import { withUserTransaction } from "#layers/core/server/lib/database";
-import { composeSecurity } from "#layers/core/server/lib/database/security";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
 let db: Kysely<Database>;
@@ -67,10 +66,9 @@ afterAll(async () => {
   await closeDb();
 });
 
-const own = ["ai_agent:read:own", "ai_agent:list:own"];
-const all = ["ai_agent:read:all", "ai_agent:list:all"];
+const own = [AiPermissions.AgentReadOwn, AiPermissions.AgentListOwn];
+const all = [AiPermissions.AgentReadAll, AiPermissions.AgentListAll];
 
-// Runs as the principal with what the server adds to a transaction, such as trusted writes or the scope of a resource
 const asUserWith = <T>(
   principal: TestPrincipal,
   options: UserTransactionOptions,
@@ -120,15 +118,6 @@ const deleteRows = async (trx: Kysely<Database>, table: string, filter: Record<s
   return result.numAffectedRows ?? 0n;
 };
 
-const insertSession = async (userId: string, agentId: string | null = null): Promise<string> => {
-  const session = await db
-    .insertInto("aiChatSessions")
-    .values({ userId, agentId, title: "" })
-    .returning(["id"])
-    .executeTakeFirstOrThrow();
-  return session.id;
-};
-
 const insertMessage = async (sessionId: string, role: "user" | "assistant", content = ""): Promise<string> => {
   const message = await db
     .insertInto("aiChatMessages")
@@ -150,70 +139,19 @@ describe("agent visibility", () => {
     },
     {
       principal: "a principal without agent permissions",
-      as: { id: bob, permissions: ["ai_chat:read:own"] },
+      as: { id: bob, permissions: [AiPermissions.ChatReadOwn] },
       agents: [],
     },
   ])("lets $principal read the agents that it can access", async ({ as, agents }) => {
-    const visible = await asUser(as, (trx) => trx.selectFrom("aiAgents").select(["name"]).orderBy("name").execute());
+    const visible = await asUser(as, (trx) => {
+      return trx
+        .selectFrom("aiAgents")
+        .select(["name"])
+        .where("name", "in", ["group-agent", "orphan-agent", "owned-agent", "shared-agent"])
+        .orderBy("name")
+        .execute();
+    });
     expect(visible.map((agent) => agent.name)).toEqual(agents);
-  });
-});
-
-describe("principal visibility", () => {
-  const memberPermissions = [...CoreRolePermissions[Roles.Member], ...AiRolePermissions[Roles.Member]];
-
-  const visibleUserIds = (principal: TestPrincipal): Promise<string[]> => {
-    return asUser(principal, async (trx) => {
-      const rows = await trx.selectFrom("users").select(["id"]).execute();
-      return rows.map((r) => r.id);
-    });
-  };
-
-  const visibleGroupIds = (principal: TestPrincipal): Promise<string[]> => {
-    return asUser(principal, async (trx) => {
-      const rows = await trx.selectFrom("groups").select(["id"]).execute();
-      return rows.map((r) => r.id);
-    });
-  };
-
-  it("covers every shared resource type", () => {
-    const statements = composeSecurity([coreFeature, aiFeature]);
-    for (const policy of ["users_select", "groups_select"]) {
-      const statement = statements.find((s) => s.includes(`CREATE POLICY ${policy} `)) ?? "";
-      for (const resource of [AgentResource, LlmProviderResource, McpServerResource, SkillResource]) {
-        expect(statement).toContain(`public.${resource.accessTable} `);
-      }
-    }
-  });
-
-  it("shows editors the principals that a resource is shared with", async () => {
-    const dave = crypto.randomUUID();
-    const erin = crypto.randomUUID();
-    const frankGroup = crypto.randomUUID();
-
-    await insertUsers(db, { dave, erin });
-    await db.insertInto("groups").values({ id: frankGroup, name: "frank-group", description: "" }).execute();
-
-    expect(await visibleUserIds({ id: dave, permissions: memberPermissions })).toEqual([dave]);
-    expect(await visibleGroupIds({ id: dave, permissions: memberPermissions })).toEqual([]);
-
-    const skillId = await insertSkill(db, "shared-skill");
-    await db
-      .insertInto("aiSkillAccess")
-      .values([
-        { skillId, userId: dave, role: "editor" },
-        { skillId, userId: erin, role: "user" },
-        { skillId, groupId: frankGroup, role: "user" },
-      ])
-      .execute();
-
-    expect((await visibleUserIds({ id: dave, permissions: memberPermissions })).toSorted()).toEqual(
-      [dave, erin].toSorted(),
-    );
-    expect(await visibleGroupIds({ id: dave, permissions: memberPermissions })).toEqual([frankGroup]);
-
-    // Users of a resource do not see the other principals, only its editors do
-    expect(await visibleUserIds({ id: erin, permissions: memberPermissions })).toEqual([erin]);
   });
 });
 
@@ -256,7 +194,7 @@ describe("resource access sync", () => {
       ])
       .execute();
 
-    const principal = { id: alice, permissions: ["ai_skill:read:own", "ai_skill:update:own"] };
+    const principal = { id: alice, permissions: [AiPermissions.SkillReadOwn, AiPermissions.SkillUpdateOwn] };
     await expect(asUser(principal, (trx) => syncResourceAccess(trx, SkillResource, skillId, []))).rejects.toThrow(
       /could not be revoked/,
     );
@@ -269,7 +207,11 @@ describe("resource access sync", () => {
 describe("resource secret", () => {
   it("is only locked for update by an editor", async () => {
     const grace = crypto.randomUUID();
-    const permissions = ["ai_llm_provider:create", "ai_llm_provider:update:own", "ai_llm_provider:use:own"];
+    const permissions = [
+      AiPermissions.LlmProviderCreate,
+      AiPermissions.LlmProviderUpdateOwn,
+      AiPermissions.LlmProviderUseOwn,
+    ];
 
     await insertUsers(db, { grace });
     const llmProviderId = await insertLlmProvider(db, "locked-provider");
@@ -330,95 +272,10 @@ describe("resource creation", () => {
   it("rejects creators granting access to others", async () => {
     const skillId = crypto.randomUUID();
     await expect(
-      asUser({ id: alice, permissions: ["ai_skill:create"] }, async (trx) => {
+      asUser({ id: alice, permissions: [AiPermissions.SkillCreate] }, async (trx) => {
         await trx.insertInto("aiSkills").values({ id: skillId, name: "given-skill", description: "" }).execute();
         await grantResourceAccess(trx, SkillResource, skillId, [{ id: bob, type: "user", role: "editor" }]);
       }),
-    ).rejects.toThrow(/row-level security/);
-  });
-});
-
-describe("chat ownership", () => {
-  const permissions = [...AiRolePermissions[Roles.Member]];
-  let sessionId: string;
-
-  beforeAll(async () => {
-    const session = await db
-      .insertInto("aiChatSessions")
-      .values({ userId: alice, agentId: null, title: "private" })
-      .returning(["id"])
-      .executeTakeFirstOrThrow();
-    sessionId = session.id;
-    await db.insertInto("aiChatMessages").values({ sessionId, role: "user", content: "secret" }).execute();
-  });
-
-  const visibleMessages = (userId: string): Promise<string[]> => {
-    return asUser({ id: userId, permissions }, async (trx) => {
-      const rows = await trx
-        .selectFrom("aiChatMessages")
-        .select(["content"])
-        .where("sessionId", "=", sessionId)
-        .execute();
-      return rows.map((row) => row.content);
-    });
-  };
-
-  it("only shows the messages of a chat to its owner", async () => {
-    expect(await visibleMessages(alice)).toEqual(["secret"]);
-    expect(await visibleMessages(bob)).toEqual([]);
-  });
-
-  it("only lets the owner of a chat write messages in it", async () => {
-    const write = (userId: string): Promise<InsertResult[]> => {
-      return asUser({ id: userId, permissions }, (trx) => {
-        return trx.insertInto("aiChatMessages").values({ sessionId, role: "user", content: "more" }).execute();
-      });
-    };
-    await expect(write(bob)).rejects.toThrow(/row-level security/);
-    await expect(write(alice)).resolves.toBeDefined();
-  });
-
-  it("lets the owner keep an agent that they can no longer choose", async () => {
-    const chat = await db
-      .insertInto("aiChatSessions")
-      .values({ userId: alice, agentId: orphanAgentId, title: "unshared" })
-      .returning(["id"])
-      .executeTakeFirstOrThrow();
-    const update = (values: { title?: string; agentId?: string }): Promise<{ id: string }[]> => {
-      return asUser({ id: alice, permissions }, (trx) => {
-        return trx.updateTable("aiChatSessions").set(values).where("id", "=", chat.id).returning(["id"]).execute();
-      });
-    };
-
-    await expect(update({ title: "renamed" })).resolves.toHaveLength(1);
-    await expect(update({ agentId: groupAgentId })).rejects.toThrow(/row-level security/);
-  });
-
-  it("rejects messages with the roles of the server", async () => {
-    await expect(
-      asUser({ id: alice, permissions }, (trx) => {
-        return trx.insertInto("aiChatMessages").values({ sessionId, role: "assistant", content: "forged" }).execute();
-      }),
-    ).rejects.toThrow(/row-level security/);
-  });
-
-  it("only shows the tables of a chat to its owner", async () => {
-    await db
-      .insertInto("aiChatTables")
-      .values({ sessionId, data: Buffer.from(""), size: 0 })
-      .execute();
-
-    const visibleTables = (userId: string): Promise<{ id: string }[]> => {
-      return asUser({ id: userId, permissions }, (trx) => trx.selectFrom("aiChatTables").select(["id"]).execute());
-    };
-    expect(await visibleTables(alice)).toHaveLength(1);
-    expect(await visibleTables(bob)).toHaveLength(0);
-  });
-
-  it("rejects tables written by users", async () => {
-    const table = { sessionId, data: Buffer.from(""), size: 0 };
-    await expect(
-      asUser({ id: alice, permissions }, (trx) => trx.insertInto("aiChatTables").values(table).execute()),
     ).rejects.toThrow(/row-level security/);
   });
 });
@@ -427,20 +284,22 @@ describe("chat policies", () => {
   const heidi = crypto.randomUUID();
   const ivan = crypto.randomUUID();
   const member = [...AiRolePermissions[Roles.Member]];
-  const reader = ["ai_chat:read:own"];
+  const reader = [AiPermissions.ChatReadOwn];
   let sessionId: string;
   let userMessageId: string;
   let assistantMessageId: string;
+  let tableId: string;
 
   beforeAll(async () => {
     await insertUsers(db, { heidi, ivan });
-    sessionId = await insertSession(heidi);
+    sessionId = await insertChatSession(db, heidi);
     userMessageId = await insertMessage(sessionId, "user", "question");
     assistantMessageId = await insertMessage(sessionId, "assistant", "answer");
-    await db
+    ({ id: tableId } = await db
       .insertInto("aiChatTables")
       .values({ sessionId, data: Buffer.from(""), size: 0 })
-      .execute();
+      .returning(["id"])
+      .executeTakeFirstOrThrow());
   });
 
   it("only shows a chat to its owner", async () => {
@@ -451,6 +310,61 @@ describe("chat policies", () => {
     };
     await expect(visibleSessions(heidi)).resolves.toBe(1);
     await expect(visibleSessions(ivan)).resolves.toBe(0);
+  });
+
+  it("only shows the messages of a chat to its owner", async () => {
+    const visibleMessages = (userId: string): Promise<number> => {
+      return asUser({ id: userId, permissions: member }, (trx) => {
+        return countRows(trx, "ai_chat_messages", { id: userMessageId });
+      });
+    };
+    await expect(visibleMessages(heidi)).resolves.toBe(1);
+    await expect(visibleMessages(ivan)).resolves.toBe(0);
+  });
+
+  it("only lets the owner of a chat write messages in it", async () => {
+    const write = (userId: string): Promise<InsertResult[]> => {
+      return asUser({ id: userId, permissions: member }, (trx) => {
+        return trx.insertInto("aiChatMessages").values({ sessionId, role: "user", content: "more" }).execute();
+      });
+    };
+    await expect(write(ivan)).rejects.toThrow(/row-level security/);
+    await expect(write(heidi)).resolves.toBeDefined();
+  });
+
+  it("lets the owner keep an agent that they can no longer choose", async () => {
+    const chatId = await insertChatSession(db, heidi, { agentId: orphanAgentId, title: "unshared" });
+    const update = (values: { title?: string; agentId?: string }): Promise<{ id: string }[]> => {
+      return asUser({ id: heidi, permissions: member }, (trx) => {
+        return trx.updateTable("aiChatSessions").set(values).where("id", "=", chatId).returning(["id"]).execute();
+      });
+    };
+
+    await expect(update({ title: "renamed" })).resolves.toHaveLength(1);
+    await expect(update({ agentId: groupAgentId })).rejects.toThrow(/row-level security/);
+  });
+
+  it("rejects messages with the roles of the server", async () => {
+    await expect(
+      asUser({ id: heidi, permissions: member }, (trx) => {
+        return trx.insertInto("aiChatMessages").values({ sessionId, role: "assistant", content: "forged" }).execute();
+      }),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("only shows the tables of a chat to its owner", async () => {
+    const visibleTables = (userId: string): Promise<number> => {
+      return asUser({ id: userId, permissions: member }, (trx) => countRows(trx, "ai_chat_tables", { id: tableId }));
+    };
+    await expect(visibleTables(heidi)).resolves.toBe(1);
+    await expect(visibleTables(ivan)).resolves.toBe(0);
+  });
+
+  it("rejects tables written by users", async () => {
+    const table = { sessionId, data: Buffer.from(""), size: 0 };
+    await expect(
+      asUser({ id: heidi, permissions: member }, (trx) => trx.insertInto("aiChatTables").values(table).execute()),
+    ).rejects.toThrow(/row-level security/);
   });
 
   it.each([
@@ -483,12 +397,12 @@ describe("chat policies", () => {
   });
 
   it("only lets the owner of a chat delete it with the permission to", async () => {
-    const chatId = await insertSession(heidi);
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const chatId = await insertChatSession(db, heidi);
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: heidi, permissions }, (trx) => deleteRows(trx, "ai_chat_sessions", { id: chatId }));
     };
     await expect(remove(reader)).resolves.toBe(0n);
-    await expect(remove([...reader, "ai_chat:delete:own"])).resolves.toBe(1n);
+    await expect(remove([...reader, AiPermissions.ChatDeleteOwn])).resolves.toBe(1n);
   });
 
   it("only lets users edit the messages that they wrote", async () => {
@@ -503,11 +417,11 @@ describe("chat policies", () => {
 
   it("only lets the owner of a chat delete its messages with the permission to", async () => {
     const messageId = await insertMessage(sessionId, "user");
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: heidi, permissions }, (trx) => deleteRows(trx, "ai_chat_messages", { id: messageId }));
     };
     await expect(remove(reader)).resolves.toBe(0n);
-    await expect(remove([...reader, "ai_chat:delete:own"])).resolves.toBe(1n);
+    await expect(remove([...reader, AiPermissions.ChatDeleteOwn])).resolves.toBe(1n);
   });
 
   it("keeps the files of a chat to its owner", async () => {
@@ -536,10 +450,13 @@ describe("chat policies", () => {
 
   it("asks the owner of a chat for the permission to update it before changing its files", async () => {
     const files = { session_id: sessionId };
-    const asOwner = <T>(permissions: string[], callback: (trx: Transaction<Database>) => Promise<T>): Promise<T> => {
+    const asOwner = <T>(
+      permissions: PermissionName[],
+      callback: (trx: Transaction<Database>) => Promise<T>,
+    ): Promise<T> => {
       return asUser({ id: heidi, permissions }, callback);
     };
-    const writer = [...reader, "ai_chat:update:own"];
+    const writer = [...reader, AiPermissions.ChatUpdateOwn];
 
     await expect(
       asOwner(reader, (trx) => insertRow(trx, "ai_chat_session_vfs", { ...files, data: Buffer.from("") })),
@@ -608,25 +525,38 @@ describe("chat policies", () => {
 describe.each([
   {
     resource: LlmProviderResource,
+    permission: "LlmProvider" as const,
     insert: insertLlmProvider,
     values: { api_url: "http://llm.localhost/v1", api_key: "", headers: "" },
   },
-  { resource: McpServerResource, insert: insertMcpServer, values: { url: "http://mcp.localhost/mcp", headers: "" } },
-  { resource: SkillResource, insert: insertSkill, values: {} },
-  { resource: AgentResource, insert: insertAgent, values: { type: "specialist", model: "m" } },
-])("shared resource $resource.type", ({ resource, insert, values }) => {
+  {
+    resource: McpServerResource,
+    permission: "McpServer" as const,
+    insert: insertMcpServer,
+    values: { url: "http://mcp.localhost/mcp", headers: "" },
+  },
+  { resource: SkillResource, permission: "Skill" as const, insert: insertSkill, values: {} },
+  {
+    resource: AgentResource,
+    permission: "Agent" as const,
+    insert: insertAgent,
+    values: { type: "specialist", model: "m" },
+  },
+])("shared resource $resource.type", ({ resource, permission, insert, values }) => {
   const editor = crypto.randomUUID();
   const user = crypto.randomUUID();
   const outsider = crypto.randomUUID();
+  const group = crypto.randomUUID();
   let resourceId: string;
 
-  const can = (...actions: string[]): string[] => actions.map((action) => `${resource.type}:${action}`);
+  const can = (...actions: ("Create" | "ReadOwn" | "UpdateOwn" | "DeleteOwn" | "UseOwn")[]): PermissionName[] => {
+    return actions.map((action) => AiPermissions[`${permission}${action}` as const]);
+  };
 
   const grant = (id: string, userId: string, role: "editor" | "user"): Promise<void> => {
     return insertRow(db, resource.accessTable, { [resource.foreignKey]: id, user_id: userId, role });
   };
 
-  // A resource with an editor and a user
   const insertShared = async (): Promise<string> => {
     const id = await insert(db, `${resource.type}-${crypto.randomUUID()}`);
     await grant(id, editor, "editor");
@@ -640,12 +570,16 @@ describe.each([
       [`${resource.type}-user`]: user,
       [`${resource.type}-outsider`]: outsider,
     });
+    await db
+      .insertInto("groups")
+      .values({ id: group, name: `${resource.type}-group`, description: "" })
+      .execute();
     resourceId = await insertShared();
   });
 
   it("shows a resource to the users that it is shared with", async () => {
     const visibleRows = (userId: string): Promise<number> => {
-      return asUser({ id: userId, permissions: can("use:own") }, (trx) => {
+      return asUser({ id: userId, permissions: can("UseOwn") }, (trx) => {
         return countRows(trx, resource.table, { id: resourceId });
       });
     };
@@ -656,7 +590,7 @@ describe.each([
   it("keeps a resource out of the lists of a user who can only read it", async () => {
     const visibleRows = (action: ResourceSelectAction): Promise<number> => {
       return asUserWith(
-        { id: user, permissions: can("read:own") },
+        { id: user, permissions: can("ReadOwn") },
         { resourceScope: `${resource.type}:${action}` },
         (trx) => {
           return countRows(trx, resource.table, { id: resourceId });
@@ -668,18 +602,18 @@ describe.each([
   });
 
   it("only lets the users who can create a resource create one", async () => {
-    const create = (permissions: string[]): Promise<void> => {
+    const create = (permissions: PermissionName[]): Promise<void> => {
       return asUser({ id: outsider, permissions }, (trx) => {
         return insertRow(trx, resource.table, { name: `${resource.type}-${crypto.randomUUID()}`, ...values });
       });
     };
-    await expect(create(can("create"))).resolves.toBeUndefined();
-    await expect(create(can("update:own"))).rejects.toThrow(/row-level security/);
+    await expect(create(can("Create"))).resolves.toBeUndefined();
+    await expect(create(can("UpdateOwn"))).rejects.toThrow(/row-level security/);
   });
 
   it("only lets the editors of a resource update it", async () => {
     const update = (userId: string): Promise<bigint> => {
-      return asUser({ id: userId, permissions: can("update:own") }, (trx) => {
+      return asUser({ id: userId, permissions: can("UpdateOwn") }, (trx) => {
         return updateRows(trx, resource.table, { updated_at: new Date() }, { id: resourceId });
       });
     };
@@ -690,26 +624,26 @@ describe.each([
   it("only lets the editors of a resource delete it", async () => {
     const id = await insertShared();
     const remove = (userId: string): Promise<bigint> => {
-      return asUser({ id: userId, permissions: can("delete:own") }, (trx) => deleteRows(trx, resource.table, { id }));
+      return asUser({ id: userId, permissions: can("DeleteOwn") }, (trx) => deleteRows(trx, resource.table, { id }));
     };
     await expect(remove(user)).resolves.toBe(0n);
     await expect(remove(editor)).resolves.toBe(1n);
   });
 
   it("shows all the grants of a resource to its readers and their own grants to its users", async () => {
-    const visibleGrants = (permissions: string[]): Promise<number> => {
+    const visibleGrants = (permissions: PermissionName[]): Promise<number> => {
       return asUser({ id: user, permissions }, (trx) => {
         return countRows(trx, resource.accessTable, { [resource.foreignKey]: resourceId });
       });
     };
-    await expect(visibleGrants(can("read:own"))).resolves.toBe(2);
-    await expect(visibleGrants(can("use:own"))).resolves.toBe(1);
+    await expect(visibleGrants(can("ReadOwn"))).resolves.toBe(2);
+    await expect(visibleGrants(can("UseOwn"))).resolves.toBe(1);
   });
 
   it("only lets the editors of a resource share it", async () => {
     const id = await insertShared();
     const share = (userId: string): Promise<void> => {
-      return asUser({ id: userId, permissions: can("update:own") }, (trx) => {
+      return asUser({ id: userId, permissions: can("UpdateOwn") }, (trx) => {
         return insertRow(trx, resource.accessTable, { [resource.foreignKey]: id, user_id: outsider, role: "user" });
       });
     };
@@ -717,11 +651,25 @@ describe.each([
     await expect(share(editor)).resolves.toBeUndefined();
   });
 
+  it("shows its editors the users and groups that it is shared with", async () => {
+    const id = await insertShared();
+    await insertRow(db, resource.accessTable, { [resource.foreignKey]: id, group_id: group, role: "user" });
+    const visiblePrincipals = (userId: string): Promise<string[]> => {
+      return asUser({ id: userId, permissions: can("ReadOwn") }, async (trx) => {
+        const users = await trx.selectFrom("users").select(["id"]).where("id", "in", [editor, user]).execute();
+        const groups = await trx.selectFrom("groups").select(["id"]).where("id", "=", group).execute();
+        return [...users, ...groups].map((row) => row.id).toSorted();
+      });
+    };
+    await expect(visiblePrincipals(editor)).resolves.toEqual([editor, user, group].toSorted());
+    await expect(visiblePrincipals(user)).resolves.toEqual([]);
+  });
+
   it("only lets the editors of a resource revoke its grants", async () => {
     const id = await insertShared();
     await grant(id, outsider, "user");
     const revoke = (userId: string): Promise<bigint> => {
-      return asUser({ id: userId, permissions: can("update:own") }, (trx) => {
+      return asUser({ id: userId, permissions: can("UpdateOwn") }, (trx) => {
         return deleteRows(trx, resource.accessTable, { [resource.foreignKey]: id, user_id: outsider });
       });
     };
@@ -732,7 +680,12 @@ describe.each([
 
 describe("agent policies", () => {
   const judy = crypto.randomUUID();
-  const builder = ["ai_agent:create", "ai_agent:read:own", "ai_agent:update:own", "ai_llm_provider:use:own"];
+  const builder = [
+    AiPermissions.AgentCreate,
+    AiPermissions.AgentReadOwn,
+    AiPermissions.AgentUpdateOwn,
+    AiPermissions.LlmProviderUseOwn,
+  ];
   let usableProviderId: string;
   let unusableProviderId: string;
 
@@ -778,6 +731,7 @@ describe("agent link policies", () => {
   const mike = crypto.randomUUID();
   const agentId = crypto.randomUUID();
   const newAgentId = crypto.randomUUID();
+  const unlinkingAgentId = crypto.randomUUID();
   const serverId = crypto.randomUUID();
   const otherServerId = crypto.randomUUID();
   const skillId = crypto.randomUUID();
@@ -786,11 +740,11 @@ describe("agent link policies", () => {
   const otherSpecialistId = crypto.randomUUID();
   // Builders edit the agents and use the resources that they link to them
   const builder = [
-    "ai_agent:read:own",
-    "ai_agent:update:own",
-    "ai_agent:use:own",
-    "ai_mcp_server:use:own",
-    "ai_skill:use:own",
+    AiPermissions.AgentReadOwn,
+    AiPermissions.AgentUpdateOwn,
+    AiPermissions.AgentUseOwn,
+    AiPermissions.McpServerUseOwn,
+    AiPermissions.SkillUseOwn,
   ];
 
   beforeAll(async () => {
@@ -798,6 +752,7 @@ describe("agent link policies", () => {
     for (const [id, name] of [
       [agentId, "linking-agent"],
       [newAgentId, "new-linking-agent"],
+      [unlinkingAgentId, "unlinking-agent"],
       [specialistId, "linked-specialist"],
       [otherSpecialistId, "unlinked-specialist"],
     ] as const) {
@@ -812,7 +767,7 @@ describe("agent link policies", () => {
     await db
       .insertInto("aiAgentAccess")
       .values(
-        [agentId, newAgentId].flatMap((id) => [
+        [agentId, newAgentId, unlinkingAgentId].flatMap((id) => [
           { agentId: id, userId: kevin, role: "editor" as const },
           { agentId: id, userId: laura, role: "user" as const },
         ]),
@@ -848,6 +803,7 @@ describe("agent link policies", () => {
   ])("$table", ({ table, owner, link, unusable }) => {
     beforeAll(async () => {
       await insertRow(db, table, { [owner]: agentId, ...link });
+      await insertRow(db, table, { [owner]: unlinkingAgentId, ...link });
     });
 
     it("only lets the editors of an agent link the resources that they can use", async () => {
@@ -863,7 +819,7 @@ describe("agent link policies", () => {
 
     it("shows the links of an agent to the users who can use it", async () => {
       const visibleLinks = (userId: string): Promise<number> => {
-        return asUser({ id: userId, permissions: ["ai_agent:use:own"] }, (trx) => {
+        return asUser({ id: userId, permissions: [AiPermissions.AgentUseOwn] }, (trx) => {
           return countRows(trx, table, { [owner]: agentId });
         });
       };
@@ -874,7 +830,7 @@ describe("agent link policies", () => {
     it("only lets the editors of an agent unlink its resources", async () => {
       const remove = (userId: string): Promise<bigint> => {
         return asUser({ id: userId, permissions: builder }, (trx) => {
-          return deleteRows(trx, table, { [owner]: agentId, ...link });
+          return deleteRows(trx, table, { [owner]: unlinkingAgentId, ...link });
         });
       };
       await expect(remove(laura)).resolves.toBe(0n);
@@ -889,7 +845,7 @@ describe("execution policies", () => {
   const agentId = crypto.randomUUID();
   const executionId = crypto.randomUUID();
   const member = [...AiRolePermissions[Roles.Member]];
-  const reader = ["ai_agent_execution:read:own"];
+  const reader = [AiPermissions.AgentExecutionReadOwn];
   let sessionId: string;
 
   beforeAll(async () => {
@@ -902,7 +858,7 @@ describe("execution policies", () => {
         { agentId, userId: oscar, role: "user" },
       ])
       .execute();
-    sessionId = await insertSession(nina, agentId);
+    sessionId = await insertChatSession(db, nina, { agentId });
     await db
       .insertInto("aiAgentExecutions")
       .values({ id: executionId, sessionId, agentId, userId: nina, status: "completed", lastActivityAt: new Date() })
@@ -934,14 +890,14 @@ describe("execution policies", () => {
   });
 
   it("only lets users update their own executions with the permission to or through the server", async () => {
-    const update = (userId: string, permissions: string[], trustedWrites = false): Promise<bigint> => {
+    const update = (userId: string, permissions: PermissionName[], trustedWrites = false): Promise<bigint> => {
       return asUserWith({ id: userId, permissions }, { trustedWrites }, (trx) => {
         return updateRows(trx, "ai_agent_executions", { last_activity_at: new Date() }, { id: executionId });
       });
     };
     await expect(update(nina, reader)).resolves.toBe(0n);
-    await expect(update(oscar, [...reader, "ai_agent_execution:update:own"], true)).resolves.toBe(0n);
-    await expect(update(nina, [...reader, "ai_agent_execution:update:own"])).resolves.toBe(1n);
+    await expect(update(oscar, [...reader, AiPermissions.AgentExecutionUpdateOwn], true)).resolves.toBe(0n);
+    await expect(update(nina, [...reader, AiPermissions.AgentExecutionUpdateOwn])).resolves.toBe(1n);
     await expect(update(nina, reader, true)).resolves.toBe(1n);
   });
 
@@ -974,13 +930,13 @@ describe("execution policies", () => {
     });
 
     it("only lets the user of an execution update its steps with the permission to", async () => {
-      const update = (permissions: string[]): Promise<bigint> => {
+      const update = (permissions: PermissionName[]): Promise<bigint> => {
         return asUser({ id: nina, permissions }, (trx) => {
           return updateRows(trx, table, { error_message: null }, { id: rowId });
         });
       };
       await expect(update(reader)).resolves.toBe(0n);
-      await expect(update([...reader, "ai_chat:update:own"])).resolves.toBe(1n);
+      await expect(update([...reader, AiPermissions.ChatUpdateOwn])).resolves.toBe(1n);
     });
   });
 });
@@ -1008,7 +964,7 @@ describe("system policies", () => {
       .execute();
     await db.insertInto("aiTriageSpecialists").values({ triageAgentId, specialistAgentId: agentId }).execute();
 
-    const sessionId = await insertSession(pat, agentId);
+    const sessionId = await insertChatSession(db, pat, { agentId });
     await insertMessage(sessionId, "user");
     await db
       .insertInto("aiChatSessionVfs")

@@ -1,5 +1,4 @@
 import type { IDToken } from "oauth4webapi";
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OIDC } from "#layers/core/server/lib/authn/oidc";
@@ -94,31 +93,5 @@ describe("OIDC user profile", () => {
     answerUserInfo(claims({ email: "Alice@Example.com" }));
     const fromUserInfo = await oidc.findUserProfile(claims({ email: undefined }), "token");
     expect(fromUserInfo?.email).toBe("alice@example.com");
-  });
-});
-
-describe("OIDC back-channel logout", () => {
-  it("verifies the logout tokens with the keys of the provider", async () => {
-    const provider = await generateKeyPair("ES256");
-    const stranger = await generateKeyPair("ES256");
-    const jwk = { ...(await exportJWK(provider.publicKey)), kid: "key", alg: "ES256" };
-    const fetchKeys = vi.fn(() => Promise.resolve(Response.json({ keys: [jwk] })));
-    vi.stubGlobal("fetch", fetchKeys);
-
-    const logoutToken = (key: CryptoKey): Promise<string> => {
-      return new SignJWT({ sid: "session", events: { "http://schemas.openid.net/event/backchannel-logout": {} } })
-        .setProtectedHeader({ alg: "ES256", kid: "key" })
-        .setIssuer("https://idp.localhost")
-        .setAudience("client")
-        .setIssuedAt()
-        .setJti(crypto.randomUUID())
-        .sign(key);
-    };
-
-    expect(await oidc.validateBackchannelLogoutToken(await logoutToken(provider.privateKey))).toMatchObject({
-      sid: "session",
-    });
-    await expect(oidc.validateBackchannelLogoutToken(await logoutToken(stranger.privateKey))).rejects.toThrow();
-    expect(fetchKeys).toHaveBeenCalledTimes(1);
   });
 });

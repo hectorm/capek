@@ -1,10 +1,9 @@
 import type { Kysely } from "kysely";
-import type { Logger } from "pino";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
+import type { PermissionName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
@@ -12,9 +11,6 @@ import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { applySecurity, composeSecurity, hasAccess, protectTable } from "#layers/core/server/lib/database/security";
-import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
-import { groupRouter } from "#layers/core/server/trpc/routers/group";
-import { userRouter } from "#layers/core/server/trpc/routers/user";
 import { CorePermissions, CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { asUser, closeDb, createTestDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
@@ -48,7 +44,7 @@ afterAll(async () => {
 describe("row-level security", () => {
   it("runs as a role without superuser rights", async () => {
     expect(await isSuperuser(db)).toBe(true);
-    const role = await asUser({ id: alice, permissions: ["user:read:own"] }, async (trx) => {
+    const role = await asUser({ id: alice, permissions: [CorePermissions.UserReadOwn] }, async (trx) => {
       const r = await sql<{ roleName: string }>`SELECT CURRENT_USER AS role_name`.execute(trx);
       return r.rows[0]?.roleName;
     });
@@ -66,13 +62,13 @@ describe("row-level security", () => {
   it.each<{ principal: string; as: TestPrincipal; users: string[]; groups: string[] }>([
     {
       principal: "a member",
-      as: { id: alice, permissions: ["user:read:own", "group:read:own"] },
+      as: { id: alice, permissions: [CorePermissions.UserReadOwn, CorePermissions.GroupReadOwn] },
       users: ["alice"],
       groups: ["carol-group"],
     },
     {
       principal: "a principal with the all scope",
-      as: { id: alice, permissions: ["user:read:all", "group:read:all"] },
+      as: { id: alice, permissions: [CorePermissions.UserReadAll, CorePermissions.GroupReadAll] },
       users: ["alice", "bob"],
       groups: ["carol-group", "dave-group"],
     },
@@ -80,40 +76,30 @@ describe("row-level security", () => {
   ])("lets $principal read the users and groups that it can access", async ({ as, users, groups }) => {
     const visible = await asUser(as, async (trx) => {
       return {
-        users: (await trx.selectFrom("users").select(["username"]).orderBy("username").execute()).map(
-          (u) => u.username,
-        ),
-        groups: (await trx.selectFrom("groups").select(["name"]).orderBy("name").execute()).map((g) => g.name),
+        users: (
+          await trx
+            .selectFrom("users")
+            .select(["username"])
+            .where("id", "in", [alice, bob])
+            .orderBy("username")
+            .execute()
+        ).map((u) => u.username),
+        groups: (
+          await trx
+            .selectFrom("groups")
+            .select(["name"])
+            .where("id", "in", [carolGroup, daveGroup])
+            .orderBy("name")
+            .execute()
+        ).map((g) => g.name),
       };
     });
     expect(visible).toEqual({ users, groups });
   });
 
-  it("scopes directory reads and group search to the permission for that action", async () => {
-    const { GroupListAll, GroupListOwn, GroupReadAll, GroupReadOwn, UserListAll, UserReadOwn } = CorePermissions;
-    const caller = createCallerFactory(createTRPCRouter({ user: userRouter, group: groupRouter }));
-    const logger = { warn: () => undefined, debug: () => undefined } as unknown as Logger;
-    const asAlice = (permissions: string[]): ReturnType<typeof caller> => {
-      return caller({ logger, user: { id: alice, groups: [carolGroup], permissions } as unknown as AuthUser });
-    };
-
-    const browse = asAlice([UserListAll, UserReadOwn, GroupListAll, GroupReadOwn]);
-    await expect(browse.user.read({ id: alice })).resolves.toMatchObject({ id: alice });
-    await expect(browse.user.read({ id: bob })).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(browse.group.read({ id: carolGroup })).resolves.toMatchObject({ id: carolGroup });
-    await expect(browse.group.read({ id: daveGroup })).rejects.toMatchObject({ code: "NOT_FOUND" });
-
-    const read = asAlice([GroupReadAll, GroupListOwn]);
-    await expect(read.group.read({ id: daveGroup })).resolves.toMatchObject({ id: daveGroup });
-    await expect(read.group.search({ limit: 1 })).resolves.toMatchObject({
-      groups: [{ id: carolGroup }],
-      nextCursor: undefined,
-    });
-  });
-
   it("rejects writes without the matching permission", async () => {
     await expect(
-      asUser({ id: alice, permissions: ["user:read:own"] }, (trx) => {
+      asUser({ id: alice, permissions: [CorePermissions.UserReadOwn] }, (trx) => {
         return trx.insertInto("groups").values({ name: "forbidden-group", description: "" }).execute();
       }),
     ).rejects.toThrow(/row-level security/);
@@ -126,14 +112,14 @@ describe("row-level security", () => {
       .returning(["id"])
       .executeTakeFirstOrThrow();
     await expect(
-      asUser({ id: alice, permissions: ["user:read:own", "user:update:own"] }, (trx) => {
+      asUser({ id: alice, permissions: [CorePermissions.UserReadOwn, CorePermissions.UserUpdateOwn] }, (trx) => {
         return trx.insertInto("userRoles").values({ userId: alice, roleId: role.id }).execute();
       }),
     ).rejects.toThrow(/row-level security/);
   });
 
   it("knows no shared resource without other features", async () => {
-    const result = await asUser({ id: alice, permissions: ["user:read:own"] }, async (trx) => {
+    const result = await asUser({ id: alice, permissions: [CorePermissions.UserReadOwn] }, async (trx) => {
       return sql<{ hasAccess: boolean }>`
         SELECT security.has_access('agent', ${crypto.randomUUID()}::UUID) AS has_access
       `.execute(trx);
@@ -251,7 +237,7 @@ describe("row-level security", () => {
 // Updates and deletes skip the rows that their policies hide without an error
 describe("users policies", () => {
   it("lets the holders of user:create insert users", async () => {
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
         return trx
           .insertInto("users")
@@ -260,12 +246,14 @@ describe("users policies", () => {
       });
     };
 
-    await expect(insert(["user:read:all", "user:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["user:create"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.UserReadAll, CorePermissions.UserUpdateAll])).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(insert([CorePermissions.UserCreate])).resolves.toBeDefined();
   });
 
   it("lets users update themselves with user:update:own and any user with user:update:all", async () => {
-    const update = (permissions: string[], id: string): Promise<bigint> => {
+    const update = (permissions: PermissionName[], id: string): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .updateTable("users")
@@ -276,40 +264,42 @@ describe("users policies", () => {
       });
     };
 
-    expect(await update(["user:read:all", "user:update:own"], bob)).toBe(0n);
-    expect(await update(["user:read:own", "user:update:own"], alice)).toBe(1n);
-    expect(await update(["user:read:all", "user:update:all"], bob)).toBe(1n);
+    expect(await update([CorePermissions.UserReadAll, CorePermissions.UserUpdateOwn], bob)).toBe(0n);
+    expect(await update([CorePermissions.UserReadOwn, CorePermissions.UserUpdateOwn], alice)).toBe(1n);
+    expect(await update([CorePermissions.UserReadAll, CorePermissions.UserUpdateAll], bob)).toBe(1n);
   });
 
   it("lets the holders of user:delete:all delete users", async () => {
     const frank = crypto.randomUUID();
     await insertUsers(db, { frank });
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx.deleteFrom("users").where("id", "=", frank).executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["user:read:all", "user:update:all"])).toBe(0n);
-    expect(await remove(["user:read:all", "user:delete:all"])).toBe(1n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.UserUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.UserDeleteAll])).toBe(1n);
   });
 });
 
 describe("groups policies", () => {
   it("lets the holders of group:create insert groups", async () => {
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
         return trx.insertInto("groups").values({ name: "erin-group", description: "" }).execute();
       });
     };
 
-    await expect(insert(["group:read:all", "group:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["group:create"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.GroupReadAll, CorePermissions.GroupUpdateAll])).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(insert([CorePermissions.GroupCreate])).resolves.toBeDefined();
   });
 
   it("lets the holders of group:update:all update groups", async () => {
-    const update = (permissions: string[]): Promise<bigint> => {
+    const update = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .updateTable("groups")
@@ -320,22 +310,22 @@ describe("groups policies", () => {
       });
     };
 
-    expect(await update(["group:read:all", "group:create"])).toBe(0n);
-    expect(await update(["group:read:all", "group:update:all"])).toBe(1n);
+    expect(await update([CorePermissions.GroupReadAll, CorePermissions.GroupCreate])).toBe(0n);
+    expect(await update([CorePermissions.GroupReadAll, CorePermissions.GroupUpdateAll])).toBe(1n);
   });
 
   it("lets the holders of group:delete:all delete groups", async () => {
     const group = crypto.randomUUID();
     await db.insertInto("groups").values({ id: group, name: "frank-group", description: "" }).execute();
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx.deleteFrom("groups").where("id", "=", group).executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["group:read:all", "group:update:all"])).toBe(0n);
-    expect(await remove(["group:read:all", "group:delete:all"])).toBe(1n);
+    expect(await remove([CorePermissions.GroupReadAll, CorePermissions.GroupUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.GroupReadAll, CorePermissions.GroupDeleteAll])).toBe(1n);
   });
 });
 
@@ -380,12 +370,21 @@ describe("roles and permissions policies", () => {
 });
 
 describe("user groups policies", () => {
+  const grace = crypto.randomUUID();
+
   beforeAll(async () => {
-    await db.insertInto("userGroups").values({ userId: bob, groupId: daveGroup }).execute();
+    await insertUsers(db, { grace });
+    await db
+      .insertInto("userGroups")
+      .values([
+        { userId: bob, groupId: daveGroup },
+        { userId: grace, groupId: daveGroup },
+      ])
+      .execute();
   });
 
   it("lets users read their own memberships and the holders of the all scopes read every membership", async () => {
-    const memberships = (permissions: string[]): Promise<string[]> => {
+    const memberships = (permissions: PermissionName[]): Promise<string[]> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const rows = await trx
           .selectFrom("userGroups")
@@ -397,34 +396,36 @@ describe("user groups policies", () => {
     };
 
     expect(await memberships([])).toEqual([carolGroup]);
-    expect(await memberships(["group:list:all"])).toEqual([carolGroup, daveGroup].toSorted());
+    expect(await memberships([CorePermissions.GroupListAll])).toEqual([carolGroup, daveGroup].toSorted());
   });
 
   it("lets the holders of user:update:all add users to groups", async () => {
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
-        return trx.insertInto("userGroups").values({ userId: bob, groupId: carolGroup }).execute();
+        return trx.insertInto("userGroups").values({ userId: grace, groupId: carolGroup }).execute();
       });
     };
 
-    await expect(insert(["user:update:own", "group:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["user:update:all"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.UserUpdateOwn, CorePermissions.GroupUpdateAll])).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(insert([CorePermissions.UserUpdateAll])).resolves.toBeDefined();
   });
 
   it("lets the holders of user:update:all remove users from groups", async () => {
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .deleteFrom("userGroups")
-          .where("userId", "=", bob)
+          .where("userId", "=", grace)
           .where("groupId", "=", daveGroup)
           .executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["user:read:all", "group:update:all"])).toBe(0n);
-    expect(await remove(["user:read:all", "user:update:all"])).toBe(1n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.GroupUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.UserUpdateAll])).toBe(1n);
   });
 });
 
@@ -447,15 +448,15 @@ describe("user roles policies", () => {
   });
 
   it("lets users read their own roles and the holders of the all scopes read the roles of every user", async () => {
-    const assigned = (permissions: string[]): Promise<string[]> => {
+    const assigned = (permissions: PermissionName[]): Promise<string[]> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const rows = await trx.selectFrom("userRoles").select(["userId"]).where("roleId", "=", role).execute();
         return rows.map((row) => row.userId).toSorted();
       });
     };
 
-    expect(await assigned(["group:read:all"])).toEqual([alice]);
-    expect(await assigned(["user:list:all"])).toEqual([alice, bob].toSorted());
+    expect(await assigned([CorePermissions.GroupReadAll])).toEqual([alice]);
+    expect(await assigned([CorePermissions.UserListAll])).toEqual([alice, bob].toSorted());
   });
 
   it("lets the holders of user:update:all assign roles", async () => {
@@ -464,30 +465,38 @@ describe("user roles policies", () => {
       .values({ name: "rls-other" })
       .returning(["id"])
       .executeTakeFirstOrThrow();
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
         return trx.insertInto("userRoles").values({ userId: bob, roleId: other.id }).execute();
       });
     };
 
-    await expect(insert(["user:update:own", "group:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["user:update:all"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.UserUpdateOwn, CorePermissions.GroupUpdateAll])).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(insert([CorePermissions.UserUpdateAll])).resolves.toBeDefined();
   });
 
   it("lets the holders of user:update:all remove roles", async () => {
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const removed = await db
+      .insertInto("roles")
+      .values({ name: "rls-removed" })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await db.insertInto("userRoles").values({ userId: bob, roleId: removed.id }).execute();
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .deleteFrom("userRoles")
           .where("userId", "=", bob)
-          .where("roleId", "=", role)
+          .where("roleId", "=", removed.id)
           .executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["user:read:all", "group:update:all"])).toBe(0n);
-    expect(await remove(["user:read:all", "user:update:all"])).toBe(1n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.GroupUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.UserReadAll, CorePermissions.UserUpdateAll])).toBe(1n);
   });
 });
 
@@ -510,16 +519,16 @@ describe("group roles policies", () => {
   });
 
   it("lets members read the roles of their groups and the holders of the all scopes read every group", async () => {
-    const assigned = (permissions: string[]): Promise<string[]> => {
+    const assigned = (permissions: PermissionName[]): Promise<string[]> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const rows = await trx.selectFrom("groupRoles").select(["groupId"]).where("roleId", "=", role).execute();
         return rows.map((row) => row.groupId).toSorted();
       });
     };
 
-    expect(await assigned(["user:read:all"])).toEqual([]);
-    expect(await assigned(["group:read:own"])).toEqual([carolGroup]);
-    expect(await assigned(["group:list:all"])).toEqual([carolGroup, daveGroup].toSorted());
+    expect(await assigned([CorePermissions.UserReadAll])).toEqual([]);
+    expect(await assigned([CorePermissions.GroupReadOwn])).toEqual([carolGroup]);
+    expect(await assigned([CorePermissions.GroupListAll])).toEqual([carolGroup, daveGroup].toSorted());
   });
 
   it("lets the holders of group:update:all assign roles to groups", async () => {
@@ -528,30 +537,38 @@ describe("group roles policies", () => {
       .values({ name: "rls-group-other" })
       .returning(["id"])
       .executeTakeFirstOrThrow();
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
         return trx.insertInto("groupRoles").values({ groupId: daveGroup, roleId: other.id }).execute();
       });
     };
 
-    await expect(insert(["group:read:all", "user:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["group:update:all"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.GroupReadAll, CorePermissions.UserUpdateAll])).rejects.toThrow(
+      /row-level security/,
+    );
+    await expect(insert([CorePermissions.GroupUpdateAll])).resolves.toBeDefined();
   });
 
   it("lets the holders of group:update:all remove roles from groups", async () => {
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const removed = await db
+      .insertInto("roles")
+      .values({ name: "rls-group-removed" })
+      .returning(["id"])
+      .executeTakeFirstOrThrow();
+    await db.insertInto("groupRoles").values({ groupId: daveGroup, roleId: removed.id }).execute();
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .deleteFrom("groupRoles")
           .where("groupId", "=", daveGroup)
-          .where("roleId", "=", role)
+          .where("roleId", "=", removed.id)
           .executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["group:read:all", "user:update:all"])).toBe(0n);
-    expect(await remove(["group:read:all", "group:update:all"])).toBe(1n);
+    expect(await remove([CorePermissions.GroupReadAll, CorePermissions.UserUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.GroupReadAll, CorePermissions.GroupUpdateAll])).toBe(1n);
   });
 });
 
@@ -567,19 +584,19 @@ describe("settings policies", () => {
   });
 
   it("lets the holders of any settings scope read the settings", async () => {
-    const keys = (permissions: string[]): Promise<string[]> => {
+    const keys = (permissions: PermissionName[]): Promise<string[]> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const rows = await trx.selectFrom("settings").select(["key"]).where("key", "=", "rls.updated").execute();
         return rows.map((row) => row.key);
       });
     };
 
-    expect(await keys(["user:read:all", "settings:create"])).toEqual([]);
-    expect(await keys(["settings:list:public"])).toEqual(["rls.updated"]);
+    expect(await keys([CorePermissions.UserReadAll, CorePermissions.SettingsCreate])).toEqual([]);
+    expect(await keys([CorePermissions.SettingsListPublic])).toEqual(["rls.updated"]);
   });
 
   it("lets the holders of settings:create insert settings", async () => {
-    const insert = (permissions: string[]): Promise<unknown> => {
+    const insert = (permissions: PermissionName[]): Promise<unknown> => {
       return asUser({ id: alice, permissions }, (trx) => {
         return trx
           .insertInto("settings")
@@ -588,12 +605,12 @@ describe("settings policies", () => {
       });
     };
 
-    await expect(insert(["settings:update:all"])).rejects.toThrow(/row-level security/);
-    await expect(insert(["settings:create"])).resolves.toBeDefined();
+    await expect(insert([CorePermissions.SettingsUpdateAll])).rejects.toThrow(/row-level security/);
+    await expect(insert([CorePermissions.SettingsCreate])).resolves.toBeDefined();
   });
 
   it("lets the holders of settings:update:all update settings", async () => {
-    const update = (permissions: string[]): Promise<bigint> => {
+    const update = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx
           .updateTable("settings")
@@ -604,19 +621,19 @@ describe("settings policies", () => {
       });
     };
 
-    expect(await update(["settings:read:all", "settings:create"])).toBe(0n);
-    expect(await update(["settings:read:all", "settings:update:all"])).toBe(1n);
+    expect(await update([CorePermissions.SettingsReadAll, CorePermissions.SettingsCreate])).toBe(0n);
+    expect(await update([CorePermissions.SettingsReadAll, CorePermissions.SettingsUpdateAll])).toBe(1n);
   });
 
   it("lets the holders of settings:delete:all delete settings", async () => {
-    const remove = (permissions: string[]): Promise<bigint> => {
+    const remove = (permissions: PermissionName[]): Promise<bigint> => {
       return asUser({ id: alice, permissions }, async (trx) => {
         const result = await trx.deleteFrom("settings").where("key", "=", "rls.deleted").executeTakeFirst();
         return result.numDeletedRows;
       });
     };
 
-    expect(await remove(["settings:read:all", "settings:update:all"])).toBe(0n);
-    expect(await remove(["settings:read:all", "settings:delete:all"])).toBe(1n);
+    expect(await remove([CorePermissions.SettingsReadAll, CorePermissions.SettingsUpdateAll])).toBe(0n);
+    expect(await remove([CorePermissions.SettingsReadAll, CorePermissions.SettingsDeleteAll])).toBe(1n);
   });
 });

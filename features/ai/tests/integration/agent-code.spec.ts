@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { answer, startChat } from "./chat";
+import { answer, startChat } from "#layers/ai/tests/integration/chat";
 
 test.describe("agent code interpreter", () => {
   test("runs code with the skills, the MCP servers and the workspace", async ({ page }) => {

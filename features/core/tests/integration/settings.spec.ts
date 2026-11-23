@@ -1,34 +1,31 @@
 import { expect, test } from "@playwright/test";
 
-import { createGroup, openGroupEditor } from "#layers/core/tests/integration/groups";
+import { createGroup, insertGroup, openGroupEditor } from "#layers/core/tests/integration/groups";
 import { openPage } from "#layers/core/tests/integration/navigation";
+import { filterByName } from "#layers/core/tests/integration/resource-table";
 
 test.describe("settings", () => {
   test("shows the general settings", async ({ page }) => {
-    await page.goto("/settings");
+    await openPage(page, "/settings");
 
-    await expect(page.getByRole("heading", { name: /branding/i })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: /application name/i })).toHaveValue("Test");
+    await expect(page.getByRole("heading", { name: "Branding" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Application name" })).toHaveValue("Test");
   });
 
   test("lists the users", async ({ page }) => {
-    await page.goto("/settings/users");
+    await openPage(page, "/settings/users");
 
     await expect(page.getByRole("cell", { name: "admin@localhost" })).toBeVisible();
   });
 
   test("keeps groups sorted and filtered after a save", async ({ page }) => {
-    await openPage(page, "/settings/groups");
-    await page.getByRole("button", { name: "Filter by Name" }).click();
     const suffix = crypto.randomUUID();
-    const search = page.getByRole("textbox", { name: "Search" });
-    await search.fill(suffix);
-    await search.press("Enter");
-    await search.press("Escape");
+    await openPage(page, "/settings/groups");
+    await filterByName(page, suffix);
 
     const alpha = `Alpha-${suffix}`;
     const zulu = `Zulu-${suffix}`;
-    for (const name of [alpha, zulu]) {
+    for (const name of [zulu, alpha]) {
       await createGroup(page, name);
     }
     const names = page.getByRole("cell", { name: new RegExp(suffix) });
@@ -43,10 +40,11 @@ test.describe("settings", () => {
     await expect(page.getByRole("cell", { name: renamed })).toHaveCount(0);
   });
 
-  test("shows an error when a group cannot be loaded", async ({ page }) => {
-    await openPage(page, "/settings/groups");
+  test("shows an error when a group cannot be loaded", async ({ page, request }) => {
     const name = `Unloaded-${crypto.randomUUID()}`;
-    await createGroup(page, name);
+    await insertGroup(request, name);
+    await openPage(page, "/settings/groups");
+    await filterByName(page, name);
 
     await page.route("**/api/trpc/*group.read*", (route) => route.abort());
     await openGroupEditor(page, name);

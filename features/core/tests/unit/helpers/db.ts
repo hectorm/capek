@@ -1,9 +1,11 @@
+import type { AnyRouter } from "@trpc/server";
 import type { Kysely, Transaction } from "kysely";
 import { z } from "zod/v4";
 
 import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ServerFeature } from "#layers/core/server/lib/features/define";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
+import type { PermissionName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import coreFeature from "#layers/core/server/feature";
 import { useDb, withUserTransaction } from "#layers/core/server/lib/database";
@@ -24,20 +26,42 @@ export const createTestDb = async (features: readonly ServerFeature[] = []): Pro
 
 export interface TestPrincipal {
   id: string;
+  username?: string;
   groups?: string[];
-  permissions?: string[];
+  permissions?: PermissionName[];
 }
+
+export const authUser = (principal: TestPrincipal): AuthUser & Required<TestPrincipal> => {
+  const username = principal.username ?? principal.id;
+  return {
+    id: principal.id,
+    username,
+    fullname: username,
+    email: `${username}@example.com`,
+    picture: null,
+    lastLoginAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    groups: principal.groups ?? [],
+    permissions: principal.permissions ?? [],
+  };
+};
 
 export const asUser = <T>(
   principal: TestPrincipal,
   callback: (trx: Transaction<Database>) => Promise<T>,
 ): Promise<T> => {
-  const user = {
-    id: principal.id,
-    groups: principal.groups ?? [],
-    permissions: principal.permissions ?? [],
-  } as unknown as AuthUser;
-  return withUserTransaction(user, callback);
+  return withUserTransaction(authUser(principal), callback);
+};
+
+export const createTestCaller = <TRouter extends AnyRouter>(
+  router: TRouter,
+  principal: TestPrincipal | null,
+): ReturnType<TRouter["createCaller"]> => {
+  return router.createCaller({
+    logger: useLogger(),
+    user: principal && authUser(principal),
+  }) as ReturnType<TRouter["createCaller"]>;
 };
 
 // `{ alice }` adds a user named "alice" whose ID is the value of `alice`

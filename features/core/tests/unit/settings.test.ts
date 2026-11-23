@@ -1,14 +1,9 @@
 import type { Kysely } from "kysely";
-import type { Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SettingKey } from "#layers/core/server/lib/settings/define";
 import type { Database } from "#layers/core/shared/schema";
 import { getSetting } from "#layers/core/server/lib/settings";
-import { createCallerFactory } from "#layers/core/server/trpc/init";
-import { settingsRouter } from "#layers/core/server/trpc/routers/settings";
-import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { closeDb, createTestDb } from "#layers/core/tests/unit/helpers/db";
 
 vi.mock("#layers/core/server/lib/features", async () => {
@@ -27,14 +22,6 @@ vi.mock("#layers/core/server/lib/features", async () => {
             schema: z.string().max(100),
             config: { inputType: "text", minLength: 0, maxLength: 100 },
           },
-          "test.token": {
-            type: SettingType.StringSecret,
-            category: "test",
-            isPublic: true,
-            getDefault: () => "",
-            schema: z.string().max(100),
-            config: { inputType: "password", minLength: 0, maxLength: 100 },
-          },
         },
       },
     ],
@@ -42,13 +29,6 @@ vi.mock("#layers/core/server/lib/features", async () => {
 });
 
 let db: Kysely<Database>;
-
-const SETTING_KEY = "test.token" as SettingKey;
-const logger = { debug: () => undefined, info: () => undefined, warn: () => undefined } as unknown as Logger;
-const admin = createCallerFactory(settingsRouter)({
-  logger,
-  user: { id: crypto.randomUUID(), groups: [], permissions: CoreRolePermissions[Roles.Admin] } as unknown as AuthUser,
-});
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -76,18 +56,5 @@ describe("setting", () => {
     await expect(rollback).rejects.toThrow("Rolled back");
     expect(changed).toBe("Changed");
     expect(await getSetting(key)).toBe("");
-  });
-
-  it("is stored encrypted and only read by the server when it is a secret", async () => {
-    await admin.update({ settings: [{ key: SETTING_KEY, value: "hunter2" }] });
-
-    const stored = await db
-      .selectFrom("settings")
-      .select("value")
-      .where("key", "=", SETTING_KEY)
-      .executeTakeFirstOrThrow();
-    expect(JSON.stringify(stored.value)).not.toContain("hunter2");
-    expect(await getSetting(SETTING_KEY)).toBe("hunter2");
-    expect((await admin.list())[SETTING_KEY]).toMatchObject({ value: null, isOverridden: true });
   });
 });

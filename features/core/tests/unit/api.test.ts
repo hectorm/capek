@@ -3,9 +3,9 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import type { Kysely } from "kysely";
-import { createApp, createRouter, eventHandler, toNodeListener } from "h3";
+import { createApp, createRouter, eventHandler, setResponseHeader, toNodeListener } from "h3";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Database } from "#layers/core/shared/schema";
 import branding from "#layers/core/server/api/branding/[type].get";
@@ -23,12 +23,30 @@ let baseUrl: string;
 const alice = crypto.randomUUID();
 const provider = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(provider.publicKey)), kid: "key", alg: "ES256" };
+const proxy = {
+  secret: "proxy-secret",
+  secretHeader: "X-Proxy-Secret",
+  headerUsername: "X-Forwarded-User",
+  headerFullname: "X-Forwarded-Preferred-Username",
+  headerEmail: "X-Forwarded-Email",
+  headerPicture: "X-Forwarded-Picture",
+  headerRoles: "X-Forwarded-Roles",
+  headerGroups: "X-Forwarded-Groups",
+  syncRoles: false,
+  syncGroups: false,
+  cacheTtlSec: 0,
+};
 
 beforeAll(async () => {
   db = await createTestDb();
   await insertUsers(db, { alice });
 
   const app = createApp();
+  app.use(
+    eventHandler((event) => {
+      setResponseHeader(event, "Connection", "close");
+    }),
+  );
   app.use(authn);
   app.use(
     "/jwks",
@@ -50,19 +68,7 @@ beforeAll(async () => {
 
   Object.assign(runtimeConfig, {
     session: { cookieName: "session", durationSec: 3600, maxDurationSec: 86400 },
-    proxy: {
-      secret: "proxy-secret",
-      secretHeader: "X-Proxy-Secret",
-      headerUsername: "X-Forwarded-User",
-      headerFullname: "X-Forwarded-Preferred-Username",
-      headerEmail: "X-Forwarded-Email",
-      headerPicture: "X-Forwarded-Picture",
-      headerRoles: "X-Forwarded-Roles",
-      headerGroups: "X-Forwarded-Groups",
-      syncRoles: false,
-      syncGroups: false,
-      cacheTtlSec: 0,
-    },
+    branding: { logo: "/acme/logo.svg", icon: "/api/logout" },
     oidc: {
       rootUrl: "http://localhost:3000",
       issuer: "https://idp.localhost",
@@ -89,8 +95,12 @@ beforeAll(async () => {
   });
 });
 
+beforeEach(() => {
+  Object.assign(runtimeConfig, { authMode: "oidc", proxy });
+});
+
 afterAll(async () => {
-  server.close();
+  await new Promise((resolve) => server.close(resolve));
   await closeDb();
 });
 
@@ -111,8 +121,11 @@ describe("proxy authentication", () => {
   };
 
   beforeAll(async () => {
-    runtimeConfig.authMode = "proxy";
     await db.insertInto("roles").values({ name: "admin" }).execute();
+  });
+
+  beforeEach(() => {
+    Object.assign(runtimeConfig, { authMode: "proxy" });
   });
 
   const roles = (username: string): Promise<{ name: string }[]> => {
@@ -134,29 +147,23 @@ describe("proxy authentication", () => {
   });
 
   it.each(["", " \t "])("does not take the user when the secret is %j, even if it is sent", async (secret) => {
-    const proxy = runtimeConfig.proxy as { secret: string };
-    const originalSecret = proxy.secret;
-    proxy.secret = secret;
+    Object.assign(runtimeConfig, { proxy: { ...proxy, secret } });
 
-    try {
-      const forgedHeaders = new Headers(headers);
-      forgedHeaders.delete("X-Proxy-Secret");
-      const missing = await request("/api/me", { headers: forgedHeaders });
-      expect(await missing.json()).toEqual({});
+    const forgedHeaders = new Headers(headers);
+    forgedHeaders.delete("X-Proxy-Secret");
+    const missing = await request("/api/me", { headers: forgedHeaders });
+    expect(await missing.json()).toEqual({});
 
-      forgedHeaders.set("X-Proxy-Secret", secret);
-      const matching = await request("/api/me", { headers: forgedHeaders });
-      expect(await matching.json()).toEqual({});
-    } finally {
-      proxy.secret = originalSecret;
-    }
+    forgedHeaders.set("X-Proxy-Secret", secret);
+    const matching = await request("/api/me", { headers: forgedHeaders });
+    expect(await matching.json()).toEqual({});
   });
 
   it("only takes the roles from the headers when their sync is enabled", async () => {
     await request("/api/me", { headers });
     expect(await roles("bob")).toEqual([]);
 
-    (runtimeConfig.proxy as { syncRoles: boolean }).syncRoles = true;
+    Object.assign(runtimeConfig, { proxy: { ...proxy, syncRoles: true } });
     await request("/api/me", { headers });
     expect(await roles("bob")).toEqual([{ name: "admin" }]);
   });
@@ -171,8 +178,8 @@ describe("proxy authentication", () => {
 });
 
 describe("OIDC logout", () => {
-  beforeAll(() => {
-    runtimeConfig.authMode = "oidc";
+  beforeEach(async () => {
+    await db.deleteFrom("sessions").execute();
   });
 
   const sessionIds = async (): Promise<(string | null)[]> => {
@@ -218,10 +225,6 @@ describe("OIDC logout", () => {
 });
 
 describe("branding", () => {
-  beforeAll(() => {
-    Object.assign(runtimeConfig, { branding: { logo: "/acme/logo.svg", icon: "/api/logout" } });
-  });
-
   it("redirects to the image of the public directory that the configuration names", async () => {
     const response = await request("/api/branding/logo");
 

@@ -13,6 +13,7 @@ import { executeCode } from "#layers/ai/server/lib/code/interpreter";
 import { SkillResource } from "#layers/ai/server/lib/resources";
 import { loadAgentToolsets, syncAgentToolResources } from "#layers/ai/server/lib/tools";
 import { collectToolProviders, defineToolProvider } from "#layers/ai/server/lib/tools/define";
+import { AiPermissions } from "#layers/ai/shared/rbac";
 import {
   asUser,
   closeDb,
@@ -82,8 +83,8 @@ const profileProvider = defineToolProvider({
 const notesFeature: ServerFeature = { name: "notes", tools: [notesProvider, profileProvider] };
 const providers = collectToolProviders([coreFeature, aiFeature, notesFeature]);
 
-const agentEditor = ["ai_agent:update:own", "ai_agent:read:own"];
-const skillUser = ["ai_skill:read:own", "ai_skill:use:own"];
+const agentEditor = [AiPermissions.AgentUpdateOwn, AiPermissions.AgentReadOwn];
+const skillUser = [AiPermissions.SkillReadOwn, AiPermissions.SkillUseOwn];
 const caller = { id: alice, groups: [], permissions: skillUser } as unknown as AuthUser;
 
 beforeAll(async () => {
@@ -97,6 +98,10 @@ beforeAll(async () => {
 
   await db.insertInto("aiAgentAccess").values({ agentId, userId: alice, role: "editor" }).execute();
   await db.insertInto("aiSkillAccess").values({ skillId: usableSkillId, userId: alice, role: "user" }).execute();
+  await db
+    .insertInto("aiAgentToolResources")
+    .values({ agentId, resourceType: SkillResource.type, resourceId: usableSkillId })
+    .execute();
 });
 
 afterAll(async () => {
@@ -106,20 +111,24 @@ afterAll(async () => {
 describe("agent tools", () => {
   it("requires use access to the resources assigned to an agent", async () => {
     const permissions = [...agentEditor, ...skillUser];
+    const syncedAgentId = await insertAgent(db, "synced-agent");
+    await db.insertInto("aiAgentAccess").values({ agentId: syncedAgentId, userId: alice, role: "editor" }).execute();
 
     await expect(
-      asUser({ id: alice, permissions }, (trx) => syncAgentToolResources(trx, agentId, notesProvider, [otherSkillId])),
+      asUser({ id: alice, permissions }, (trx) => {
+        return syncAgentToolResources(trx, syncedAgentId, notesProvider, [otherSkillId]);
+      }),
     ).rejects.toThrow(/row-level security/);
 
     // Assigning a resource also requires use access
     await expect(
       asUser({ id: alice, permissions: agentEditor }, (trx) => {
-        return syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]);
+        return syncAgentToolResources(trx, syncedAgentId, notesProvider, [usableSkillId]);
       }),
     ).rejects.toThrow(/row-level security/);
 
     const result = await asUser({ id: alice, permissions }, (trx) => {
-      return syncAgentToolResources(trx, agentId, notesProvider, [usableSkillId]);
+      return syncAgentToolResources(trx, syncedAgentId, notesProvider, [usableSkillId]);
     });
     expect(result).toEqual({ added: 1, removed: 0 });
   });

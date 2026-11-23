@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ExecuteCodeOptions } from "#layers/ai/server/lib/code/interpreter";
 import { createVFS } from "#layers/ai/server/lib/code/generators";
 import { executeCode } from "#layers/ai/server/lib/code/interpreter";
-import { validateSkillSyntax } from "#layers/ai/server/lib/skills/validator";
+import { longestStall } from "#layers/ai/tests/unit/helpers/event-loop";
 
 const options = (overrides: Partial<ExecuteCodeOptions> = {}): ExecuteCodeOptions => ({
   chatSessionId: crypto.randomUUID(),
@@ -13,22 +13,6 @@ const options = (overrides: Partial<ExecuteCodeOptions> = {}): ExecuteCodeOption
   maxMemoryBytes: 25 * 1024 * 1024,
   ...overrides,
 });
-
-const longestStall = async (callback: () => Promise<unknown>): Promise<number> => {
-  let longest = 0;
-  let last = performance.now();
-  const timer = setInterval(() => {
-    const now = performance.now();
-    longest = Math.max(longest, now - last);
-    last = now;
-  }, 10);
-  try {
-    await callback();
-  } finally {
-    clearInterval(timer);
-  }
-  return longest;
-};
 
 describe("code interpreter", () => {
   it("returns the result and the logs of the code", async () => {
@@ -49,7 +33,7 @@ describe("code interpreter", () => {
     const stall = await longestStall(async () => {
       execution = await executeCode(`while (true) {}`, options({ maxExecutionMs: 500 }));
     });
-    expect(execution?.error).toBeTruthy();
+    expect(execution?.error).toBe("Execution timeout");
     expect(execution?.executionMs).toBeLessThan(4_000);
     expect(stall).toBeLessThan(250);
   });
@@ -100,15 +84,6 @@ describe("code interpreter", () => {
     expect(vfs.readFile("/skills/index.js")).toBe("\n");
   });
 
-  it("starts with an empty workspace", async () => {
-    const execution = await executeCode(
-      `return [fs.existsSync("/workspace"), fs.readdirSync("/workspace")];`,
-      options({ vfs: createVFS([], []) }),
-    );
-    expect(execution.error).toBeNull();
-    expect(execution.result).toEqual([true, []]);
-  });
-
   it("limits the size of the workspace", async () => {
     const vfs = createVFS([], []);
     const limited = options({ vfs, maxWorkspaceBytes: 2_000 });
@@ -128,11 +103,9 @@ describe("code interpreter", () => {
     expect(replaced.error).toBeNull();
     expect(vfs.readFile("/workspace/b.txt")).toHaveLength(900);
 
-    // Files also take space for their names, even when they are empty
     const empty = await executeCode(`for (let i = 0; i < 10; i++) fs.writeFileSync("/workspace/" + i, "");`, limited);
     expect(empty.error).toContain("ENOSPC");
 
-    // So do directories, and the workspace cannot be replaced with a file that is not counted
     const directories = await executeCode(`for (let i = 0; i < 10; i++) fs.mkdirSync("/workspace/" + i);`, limited);
     expect(directories.error).toContain("ENOSPC");
     const root = await executeCode(
@@ -154,22 +127,5 @@ describe("code interpreter", () => {
 
     const exceeds = await executeCode(`fs.writeFileSync("/workspace/b.txt", "é".repeat(600));`, limited);
     expect(exceeds.error).toContain("ENOSPC");
-  });
-
-  it("checks the syntax of a skill without running it", async () => {
-    const stall = await longestStall(async () => {
-      expect(await validateSkillSyntax(`while (true) {}\nexport default async function () {}`)).toEqual({
-        valid: true,
-      });
-    });
-    expect(stall).toBeLessThan(250);
-    expect(await validateSkillSyntax(`export default async function ( {`)).toMatchObject({ valid: false });
-  });
-
-  it("checks the syntax of the imports of a skill without loading them", async () => {
-    const code = (line: string): string => `${line}\nexport default async function () {}`;
-    expect(await validateSkillSyntax(code("import { $read } from '/tools/index.js';"))).toEqual({ valid: true });
-    expect(await validateSkillSyntax(code("import read from './missing.js';"))).toEqual({ valid: true });
-    expect(await validateSkillSyntax(code("import foo bar from './missing.js';"))).toMatchObject({ valid: false });
   });
 });

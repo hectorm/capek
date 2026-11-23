@@ -1,12 +1,12 @@
 import type { Kysely } from "kysely";
 
-import type { NewAgent, NewLlmProvider, NewMcpServer, NewSkill } from "#layers/ai/shared/schema";
+import type { NewAgent, NewChatSession, NewLlmProvider, NewMcpServer, NewSkill } from "#layers/ai/shared/schema";
 import type { Database } from "#layers/core/shared/schema";
 import aiFeature from "#layers/ai/server/feature";
 import { encryptLlmProviderSecrets, encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { createTestDb } from "#layers/core/tests/unit/helpers/db";
 
-export { asUser, closeDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
+export { asUser, closeDb, createTestCaller, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
 export const createAiTestDb = (): Promise<Kysely<Database>> => createTestDb([aiFeature]);
 
@@ -98,6 +98,19 @@ export const insertSkill = async (
   const row = await db
     .insertInto("aiSkills")
     .values({ name, description: "", documentation: null, code: null, ...values })
+    .returning(["id"])
+    .executeTakeFirstOrThrow();
+  return row.id;
+};
+
+export const insertChatSession = async (
+  db: Kysely<Database>,
+  userId: string,
+  values: Partial<NewChatSession> = {},
+): Promise<string> => {
+  const row = await db
+    .insertInto("aiChatSessions")
+    .values({ userId, agentId: null, title: "", ...values })
     .returning(["id"])
     .executeTakeFirstOrThrow();
   return row.id;

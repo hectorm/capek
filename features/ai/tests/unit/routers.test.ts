@@ -3,16 +3,13 @@ import { deflateSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 
 import type { Kysely } from "kysely";
-import type { Logger } from "pino";
 import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { MCPTool } from "#layers/ai/shared/mcp";
-import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
-import type { RoleName } from "#layers/core/shared/rbac";
+import type { PermissionName, RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { ensureToolsDiscovered } from "#layers/ai/server/lib/mcp/tools";
-import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { agentRouter } from "#layers/ai/server/trpc/routers/agent";
 import { chatMessageRouter } from "#layers/ai/server/trpc/routers/chat-message";
 import { chatSessionRouter } from "#layers/ai/server/trpc/routers/chat-session";
@@ -24,18 +21,20 @@ import { AiPermissions, AiRolePermissions } from "#layers/ai/shared/rbac";
 import {
   closeDb,
   createAiTestDb,
+  createTestCaller,
   insertAgent,
+  insertChatSession,
   insertLlmProvider,
+  insertMcpServer,
   insertSkill,
   insertUsers,
 } from "#layers/ai/tests/unit/helpers/db";
-import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
+import { createTRPCRouter } from "#layers/core/server/trpc/init";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 
 let db: Kysely<Database>;
 
-// Endpoint that keeps the requests it receives
 let endpoint: http.Server;
 let endpointUrl: string;
 const requests: string[] = [];
@@ -56,17 +55,8 @@ const router = createTRPCRouter({
   mcpServer: mcpServerRouter,
   skill: skillRouter,
 });
-const logger = { warn: () => undefined, info: () => undefined, debug: () => undefined } as unknown as Logger;
-const caller = createCallerFactory(router);
-
-type Caller = ReturnType<typeof caller>;
-
-const asUser = (id: string, permissions: string[]): Caller => {
-  return caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
-};
-
-const as = (id: string, role: RoleName): Caller => {
-  return asUser(id, [...CoreRolePermissions[role], ...AiRolePermissions[role]]);
+const rolePermissions = (role: RoleName): PermissionName[] => {
+  return [...CoreRolePermissions[role], ...AiRolePermissions[role]];
 };
 
 beforeAll(async () => {
@@ -105,19 +95,7 @@ beforeAll(async () => {
   await insertLlmProvider(db, "provider", { id: llmProviderId, apiUrl: `${endpointUrl}/v1`, apiKey: "" });
   await db.insertInto("aiLlmProviderAccess").values({ llmProviderId, userId: mallory, role: "user" }).execute();
 
-  await db
-    .insertInto("aiMcpServers")
-    .values({
-      id: mcpServerId,
-      name: "server",
-      description: "",
-      url: `${endpointUrl}/mcp`,
-      headers: encryptMcpServerHeaders([]),
-      stateful: false,
-      toolCallTimeoutSec: null,
-      cachedTools: JSON.stringify([]),
-    })
-    .execute();
+  await insertMcpServer(db, "server", { id: mcpServerId, url: `${endpointUrl}/mcp` });
 });
 
 beforeEach(() => {
@@ -131,7 +109,7 @@ afterAll(async () => {
 
 describe("connection test", () => {
   it("is not run for users who can neither create nor update the resource", async () => {
-    const member = as(mallory, Roles.Member);
+    const member = createTestCaller(router, { id: mallory, permissions: rolePermissions(Roles.Member) });
     const apiUrl = `${endpointUrl}/v1`;
     const url = `${endpointUrl}/mcp`;
 
@@ -150,7 +128,7 @@ describe("connection test", () => {
   });
 
   it("reports the message of an API error", async () => {
-    const creator = as(alice, Roles.Creator);
+    const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
 
     const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/api`, apiKey: "key" });
     expect(llmProvider).toEqual({
@@ -165,7 +143,7 @@ describe("connection test", () => {
   });
 
   it("does not report the body of another service", async () => {
-    const creator = as(alice, Roles.Creator);
+    const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
 
     const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/v1`, apiKey: "key" });
     expect(llmProvider).toEqual({ success: false, error: "AI service models request failed: 403 Forbidden" });
@@ -177,7 +155,7 @@ describe("connection test", () => {
   });
 
   it("does not follow redirects", async () => {
-    const creator = as(alice, Roles.Creator);
+    const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
 
     const llmProvider = await creator.llmProvider.testConnection({ apiUrl: `${endpointUrl}/moved`, apiKey: "key" });
     expect(llmProvider).toEqual({
@@ -204,20 +182,7 @@ describe("tool discovery", () => {
   });
 
   it("is repeated when the time to keep the tools of a server is over", async () => {
-    const id = crypto.randomUUID();
-    await db
-      .insertInto("aiMcpServers")
-      .values({
-        id,
-        name: "tools",
-        description: "",
-        url: `${endpointUrl}/tools`,
-        headers: encryptMcpServerHeaders([]),
-        stateful: false,
-        toolCallTimeoutSec: null,
-        cachedTools: JSON.stringify([]),
-      })
-      .execute();
+    const id = await insertMcpServer(db, "tools", { url: `${endpointUrl}/tools` });
     const expire = async (): Promise<void> => {
       await db
         .updateTable("aiMcpServers")
@@ -252,20 +217,7 @@ describe("tool discovery", () => {
   });
 
   it("stops at the deadline of its caller", async () => {
-    const id = crypto.randomUUID();
-    await db
-      .insertInto("aiMcpServers")
-      .values({
-        id,
-        name: "slow",
-        description: "",
-        url: `${endpointUrl}/slow`,
-        headers: encryptMcpServerHeaders([]),
-        stateful: false,
-        toolCallTimeoutSec: null,
-        cachedTools: JSON.stringify([]),
-      })
-      .execute();
+    const id = await insertMcpServer(db, "slow", { url: `${endpointUrl}/slow` });
 
     for (let i = 0; i < 2; i++) {
       await expect(ensureToolsDiscovered(db, id, AbortSignal.timeout(200))).rejects.toMatchObject({
@@ -283,12 +235,12 @@ describe("agent", () => {
     await db.insertInto("aiAgentAccess").values({ agentId: shared, userId: mallory, role: "user" }).execute();
 
     const { AgentListAll, AgentListOwn, AgentReadAll, AgentReadOwn } = AiPermissions;
-    const browse = asUser(mallory, [AgentListAll, AgentReadOwn]).agent;
+    const browse = createTestCaller(router, { id: mallory, permissions: [AgentListAll, AgentReadOwn] }).agent;
     await expect(browse.read({ id: shared })).resolves.toMatchObject({ id: shared });
     await expect(browse.read({ id: unshared })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(browse.listSkills({ agentId: unshared })).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const read = asUser(mallory, [AgentReadAll, AgentListOwn]).agent;
+    const read = createTestCaller(router, { id: mallory, permissions: [AgentReadAll, AgentListOwn] }).agent;
     await expect(read.search({ search: "scope-", limit: 1 })).resolves.toEqual({
       agents: [expect.objectContaining({ id: shared })],
       nextCursor: undefined,
@@ -296,7 +248,7 @@ describe("agent", () => {
   });
 
   it("applies specialist settings consistently when creating and updating an agent", async () => {
-    const { agent } = as(alice, Roles.Admin);
+    const { agent } = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Admin) });
     const tools = { codeInterpreter: true, toolProviders: ["ai_tables"] };
     const triage = await agent.create({ name: "router", type: "triage", model: "m", ...tools });
     const disabled = { codeInterpreter: false, toolProviders: [] };
@@ -321,12 +273,8 @@ describe("agent", () => {
     }
   });
 
-  it("rejects a fractional search limit as invalid input", async () => {
-    await expect(as(alice, Roles.Admin).agent.search({ limit: 1.5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
-  });
-
   it("is saved with what it is assigned, or not at all", async () => {
-    const creator = as(alice, Roles.Creator);
+    const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
     const skillId = await insertSkill(db, "assigned");
     await db.insertInto("aiSkillAccess").values({ skillId, userId: alice, role: "user" }).execute();
     const skillIds = [crypto.randomUUID()];
@@ -337,9 +285,9 @@ describe("agent", () => {
       { skillId },
     ]);
 
-    await expect(creator.agent.create({ name: "unsaved", type: "specialist", model: "m", skillIds })).rejects.toThrow(
-      "what the agent is assigned",
-    );
+    await expect(
+      creator.agent.create({ name: "unsaved", type: "specialist", model: "m", skillIds }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await db.selectFrom("aiAgents").select(["id"]).where("name", "=", "unsaved").execute()).toEqual([]);
 
     await expect(creator.agent.update({ id, description: "changed", skillIds })).rejects.toThrow("what it is assigned");
@@ -348,7 +296,7 @@ describe("agent", () => {
   });
 
   it("is not saved with what does not exist, even by who can use everything", async () => {
-    const admin = as(alice, Roles.Admin);
+    const admin = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Admin) });
     const skillIds = [crypto.randomUUID()];
 
     await expect(admin.agent.create({ name: "unsaved", type: "specialist", model: "m", skillIds })).rejects.toThrow(
@@ -359,22 +307,6 @@ describe("agent", () => {
 
 describe("shared resource", () => {
   it("requires the read scope for details and the list scope for search", async () => {
-    const insertMcpServer = async (name: string): Promise<string> => {
-      const row = await db
-        .insertInto("aiMcpServers")
-        .values({
-          name,
-          description: "",
-          url: `${endpointUrl}/mcp`,
-          headers: encryptMcpServerHeaders([]),
-          stateful: false,
-          toolCallTimeoutSec: null,
-          cachedTools: JSON.stringify([]),
-        })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
-      return row.id;
-    };
     // Only the first resource is shared
     const expectScopes = async (
       [shared, unshared]: [string, string],
@@ -414,14 +346,14 @@ describe("shared resource", () => {
       .execute();
     await expectScopes(
       llmProviders,
-      asUser(mallory, [LlmProviderListAll, LlmProviderReadOwn]).llmProvider,
-      asUser(mallory, [LlmProviderReadAll, LlmProviderListOwn]).llmProvider,
+      createTestCaller(router, { id: mallory, permissions: [LlmProviderListAll, LlmProviderReadOwn] }).llmProvider,
+      createTestCaller(router, { id: mallory, permissions: [LlmProviderReadAll, LlmProviderListOwn] }).llmProvider,
       "llmProviders",
     );
 
     const mcpServers: [string, string] = [
-      await insertMcpServer("scope-shared"),
-      await insertMcpServer("scope-unshared"),
+      await insertMcpServer(db, "scope-shared"),
+      await insertMcpServer(db, "scope-unshared"),
     ];
     await db
       .insertInto("aiMcpServerAccess")
@@ -429,8 +361,8 @@ describe("shared resource", () => {
       .execute();
     await expectScopes(
       mcpServers,
-      asUser(mallory, [McpServerListAll, McpServerReadOwn]).mcpServer,
-      asUser(mallory, [McpServerReadAll, McpServerListOwn]).mcpServer,
+      createTestCaller(router, { id: mallory, permissions: [McpServerListAll, McpServerReadOwn] }).mcpServer,
+      createTestCaller(router, { id: mallory, permissions: [McpServerReadAll, McpServerListOwn] }).mcpServer,
       "mcpServers",
     );
 
@@ -438,14 +370,14 @@ describe("shared resource", () => {
     await db.insertInto("aiSkillAccess").values({ skillId: skills[0], userId: mallory, role: "user" }).execute();
     await expectScopes(
       skills,
-      asUser(mallory, [SkillListAll, SkillReadOwn]).skill,
-      asUser(mallory, [SkillReadAll, SkillListOwn]).skill,
+      createTestCaller(router, { id: mallory, permissions: [SkillListAll, SkillReadOwn] }).skill,
+      createTestCaller(router, { id: mallory, permissions: [SkillReadAll, SkillListOwn] }).skill,
       "skills",
     );
   });
 
   it("is saved with its access, or not at all", async () => {
-    const creator = as(alice, Roles.Creator);
+    const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
     const access = [
       { id: alice, type: "user" as const, role: "editor" as const },
       { id: mallory, type: "user" as const, role: "user" as const },
@@ -473,7 +405,7 @@ describe("shared resource", () => {
 
 describe("access list", () => {
   it("is only given for a readable resource", async () => {
-    const member = as(mallory, Roles.Member);
+    const member = createTestCaller(router, { id: mallory, permissions: rolePermissions(Roles.Member) });
 
     expect(await member.llmProvider.listAccess({ llmProviderId })).toHaveLength(1);
     await expect(member.mcpServer.listAccess({ mcpServerId })).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -486,13 +418,8 @@ describe("chat access", () => {
     const other = crypto.randomUUID();
     const tableId = crypto.randomUUID();
     const agentId = await insertAgent(db, "scope-chat-agent");
-    await db
-      .insertInto("aiChatSessions")
-      .values([
-        { id: own, userId: alice, title: "scope-own", agentId },
-        { id: other, userId: mallory, title: "scope-other", agentId },
-      ])
-      .execute();
+    await insertChatSession(db, alice, { id: own, title: "scope-own", agentId });
+    await insertChatSession(db, mallory, { id: other, title: "scope-other", agentId });
     await db
       .insertInto("aiChatMessages")
       .values({ sessionId: other, role: "user", content: "Private message" })
@@ -504,7 +431,7 @@ describe("chat access", () => {
       .execute();
 
     const { AgentReadAll, ChatListAll, ChatListOwn, ChatReadAll, ChatReadOwn, ChatUpdateOwn } = AiPermissions;
-    const browse = asUser(alice, [ChatListAll, ChatReadOwn]);
+    const browse = createTestCaller(router, { id: alice, permissions: [ChatListAll, ChatReadOwn] });
     await expect(
       browse.chatSession.search({ search: "scope-", orderBy: "title", order: "asc" }),
     ).resolves.toMatchObject({
@@ -514,7 +441,10 @@ describe("chat access", () => {
     await expect(browse.chatMessage.list({ sessionId: other })).resolves.toMatchObject({ messages: [] });
     await expect(browse.chatTable.read({ id: tableId })).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const read = asUser(alice, [AgentReadAll, ChatListOwn, ChatReadAll, ChatUpdateOwn]);
+    const read = createTestCaller(router, {
+      id: alice,
+      permissions: [AgentReadAll, ChatListOwn, ChatReadAll, ChatUpdateOwn],
+    });
     await expect(read.chatSession.search({ search: "scope-" })).resolves.toMatchObject({
       sessions: [expect.objectContaining({ id: own })],
     });
@@ -528,14 +458,6 @@ describe("chat access", () => {
 
 describe("chat message", () => {
   it("is deleted with the ones after it", async () => {
-    const createSession = async (): Promise<string> => {
-      const session = await db
-        .insertInto("aiChatSessions")
-        .values({ userId: alice, agentId: null, title: "" })
-        .returning(["id"])
-        .executeTakeFirstOrThrow();
-      return session.id;
-    };
     const insertMessage = async (session: string, content: string, createdAt: string): Promise<string> => {
       const result = await sql<{ id: string }>`
         INSERT INTO ai_chat_messages (session_id, role, content, created_at)
@@ -554,14 +476,15 @@ describe("chat message", () => {
       return rows.map((row) => row.content);
     };
 
-    const sessionId = await createSession();
-    const otherSessionId = await createSession();
+    const sessionId = await insertChatSession(db, alice);
+    const otherSessionId = await insertChatSession(db, alice);
     await insertMessage(sessionId, "first", "2025-01-01T00:01:00.123100Z");
     const second = await insertMessage(sessionId, "second", "2025-01-01T00:01:00.123900Z");
     await insertMessage(sessionId, "third", "2025-01-01T00:02:00Z");
     await insertMessage(otherSessionId, "other", "2025-01-01T00:03:00Z");
 
-    await as(alice, Roles.Member).chatMessage.delete({ id: second, sessionId });
+    const { chatMessage } = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Member) });
+    await chatMessage.delete({ id: second, sessionId });
 
     expect(await contents(sessionId)).toEqual(["first"]);
     expect(await contents(otherSessionId)).toEqual(["other"]);

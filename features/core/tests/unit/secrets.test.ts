@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Database } from "#layers/core/shared/schema";
 import { loadSecrets } from "#layers/core/server/lib/secrets";
@@ -13,6 +13,10 @@ const NEW_KEY = "6dD6GxQNdmVfr+G9B6Q9oh5P9I3mL6B8mU3zQ1l6UcA=";
 
 beforeAll(async () => {
   db = await createTestDb();
+});
+
+beforeEach(async () => {
+  await db.deleteFrom("encryptionKeys").execute();
 });
 
 afterAll(async () => {

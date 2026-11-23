@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import type { AddressInfo, LookupFunction } from "node:net";
 
 import { instanceLookup } from "tedious/lib/instance-lookup.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import { databaseCredential, SqlServerDriver } from "#layers/datasources/server/lib/drivers/sqlserver";
@@ -14,7 +14,7 @@ vi.mock("tedious/lib/instance-lookup.js", { spy: true });
 
 const resolveDns = vi.mocked(lookup as LookupFunction);
 
-afterEach(() => {
+beforeEach(() => {
   Object.assign(runtimeConfig, { allowedPrivateHosts: "" });
   vi.mocked(instanceLookup).mockReset();
   resolveDns.mockReset();
@@ -51,6 +51,9 @@ describe("SQL Server driver", () => {
   it("connects to the port of a named instance", async () => {
     const server = createServer((socket) => socket.destroy());
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    onTestFinished(async () => {
+      await new Promise((resolve) => server.close(resolve));
+    });
     Object.assign(runtimeConfig, { allowedPrivateHosts: "127.0.0.1" });
     vi.mocked(instanceLookup).mockResolvedValue((server.address() as AddressInfo).port);
     const connection = once(server, "connection");
@@ -58,7 +61,6 @@ describe("SQL Server driver", () => {
     const config = { connectionString: "Server=127.0.0.1\\SQLEXPRESS", authType: "none" };
     await expect(new SqlServerDriver().execute({ config }, "SELECT 1", {})).rejects.toThrow("Connection lost");
     await connection;
-    server.close();
   });
 
   it("stops looking up a named instance when its signal aborts", async () => {

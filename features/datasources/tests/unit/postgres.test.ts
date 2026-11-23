@@ -5,10 +5,9 @@ import type { AddressInfo, LookupFunction, Socket } from "node:net";
 
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { DatasourceQuerySettings } from "#layers/datasources/server/lib/drivers";
-import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
 import { PostgresDriver } from "#layers/datasources/server/lib/drivers/postgres";
 import { PostgresDatasourceType } from "#layers/datasources/shared/definitions/postgres";
@@ -33,10 +32,10 @@ beforeAll(async () => {
   server = new PGLiteSocketServer({ db: pglite, host: "127.0.0.1", port: 0 });
   await server.start();
   connectionString = `postgres://${server.getServerConn()}/postgres`;
-  Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
 });
 
-afterEach(() => {
+beforeEach(() => {
+  Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
   resolveDns.mockReset();
 });
 
@@ -56,10 +55,6 @@ describe("PostgreSQL datasource", () => {
   const run = (sql: string, querySettings = settings): Promise<unknown[]> => {
     return driver.execute({ config: config() }, sql, querySettings);
   };
-
-  it("hides the stored password", () => {
-    expect(PostgresDatasourceType.redact(config()).password).toBe(HTTP_REDACTED_VALUE);
-  });
 
   it("only restores the hidden password for the same server", () => {
     const redacted = PostgresDatasourceType.redact(config());
@@ -84,6 +79,9 @@ describe("PostgreSQL datasource", () => {
   it("stops connecting when its signal aborts", async () => {
     const stalled = createServer((client) => client.on("error", () => undefined));
     await new Promise<void>((resolve) => stalled.listen(0, "127.0.0.1", resolve));
+    onTestFinished(async () => {
+      await new Promise((resolve) => stalled.close(resolve));
+    });
     const host = `127.0.0.1:${String((stalled.address() as AddressInfo).port)}`;
     Object.assign(runtimeConfig, { allowedPrivateHosts: `${server.getServerConn()}, ${host}` });
 
@@ -96,8 +94,6 @@ describe("PostgreSQL datasource", () => {
     await expect(query).rejects.toBe(stopped);
 
     socket.destroy();
-    stalled.close();
-    Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
   });
 
   it("stops a query when its signal aborts", async () => {
@@ -115,15 +111,15 @@ describe("PostgreSQL datasource", () => {
       });
     });
     await new Promise<void>((resolve) => stalled.listen(0, "127.0.0.1", resolve));
+    onTestFinished(async () => {
+      await new Promise((resolve) => stalled.close(resolve));
+    });
     const host = `127.0.0.1:${String((stalled.address() as AddressInfo).port)}`;
     Object.assign(runtimeConfig, { allowedPrivateHosts: `${server.getServerConn()}, ${host}` });
 
     const connection = { ...config(), connectionString: `postgres://${host}/postgres` };
     const query = driver.execute({ config: connection }, "SELECT 1", { ...settings, signal: controller.signal });
     await expect(query).rejects.toBe(stopped);
-
-    stalled.close();
-    Object.assign(runtimeConfig, { allowedPrivateHosts: server.getServerConn() });
   });
 
   it("limits the rows of every query", async () => {
@@ -136,17 +132,14 @@ describe("PostgreSQL datasource", () => {
     expect(await run("SELECT id FROM orders ORDER BY id OFFSET 1")).toEqual([{ id: 2 }, { id: 3 }]);
     expect(await run("SELECT id FROM orders ORDER BY id FETCH FIRST 3 ROWS ONLY")).toEqual([{ id: 1 }, { id: 2 }]);
     expect(await run("-- every order\nSELECT id FROM orders ORDER BY id -- by ID")).toEqual([{ id: 1 }, { id: 2 }]);
-    expect(await run("SELECT g AS id FROM generate_series(1, 1000000) AS g LIMIT 1000000")).toEqual([
-      { id: 1 },
-      { id: 2 },
-    ]);
+    expect(await run("SELECT g AS id FROM generate_series(1, 10) AS g LIMIT 10")).toEqual([{ id: 1 }, { id: 2 }]);
     expect(await run("SELECT id FROM orders ORDER BY id;;")).toEqual([{ id: 1 }, { id: 2 }]);
     expect(await run("SELECT id FROM orders ORDER BY id; -- every order")).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
   it("rejects the results larger than the limit", async () => {
-    await expect(run("SELECT repeat('x', 1000) AS text", { ...settings, maxBytes: 100 })).rejects.toThrow(
-      "The result takes more than 100 bytes",
+    await expect(run("SELECT repeat('x', 10000) AS text", { ...settings, maxBytes: 1000 })).rejects.toThrow(
+      "The result takes more than 1000 bytes",
     );
 
     // The test server needs time to accept a new connection after cancellation

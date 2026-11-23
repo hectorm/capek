@@ -1,18 +1,16 @@
 import type { Kysely } from "kysely";
-import type { Logger } from "pino";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { SettingKey } from "#layers/core/server/lib/settings/define";
-import type { RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
-import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
+import { getSetting } from "#layers/core/server/lib/settings";
+import { createTRPCRouter } from "#layers/core/server/trpc/init";
 import { groupRouter } from "#layers/core/server/trpc/routers/group";
 import { roleRouter } from "#layers/core/server/trpc/routers/role";
 import { settingsRouter } from "#layers/core/server/trpc/routers/settings";
 import { userRouter } from "#layers/core/server/trpc/routers/user";
-import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
-import { closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
+import { CorePermissions, CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
+import { closeDb, createTestCaller, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 
 vi.mock("#layers/core/server/lib/features", async () => {
   const { z } = await import("zod/v4");
@@ -38,6 +36,14 @@ vi.mock("#layers/core/server/lib/features", async () => {
             schema: z.string().max(100),
             config: { inputType: "text", minLength: 0, maxLength: 100 },
           },
+          "test.token": {
+            type: SettingType.StringSecret,
+            category: "test",
+            isPublic: true,
+            getDefault: () => "",
+            schema: z.string().max(100),
+            config: { inputType: "password", minLength: 0, maxLength: 100 },
+          },
         },
       },
     ],
@@ -55,32 +61,20 @@ const staff = crypto.randomUUID();
 const board = crypto.randomUUID();
 
 const NAME_KEY = "test.name" as SettingKey;
+const TOKEN_KEY = "test.token" as SettingKey;
 
 const router = createTRPCRouter({ user: userRouter, group: groupRouter, role: roleRouter, settings: settingsRouter });
-const logger = { debug: () => undefined, info: () => undefined, warn: () => undefined } as unknown as Logger;
-const caller = createCallerFactory(router);
 
-const callerOf = (username: string, id: string, role: RoleName, groups: string[] = []): ReturnType<typeof caller> => {
-  const user: AuthUser = {
-    id,
-    username,
-    fullname: username,
-    email: `${username}@example.com`,
-    picture: null,
-    lastLoginAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    groups,
-    permissions: [...CoreRolePermissions[role]],
-  };
-  return caller({ logger, user });
-};
-
-const admin = callerOf("alice", alice, Roles.Admin);
-const auditor = callerOf("audrey", audrey, Roles.Auditor);
-const creator = callerOf("carl", carl, Roles.Creator);
-const member = callerOf("mallory", mallory, Roles.Member, [staff]);
-const anonymous = caller({ logger, user: null });
+const admin = createTestCaller(router, { id: alice, permissions: [...CoreRolePermissions[Roles.Admin]] });
+const auditor = createTestCaller(router, { id: audrey, permissions: [...CoreRolePermissions[Roles.Auditor]] });
+const creator = createTestCaller(router, { id: carl, permissions: [...CoreRolePermissions[Roles.Creator]] });
+const member = createTestCaller(router, {
+  id: mallory,
+  username: "mallory",
+  groups: [staff],
+  permissions: [...CoreRolePermissions[Roles.Member]],
+});
+const anonymous = createTestCaller(router, null);
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -122,6 +116,13 @@ describe("user", () => {
       roles: [],
     });
     await expect(member.user.read({ id: bob })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("requires the read scope for details, whatever the list scope", async () => {
+    const { UserListAll, UserReadOwn } = CorePermissions;
+    const browse = createTestCaller(router, { id: mallory, permissions: [UserListAll, UserReadOwn] });
+    await expect(browse.user.read({ id: mallory })).resolves.toMatchObject({ id: mallory });
+    await expect(browse.user.read({ id: bob })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("is searched only by the roles that list every user", async () => {
@@ -208,6 +209,24 @@ describe("group", () => {
     await expect(member.group.read({ id: board })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("requires the read scope for details and the list scope for search", async () => {
+    const { GroupListAll, GroupListOwn, GroupReadAll, GroupReadOwn } = CorePermissions;
+    const browse = createTestCaller(router, {
+      id: mallory,
+      groups: [staff],
+      permissions: [GroupListAll, GroupReadOwn],
+    });
+    await expect(browse.group.read({ id: staff })).resolves.toMatchObject({ id: staff });
+    await expect(browse.group.read({ id: board })).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const read = createTestCaller(router, { id: mallory, groups: [staff], permissions: [GroupReadAll, GroupListOwn] });
+    await expect(read.group.read({ id: board })).resolves.toMatchObject({ id: board });
+    await expect(read.group.search({ limit: 1 })).resolves.toMatchObject({
+      groups: [{ id: staff }],
+      nextCursor: undefined,
+    });
+  });
+
   it("is searched among every group, or among the groups of a member", async () => {
     for (const reader of [admin, auditor, creator]) {
       const { groups } = await reader.group.search({ search: ["staff", "board"] });
@@ -261,10 +280,10 @@ describe("role", () => {
 describe("settings", () => {
   it("are listed in full for the roles with the all scope, and only the public ones for the others", async () => {
     for (const reader of [admin, auditor]) {
-      expect(Object.keys(await reader.settings.list())).toEqual(["test.name", "test.internal"]);
+      expect(Object.keys(await reader.settings.list())).toEqual(["test.name", "test.internal", "test.token"]);
     }
     for (const reader of [creator, member]) {
-      expect(Object.keys(await reader.settings.list())).toEqual(["test.name"]);
+      expect(Object.keys(await reader.settings.list())).toEqual(["test.name", "test.token"]);
     }
 
     await expect(anonymous.settings.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -290,5 +309,18 @@ describe("settings", () => {
     await expect(
       admin.settings.update({ settings: [{ key: NAME_KEY, value: "x".repeat(101) }] }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("are stored encrypted and only read by the server when they are secrets", async () => {
+    await admin.settings.update({ settings: [{ key: TOKEN_KEY, value: "hunter2" }] });
+
+    const stored = await db
+      .selectFrom("settings")
+      .select("value")
+      .where("key", "=", TOKEN_KEY)
+      .executeTakeFirstOrThrow();
+    expect(JSON.stringify(stored.value)).not.toContain("hunter2");
+    expect(await getSetting(TOKEN_KEY)).toBe("hunter2");
+    expect((await admin.settings.list())[TOKEN_KEY]).toMatchObject({ value: null, isOverridden: true });
   });
 });

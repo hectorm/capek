@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { openPage } from "#layers/core/tests/integration/navigation";
+import { openPage, waitForPageLoad } from "#layers/core/tests/integration/navigation";
 
 test.describe("keyboard", () => {
   test("skips to the content of the page", async ({ page }) => {
@@ -39,10 +39,8 @@ test.describe("keyboard", () => {
       history.pushState(history.state, "", "?first");
       history.pushState(history.state, "", "?second");
     });
-    await page.goBack();
+    await waitForPageLoad(page, () => page.goBack());
     await expect(page).toHaveURL(/\?first$/);
-    // Gives the router time to handle the change
-    await page.waitForTimeout(500);
     await expect(toggle).toBeFocused();
   });
 });

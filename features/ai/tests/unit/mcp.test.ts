@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { MCPConnection, MCPConnectionOptions } from "#layers/ai/server/lib/mcp/connection";
 import type { MCPToolServer } from "#layers/ai/server/lib/mcp/manager";
 import type { MCPTool } from "#layers/ai/shared/mcp";
 import type { EndpointInit } from "#layers/core/server/lib/http";
@@ -48,6 +49,8 @@ let finishSlowCall: () => void = () => undefined;
 let connecting = Promise.withResolvers();
 
 const interrupted = new Map<string, unknown>();
+const clients: MCPConnection[] = [];
+const chatSessionIds: string[] = [];
 
 const server = (path: string): MCPToolServer => {
   return { name: "test", url: `${SERVER_URL}/${path}`, headers: [], stateful: false, toolCallTimeoutSec: 5 };
@@ -55,6 +58,18 @@ const server = (path: string): MCPToolServer => {
 
 const tool = (name: string): MCPTool => {
   return { name, inputSchema: { type: "object" } };
+};
+
+const connectClient = async (options: MCPConnectionOptions): Promise<MCPConnection> => {
+  const client = await connect(options);
+  clients.push(client);
+  return client;
+};
+
+const createChatSessionId = (): string => {
+  const chatSessionId = crypto.randomUUID();
+  chatSessionIds.push(chatSessionId);
+  return chatSessionId;
 };
 
 const sent = (header: string): string[] => {
@@ -70,7 +85,6 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 };
 
-// A stream that ends after its events
 const events = (text: string): Response => {
   return new Response(text, { headers: { "Content-Type": "text/event-stream" } });
 };
@@ -233,6 +247,15 @@ beforeEach(() => {
   sessions = 0;
 });
 
+afterEach(async () => {
+  for (const client of clients.splice(0)) {
+    await client.close();
+  }
+  for (const chatSessionId of chatSessionIds.splice(0)) {
+    await MCPManager.getInstance().cleanupSession(chatSessionId);
+  }
+});
+
 afterAll(() => {
   vi.mocked(fetchEndpoint).mockReset();
 });
@@ -240,7 +263,7 @@ afterAll(() => {
 describe("MCP manager", () => {
   it("reads the text of a result", async () => {
     const manager = MCPManager.getInstance();
-    const chatSessionId = crypto.randomUUID();
+    const chatSessionId = createChatSessionId();
     const call = (toolName: string): Promise<string> => {
       return manager.callTool(server("mcp"), tool(toolName), {}, chatSessionId);
     };
@@ -249,24 +272,20 @@ describe("MCP manager", () => {
       "Screenshot taken\n[image content omitted: image/png]\nNotes\n[resource_link content omitted: file:///report.pdf]",
     );
     expect(await call("count")).toBe('{"total":3}');
-
-    await manager.cleanupSession(chatSessionId);
   });
 
   it("replaces the client of a server whose URL or headers change", async () => {
     const manager = MCPManager.getInstance();
-    const chatSessionId = crypto.randomUUID();
+    const chatSessionId = createChatSessionId();
 
     await manager.callTool(server("mcp"), tool("count"), {}, chatSessionId);
     await manager.callTool(server("rotated"), tool("count"), {}, chatSessionId);
     expect(requests.at(-1)?.path).toBe("/rotated");
-
-    await manager.cleanupSession(chatSessionId);
   });
 
   it("does not call a tool whose time is over while it connects", async () => {
     const manager = MCPManager.getInstance();
-    const chatSessionId = crypto.randomUUID();
+    const chatSessionId = createChatSessionId();
     connecting = Promise.withResolvers();
 
     const call = manager.callTool({ ...server("late"), toolCallTimeoutSec: 1 }, tool("count"), {}, chatSessionId);
@@ -276,13 +295,11 @@ describe("MCP manager", () => {
       expect(requests.map(({ method }) => method)).toContain("notifications/initialized");
     });
     expect(requests.filter(({ method }) => method === "tools/call")).toEqual([]);
-
-    await manager.cleanupSession(chatSessionId);
   });
 
   it("keeps the clients of a chat session while one of its calls is running", async () => {
     const manager = MCPManager.getInstance();
-    const chatSessionId = crypto.randomUUID();
+    const chatSessionId = createChatSessionId();
 
     const previousSlowCall = finishSlowCall;
     const call = manager.callTool(server("mcp"), tool("slow"), {}, chatSessionId);
@@ -348,8 +365,14 @@ describe("MCP client", () => {
   it("times out on a server that never responds", async () => {
     const started = Date.now();
 
-    expect(await testConnection({ ...server("other"), timeoutMs: 300 })).toMatchObject({ success: false });
-    expect(await testConnection({ ...server("silent"), timeoutMs: 300 })).toMatchObject({ success: false });
+    expect(await testConnection({ ...server("other"), timeoutMs: 300 })).toEqual({
+      success: false,
+      error: "The MCP server did not send a valid JSON-RPC response",
+    });
+    expect(await testConnection({ ...server("silent"), timeoutMs: 300 })).toEqual({
+      success: false,
+      error: "The operation was aborted due to timeout",
+    });
 
     expect(Date.now() - started).toBeLessThan(3_000);
   });
@@ -363,13 +386,13 @@ describe("MCP client", () => {
   });
 
   it("reads the response of a stream that stays open", async () => {
-    const client = await connect(server("stream"));
+    const client = await connectClient(server("stream"));
 
     expect(await client.callTool(tool("count"), {})).toMatchObject({ structuredContent: { total: 3 } });
   });
 
   it("builds importable modules whatever the names and descriptions of the tools", async () => {
-    const client = await connect(server("mcp"));
+    const client = await connectClient(server("mcp"));
     const { tools: listed } = await client.listTools();
 
     const binding = {
@@ -452,35 +475,43 @@ describe("legacy MCP connection", () => {
   });
 
   it("asks again for the response that a stream ends before", async () => {
-    const client = await connect(server("mcp"));
+    const client = await connectClient(server("mcp"));
 
     expect(await client.callTool(tool("interrupt"), {})).toMatchObject({ content: [{ text: "resumed" }] });
     expect(sent("Last-Event-ID").at(-1)).toMatch(/^\/mcp GET event-\d+$/);
   });
 
   it("does not call a tool again when its stream cannot be resumed", async () => {
-    const client = await connect(server("session"));
+    const client = await connectClient(server("session"));
 
     await expect(client.callTool(tool("lose"), {})).rejects.toThrow("did not resume its stream");
     expect(requests.filter(({ method }) => method === "tools/call")).toHaveLength(1);
   });
 
   it("answers the pings of its stream one at a time, until it closes", async () => {
+    const pongs = (): typeof requests => {
+      return requests.filter(({ path, method }) => path === "/pinging" && method === "POST");
+    };
     const client = await connect({ ...server("pinging"), stateful: true });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await vi.waitFor(() => {
+      expect(pongs()).toHaveLength(1);
+    });
     await client.close();
 
-    const pongs = requests.filter(({ path, method }) => path === "/pinging" && method === "POST");
-    expect(pongs).toHaveLength(1);
-    expect(pongs[0]?.signal?.aborted).toBe(true);
+    expect(pongs()).toHaveLength(1);
+    expect(pongs()[0]?.signal?.aborted).toBe(true);
   });
 
   it("waits before reopening the stream of a server that asks for no delay", async () => {
+    const streams = (): typeof requests => requests.filter(({ method }) => method === "GET");
     const client = await connect({ ...server("restless"), stateful: true });
+    await vi.waitFor(() => {
+      expect(streams()).toHaveLength(1);
+    });
     await new Promise((resolve) => setTimeout(resolve, 200));
     await client.close();
 
-    expect(requests.filter(({ method }) => method === "GET")).toHaveLength(1);
+    expect(streams()).toHaveLength(1);
   });
 });
 
@@ -490,14 +521,14 @@ describe("modern MCP connection", () => {
       { name: "Authorization", value: "Bearer key" },
       { name: "Mcp-Method", value: "tools/call" },
     ];
-    await connect({ ...server("modern"), headers });
+    await connectClient({ ...server("modern"), headers });
 
     expect(sent("Authorization")).toEqual(["/modern server/discover Bearer key"]);
     expect(sent("Mcp-Method")).toEqual(["/modern server/discover server/discover"]);
   });
 
   it("names the tool that it calls in a header", async () => {
-    const client = await connect(server("modern"));
+    const client = await connectClient(server("modern"));
     for (const name of ["us-west1", "Hello, 世界", " padded ", "=?base64?literal?="]) {
       await client.callTool(tool(name), {});
     }
@@ -534,7 +565,7 @@ describe("modern MCP connection", () => {
       { name: "decimal", inputSchema: { type: "object", properties: { region: { ...region, type: "number" } } } },
     ];
 
-    const client = await connect(server("modern"));
+    const client = await connectClient(server("modern"));
     expect((await client.listTools()).tools).toEqual([query]);
 
     await client.callTool(query, {
@@ -561,14 +592,14 @@ describe("modern MCP connection", () => {
   });
 
   it("fails on the results that are not complete", async () => {
-    const client = await connect(server("modern"));
+    const client = await connectClient(server("modern"));
 
     await expect(client.callTool(tool("ask"), {})).rejects.toThrow('"input_required"');
     await expect(client.callTool(tool("queue"), {})).rejects.toThrow('"task"');
   });
 
   it("does not ask again for the response that a stream ends before", async () => {
-    const client = await connect(server("modern"));
+    const client = await connectClient(server("modern"));
 
     await expect(client.callTool(tool("interrupt"), {})).rejects.toThrow("did not send a valid JSON-RPC response");
     expect(requests.map(({ method }) => method)).toEqual(["server/discover", "tools/call"]);

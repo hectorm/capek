@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
-import { answer, startChat } from "./chat";
+import { answer, startChat } from "#layers/ai/tests/integration/chat";
+import { reloadPage } from "#layers/core/tests/integration/navigation";
 
 test.describe("agent table", () => {
   test("shows a table that can be sorted, filtered and downloaded", async ({ page }) => {
@@ -13,7 +14,7 @@ test.describe("agent table", () => {
     await expect(message.getByRole("cell").first()).toHaveText("item 1");
 
     await expect(page.getByRole("button", { name: /stop generating/i })).toBeHidden();
-    await page.reload();
+    await reloadPage(page);
     await expect(message.getByText("First 100 rows of 150")).toBeVisible();
 
     const totalHeader = message.getByRole("button", { name: "Sort by total" });

@@ -1,17 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 import { openPage } from "#layers/core/tests/integration/navigation";
+import { filterByName } from "#layers/core/tests/integration/resource-table";
 
 test.describe("datasource studio", () => {
   test("creates a PostgreSQL datasource", async ({ page }) => {
     const name = `orders-${crypto.randomUUID()}`;
     await openPage(page, "/studio/datasources");
-    await page.getByRole("button", { name: "Filter by Name" }).click();
-    const search = page.getByRole("textbox", { name: "Search" });
-    await search.fill(name);
-    await search.press("Enter");
-    await search.press("Escape");
-    await page.getByRole("button", { name: /create/i }).click();
+    await filterByName(page, name);
+    await page.getByRole("button", { name: "Create" }).click();
 
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
@@ -22,7 +19,7 @@ test.describe("datasource studio", () => {
     const connectionString = dialog.getByRole("textbox", { name: "Connection string" });
     await expect(connectionString).toHaveAttribute("placeholder", "postgres://<host>:5432/<database>");
     await connectionString.fill("postgres://db.example.com:5432/orders");
-    await dialog.getByRole("button", { name: /^create$/i }).click();
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
 
     await expect(dialog).toBeHidden();
     const row = page.getByRole("row").filter({ hasText: name });

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { answer, startChat } from "./chat";
+import { answer, startChat } from "#layers/ai/tests/integration/chat";
 
 test.describe("agent max iterations", () => {
   test("keeps the partial answer of an agent that runs out of iterations", async ({ page }) => {

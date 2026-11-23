@@ -13,7 +13,6 @@ export interface TestClient {
   headers: Headers[];
 }
 
-// The requests of the client are answered by the given function and kept, in tests that mock the HTTP module
 export const createClient = (respond: () => Response, apiType?: LlmProviderApiType): TestClient => {
   const sent: Record<string, unknown>[] = [];
   const paths: string[] = [];
@@ -35,7 +34,6 @@ export const createClient = (respond: () => Response, apiType?: LlmProviderApiTy
 
 const encoder = new TextEncoder();
 
-// Events are split in pieces that do not match their boundaries, like those of a network stream
 export const streamOf = (events: Record<string, unknown>[]): ReadableStream<Uint8Array> => {
   const bytes = encoder.encode(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""));
   return new ReadableStream<Uint8Array>({
@@ -50,7 +48,6 @@ export const streamOf = (events: Record<string, unknown>[]): ReadableStream<Uint
 
 const chunk = { object: "chat.completion.chunk", created: 0, model: "reasoner" };
 
-// A completion of the Chat Completions API with the given message
 export const chatCompletion = (message: Record<string, unknown>, finishReason = "stop"): Record<string, unknown> => {
   return {
     id: "chatcmpl-test",
@@ -61,7 +58,6 @@ export const chatCompletion = (message: Record<string, unknown>, finishReason = 
   };
 };
 
-// A streamed completion of the Chat Completions API with the given deltas
 export const chatCompletionStream = (
   deltas: Record<string, unknown>[],
   finishReason: string | null = "stop",

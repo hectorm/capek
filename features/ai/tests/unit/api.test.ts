@@ -12,7 +12,7 @@ import type { Database } from "#layers/core/shared/schema";
 import send from "#layers/ai/server/api/ai/chat/send";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
-import { closeDb, createAiTestDb, insertAgent, insertUsers } from "#layers/ai/tests/unit/helpers/db";
+import { closeDb, createAiTestDb, insertAgent, insertChatSession, insertUsers } from "#layers/ai/tests/unit/helpers/db";
 import { useLogger } from "#layers/core/server/lib/logger";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
 
@@ -46,18 +46,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  server.close();
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
   await closeDb();
 });
-
-const createSession = async (agentId: string): Promise<string> => {
-  const session = await db
-    .insertInto("aiChatSessions")
-    .values({ userId: alice, agentId, title: "" })
-    .returning(["id"])
-    .executeTakeFirstOrThrow();
-  return session.id;
-};
 
 const sendMessage = (
   sessionId: string,
@@ -80,7 +72,7 @@ describe("chat send route", () => {
   it("acknowledges a turn before the agent produces its first chunk", async () => {
     const agentId = await insertAgent(db, "slow-agent");
     await db.insertInto("aiAgentAccess").values({ agentId, userId: alice, role: "user" }).execute();
-    const sessionId = await createSession(agentId);
+    const sessionId = await insertChatSession(db, alice, { agentId });
     const reply = Promise.withResolvers<undefined>();
     const stream = vi.spyOn(AgentExecutor.prototype, "executeStream").mockImplementation(async function* () {
       await reply.promise;
@@ -102,7 +94,7 @@ describe("chat send route", () => {
   });
 
   it("rejects a chat whose agent the user cannot use", async () => {
-    const sessionId = await createSession(await insertAgent(db, "unshared-agent"));
+    const sessionId = await insertChatSession(db, alice, { agentId: await insertAgent(db, "unshared-agent") });
 
     expect((await sendMessage(sessionId)).status).toBe(404);
     expect(await messages(sessionId)).toEqual([]);
@@ -111,8 +103,8 @@ describe("chat send route", () => {
   it("keeps the original turns when the edit target or replacement is invalid", async () => {
     const agentId = await insertAgent(db, "edit-agent");
     await db.insertInto("aiAgentAccess").values({ agentId, userId: alice, role: "user" }).execute();
-    const sessionId = await createSession(agentId);
-    const otherSessionId = await createSession(agentId);
+    const sessionId = await insertChatSession(db, alice, { agentId });
+    const otherSessionId = await insertChatSession(db, alice, { agentId });
     // The IDs break the tie between messages inserted with the same timestamp
     const target = "00000000-0000-4000-8000-000000000001";
     const answer = "00000000-0000-4000-8000-000000000002";
@@ -136,7 +128,7 @@ describe("chat send route", () => {
   it("rejects a message while another answer is running", async () => {
     const agentId = await insertAgent(db, "busy-agent");
     await db.insertInto("aiAgentAccess").values({ agentId, userId: alice, role: "user" }).execute();
-    const sessionId = await createSession(agentId);
+    const sessionId = await insertChatSession(db, alice, { agentId });
     const now = new Date();
     await db
       .insertInto("aiAgentExecutions")

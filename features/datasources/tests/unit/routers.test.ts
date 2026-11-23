@@ -1,18 +1,17 @@
 import type { Kysely } from "kysely";
-import type { Logger } from "pino";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { ResourceName } from "#layers/core/server/lib/authz/resources";
+import type { PermissionName, RoleName } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
 import { listResources } from "#layers/core/server/lib/authz/resources";
-import { createCallerFactory, createTRPCRouter } from "#layers/core/server/trpc/init";
+import { createTRPCRouter } from "#layers/core/server/trpc/init";
 import { HTTP_REDACTED_VALUE } from "#layers/core/shared/http";
 import { CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
-import { asUser, closeDb, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
+import { asUser, closeDb, createTestCaller, createTestDb, insertUsers } from "#layers/core/tests/unit/helpers/db";
 import datasourcesFeature from "#layers/datasources/server/feature";
 import { SourceResource } from "#layers/datasources/server/lib/resources";
-import { encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
+import { decryptSourceConfig, encryptSourceConfig } from "#layers/datasources/server/lib/secrets";
 import { sourceRouter } from "#layers/datasources/server/trpc/routers/source";
 import { DatasourcesPermissions, DatasourcesRolePermissions } from "#layers/datasources/shared/rbac";
 
@@ -27,14 +26,12 @@ const config = { connectionString: "postgres://127.0.0.1:1/sales", authType: "no
 const storedConfig = { ...config, authType: "basic", username: "postgres", password: "hunter2" };
 
 const router = createTRPCRouter({ source: sourceRouter });
-const logger = { warn: () => undefined, debug: () => undefined } as unknown as Logger;
-const permissions = [...CoreRolePermissions[Roles.Member], ...DatasourcesRolePermissions[Roles.Member]];
-const caller = createCallerFactory(router);
-const asMember = (id: string): ReturnType<typeof caller> => {
-  return caller({ logger, user: { id, groups: [], permissions } as unknown as AuthUser });
+const rolePermissions = (role: RoleName): PermissionName[] => {
+  return [...CoreRolePermissions[role], ...DatasourcesRolePermissions[role]];
 };
-const member = asMember(mallory);
-const editor = asMember(alice);
+const member = createTestCaller(router, { id: mallory, permissions: rolePermissions(Roles.Member) });
+const editor = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Member) });
+const creator = createTestCaller(router, { id: alice, permissions: rolePermissions(Roles.Creator) });
 
 beforeAll(async () => {
   db = await createTestDb([datasourcesFeature]);
@@ -86,8 +83,17 @@ describe("connection test", () => {
 });
 
 describe("datasource", () => {
+  const access = [
+    { id: alice, type: "user" as const, role: "editor" as const },
+    { id: mallory, type: "user" as const, role: "user" as const },
+  ];
+
+  afterEach(async () => {
+    await db.deleteFrom("datasourcesSources").where("id", "not in", [sourceId, privateSourceId]).execute();
+  });
+
   it("is only visible to the users that it is shared with", async () => {
-    const visible = (granted: string[]): Promise<string[]> => {
+    const visible = (granted: PermissionName[]): Promise<string[]> => {
       return asUser({ id: mallory, permissions: granted }, async (trx) => {
         const rows = await trx.selectFrom("datasourcesSources").select(["name"]).orderBy("name").execute();
         return rows.map((row) => row.name);
@@ -100,16 +106,17 @@ describe("datasource", () => {
     expect(await visible([])).toEqual([]);
   });
 
-  it("is only assignable by the users that can use it", async () => {
-    const assignable = (granted: string[]): Promise<ResourceName[]> => {
+  it("is assignable by the users that can read it", async () => {
+    const assignable = (granted: PermissionName[]): Promise<ResourceName[]> => {
       return asUser({ id: mallory, permissions: granted }, (trx) => {
         return listResources(trx, SourceResource, { limit: 10 });
       });
     };
     const { SourceReadOwn, SourceUseOwn } = DatasourcesPermissions;
     expect(await assignable([SourceReadOwn, SourceUseOwn])).toEqual([{ id: sourceId, name: "sales" }]);
-    // The use permission is enough
+    expect(await assignable([SourceReadOwn])).toEqual([{ id: sourceId, name: "sales" }]);
     expect(await assignable([SourceUseOwn])).toEqual([{ id: sourceId, name: "sales" }]);
+    expect(await assignable([])).toEqual([]);
   });
 
   it("is read without its password", async () => {
@@ -120,11 +127,11 @@ describe("datasource", () => {
   it("enforces list and read scopes separately for direct and group grants", async () => {
     const { SourceListAll, SourceListOwn, SourceReadAll, SourceReadOwn, SourceUpdateAll, SourceDeleteAll } =
       DatasourcesPermissions;
-    const asCaller = (granted: string[], groups: string[] = []): ReturnType<typeof caller> => {
-      return caller({ logger, user: { id: mallory, groups, permissions: granted } as AuthUser });
-    };
 
-    const browser = asCaller([SourceListAll, SourceReadOwn, SourceUpdateAll, SourceDeleteAll]).source;
+    const browser = createTestCaller(router, {
+      id: mallory,
+      permissions: [SourceListAll, SourceReadOwn, SourceUpdateAll, SourceDeleteAll],
+    }).source;
     const page = await browser.search({ limit: 1 });
     expect(page.sources).toMatchObject([{ id: privateSourceId, canRead: false }]);
     expect(page.nextCursor).toBeDefined();
@@ -140,7 +147,7 @@ describe("datasource", () => {
       canDelete: true,
     });
 
-    const reader = asCaller([SourceListOwn, SourceReadAll]).source;
+    const reader = createTestCaller(router, { id: mallory, permissions: [SourceListOwn, SourceReadAll] }).source;
     const listed = await reader.search({ limit: 1 });
     expect(listed.sources).toMatchObject([{ id: sourceId, canRead: true }]);
     expect(listed.nextCursor).toBeUndefined();
@@ -152,7 +159,7 @@ describe("datasource", () => {
       .insertInto("datasourcesSourceAccess")
       .values({ sourceId: privateSourceId, groupId: group, role: "user" })
       .execute();
-    const listOnly = asCaller([SourceListOwn], [group]).source;
+    const listOnly = createTestCaller(router, { id: mallory, groups: [group], permissions: [SourceListOwn] }).source;
     expect((await listOnly.search({})).sources).toMatchObject([
       { id: privateSourceId, canRead: false },
       { id: sourceId, canRead: false },
@@ -184,5 +191,70 @@ describe("datasource", () => {
       canDelete: true,
     });
     await expect(member.source.readMetadata({ id: privateSourceId })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("is created, updated and deleted only by the users allowed to", async () => {
+    const input = { name: "created", type: "postgres", config, access };
+
+    await expect(member.source.create(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const { id } = await creator.source.create(input);
+
+    const update = { id, name: "renamed", type: "postgres", config };
+    await expect(member.source.update(update)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(creator.source.update(update)).resolves.toMatchObject({ name: "renamed" });
+
+    await expect(member.source.delete({ id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await creator.source.delete({ id });
+    await expect(creator.source.read({ id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("is saved with its access, or not at all", async () => {
+    const { id } = await creator.source.create({ name: "shared", type: "postgres", config, access });
+    const saved = await db
+      .selectFrom("datasourcesSourceAccess")
+      .select(["userId", "role"])
+      .where("sourceId", "=", id)
+      .orderBy("role")
+      .execute();
+    expect(saved).toEqual([
+      { userId: alice, role: "editor" },
+      { userId: mallory, role: "user" },
+    ]);
+    await expect(member.source.listAccess({ sourceId: id })).resolves.toEqual([
+      { id: mallory, type: "user", role: "user", username: "mallory", email: "mallory@example.com" },
+    ]);
+
+    const missing = [{ id: crypto.randomUUID(), type: "user" as const, role: "user" as const }];
+    await expect(creator.source.create({ name: "unsaved", type: "postgres", config, access: missing })).rejects.toThrow(
+      "One or more users or groups do not exist",
+    );
+    expect(await db.selectFrom("datasourcesSources").select(["id"]).where("name", "=", "unsaved").execute()).toEqual(
+      [],
+    );
+
+    await expect(
+      creator.source.update({ id, name: "unsaved", type: "postgres", config, access: missing }),
+    ).rejects.toThrow("One or more users or groups do not exist");
+    const source = await db.selectFrom("datasourcesSources").select(["name"]).where("id", "=", id).executeTakeFirst();
+    expect(source).toEqual({ name: "shared" });
+  });
+
+  it("keeps its stored password only while its type stays the same", async () => {
+    const { id } = await creator.source.create({ name: "typed", type: "postgres", config: storedConfig });
+    const redacted = { ...storedConfig, password: HTTP_REDACTED_VALUE };
+    const storedPassword = async (): Promise<unknown> => {
+      const source = await db
+        .selectFrom("datasourcesSources")
+        .select(["config"])
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      return decryptSourceConfig(source.config).password;
+    };
+
+    await creator.source.update({ id, type: "postgres", config: redacted });
+    expect(await storedPassword()).toBe("hunter2");
+
+    await creator.source.update({ id, type: "mariadb", config: redacted });
+    expect(await storedPassword()).toBe("");
   });
 });

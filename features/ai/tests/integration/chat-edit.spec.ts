@@ -1,7 +1,15 @@
 import type { Route } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
-import { answer, composer, editMessage, resend, sendMessage, startChat, userMessages } from "./chat";
+import {
+  answer,
+  composer,
+  editMessage,
+  resend,
+  sendMessage,
+  startChat,
+  userMessages,
+} from "#layers/ai/tests/integration/chat";
 
 test.describe("chat edit", () => {
   test("keeps a rejected edit open until cancelled", async ({ page }) => {
@@ -20,7 +28,11 @@ test.describe("chat edit", () => {
     await resend(page).click();
     await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
     await expect(editor).toHaveValue(draft);
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page
+      .getByRole("article")
+      .filter({ has: page.getByRole("textbox", { name: "Edit message" }) })
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
     await expect(editor).toHaveCount(0);
     await expect(composer(page)).toHaveValue("My next question");
 

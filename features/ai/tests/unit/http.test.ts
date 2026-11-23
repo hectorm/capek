@@ -21,7 +21,6 @@ describe("AI HTTP responses", () => {
   let server: http.Server;
   let url: string;
   let respond: (res: http.ServerResponse) => void;
-  const previousHosts = runtimeConfig.allowedPrivateHosts;
 
   beforeAll(async () => {
     server = http.createServer((req, res) => {
@@ -30,12 +29,11 @@ describe("AI HTTP responses", () => {
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const host = `127.0.0.1:${String((server.address() as AddressInfo).port)}`;
-    runtimeConfig.allowedPrivateHosts = host;
+    Object.assign(runtimeConfig, { allowedPrivateHosts: host });
     url = `http://${host}`;
   });
 
   afterAll(async () => {
-    runtimeConfig.allowedPrivateHosts = previousHosts;
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
   });

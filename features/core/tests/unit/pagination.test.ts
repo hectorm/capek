@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Page, PageCursor } from "#layers/core/server/lib/database/pagination";
 import type { Database } from "#layers/core/shared/schema";
@@ -11,7 +11,10 @@ let db: Kysely<Database>;
 
 beforeAll(async () => {
   db = await createTestDb();
+});
 
+beforeEach(async () => {
+  await db.deleteFrom("users").execute();
   await sql`
     INSERT INTO users (username, fullname, email, created_at)
     SELECT 'page' || n, 'Page', 'page' || n || '@example.com',

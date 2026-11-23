@@ -87,7 +87,7 @@ describe("OIDC account linking", () => {
 
     await expect(
       getOrCreateUserFromOIDC({ ...identity, sub: "mallory", username: "mallory", emailVerified: false }),
-    ).rejects.toThrow(/duplicate key/);
+    ).rejects.toMatchObject({ code: "23505", constraint: "users_email_key" });
 
     const user = await getOrCreateUserFromOIDC({ ...identity, sub: "bob", username: "bob", emailVerified: true });
     expect(user.id).toBe(bob);

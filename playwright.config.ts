@@ -57,6 +57,7 @@ export default defineConfig({
   outputDir: "./.cache/playwright/output/",
   globalSetup: integrationDirs.map((dir) => join(dir, "global-setup.ts")).filter((file) => existsSync(file)),
   reporter: isCI ? [["dot"]] : [["list"], ["html", { outputFolder: "./.cache/playwright/report/", open: "never" }]],
+  forbidOnly: isCI,
   workers: isCI ? 1 : undefined,
   timeout: 60000,
   expect: {
@@ -65,10 +66,8 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:51234",
     headless: true,
-    trace: "on-first-retry",
     extraHTTPHeaders: headers,
     screenshot: "only-on-failure",
-    video: "on-first-retry",
   },
   projects: [
     {

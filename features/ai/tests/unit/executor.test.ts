@@ -9,7 +9,6 @@ import type { AuthUser } from "#layers/core/server/lib/authn/strategies";
 import type { Database } from "#layers/core/shared/schema";
 import { AgentExecutor } from "#layers/ai/server/lib/agents/executor";
 import { MaxIterationsError, MaxOutputTokensError, RefusalError, TimeoutError } from "#layers/ai/server/lib/errors";
-import { encryptMcpServerHeaders } from "#layers/ai/server/lib/secrets";
 import { loadTable } from "#layers/ai/server/lib/tables";
 import { getToolProviders } from "#layers/ai/server/lib/tools";
 import { AiRolePermissions } from "#layers/ai/shared/rbac";
@@ -17,7 +16,9 @@ import {
   closeDb,
   createAiTestDb,
   insertAgent,
+  insertChatSession,
   insertLlmProvider,
+  insertMcpServer,
   insertSkill,
   insertUsers,
 } from "#layers/ai/tests/unit/helpers/db";
@@ -143,15 +144,10 @@ const createChat = async (settings: Partial<NewAgent> = {}, user: AuthUser = adm
     streaming: false,
     ...settings,
   });
-  const session = await db
-    .insertInto("aiChatSessions")
-    .values({ userId: user.id, agentId, title: "" })
-    .returning(["id"])
-    .executeTakeFirstOrThrow();
-  return { sessionId: session.id, agentId, user };
+  const sessionId = await insertChatSession(db, user.id, { agentId });
+  return { sessionId, agentId, user };
 };
 
-// The model answers with the given responses in order, and its requests are kept to check them
 const fakeModel = (responses: Response[]): OpenAICompletionRequest[] => {
   const requests: OpenAICompletionRequest[] = [];
   vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
@@ -595,20 +591,8 @@ describe("agent executor", () => {
 
   it("cancels the execution when the agent runs out of time", async () => {
     const chat = await createChat({ timeoutSec: 1 });
-    const mcpServer = await db
-      .insertInto("aiMcpServers")
-      .values({
-        name: `mcp-${crypto.randomUUID()}`,
-        description: "",
-        url: "http://mcp.localhost/mcp",
-        headers: encryptMcpServerHeaders([]),
-        stateful: false,
-        toolCallTimeoutSec: null,
-        cachedTools: JSON.stringify([]),
-      })
-      .returning(["id"])
-      .executeTakeFirstOrThrow();
-    await db.insertInto("aiAgentMcpServers").values({ agentId: chat.agentId, mcpServerId: mcpServer.id }).execute();
+    const mcpServerId = await insertMcpServer(db, `mcp-${crypto.randomUUID()}`);
+    await db.insertInto("aiAgentMcpServers").values({ agentId: chat.agentId, mcpServerId }).execute();
 
     vi.mocked(fetchEndpoint).mockImplementation((_url, init = {}) => {
       return new Promise((_resolve, reject) => {
@@ -675,12 +659,9 @@ describe("agent executor", () => {
     const sent = requests[1]?.messages.find((message) => message.role === "tool")?.content;
     expect(sent).toContain("[Response truncated: 5000 characters, showing first 1000]");
 
-    const stored = await db
-      .selectFrom("aiAgentToolCalls")
-      .select(["result"])
-      .where("toolName", "=", "notes_export")
-      .executeTakeFirstOrThrow();
-    expect(stored.result).toBe(sent);
+    expect(await notesToolCalls(chat)).toEqual([
+      { toolName: "notes_export", arguments: "{}", result: sent, errorMessage: null },
+    ]);
   });
 
   it("truncates the tool responses to fit in the context", async () => {

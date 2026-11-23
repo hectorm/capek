@@ -35,8 +35,8 @@ describe("database", () => {
     const db = await useDb();
     trace.mockClear();
     await sql`SELECT ${"private file bytes"}::text`.execute(db);
-    const duration: unknown = expect.any(Number);
-    expect(trace).toHaveBeenCalledWith({ sql: "SELECT $1::text", durationMs: duration }, "Database query");
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({ sql: "SELECT $1::text" }), "Database query");
+    expect(JSON.stringify(trace.mock.calls)).not.toContain("private file bytes");
   });
 
   it("is set up once for concurrent calls", async () => {

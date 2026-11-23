@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { answer, startChat } from "./chat";
+import { answer, startChat } from "#layers/ai/tests/integration/chat";
+import { reloadPage } from "#layers/core/tests/integration/navigation";
 
 test.describe("agent chart", () => {
   test("shows the chart of a tool call", async ({ page, request }) => {
-    await startChat(page, "Mock specialist chart agent", "Show me a chart and end on release.");
+    const prompt = `Show me a chart and end on release ${crypto.randomUUID()}.`;
+    await startChat(page, "Mock specialist chart agent", prompt);
 
     const frame = answer(page, "This is a mock response").getByTitle("Chart", { exact: true });
     const chart = frame.contentFrame().locator("canvas");
@@ -17,12 +19,13 @@ test.describe("agent chart", () => {
     await chart.evaluate((canvas) => {
       canvas.setAttribute("data-drawn", "once");
     });
-    expect((await request.post("http://localhost:51235/release")).ok()).toBe(true);
+    const refreshed = page.waitForResponse("**/api/trpc/*ai.chatMessage.list*");
+    expect((await request.post("http://localhost:51235/release", { data: prompt })).ok()).toBe(true);
     await expect(stop).toBeHidden();
-    await page.waitForLoadState("networkidle");
+    await refreshed;
     await expect(chart).toHaveAttribute("data-drawn", "once");
 
-    await page.reload();
+    await reloadPage(page);
     const reloaded = page.getByRole("article").getByTitle("Chart", { exact: true });
     await expect(reloaded.contentFrame().locator("canvas")).toBeVisible();
     for (const format of ["png", "svg"]) {
@@ -37,7 +40,6 @@ test.describe("agent chart", () => {
   });
 
   test("shows a chart in 3D", async ({ page }) => {
-    await page.goto("/ai");
     const webgl = await page.evaluate(() => document.createElement("canvas").getContext("webgl") !== null);
     test.skip(!webgl, "WebGL is not available");
 

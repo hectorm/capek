@@ -8,8 +8,7 @@ export const startChat = async (page: Page, agent: string, prompt: string): Prom
   await page.getByRole("button", { name: /select agent/i }).click();
   await page.getByRole("option", { name: agent }).click();
   await expect(page.getByRole("listbox")).toBeHidden();
-  await page.getByRole("textbox", { name: /message/i }).fill(prompt);
-  await page.getByRole("button", { name: /send prompt/i }).click();
+  await sendMessage(page, prompt);
   await page.waitForURL(/\/chat\/.+/);
 };
 
@@ -31,7 +30,6 @@ export const sendMessage = async (page: Page, text: string): Promise<void> => {
   await page.getByRole("button", { name: /send prompt/i }).click();
 };
 
-// Opens the editor of a message of the user and returns it
 export const editMessage = async (page: Page, text: string): Promise<Locator> => {
   await answer(page, text).getByRole("button", { name: "Edit", exact: true }).click();
   return page.getByRole("article").getByRole("textbox", { name: "Edit message" });

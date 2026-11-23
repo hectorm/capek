@@ -15,8 +15,7 @@ interface OpenAICompletionRequest {
 interface MockAnswer {
   content?: string;
   toolCall?: { name: string; arguments: Record<string, unknown> };
-  endDelay?: number;
-  held?: boolean;
+  held?: string;
 }
 
 const RESPONSE = "This is a mock response";
@@ -38,7 +37,7 @@ const CODE = [
 export class MockLLMChatCompletionsServer {
   private server: http.Server | null = null;
   private readonly port: number;
-  private readonly held = new Set<() => void>();
+  private readonly held = new Map<() => void, string>();
 
   public constructor(options: MockLLMChatCompletionsServerOptions) {
     this.port = options.port;
@@ -81,7 +80,7 @@ export class MockLLMChatCompletionsServer {
 
     req.on("end", () => {
       if (req.url === "/release" && req.method === "POST") {
-        this.releaseAnswers();
+        this.releaseAnswers(body);
         res.writeHead(204);
         res.end();
         return;
@@ -114,11 +113,7 @@ export class MockLLMChatCompletionsServer {
     const tool = tools.find((candidate) => message.includes(candidate.function.name)) ?? tools[0];
     if (!tool || lastMessage?.role === "tool") {
       const content = lastMessage?.role === "tool" ? `${RESPONSE}\n\n${lastMessage.content ?? ""}` : RESPONSE;
-      return {
-        content,
-        endDelay: message.includes("end slowly") ? 5000 : 10,
-        held: message.includes("end on release"),
-      };
+      return { content, held: message.includes("end on release") ? message : undefined };
     }
 
     if (message.includes("iteration limit")) {
@@ -188,22 +183,21 @@ export class MockLLMChatCompletionsServer {
       return `data: ${JSON.stringify(data)}\n\n`;
     };
 
-    const released = answer.held
-      ? new Promise<void>((resolve) => {
-          this.held.add(resolve);
-        })
-      : Promise.resolve();
+    const { held } = answer;
+    const released =
+      held === undefined
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            this.held.set(resolve, held);
+          });
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
     const write = (index: number): void => {
       const delta = deltas[index];
       if (delta) {
         res.write(chunk(delta, null));
-        setTimeout(
-          () => {
-            write(index + 1);
-          },
-          index < deltas.length - 1 ? 10 : (answer.endDelay ?? 10),
-        );
+        setTimeout(() => {
+          write(index + 1);
+        }, 10);
       } else {
         void released.then(() => {
           res.end(`${chunk({}, finishReason)}data: [DONE]\n\n`);
@@ -213,10 +207,12 @@ export class MockLLMChatCompletionsServer {
     write(0);
   }
 
-  private releaseAnswers(): void {
-    for (const release of this.held) {
-      release();
+  private releaseAnswers(message?: string): void {
+    for (const [release, held] of this.held) {
+      if (message === undefined || held.includes(message)) {
+        release();
+        this.held.delete(release);
+      }
     }
-    this.held.clear();
   }
 }

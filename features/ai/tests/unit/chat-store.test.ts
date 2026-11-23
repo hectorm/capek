@@ -1,5 +1,5 @@
 import { createPinia } from "pinia";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChatStore } from "#layers/ai/app/stores/chat";
 
@@ -13,6 +13,10 @@ vi.mock("nuxt/app", () => ({
     $trpc: { ai: { chatSession: { read: { query: readSession } }, chatMessage: { list: { query: listMessages } } } },
   }),
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("chat selection", () => {
   it("keeps the selected session when an earlier read finishes last", async () => {

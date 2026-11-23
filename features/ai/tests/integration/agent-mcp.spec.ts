@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { answer, startChat } from "./chat";
+import { answer, startChat } from "#layers/ai/tests/integration/chat";
 
 test.describe("agent MCP", () => {
   test("calls an MCP tool through a specialist", async ({ page }) => {
