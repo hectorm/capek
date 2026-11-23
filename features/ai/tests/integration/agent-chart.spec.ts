@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 import { answer, startChat } from "./chat";
 
 test.describe("agent chart", () => {
-  test("shows the chart of a tool call", async ({ page }) => {
-    await startChat(page, "Mock specialist chart agent", "Show me a chart and end slowly.");
+  test("shows the chart of a tool call", async ({ page, request }) => {
+    await startChat(page, "Mock specialist chart agent", "Show me a chart and end on release.");
 
     const frame = answer(page, "This is a mock response").getByTitle("Chart", { exact: true });
     const chart = frame.contentFrame().locator("canvas");
@@ -17,6 +17,7 @@ test.describe("agent chart", () => {
     await chart.evaluate((canvas) => {
       canvas.setAttribute("data-drawn", "once");
     });
+    expect((await request.post("http://localhost:51235/release")).ok()).toBe(true);
     await expect(stop).toBeHidden();
     await page.waitForLoadState("networkidle");
     await expect(chart).toHaveAttribute("data-drawn", "once");

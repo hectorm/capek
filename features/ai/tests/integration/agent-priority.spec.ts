@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+import { openPage } from "#layers/core/tests/integration/navigation";
+
 test.describe("agent priority", () => {
   test("lists the agents with a priority first", async ({ page }) => {
-    await page.goto("/ai");
-    await page.waitForLoadState("networkidle");
+    await openPage(page, "/ai");
     await page.getByRole("button", { name: /select agent/i }).click();
 
     const options = page.getByRole("option");

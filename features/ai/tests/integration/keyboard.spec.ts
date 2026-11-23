@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+import { openPage } from "#layers/core/tests/integration/navigation";
+
 test.describe("keyboard", () => {
   test("keeps the focus on the prompt that the welcome page focuses", async ({ page }) => {
-    await page.goto("/ai");
+    await openPage(page, "/ai");
     await page.getByRole("button", { name: "Admin" }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);

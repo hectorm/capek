@@ -1,10 +1,13 @@
 import type { Locator, Page } from "@playwright/test";
+import { expect } from "@playwright/test";
+
+import { openPage } from "#layers/core/tests/integration/navigation";
 
 export const startChat = async (page: Page, agent: string, prompt: string): Promise<void> => {
-  await page.goto("/ai");
-  await page.waitForLoadState("networkidle");
+  await openPage(page, "/ai");
   await page.getByRole("button", { name: /select agent/i }).click();
   await page.getByRole("option", { name: agent }).click();
+  await expect(page.getByRole("listbox")).toBeHidden();
   await page.getByRole("textbox", { name: /message/i }).fill(prompt);
   await page.getByRole("button", { name: /send prompt/i }).click();
   await page.waitForURL(/\/chat\/.+/);

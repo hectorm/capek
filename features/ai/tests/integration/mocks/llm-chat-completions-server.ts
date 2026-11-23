@@ -16,6 +16,7 @@ interface MockAnswer {
   content?: string;
   toolCall?: { name: string; arguments: Record<string, unknown> };
   endDelay?: number;
+  held?: boolean;
 }
 
 const RESPONSE = "This is a mock response";
@@ -37,6 +38,7 @@ const CODE = [
 export class MockLLMChatCompletionsServer {
   private server: http.Server | null = null;
   private readonly port: number;
+  private readonly held = new Set<() => void>();
 
   public constructor(options: MockLLMChatCompletionsServerOptions) {
     this.port = options.port;
@@ -57,6 +59,7 @@ export class MockLLMChatCompletionsServer {
   }
 
   public async stop(): Promise<void> {
+    this.releaseAnswers();
     return new Promise((resolve) => {
       if (this.server) {
         this.server.close(() => {
@@ -77,6 +80,13 @@ export class MockLLMChatCompletionsServer {
     });
 
     req.on("end", () => {
+      if (req.url === "/release" && req.method === "POST") {
+        this.releaseAnswers();
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
       if (req.url !== "/v1/chat/completions" || req.method !== "POST") {
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Not found" }));
@@ -104,7 +114,11 @@ export class MockLLMChatCompletionsServer {
     const tool = tools.find((candidate) => message.includes(candidate.function.name)) ?? tools[0];
     if (!tool || lastMessage?.role === "tool") {
       const content = lastMessage?.role === "tool" ? `${RESPONSE}\n\n${lastMessage.content ?? ""}` : RESPONSE;
-      return { content, endDelay: message.includes("end slowly") ? 5000 : 10 };
+      return {
+        content,
+        endDelay: message.includes("end slowly") ? 5000 : 10,
+        held: message.includes("end on release"),
+      };
     }
 
     if (message.includes("iteration limit")) {
@@ -174,6 +188,11 @@ export class MockLLMChatCompletionsServer {
       return `data: ${JSON.stringify(data)}\n\n`;
     };
 
+    const released = answer.held
+      ? new Promise<void>((resolve) => {
+          this.held.add(resolve);
+        })
+      : Promise.resolve();
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
     const write = (index: number): void => {
       const delta = deltas[index];
@@ -186,9 +205,18 @@ export class MockLLMChatCompletionsServer {
           index < deltas.length - 1 ? 10 : (answer.endDelay ?? 10),
         );
       } else {
-        res.end(`${chunk({}, finishReason)}data: [DONE]\n\n`);
+        void released.then(() => {
+          res.end(`${chunk({}, finishReason)}data: [DONE]\n\n`);
+        });
       }
     };
     write(0);
+  }
+
+  private releaseAnswers(): void {
+    for (const release of this.held) {
+      release();
+    }
+    this.held.clear();
   }
 }

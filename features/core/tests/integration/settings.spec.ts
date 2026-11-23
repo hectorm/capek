@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { createGroup, openGroupEditor } from "#layers/core/tests/integration/groups";
+import { openPage } from "#layers/core/tests/integration/navigation";
 
 test.describe("settings", () => {
   test("shows the general settings", async ({ page }) => {
@@ -17,7 +18,7 @@ test.describe("settings", () => {
   });
 
   test("keeps groups sorted and filtered after a save", async ({ page }) => {
-    await page.goto("/settings/groups");
+    await openPage(page, "/settings/groups");
     await page.getByRole("button", { name: "Filter by Name" }).click();
     const suffix = crypto.randomUUID();
     const search = page.getByRole("textbox", { name: "Search" });
@@ -43,7 +44,7 @@ test.describe("settings", () => {
   });
 
   test("shows an error when a group cannot be loaded", async ({ page }) => {
-    await page.goto("/settings/groups");
+    await openPage(page, "/settings/groups");
     const name = `Unloaded-${crypto.randomUUID()}`;
     await createGroup(page, name);
 
