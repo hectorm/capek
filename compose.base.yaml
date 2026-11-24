@@ -11,7 +11,7 @@ x-playwright-image: &playwright-image "mcr.microsoft.com/playwright/mcp:latest"
 services:
   traefik:
     image: *traefik-image
-    container_name: "capek-traefik"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-traefik"
     hostname: "traefik"
     restart: "always"
     ports:
@@ -21,7 +21,7 @@ services:
       - "127.0.0.1:5432:5432/tcp"
       - "127.0.0.1:8080:8080/tcp"
     volumes:
-      - { type: "bind", source: "/var/run/docker.sock", target: "/var/run/docker.sock", read_only: true }
+      - { type: "bind", source: "${DOCKER_SOCKET_PATH:-/var/run/docker.sock}", target: "/var/run/docker.sock" }
       - { type: "tmpfs", target: "/run/" }
       - { type: "tmpfs", target: "/tmp/", tmpfs: { mode: 0o1777 } }
     command:
@@ -54,7 +54,7 @@ services:
       context: "./"
       dockerfile: "${COMPOSE_DOCKERFILE:-./Dockerfile}"
       args: { FEATURES: "${FEATURES:-}" }
-    container_name: "capek-app"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-app"
     hostname: "app"
     labels:
       traefik.enable: "true"
@@ -263,7 +263,7 @@ services:
 
   postgres:
     image: *postgres-image
-    container_name: "capek-postgres"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-postgres"
     hostname: "postgres"
     labels:
       traefik.enable: "true"
@@ -302,7 +302,7 @@ services:
 
   postgres-setup:
     image: *postgres-image
-    container_name: "capek-postgres-setup"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-postgres-setup"
     hostname: "postgres-setup"
     restart: "no"
     volumes:
@@ -320,7 +320,7 @@ services:
 
   playwright-mcp:
     image: *playwright-image
-    container_name: "capek-playwright-mcp"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-playwright-mcp"
     hostname: "playwright-mcp"
     restart: "always"
     init: true

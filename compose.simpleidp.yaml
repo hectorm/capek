@@ -45,7 +45,7 @@ services:
 
   simpleidp:
     image: *simpleidp-image
-    container_name: "capek-simpleidp"
+    container_name: "${COMPOSE_PROJECT_NAME:?}-simpleidp"
     hostname: "simpleidp"
     labels:
       traefik.enable: "true"
@@ -140,13 +140,13 @@ configs:
 
 volumes:
   postgres-data:
-    name: "capek-postgres-data"
+    name: "${COMPOSE_PROJECT_NAME:?}-postgres-data"
 
 networks:
   external:
-    name: "capek-external"
+    name: "${COMPOSE_PROJECT_NAME:?}-external"
     internal: false
 
   internal:
-    name: "capek-internal"
+    name: "${COMPOSE_PROJECT_NAME:?}-internal"
     internal: true
