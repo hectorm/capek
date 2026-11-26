@@ -2,7 +2,7 @@ export default {
   plugins: ["@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss"],
   printWidth: 120,
   importOrder: [
-    "<TYPES>^(node|bun):",
+    "<TYPES>^node:",
     "<BUILT_IN_MODULES>",
     "",
     "<TYPES>",
