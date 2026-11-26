@@ -8,11 +8,12 @@ import type { Database } from "#layers/core/shared/schema";
 import type { TestPrincipal } from "#layers/core/tests/unit/helpers/db";
 import coreFeature from "#layers/core/server/feature";
 import { defineSharedResource } from "#layers/core/server/lib/authz/resources";
+import { withResourceTransaction } from "#layers/core/server/lib/database";
 import { migrateToLatest } from "#layers/core/server/lib/database/migrator";
 import { FALLBACK_ROLE } from "#layers/core/server/lib/database/rls";
 import { applySecurity, composeSecurity, hasAccess, protectTable } from "#layers/core/server/lib/database/security";
 import { CorePermissions, CoreRolePermissions, Roles } from "#layers/core/shared/rbac";
-import { asUser, closeDb, createTestDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
+import { asUser, authUser, closeDb, createTestDb, insertUsers, isSuperuser } from "#layers/core/tests/unit/helpers/db";
 
 let db: Kysely<Database>;
 
@@ -42,6 +43,21 @@ afterAll(async () => {
 });
 
 describe("row-level security", () => {
+  it("applies the requested isolation only to the current resource transaction", async () => {
+    const readIsolationLevel = (trx: Kysely<Database>): Promise<{ level: string }> => {
+      return trx
+        .selectNoFrom(sql<string>`current_setting('transaction_isolation')`.as("level"))
+        .executeTakeFirstOrThrow();
+    };
+    const user = authUser({ id: alice });
+    const defaultLevel = await readIsolationLevel(db);
+    const snapshot = await withResourceTransaction(user, "user", "read", readIsolationLevel, {
+      isolationLevel: "repeatable read",
+    });
+    expect(snapshot.level).toBe("repeatable read");
+    expect(await asUser(user, readIsolationLevel)).toEqual(defaultLevel);
+  });
+
   it("runs as a role without superuser rights", async () => {
     expect(await isSuperuser(db)).toBe(true);
     const role = await asUser({ id: alice, permissions: [CorePermissions.UserReadOwn] }, async (trx) => {

@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import type { Dialect, Transaction } from "kysely";
-import { CamelCasePlugin, Kysely, PGliteDialect, PostgresDialect, sql } from "kysely";
+import type { Dialect, Driver, IsolationLevel, PGliteDialectConfig, Transaction, TransactionSettings } from "kysely";
+import { CamelCasePlugin, CompiledQuery, Kysely, PGliteDialect, PGliteDriver, PostgresDialect, sql } from "kysely";
 import { useRuntimeConfig } from "nitropack/runtime/config";
 import pg from "pg";
 
@@ -27,6 +27,32 @@ let connIsSuperuser = false;
 pg.types.setTypeParser(pg.types.builtins.JSONB, (value: string) => JSON.parse(value) as unknown);
 
 export const HANDOVER_MESSAGE = "core:database-handover";
+
+class PGliteTransactionDriver extends PGliteDriver {
+  public override async beginTransaction(
+    connection: Parameters<PGliteDriver["beginTransaction"]>[0],
+    settings: TransactionSettings = {},
+  ): Promise<void> {
+    await super.beginTransaction(connection);
+    const modes = [settings.isolationLevel && `ISOLATION LEVEL ${settings.isolationLevel}`, settings.accessMode];
+    if (modes.some(Boolean)) {
+      await connection.executeQuery(CompiledQuery.raw(`SET TRANSACTION ${modes.filter(Boolean).join(", ")}`));
+    }
+  }
+}
+
+class PGliteTransactionDialect extends PGliteDialect {
+  readonly #options: PGliteDialectConfig;
+
+  public constructor(options: PGliteDialectConfig) {
+    super(options);
+    this.#options = options;
+  }
+
+  public override createDriver(): Driver {
+    return new PGliteTransactionDriver(this.#options);
+  }
+}
 
 const waitForHandover = (): Promise<void> => {
   return new Promise((resolve) => {
@@ -63,7 +89,7 @@ export const useDb = async (): Promise<Kysely<Database>> => {
         dataDir = "memory://";
       }
 
-      dialect = new PGliteDialect({ pglite: new PGlite(dataDir) });
+      dialect = new PGliteTransactionDialect({ pglite: new PGlite(dataDir) });
     } else {
       const pool = new pg.Pool({
         connectionString: databaseUrl.toString(),
@@ -163,6 +189,7 @@ export const setupDbHandover = (ready: Promise<void>): void => {
 export interface UserTransactionOptions {
   // Sets the GUC that RLS policies check to allow server-authored rows
   trustedWrites?: boolean;
+  isolationLevel?: Exclude<IsolationLevel, "snapshot">;
   resourceScope?: `${string}:${ResourceSelectAction}`;
 }
 
@@ -172,7 +199,12 @@ export const withUserTransaction = async <T>(
   options: UserTransactionOptions = {},
 ): Promise<T> => {
   const database = await useDb();
-  return database.transaction().execute(async (trx) => {
+  let transaction = database.transaction();
+  if (options.isolationLevel) {
+    transaction = transaction.setIsolationLevel(options.isolationLevel);
+  }
+
+  return transaction.execute(async (trx) => {
     await sql`
       SELECT
         ${connIsSuperuser ? sql`set_config('role', ${FALLBACK_ROLE}, true),` : sql``}
@@ -193,4 +225,10 @@ export const withResourceTransaction = <T>(
   resource: string,
   action: ResourceSelectAction,
   callback: (trx: Transaction<Database>) => Promise<T>,
-): Promise<T> => withUserTransaction(user, callback, { resourceScope: `${resource}:${action}` });
+  options: Pick<UserTransactionOptions, "isolationLevel"> = {},
+): Promise<T> => {
+  return withUserTransaction(user, callback, {
+    isolationLevel: options.isolationLevel,
+    resourceScope: `${resource}:${action}`,
+  });
+};

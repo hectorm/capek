@@ -36,6 +36,22 @@ afterEach(async () => {
 });
 
 describe("database", () => {
+  it("starts PGlite transactions with the isolation level and the access mode that Kysely sets", async () => {
+    const db = await useDb();
+    const settings = await db
+      .transaction()
+      .setIsolationLevel("repeatable read")
+      .setAccessMode("read only")
+      .execute(async (trx) => {
+        const { rows } = await sql<{ isolation: string; readOnly: string }>`
+          SELECT current_setting('transaction_isolation') AS isolation,
+            current_setting('transaction_read_only') AS "readOnly"
+        `.execute(trx);
+        return rows[0];
+      });
+    expect(settings).toEqual({ isolation: "repeatable read", readOnly: "on" });
+  });
+
   it("traces the statement without its bound values", async () => {
     const trace = vi.spyOn(useLogger(), "trace");
     const db = await useDb();
