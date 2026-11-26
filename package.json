@@ -99,7 +99,7 @@
     "@electric-sql/pglite-socket": "~0.2.18",
     "@eslint/js": "~10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "~4.7.1",
-    "@nuxt/devtools": "~3.4.4",
+    "@nuxt/devtools": "~4.2.0",
     "@nuxt/eslint": "~1.17.0",
     "@playwright/test": "~1.65.0",
     "@types/jmespath": "~0.15.2",
