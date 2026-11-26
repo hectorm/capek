@@ -23,6 +23,7 @@ export const useChatSessionDelete = (): ChatSessionDelete => {
       deletePermissions: chatSessionDeletePermissions,
       // A chat belongs to one user and has no access list
       isOwner: true,
+      requireName: false,
       remove: () => chatStore.deleteSession(id),
     });
     const { deleted } = (await confirmation.result) as { deleted: boolean };
