@@ -31,9 +31,12 @@ Capek is a self-hosted conversational AI platform.
   <figcaption><em>Running with gpt-6.1-terra and the ClickHouse Playground.</em></figcaption>
 </figure>
 
-## Tech stack
+## Architecture
 
-| Layer     | Technology                                  |
+The application is composed of [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers), each one providing a
+feature. See [`features/`](./features/README.md) for how they work and the documentation of each one.
+
+| Area      | Technology                                  |
 | --------- | ------------------------------------------- |
 | Framework | Nuxt                                        |
 | Frontend  | Nuxt UI, Tailwind CSS, Pinia                |
@@ -41,16 +44,11 @@ Capek is a self-hosted conversational AI platform.
 | Database  | PostgreSQL, Kysely (PGlite for development) |
 | Testing   | Vitest, Playwright                          |
 
-## Architecture
-
-The application is composed of [Nuxt layers](https://nuxt.com/docs/guide/going-further/layers), each one providing a
-feature. See [`features/`](./features/README.md) for how they work and the documentation of each one.
-
 ## Development
 
 ### Setup
 
-Use Node.js 26 or later and the pnpm version declared in `package.json`.
+Use the Node.js and pnpm versions declared in [`package.json`](./package.json).
 
 ```sh
 pnpm install
@@ -58,34 +56,6 @@ pnpm dev
 ```
 
 The application runs in single-user mode at `http://localhost:3000` and automatically logs in as the admin user.
-
-### Configuration
-
-Copy `.env.example` to `.env` and adjust it as needed. These are the main variables.
-
-| Variable                       | Description                                                           | Default                 |
-| ------------------------------ | --------------------------------------------------------------------- | ----------------------- |
-| `NUXT_DATABASE_URL`            | PostgreSQL connection string or PGlite file path                      | `file://./.data/pglite` |
-| `NUXT_AUTH_MODE`               | Authentication mode (`single-user`, `oidc` or `proxy`)                | `single-user`           |
-| `NUXT_ENCRYPTION_KEY`          | Encryption key, 32 bytes in base64                                    |                         |
-| `NUXT_ENCRYPTION_PREVIOUS_KEY` | Previous encryption key, used while rotating it                       |                         |
-| `NUXT_SEED_CONFIG`             | Data to create at startup, as a file path or inline YAML or JSON      |                         |
-| `NUXT_ALLOWED_PRIVATE_HOSTS`   | Private hosts that outbound connections can reach (`NO_PROXY` syntax) |                         |
-| `NUXT_LOG_LEVEL`               | Log level (`fatal`, `error`, `warn`, `info`, `debug` or `trace`)      | `info`                  |
-
-The [README of each feature](./features/README.md) describes its own configuration, and `.env.example` has examples.
-
-### Checks
-
-```sh
-pnpm run lint
-pnpm test:unit
-pnpm test:chromium
-```
-
-`pnpm run format` applies the fixes that lint can make.
-
-## Deployment
 
 ### Production build
 
@@ -99,15 +69,6 @@ node .output/server/index.mjs
 
 Use `pnpm start` to preview the build locally.
 
-### Docker
-
-This example runs a disposable container with PGlite.
-
-```sh
-docker build -t localhost/capek:latest ./
-docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="$(openssl rand -base64 32)" localhost/capek:latest
-```
-
 ### Selecting features
 
 Builds include all features by default, except the [optional ones](./features/README.md#layers). The `FEATURES`
@@ -119,9 +80,18 @@ FEATURES=core pnpm build
 docker build --build-arg FEATURES=core -t localhost/capek:core ./
 ```
 
+### Docker
+
+This example runs a disposable container with PGlite.
+
+```sh
+docker build -t localhost/capek:latest ./
+docker run -it --rm -p 127.0.0.1:3000:3000/tcp -e NUXT_ENCRYPTION_KEY="$(openssl rand -base64 32)" localhost/capek:latest
+```
+
 ### Docker Compose
 
-The project includes example Compose configurations for reference.
+These Compose files are for local development only. They contain hardcoded test credentials.
 
 | File                     | Contents                                                    |
 | ------------------------ | ----------------------------------------------------------- |
@@ -138,6 +108,32 @@ docker compose -f ./compose.keycloak.yaml up -d
 ```
 
 The application is accessible at `https://capek.localhost`.
+
+### Checks
+
+```sh
+pnpm run lint
+pnpm test:unit
+pnpm test:chromium
+```
+
+`pnpm run format` applies the fixes that lint can make.
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust it as needed. These are the main variables.
+
+| Variable                       | Description                                                           | Default                 |
+| ------------------------------ | --------------------------------------------------------------------- | ----------------------- |
+| `NUXT_DATABASE_URL`            | PostgreSQL connection string or PGlite file path                      | `file://./.data/pglite` |
+| `NUXT_AUTH_MODE`               | Authentication mode (`single-user`, `oidc` or `proxy`)                | `single-user`           |
+| `NUXT_ENCRYPTION_KEY`          | Encryption key, 32 bytes in base64                                    |                         |
+| `NUXT_ENCRYPTION_PREVIOUS_KEY` | Previous encryption key, used while rotating it                       |                         |
+| `NUXT_SEED_CONFIG`             | Data to create at startup, as a file path or inline YAML or JSON      |                         |
+| `NUXT_ALLOWED_PRIVATE_HOSTS`   | Private hosts that outbound connections can reach (`NO_PROXY` syntax) |                         |
+| `NUXT_LOG_LEVEL`               | Log level (`fatal`, `error`, `warn`, `info`, `debug` or `trace`)      | `info`                  |
+
+The [README of each feature](./features/README.md) describes its own configuration, and `.env.example` has examples.
 
 ## License
 

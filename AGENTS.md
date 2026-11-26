@@ -18,6 +18,19 @@ This file tells coding agents how to write code for this repository. Its rules a
 6. Commit only when asked, with one line in the form `type(scope): subject`. The scope is the feature name and is left
    out when the change spans features.
 
+## Reviewing a feature
+
+Before finishing a code change, read the affected implementation beside its closest peers. Compare names, declaration
+order, how functions build their results and the spacing between logical blocks. Trace shared values and decisions to
+their callers to see where they belong and whether the work is already done elsewhere. When you find a problem or the
+user points one out, search the scope of the task for the same pattern and fix the other occurrences. Keep differences
+that serve a concrete behavior.
+
+For a whole-feature review, start with `rg --files features/<feature>`. Group the files by responsibility and mark each
+file as you read it, including unchanged files. Follow each user flow from its entry point through the implementation to
+its tests. After the fixes, check the resulting diff against the peers and run the checks in Ground rules. Summarize
+coverage by group and name any files or flows you could not verify.
+
 ## References
 
 Core is part of every build, so its files are the references. When another feature has a file of the same kind that is
