@@ -12,7 +12,7 @@ import { useDb } from "#layers/core/server/lib/database";
 import { getServerFeatures } from "#layers/core/server/lib/features";
 import { assertFeaturePrefix } from "#layers/core/server/lib/features/define";
 import { useLogger } from "#layers/core/server/lib/logger";
-import { createSeedContext } from "#layers/core/server/lib/seed";
+import { runSeeds } from "#layers/core/server/lib/seed";
 import { Roles } from "#layers/core/shared/rbac";
 
 const config = useRuntimeConfig();
@@ -170,16 +170,12 @@ export default defineTask({
           return (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
         };
 
-        await db.transaction().execute(async (trx) => {
-          const deferred: (() => Promise<void>)[] = [];
-          const ctx = createSeedContext(trx, logger, features, (fn) => deferred.push(fn));
-          for (const { name, seed } of features) {
-            await seed?.run(sectionOf(name), ctx);
-          }
-          for (const fn of deferred) {
-            await fn();
-          }
-        });
+        await runSeeds(
+          db,
+          logger,
+          features,
+          features.flatMap(({ name, seed }) => (seed ? [{ seed, config: sectionOf(name) }] : [])),
+        );
 
         logger.info("Resource seeding completed successfully");
       }

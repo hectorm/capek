@@ -112,6 +112,11 @@ Features register their migrations and security in `server/feature.ts`. Migratio
 tracked in a `kysely_migration_<name>` table for each feature. Qualify table names with `public` in migrations, policies
 and database functions. Application queries use unqualified table names.
 
+Core calls the `run(config, context, prepared)` seed handler of each feature in feature order and in one transaction. An
+optional `prepare(config, context)` does the work that has to happen outside that transaction, for example to read
+files, and returns the `prepared` value. Seed code uses the database of its context and must be idempotent.
+`context.deferCleanup(fn)` runs a function after the transaction ends.
+
 Application tables require forced row-level security. Follow the [Core RLS guide](./core/README.md#row-level-security)
 for defining policies and choosing transaction scopes.
 
