@@ -1,8 +1,8 @@
 import type { Migration } from "kysely/migration";
 
-import type { BodyLimits } from "#layers/core/server/lib/body-limit";
 import type { CspContribution } from "#layers/core/server/lib/csp";
 import type { SecurityDefinition } from "#layers/core/server/lib/database/security";
+import type { BodyLimits } from "#layers/core/server/lib/request-body";
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { SettingDefinition } from "#layers/core/server/lib/settings/define";
 import type { User } from "#layers/core/shared/schema";

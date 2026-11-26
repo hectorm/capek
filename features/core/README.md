@@ -124,3 +124,9 @@ RLS denies access from user transactions.
   `withResourceTransaction()` for resource reads and lists so RLS also receives the resource type and action.
   `sharedResourcePolicies()` generates policies for that scope. Add `scopedSelectPolicy()` alongside the custom `SELECT`
   policy of a resource table to enforce the same distinction between read and list permissions.
+
+### Request bodies
+
+Core rejects request bodies without a declared length and limits each body to 2 MiB. A feature sets a different limit
+for a route in `bodyLimits` of `server/feature.ts`. A body must arrive within five minutes, except in a route that reads
+it through `readUploadBody(event)`, where it times out after five minutes without data.

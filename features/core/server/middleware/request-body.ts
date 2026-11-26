@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getHeader } from "h3";
 
-import { collectBodyLimits, resolveBodyLimit } from "#layers/core/server/lib/body-limit";
 import { getServerFeatures } from "#layers/core/server/lib/features";
+import { collectBodyLimits, resolveBodyLimit, startBodyDeadline } from "#layers/core/server/lib/request-body";
 
 const limits = collectBodyLimits(getServerFeatures());
 
@@ -13,10 +13,15 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  if (Number(getHeader(event, "Content-Length")) > (await resolveBodyLimit(limits, event))) {
+  const length = Number(getHeader(event, "Content-Length"));
+  if (length > (await resolveBodyLimit(limits, event))) {
     throw createError({
       statusCode: 413,
       message: "Request body is too large",
     });
+  }
+
+  if (length > 0) {
+    startBodyDeadline(event);
   }
 });
