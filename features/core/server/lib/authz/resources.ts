@@ -5,6 +5,8 @@ import type { Principal, PrincipalAccess, PrincipalRole } from "#layers/core/sha
 import type { Database } from "#layers/core/shared/schema";
 import { RLSViolationError } from "#layers/core/server/lib/database/errors";
 
+export const RESOURCE_ACCESS_LIMIT = 1000;
+
 // Resource shared with users and groups through an access table, as "editor" (manage) or "user" (read and use)
 export interface SharedResource {
   // Prefix of the permissions (e.g. `<type>:read:own`) and first argument of `security.has_access()`

@@ -6,13 +6,18 @@ import { z } from "zod/v4";
 import type { SharedResource } from "#layers/core/server/lib/authz/resources";
 import type { PermissionName, Principal, PrincipalAccess } from "#layers/core/shared/rbac";
 import type { Database } from "#layers/core/shared/schema";
-import { listResourceAccess, listResources, syncResourceAccess } from "#layers/core/server/lib/authz/resources";
+import {
+  listResourceAccess,
+  listResources,
+  RESOURCE_ACCESS_LIMIT,
+  syncResourceAccess,
+} from "#layers/core/server/lib/authz/resources";
 import { withResourceTransaction } from "#layers/core/server/lib/database";
 import { isForeignKeyViolation, isRLSViolation, isUniqueViolation } from "#layers/core/server/lib/database/errors";
 import { authorizedProcedure } from "#layers/core/server/trpc/init";
 import { PrincipalAccessSchema } from "#layers/core/shared/rbac";
 
-export const ResourceAccessSchema = z.array(PrincipalAccessSchema).max(1000);
+export const ResourceAccessSchema = z.array(PrincipalAccessSchema).max(RESOURCE_ACCESS_LIMIT);
 
 export const syncSharedResourceAccess = async (
   trx: Kysely<Database>,
