@@ -2,14 +2,11 @@
 import { breakpointsTailwind, createReusableTemplate, useBreakpoints, useEventListener } from "@vueuse/core";
 import { useCookie, useNuxtApp } from "nuxt/app";
 import { computed, onScopeDispose, provide, readonly, ref, useTemplateRef, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 
 import { NuxtLink } from "#components";
 
-import type { NavigationMenuItem } from "@nuxt/ui";
 import UButton from "@nuxt/ui/components/Button.vue";
-import UNavigationMenu from "@nuxt/ui/components/NavigationMenu.vue";
 import USlideover from "@nuxt/ui/components/Slideover.vue";
 
 import { useAppFeatures } from "#layers/core/app/composables/features";
@@ -20,10 +17,9 @@ import AppLogo from "#layers/core/app/components/ui/AppLogo.vue";
 import UserMenu from "#layers/core/app/components/ui/UserMenu.vue";
 
 const nuxtApp = useNuxtApp();
-const i18n = useI18n();
 const route = useRoute();
 
-const { layoutSetups, navigation, sidebarSections } = useAppFeatures();
+const { layoutSetups, sidebarSections } = useAppFeatures();
 
 const [DefineMenu, ReuseMenu] = createReusableTemplate();
 
@@ -43,16 +39,6 @@ const open = computed({
 });
 
 const collapsed = computed(() => lgAndLarger.value && !open.value);
-
-const navigationItems = computed<NavigationMenuItem[]>(() => {
-  return navigation.value.map((item) => ({
-    label: i18n.t(item.label),
-    icon: item.icon,
-    to: item.to,
-    exact: item.exact,
-    active: item.match?.(route.path),
-  }));
-});
 
 const toggle = (): void => {
   open.value = !open.value;
@@ -130,15 +116,6 @@ onScopeDispose(
         <NuxtLink to="/" :aria-label="$t('layouts.default.sidebar.homeLink')">
           <AppLogo class="h-8" :collapsed="collapsed" />
         </NuxtLink>
-      </div>
-      <div v-if="navigationItems.length > 0" class="border-b border-default px-3 py-2">
-        <UNavigationMenu
-          tooltip
-          :collapsed="collapsed"
-          orientation="vertical"
-          :items="navigationItems"
-          :ui="{ link: collapsed ? 'justify-center' : undefined }"
-        />
       </div>
       <div class="flex min-h-0 flex-1 flex-col">
         <component :is="section.component" v-for="(section, i) in sidebarSections" :key="i" :collapsed="collapsed" />

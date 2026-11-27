@@ -3,6 +3,7 @@ import { CorePermissions } from "#layers/core/shared/rbac";
 
 export default defineAppFeature({
   name: "core",
+  sidebar: [{ component: () => import("#layers/core/app/components/ui/PageNavigation.vue"), order: -1 }],
   userMenu: [
     {
       label: "components.userMenu.studio.label",

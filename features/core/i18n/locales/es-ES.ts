@@ -269,6 +269,7 @@ export default (): ReturnType<typeof enUS> => ({
     },
   },
   components: {
+    pageNavigation: { label: "Páginas" },
     accessFields: {
       editors: {
         label: "Editores",

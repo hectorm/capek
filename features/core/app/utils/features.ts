@@ -35,9 +35,9 @@ export interface AppFeature {
   setup?: () => void;
   // The root route redirects to the accessible home page with the lowest order
   home?: { to: string; permissions?: PermissionName[]; order?: number };
-  // Navigation appears at the top of the sidebar
+  // Page links appear together in the sidebar
   navigation?: AppMenuItem[];
-  // Feature sections appear below the main navigation
+  // Sections with an order below -1 appear before the page links
   sidebar?: AppSidebarSection[];
   userMenu?: AppMenuItem[];
   settingsTabs?: AppMenuItem[];

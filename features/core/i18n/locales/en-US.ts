@@ -267,6 +267,7 @@ export default () => ({
     },
   },
   components: {
+    pageNavigation: { label: "Pages" },
     accessFields: {
       editors: {
         label: "Editors",
