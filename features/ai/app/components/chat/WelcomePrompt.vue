@@ -15,6 +15,8 @@ import { useSettingsStore } from "#layers/core/app/stores/settings";
 
 import AgentSelect from "#layers/ai/app/components/ui/AgentSelect.vue";
 
+const props = withDefaults(defineProps<{ viewTransition?: boolean }>(), { viewTransition: true });
+
 const i18n = useI18n();
 const toast = useToast();
 
@@ -67,8 +69,8 @@ const onCreateChat = async (prompt: string): Promise<void> => {
       autocomplete="off"
       :ui="{ footer: 'empty:hidden' }"
       :disabled="!agentStore.hasAgents"
-      class="[view-transition-name:chat-prompt]"
       :placeholder="$t('ai.pages.welcome.prompt.enterMessage')"
+      :class="{ '[view-transition-name:chat-prompt]': props.viewTransition }"
       @submit.prevent="onCreateChat(input)"
     >
       <UChatPromptSubmit
