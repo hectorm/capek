@@ -39,6 +39,8 @@ export interface SeedPreparationContext extends Pick<SeedContext, "db" | "logger
 export interface SeedDefinition<S extends z.ZodRawShape = z.ZodRawShape, P = unknown> {
   // Schema for this feature's seed configuration
   schema: S;
+  // Use the schema defaults when the deployment supplies no seed configuration
+  runWhenUnconfigured?: boolean;
   // Prepares the work that has to happen outside the seed transaction and returns it to run
   // eslint-disable-next-line @typescript-eslint/method-signature-style
   prepare?(config: z.output<z.ZodObject<S>>, ctx: SeedPreparationContext): Promise<P>;

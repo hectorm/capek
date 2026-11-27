@@ -117,6 +117,8 @@ optional `prepare(config, context)` does the work that has to happen outside tha
 files, and returns the `prepared` value. Seed code uses the database of its context and must be idempotent.
 `context.deferCleanup(fn)` runs a function after the transaction ends.
 
+Seeds that provide defaults can set `runWhenUnconfigured: true` to run on an installation without a seed document.
+
 Application tables require forced row-level security. Follow the [Core RLS guide](./core/README.md#row-level-security)
 for defining policies and choosing transaction scopes.
 

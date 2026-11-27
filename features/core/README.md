@@ -75,6 +75,8 @@ startup. Core reads the `users` and `groups` at the top level and every other fe
 The seed only creates what is missing, so it leaves the existing rows as they are. Values can take environment variables
 as `${VAR}` or `${VAR:-default}`.
 
+When this variable is unset or empty, Core runs only the resource seeds that opt into using their schema defaults.
+
 ```yaml
 users:
   - username: "alice"

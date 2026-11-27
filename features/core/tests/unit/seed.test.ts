@@ -1,14 +1,22 @@
 import { setTimeout } from "node:timers/promises";
 
 import type { Kysely } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Task } from "nitropack/types";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 
 import type { SeedDefinition } from "#layers/core/server/lib/seed";
 import type { Database } from "#layers/core/shared/schema";
 import coreFeature from "#layers/core/server/feature";
+import { getServerFeatures } from "#layers/core/server/lib/features";
 import { defineSeed } from "#layers/core/server/lib/seed";
 import { coreSeed } from "#layers/core/server/seed";
+import seedTask from "#layers/core/server/tasks/database/seed";
 import { closeDb, createTestDb, runSeed } from "#layers/core/tests/unit/helpers/db";
+import { runtimeConfig } from "#layers/core/tests/unit/helpers/nitro-config";
+
+vi.mock("nitropack/runtime/task", () => ({ defineTask: (task: Task): Task => task }));
+vi.mock("#layers/core/server/lib/features", () => ({ getServerFeatures: vi.fn() }));
 
 let db: Kysely<Database>;
 
@@ -25,6 +33,50 @@ afterAll(async () => {
 });
 
 describe("core seed", () => {
+  it("runs only opted-in seeds with their schema defaults when no configuration is supplied", async () => {
+    const calls: string[] = [];
+    const catalog = defineSeed({
+      schema: { name: z.string().default("Default catalog") },
+      runWhenUnconfigured: true,
+      run({ name }) {
+        calls.push(name);
+        return Promise.resolve();
+      },
+    });
+    const imports = defineSeed({
+      schema: { name: z.string() },
+      run({ name }) {
+        calls.push(name);
+        return Promise.resolve();
+      },
+    });
+    vi.mocked(getServerFeatures).mockReturnValue([
+      { name: "catalog", seed: catalog },
+      { name: "imports", seed: imports },
+    ]);
+
+    const previous = runtimeConfig.seed;
+    const runTask = (config: unknown): ReturnType<typeof seedTask.run> => {
+      runtimeConfig.seed = { config };
+      return seedTask.run({ name: "database:seed", payload: {}, context: {} });
+    };
+    try {
+      expect(await runTask("")).toEqual({ result: true });
+      expect(calls).toEqual(["Default catalog"]);
+
+      expect(await runTask({})).toMatchObject({ result: false });
+      expect(calls).toEqual(["Default catalog"]);
+
+      expect(await runTask({ catalog: { name: "Custom catalog" }, imports: { name: "Import" } })).toEqual({
+        result: true,
+      });
+      expect(calls).toEqual(["Default catalog", "Custom catalog", "Import"]);
+    } finally {
+      runtimeConfig.seed = previous;
+      vi.mocked(getServerFeatures).mockReset();
+    }
+  });
+
   it("releases prepared resources after a deferred failure rolls back the transaction", async () => {
     const steps: string[] = [];
     const seed = defineSeed({

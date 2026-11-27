@@ -142,6 +142,7 @@ export default defineTask({
         }
       }
 
+      let seedConfig: Record<string, unknown> | undefined;
       if (config.seed.config) {
         let seedConfigRaw: unknown;
         if (typeof config.seed.config === "string") {
@@ -151,7 +152,6 @@ export default defineTask({
         } else {
           seedConfigRaw = config.seed.config;
         }
-        let seedConfig: Record<string, unknown>;
         try {
           seedConfig = z.object(seedShape).parse(seedConfigRaw);
         } catch (error) {
@@ -163,20 +163,22 @@ export default defineTask({
         if (ignoredKeys.length > 0) {
           logger.warn({ keys: ignoredKeys }, "Ignoring seed configuration sections not handled by any feature");
         }
+      }
 
-        logger.info("Starting resource seeding from configuration");
+      const seeds = features.flatMap(({ name, seed }) => {
+        if (!seed) {
+          return [];
+        }
+        if (seedConfig === undefined) {
+          return seed.runWhenUnconfigured ? [{ seed, config: z.object(seed.schema).parse({}) }] : [];
+        }
 
-        const sectionOf = (name: string): Record<string, unknown> => {
-          return (name === "core" ? seedConfig : seedConfig[name]) as Record<string, unknown>;
-        };
-
-        await runSeeds(
-          db,
-          logger,
-          features,
-          features.flatMap(({ name, seed }) => (seed ? [{ seed, config: sectionOf(name) }] : [])),
-        );
-
+        const section = name === "core" ? seedConfig : seedConfig[name];
+        return [{ seed, config: section as Record<string, unknown> }];
+      });
+      if (seeds.length > 0) {
+        logger.info("Starting resource seeding");
+        await runSeeds(db, logger, features, seeds);
         logger.info("Resource seeding completed successfully");
       }
 
